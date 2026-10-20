@@ -333,6 +333,25 @@ def draw_card(text: str, style: Style) -> Image.Image:
     return img
 
 
+def draw_break_card(scene: Scene, style: Style, title: str) -> Image.Image:
+    """Interval card: current score under a title such as HALF TIME."""
+    s = style.s
+    img = Image.new("RGB", (style.width, style.height), style.hud)
+    d = ImageDraw.Draw(img)
+    home, away = scene.teams[scene.match["home_team_id"]], scene.teams[scene.match["away_team_id"]]
+    score = scene.score_at(scene.match["periods"][0]["t_end"] + 0.5) if scene.match["periods"] else scene.score_at(0)
+    f_name = font(int(36 * s), bold=True)
+    f_score = font(int(52 * s), bold=True)
+    d.text((style.width / 2, style.height * 0.34), title, font=font(int(28 * s), bold=True), fill=COLOUR_ACCENT, anchor="mm")
+    y = style.height * 0.5
+    score_txt = f"{score.get(home['team_id'], 0)}  -  {score.get(away['team_id'], 0)}"
+    gap = d.textlength(score_txt, font=f_score) / 2 + 36 * s
+    d.text((style.width / 2, y), score_txt, font=f_score, fill=COLOUR_ACCENT, anchor="mm")
+    d.text((style.width / 2 - gap, y), home["name"], font=f_name, fill=COLOUR_TEXT, anchor="rm")
+    d.text((style.width / 2 + gap, y), away["name"], font=f_name, fill=COLOUR_TEXT, anchor="lm")
+    return img
+
+
 def draw_end_card(scene: Scene, style: Style) -> Image.Image:
     """Closing card: final score and the Regista mark."""
     s = style.s
@@ -508,6 +527,8 @@ def render_frame(scene: Scene, t: float, style: Style | None = None, title: dict
         img = draw_closeup(scene, info["players"], style, t)
     elif kind == "crowd":
         img = draw_crowd(scene, info["segment_id"], style, t)
+    elif kind == "graphic" and scene.clock_at(t) == "HT":
+        img = draw_break_card(scene, style, "HALF TIME")
     else:
         img = draw_card(kind.upper(), style)
     img = draw_hud(img, scene, t, style, info)

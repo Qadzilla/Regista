@@ -157,13 +157,21 @@ class SynthResult:
 
 
 class MatchSim:
-    def __init__(self, seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo"):
+    def __init__(self, seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo",
+                 periods: int = 1, teams: list[dict[str, Any]] | None = None):
         if profile not in PROFILES:
             raise ValueError(f"unknown profile {profile!r}; choose from {', '.join(PROFILES)}")
+        if periods not in (1, 2):
+            raise ValueError("periods must be 1 or 2")
         self.profile = profile
         self.tune = PROFILES[profile]
+        self.periods = periods
+        self.team_specs = _team_specs(teams)
+        self.period = 1
+        self.period_start_t = 0.0
+        self.period_table: list[dict[str, Any]] = []
         self.seed = seed
-        self.minutes = minutes
+        self.minutes = minutes  # per period
         self.track_hz = track_hz
         self.fps = fps
         self.rng = random.Random(seed)
@@ -199,7 +207,7 @@ class MatchSim:
     def _build_teams(self) -> tuple[Team, Team]:
         used: set[str] = set()
         teams: list[Team] = []
-        for spec in TEAM_SPECS:
+        for spec in self.team_specs:
             team = Team(**spec)
             for position, number, ax, ay in FORMATION_433:
                 team.players.append(Player(f"{team.team_id}_{number:02d}", team, self._name(used), number, position, (ax, ay)))
@@ -231,7 +239,8 @@ class MatchSim:
         return round(self.rng.uniform(lo, hi), 3)
 
     def _clock(self, t: float) -> dict[str, int]:
-        return {"period": 1, "minute": int(t // 60), "second": int(t % 60)}
+        elapsed = max(0.0, t - self.period_start_t)
+        return {"period": self.period, "minute": 45 * (self.period - 1) + int(elapsed // 60), "second": int(elapsed % 60)}
 
     def other(self, team: Team) -> Team:
         return self.away if team is self.home else self.home
@@ -474,23 +483,20 @@ class MatchSim:
 
     # ------------------------------------------------------------------ play
     def run(self) -> SynthResult:
-        end_t = self.minutes * 60.0
-        self._event("period_start", None, pitch=(PITCH_L / 2, PITCH_W / 2))
-        kicker = next(p for p in self.home.starters if p.kit_number == 9)
-        kicker.x, kicker.y = PITCH_L / 2, PITCH_W / 2
-        self._event("kick_off", kicker, pitch=kicker.pos)
-        self._start_possession(kicker, "kickoff")
-        while self.t < end_t:
-            self._play_possession()
-        self._end_possession("period_end")
-        self._event("period_end", None, pitch=(self.ball[0], self.ball[1]))
-        period_end_t = self.t
+        self._play_period(1, kicking_off=self.home)
+        if self.periods == 2:
+            # Half time: a graphics card, then the teams swap ends and the away side kicks off.
+            self.advance(1.0, mode="dead")
+            self._cut("graphic", 6.0, in_frame=[])
+            for team in (self.home, self.away):
+                team.attack_sign *= -1
+            self._play_period(2, kicking_off=self.away)
         self.advance(1.0, mode="dead")
         self._highlight_package()
         self._close_main()
 
         duration = round(self.segments[-1].t_end, 2)
-        match = self._match_record(duration, period_end_t)
+        match = self._match_record(duration)
         appearances = self._appearances()
         annotations = self._annotations()
         order = {"camera_segment": 0, "possession": 1, "event": 2, "appearance": 3, "annotation": 4}
@@ -498,6 +504,25 @@ class MatchSim:
         rows.sort(key=lambda r: (r["t"], order[r["type"]], r["id"]))
         self.tracks.sort(key=lambda r: (r["t"], r["id"]))
         return SynthResult(match=match, events=rows, tracks=self.tracks, score=dict(self.score))
+
+    def _play_period(self, period: int, kicking_off: Team) -> None:
+        self.period = period
+        self.period_start_t = self.t
+        self.last_team = None
+        self.pending_replays.clear()
+        self._reset_positions()
+        end_t = self.t + self.minutes * 60.0
+        self._event("period_start", None, pitch=(PITCH_L / 2, PITCH_W / 2))
+        kicker = next(p for p in kicking_off.starters if p.kit_number == 9)
+        kicker.x, kicker.y = PITCH_L / 2, PITCH_W / 2
+        self._event("kick_off", kicker, pitch=kicker.pos)
+        self._start_possession(kicker, "kickoff")
+        while self.t < end_t:
+            self._play_possession()
+        self._end_possession("period_end")
+        self._event("period_end", None, pitch=(self.ball[0], self.ball[1]))
+        ltr = self.home if self.home.attack_sign > 0 else self.away
+        self.period_table.append({"period": period, "t": round(self.period_start_t, 2), "t_end": round(self.t, 2), "left_to_right_team_id": ltr.team_id})
 
     def _play_possession(self) -> None:
         p = self.holder
@@ -842,7 +867,7 @@ class MatchSim:
             rec["angle"] = s.angle
         return rec
 
-    def _match_record(self, duration: float, period_end_t: float) -> Record:
+    def _match_record(self, duration: float) -> Record:
         return {
             "type": "match", "id": f"ma_{self.match_id}", "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
             "source": "synthetic",
@@ -856,10 +881,11 @@ class MatchSim:
             ],
             "video": {"video_id": f"{self.match_id}_broadcast", "fps": self.fps, "width": 1920, "height": 1080,
                       "duration_s": duration, "main_camera": "broadcast_wide"},
-            "periods": [{"period": 1, "t": 0.0, "t_end": round(period_end_t, 2), "left_to_right_team_id": self.home.team_id}],
+            "periods": list(self.period_table),
             "score": dict(self.score),
             "generator": {"name": GENERATOR_NAME, "version": GENERATOR_VERSION, "seed": self.seed,
-                          "params": {"minutes": self.minutes, "track_hz": self.track_hz, "fps": self.fps, "profile": self.profile}},
+                          "params": {"minutes": self.minutes, "periods": self.periods, "track_hz": self.track_hz, "fps": self.fps,
+                                     "profile": self.profile, "teams": [t["name"] for t in self.team_specs]}},
         }
 
     def _appearances(self) -> list[Record]:
@@ -925,5 +951,37 @@ class MatchSim:
         return out
 
 
-def generate(seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo") -> SynthResult:
-    return MatchSim(seed=seed, minutes=minutes, track_hz=track_hz, fps=fps, profile=profile).run()
+def _team_specs(teams: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
+    """Two team specs (name, short_name, kit) merged over the defaults; team ids and attack signs are fixed."""
+    specs = [dict(s) for s in TEAM_SPECS]
+    if teams is None:
+        return specs
+    if len(teams) != 2:
+        raise ValueError("teams must have exactly two entries: home, away")
+    for base, given in zip(specs, teams):
+        for key in ("name", "short_name"):
+            if key in given:
+                base[key] = str(given[key])
+        if "kit" in given:
+            base["kit"] = {**base["kit"], **{k: str(v) for k, v in given["kit"].items()}}
+        if len(base["short_name"]) > 4:
+            raise ValueError(f"short_name {base['short_name']!r} must be at most 4 characters")
+    return specs
+
+
+def parse_team_arg(text: str) -> dict[str, Any]:
+    """'Name,SHORT,#primary[,#secondary[,#gk]]' as used by --home/--away."""
+    parts = [p.strip() for p in text.split(",")]
+    if len(parts) < 3:
+        raise ValueError("team spec needs at least Name,SHORT,#primary")
+    kit = {"primary": parts[2]}
+    if len(parts) > 3:
+        kit["secondary"] = parts[3]
+    if len(parts) > 4:
+        kit["gk"] = parts[4]
+    return {"name": parts[0], "short_name": parts[1], "kit": kit}
+
+
+def generate(seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo",
+             periods: int = 1, teams: list[dict[str, Any]] | None = None) -> SynthResult:
+    return MatchSim(seed=seed, minutes=minutes, track_hz=track_hz, fps=fps, profile=profile, periods=periods, teams=teams).run()

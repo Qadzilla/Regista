@@ -268,3 +268,50 @@ def test_report_markdown_names_every_band():
     for key in NORMS:
         assert key in md
     assert "in band" in md or "high" in md
+
+
+# ----------------------------------------------------------------------------- periods and teams
+
+def test_two_periods_swap_ends_and_continue_the_clock():
+    r = generate(seed=8, minutes=1.0, track_hz=1.0, periods=2)
+    periods = r.match["periods"]
+    assert [p["period"] for p in periods] == [1, 2]
+    assert periods[0]["left_to_right_team_id"] == "t_home" and periods[1]["left_to_right_team_id"] == "t_away"
+    assert periods[1]["t"] > periods[0]["t_end"], "there must be an interval between halves"
+    events = [e for e in r.events if e["type"] == "event"]
+    kickoffs = [e for e in events if e["event_type"] == "kick_off"]
+    assert kickoffs[0]["player_id"] == "t_home_09" and kickoffs[0]["clock"]["period"] == 1
+    second_half = next(e for e in kickoffs if e["clock"]["period"] == 2)
+    assert second_half["player_id"] == "t_away_09" and second_half["clock"]["minute"] == 45
+    assert all(e["clock"]["minute"] >= 45 for e in events if e["t"] >= periods[1]["t"])
+    assert sum(1 for e in events if e["event_type"] == "period_end") == 2
+    kinds = [s["kind"] for s in r.events if s["type"] == "camera_segment"]
+    assert "graphic" in kinds
+    # Highlights come once, after the second half.
+    first_highlight = next(s["t"] for s in r.events if s["type"] == "camera_segment" and s["kind"] == "highlight")
+    assert first_highlight >= periods[1]["t_end"]
+    v = events_validator()
+    assert all(v.is_valid(x) for x in r.stream)
+
+
+def test_custom_teams_are_applied_and_validated():
+    teams = [{"name": "Eastbury Rovers", "short_name": "EAS", "kit": {"primary": "#00A650"}},
+             {"name": "Westfield Town", "short_name": "WES", "kit": {"primary": "#6A0DAD", "gk": "#FFD700"}}]
+    r = generate(seed=8, minutes=0.5, teams=teams)
+    names = [t["name"] for t in r.match["teams"]]
+    assert names == ["Eastbury Rovers", "Westfield Town"]
+    assert r.match["teams"][0]["kit"]["primary"] == "#00A650" and r.match["teams"][0]["kit"]["gk"] == "#1DB954"
+    assert r.match["teams"][1]["kit"]["gk"] == "#FFD700"
+    assert events_validator().is_valid(r.match)
+    with pytest.raises(ValueError):
+        generate(seed=8, minutes=0.5, teams=[{"name": "Only One"}])
+    with pytest.raises(ValueError):
+        generate(seed=8, minutes=0.5, teams=[{"short_name": "TOOLONG"}, {}])
+
+
+def test_same_seed_same_match_regardless_of_team_names():
+    a = generate(seed=9, minutes=0.5)
+    b = generate(seed=9, minutes=0.5, teams=[{"name": "A FC", "short_name": "AFC"}, {"name": "B FC", "short_name": "BFC"}])
+    ea = [(e["t"], e["event_type"], e.get("player_id")) for e in a.events if e["type"] == "event"]
+    eb = [(e["t"], e["event_type"], e.get("player_id")) for e in b.events if e["type"] == "event"]
+    assert ea == eb

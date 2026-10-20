@@ -13,7 +13,7 @@ from pathlib import Path
 
 from regista.clips import derive_clips
 from regista.schema import write_jsonl
-from regista.synth.generator import GENERATOR_NAME, GENERATOR_VERSION, generate
+from regista.synth.generator import GENERATOR_NAME, GENERATOR_VERSION, generate, parse_team_arg
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -25,10 +25,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--player", default="t_home_09", help="player_id to derive clips for")
     parser.add_argument("--profile", choices=["demo", "realistic"], default="demo", help="demo packs action into a short sample; realistic matches Premier League rates")
     parser.add_argument("--report", action="store_true", help="also write report.md comparing the match with Premier League norms")
+    parser.add_argument("--periods", type=int, choices=[1, 2], default=1, help="1 or 2 halves; --minutes is per half")
+    parser.add_argument("--home", help="home team as 'Name,SHORT,#primary[,#secondary[,#gk]]'")
+    parser.add_argument("--away", help="away team as 'Name,SHORT,#primary[,#secondary[,#gk]]'")
     parser.add_argument("--out", type=Path, default=Path("data/synthetic/sample"), help="output root; a <match_id>/ folder is created inside")
     args = parser.parse_args(argv)
 
-    result = generate(seed=args.seed, minutes=args.minutes, track_hz=args.track_hz, fps=args.fps, profile=args.profile)
+    teams = None
+    if args.home or args.away:
+        teams = [parse_team_arg(args.home) if args.home else {}, parse_team_arg(args.away) if args.away else {}]
+    result = generate(seed=args.seed, minutes=args.minutes, track_hz=args.track_hz, fps=args.fps, profile=args.profile,
+                      periods=args.periods, teams=teams)
     clips, labels = derive_clips(result.stream, args.player)
 
     out_dir = args.out / result.match["match_id"]
@@ -41,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     manifest = {
         "match_id": result.match["match_id"],
         "generator": {"name": GENERATOR_NAME, "version": GENERATOR_VERSION, "seed": args.seed,
-                      "params": {"minutes": args.minutes, "track_hz": args.track_hz, "fps": args.fps}},
+                      "params": {"minutes": args.minutes, "periods": args.periods, "track_hz": args.track_hz, "fps": args.fps}},
         "score": result.score,
         "video_duration_s": result.match["video"]["duration_s"],
         "files": {"events.jsonl": n_events, "tracks.jsonl": n_tracks, "clips.jsonl": n_clips},
