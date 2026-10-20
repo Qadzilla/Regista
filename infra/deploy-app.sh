@@ -26,7 +26,14 @@ ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
 log() { printf '\n\033[1;33m== %s\033[0m\n' "$*"; }
 
 ENV_VARS=("REGISTA_CLOUD=1" "FOUNDRY_PROJECT_ENDPOINT=${FOUNDRY_PROJECT_ENDPOINT:-}" "FOUNDRY_MODEL=${FOUNDRY_MODEL:-}"
-          "REGISTA_COSMOS_ENDPOINT=${REGISTA_COSMOS_ENDPOINT:-}" "REGISTA_COSMOS_DATABASE=${REGISTA_COSMOS_DATABASE:-regista}")
+          "REGISTA_COSMOS_ENDPOINT=${REGISTA_COSMOS_ENDPOINT:-}" "REGISTA_COSMOS_DATABASE=${REGISTA_COSMOS_DATABASE:-regista}"
+          "REGISTA_SEARCH_ENDPOINT=${REGISTA_SEARCH_ENDPOINT:-}")
+SECRETS=()
+if [[ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]]; then
+  # The tracing connection string goes in as a Container Apps secret, referenced by the env var.
+  SECRETS=("appi-connection=$APPLICATIONINSIGHTS_CONNECTION_STRING")
+  ENV_VARS+=("APPLICATIONINSIGHTS_CONNECTION_STRING=secretref:appi-connection")
+fi
 
 log "Registry credentials for $ACR_NAME"
 ACR_USER=$(az acr credential show -n "$ACR_NAME" --query username -o tsv)
@@ -35,13 +42,14 @@ ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o
 if az containerapp show -n "$ACA_APP" -g "$RG" -o none 2>/dev/null; then
   log "Updating $ACA_APP to $IMAGE"
   az containerapp registry set -n "$ACA_APP" -g "$RG" --server "$ACR_LOGIN_SERVER" --username "$ACR_USER" --password "$ACR_PASS" -o none
+  [[ ${#SECRETS[@]} -gt 0 ]] && az containerapp secret set -n "$ACA_APP" -g "$RG" --secrets "${SECRETS[@]}" -o none
   az containerapp update -n "$ACA_APP" -g "$RG" --image "$IMAGE" --set-env-vars "${ENV_VARS[@]}" -o none
 else
   log "Creating $ACA_APP from $IMAGE"
   az containerapp create -n "$ACA_APP" -g "$RG" --environment "$ACA_ENV" --image "$IMAGE" \
     --registry-server "$ACR_LOGIN_SERVER" --registry-username "$ACR_USER" --registry-password "$ACR_PASS" \
     --ingress external --target-port 8000 --cpu 1.0 --memory 2.0Gi --min-replicas 1 --max-replicas 2 \
-    --env-vars "${ENV_VARS[@]}" -o none
+    ${SECRETS[@]:+--secrets "${SECRETS[@]}"} --env-vars "${ENV_VARS[@]}" -o none
 fi
 
 log "Managed identity and roles"

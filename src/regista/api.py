@@ -105,7 +105,9 @@ def _verdicts_for(match_id: str) -> dict[str, dict]:
 def _pipeline_agents():
     if os.environ.get("REGISTA_CLOUD"):
         from regista.cloud import agents_for
+        from regista.cloud.telemetry import configure_tracing
 
+        configure_tracing()
         return agents_for()
     return default_agents()
 

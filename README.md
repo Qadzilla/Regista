@@ -32,15 +32,19 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 
 | Technology | What it does in Regista |
 |---|---|
-| **Microsoft Foundry** (project `regista`, `gpt-5-mini` deployment) | The Label agent titles, tags, scores, and explains every clip; the Librarian agent answers questions. Sample output: `docs/evidence/foundry-labels-syn_0294.jsonl` |
-| **Microsoft Agent Framework** | Hosts both Foundry agents; the Librarian calls Regista's own MCP server as a tool |
-| **MCP** | `regista.mcp_server` exposes search_clips, derive_clips, validate_stream, render_clip, list_matches |
-| **Azure Cosmos DB** (serverless, `matches` / `clips` / `labels`, partition `/match_id`) | The Persist agent upserts every match, clip, and label |
-| **Azure Container Apps** | Serves the viewer and API; uploads run the cloud agent pipeline under the app's managed identity |
+| **Microsoft Agent Framework** | The whole pipeline is an Agent Framework workflow (`regista.agents.workflow`): ingest fans out to validator and possession, fans in at clip, then label, review, persist, indexer, librarian. Typed handoffs, shared state, retries, dead-letter routing, checkpointing, and a human-in-the-loop pause (`request_info`). Diagram: `docs/workflow.md` |
+| **Microsoft Foundry** (project `regista`, `gpt-5-mini` deployment) | The Label agent titles, tags, scores, and explains every clip; the Librarian agent answers questions and reports the tools it used. Sample output: `docs/evidence/foundry-labels-syn_0294.jsonl` |
+| **MCP, two servers** | Regista's own (`regista.mcp_server`: search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches) and Microsoft's **Azure MCP Server** (read-only Cosmos DB and Azure AI Search tools). The Foundry Librarian calls both |
+| **Azure AI Search** (free tier, index `regista-clips`) | The indexer role writes every labelled clip; `search_library` answers questions across every match |
+| **Azure Cosmos DB** (serverless, `matches` / `clips` / `labels` / `annotations`) | The Persist agent upserts every match, clip, and label; human verdicts and the learned model live in `annotations` |
+| **Application Insights + Foundry tracing** | Agent Framework's OpenTelemetry spans for every agent, model call, tool call, and workflow step, on the Foundry project's Tracing page |
+| **Azure Container Apps** | Serves the viewer and API; uploads run the cloud workflow under the app's managed identity |
 | **Azure Container Registry + GitHub Actions** | `build-image.yml` builds the image on every push to main |
-| **Microsoft Entra ID** | Keyless auth everywhere: Foundry User and Cosmos DB data-contributor roles for the developer and the app |
+| **Microsoft Entra ID** | Keyless auth everywhere: role assignments for the developer and the app; no keys in code or containers |
 
-**Planned, not wired:** Azure MCP Server, Microsoft Fabric (Eventstream, Lakehouse), Azure AI Search, Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator.
+**Learning from people.** When the Label agent is unsure (its rules prior and the model disagree, or a score sits on the keep/drop line) the workflow pauses and asks. Verdicts come from the viewer's Keep/Drop buttons, the `--review` terminal prompt, or the review API, and are stored as human annotations. A watchability model is retrained from them and becomes the Label agent's prior. This is learning from human feedback, not reinforcement learning.
+
+**Planned, not wired:** Microsoft Fabric (needs a work or school tenant), Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator. GitHub Copilot Agent Mode is not used; the project is built with Claude Code.
 
 ## Quickstart
 

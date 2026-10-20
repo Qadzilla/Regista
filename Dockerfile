@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir ".[cloud]"
 
 ENV REGISTA_DATA=/app/data/synthetic/sample \
     REGISTA_CACHE=/app/data/clips \
+    REGISTA_FEEDBACK_DIR=/app/data/feedback \
+    AZURE_MCP_COLLECT_TELEMETRY=false \
     PYTHONUNBUFFERED=1
 EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" || exit 1

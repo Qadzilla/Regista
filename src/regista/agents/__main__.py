@@ -89,9 +89,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.cloud:
         from regista.cloud import CloudConfig, agents_for
 
+        from regista.cloud.telemetry import configure_tracing
+
         config = CloudConfig.from_env()
         agents = agents_for(config, require=True)
-        print(f"cloud: {config.describe()}")
+        traced = configure_tracing()
+        print(f"cloud: {config.describe()}; Foundry tracing: {'on' if traced else 'off'}")
     else:
         agents = default_agents()
     state_dir = args.state_dir or args.match_dir / "agents"
@@ -125,6 +128,10 @@ def main(argv: list[str] | None = None) -> int:
         for r in ans["results"][:5]:
             print(f"   {r['clip_id']}  {r['watchability']:.2f}  {r['title']}")
     print(f"trace: {result.state_dir / 'trace.jsonl'}   dead letters: {len(result.dead_letters)}   ok: {result.ok}")
+    if args.cloud:
+        from regista.cloud.telemetry import flush_tracing
+
+        flush_tracing()
     return 0 if result.ok else 1
 
 
