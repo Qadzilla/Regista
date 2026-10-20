@@ -65,7 +65,7 @@ The answer shows which model answered and every tool it called. Uploads still pa
 | `render_clip(match_dir, clip_id, out_dir)` | cut one clip to MP4 with its title card |
 | `list_matches(root)` | the matches available |
 
-Any MCP host can drive Regista with these. The Foundry Librarian attaches this server, and beside it Microsoft's Azure MCP Server (`azmcp`, from the `msmcp-azure` package), started read-only with only the Cosmos DB namespace, plus the Search namespace when Search is configured; the tools allowed are `cosmos_database_container_item_query`, `cosmos_list`, and `search_index_query` (`src/regista/cloud/foundry.py`). Calls to the Cosmos DB query tool have been seen from local CLI runs; it has not yet been verified inside the container.
+Any MCP host can drive Regista with these. The Foundry Librarian attaches this server, and beside it Microsoft's Azure MCP Server (`azmcp`, from the `msmcp-azure` package), started read-only with only the Cosmos DB namespace, plus the Search namespace when Search is configured; the tools allowed are `cosmos_database_container_item_query`, `cosmos_list`, and `search_index_query` (`src/regista/cloud/foundry.py`). Calls to the Cosmos DB query tool have been seen from local CLI runs. Inside the container (public Ask Foundry, AI Search namespace only), `search_index_query` was verified on 2026-10-20 (revision `regista-api--d1020232137`); the Cosmos DB tools are not offered there by design.
 
 ## Services per pipeline stage
 
@@ -81,7 +81,7 @@ Any MCP host can drive Regista with these. The Foundry Librarian attaches this s
 | Persist | `CosmosPersistAgent`: **Cosmos DB** serverless, `matches` / `clips` / `labels` / `annotations` (**running**) | |
 | Index | `SearchIndexAgent` (role `indexer`): every labelled clip into **Azure AI Search** `regista-clips` (**running**) | Vector search over clip summaries |
 | Personalize | `FoundryLibrarianAgent` on Foundry calling two MCP servers: Regista's (search_clips, search_library) and Microsoft's **Azure MCP Server** (read-only Cosmos DB and Search queries), from the CLI with `--cloud --query` (**running**); viewer and API on **Container Apps**, where the open search box is the rule-based Librarian (**running**) | AI Translator and Speech for languages; questions to the Foundry Librarian from the viewer |
-| Observe | Agent Framework OpenTelemetry → **Application Insights** → Foundry **Tracing** (**running**; every traced run so far is a local CLI run) | Alerts on dead letters |
+| Observe | Agent Framework OpenTelemetry → **Application Insights** → Foundry **Tracing** (**running**; spans from the live app verified on 2026-10-20 (revision `regista-api--d1020232137`), plus local CLI runs) | Alerts on dead letters |
 
 ## Deployment on Azure Container Apps (running)
 

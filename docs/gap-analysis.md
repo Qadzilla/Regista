@@ -7,8 +7,8 @@
 | 1. Pipeline as an Agent Framework workflow | **Done.** `regista.agents.workflow`; diagram in `docs/workflow.md`; 18 tests in `tests/test_workflow.py` |
 | 2. Human in the loop and learning from Zaid | **Done.** Review pause (`request_info`), viewer Keep/Drop, `--review` prompt, review API; verdicts in `data/feedback` and Cosmos DB; model retrains from them. Waiting on Zaid's real verdicts |
 | 3. Azure AI Search behind the Librarian | **Done.** Free service in South Central US, `indexer` role, `search_library` MCP tool |
-| 4. Azure MCP Server | **Done.** Attached to the Foundry Librarian (read-only Cosmos DB and Search tools); seen calling `cosmos_database_container_item_query` from local CLI runs, not yet verified inside the container |
-| 5. Foundry tracing | **Done.** Application Insights connected to the project by hand (not by `infra/provision.sh`); full workflow, agent, model, and tool spans verified on local CLI runs |
+| 4. Azure MCP Server | **Done.** Attached to the Foundry Librarian (read-only Cosmos DB and Search tools); seen calling `cosmos_database_container_item_query` from local CLI runs, and `search_index_query` from the live app on 2026-10-20 (revision `regista-api--d1020232137`) via Ask Foundry |
+| 5. Foundry tracing | **Done.** Application Insights connected to the project by hand (not by `infra/provision.sh`); full workflow, agent, model, and tool spans verified on local CLI runs, and from the live container on 2026-10-20 (revision `regista-api--d1020232137`) after fixing how deploy-app.sh read the connection string |
 | 6. Vision agents | **v0 done on rendered footage.** Shot, identity, possession agents as an Agent Framework workflow; trained and measured only on Regista's rendered broadcast, end to end from video to clips, first on a development set (used while building, so not held out), then once on three fresh matches with frozen models (clip recall 0.76, precision 0.94 for all starters); numbers in `docs/vision.md`. Real broadcast footage, event spotting, and the Azure AI Vision OCR backend (a stub today) are next |
 
 
