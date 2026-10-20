@@ -65,8 +65,11 @@ Any MCP host can drive Regista with these: Copilot Agent Mode in VS Code, a Micr
 | Interpret | synthetic generator (local) | AI Vision (detection, kit-number OCR) and tracking models in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
 | Explain | `FoundryLabelAgent`: `gpt-5-mini` on **Microsoft Foundry** via **Agent Framework**, rules-v0 as prior and fallback (**running**) | Foundry evaluations against human annotations from the review tool |
 | Render | `regista.render` inside the Container Apps service, on-demand with a local cache (**running**) | Container Apps jobs for batch renders; Blob + CDN for the cache |
-| Persist | `CosmosPersistAgent`: **Cosmos DB** serverless, `matches` / `clips` / `labels` (**running**) | AI Search index over labels |
-| Personalize | `FoundryLibrarianAgent` on Foundry calling Regista's **MCP** server; viewer and API on **Container Apps** (**running**) | Azure MCP Server for Azure-side tools; AI Translator and Speech for languages |
+| Review | `ReviewExecutor`: the workflow pauses with `request_info` on clips the Label agent is unsure about; verdicts become human annotations and retrain the watchability model (**running**) | Foundry evaluations scoring each labeller against the human verdicts |
+| Persist | `CosmosPersistAgent`: **Cosmos DB** serverless, `matches` / `clips` / `labels` / `annotations` (**running**) | |
+| Index | `SearchIndexAgent` (role `indexer`): every labelled clip into **Azure AI Search** `regista-clips` (**running**) | Vector search over clip summaries |
+| Personalize | `FoundryLibrarianAgent` on Foundry calling two MCP servers: Regista's (search_clips, search_library) and Microsoft's **Azure MCP Server** (Cosmos DB and Search queries); viewer and API on **Container Apps** (**running**) | AI Translator and Speech for languages |
+| Observe | Agent Framework OpenTelemetry → **Application Insights** → Foundry **Tracing** (**running**) | Alerts on dead letters |
 
 ## Deployment on Azure Container Apps (running)
 

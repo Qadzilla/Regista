@@ -1,5 +1,17 @@
 # Gap analysis: Regista against the hackathon's intentions (2026-10-20)
 
+## Progress (updated the same day)
+
+| Fix | Status |
+|---|---|
+| 1. Pipeline as an Agent Framework workflow | **Done.** `regista.agents.workflow`; diagram in `docs/workflow.md`; 10 tests |
+| 2. Human in the loop and learning from Zaid | **Done.** Review pause (`request_info`), viewer Keep/Drop, `--review` prompt, review API; verdicts in `data/feedback` and Cosmos DB; model retrains from them. Waiting on Zaid's real verdicts |
+| 3. Azure AI Search behind the Librarian | **Done.** Free service in South Central US, `indexer` role, `search_library` MCP tool |
+| 4. Azure MCP Server | **Done.** Attached to the Foundry Librarian (read-only Cosmos DB and Search tools); seen calling `cosmos_database_container_item_query` |
+| 5. Foundry tracing | **Done.** Application Insights connected to the project; full workflow, agent, model, and tool spans verified |
+| 6. Vision agents | **In progress.** Being built on Regista's own rendered broadcast with ground-truth accuracy; real footage next |
+
+
 Scored against the five equally weighted criteria in CLAUDE.md §1.1, the target category (Best Multi-Agent System), and the product plan in CLAUDE.md §2.3. Each gap names the fix and the hero technology it uses. "Running" means code calls it today.
 
 ## Where we stand
