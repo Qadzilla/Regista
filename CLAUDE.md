@@ -142,7 +142,7 @@ src/regista/librarian.py     the Librarian: plain-English clip search (player, t
 src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
 src/regista/api.py           FastAPI service: viewer at /, matches, clips with filters, search, on-demand MP4, upload → pipeline
-src/regista/static/viewer.html the clip viewer (player header, tag chips, watchability-sorted grid, search box)
+src/regista/static/viewer.html the clip viewer (player header, tag chips, watchability-sorted grid, Search + Ask Foundry, stack footer)
 Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (built by GitHub Actions; no docker here)
 docs/architecture.md         two layers, the workflow roles local vs cloud, MCP tools, Azure per stage (running vs planned), auth
 docs/demo-storyboard.md      shot-by-shot plan for the sub-2-minute video, voiceover, what is named on screen
@@ -158,6 +158,7 @@ src/regista/feedback.py      learning from people: human verdicts as annotations
                              from verdicts (logistic regression, JSON), evaluate(); real verdicts live in data/feedback/
 src/regista/cloud/search.py  Azure AI Search index regista-clips; SearchIndexAgent ("indexer" role); search_library()
 src/regista/cloud/telemetry.py  Agent Framework OpenTelemetry → Application Insights → Foundry Tracing
+src/regista/cloud/smoke.py   container smoke test: Regista MCP and Azure MCP list their tools inside the image (CI)
 src/regista/vision/          the private vision layer v0: shots (camera_segment), identity (calibration, detection, team, kit
                              number, tracking → track/appearance), possession_vision, vision_writer; an Agent Framework vision
                              workflow; trained and measured on Regista's rendered broadcast (docs/vision.md has the numbers)
@@ -242,10 +243,11 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - `.env` holds the endpoints plus `REGISTA_ADMIN_TOKEN` and `APPLICATIONINSIGHTS_CONNECTION_STRING`; it is git-ignored and docker-ignored.
 - Also in `regista-rg`: Azure AI Search `regista-search-a7fbe6` (**free tier, South Central US**: free tier is not offered in East US); Application Insights `regista-appi` on the existing Log Analytics workspace (daily cap 0.1 GB), connected to the Foundry project for tracing; Cosmos DB container `annotations` for human verdicts and the learned model.
 - Tests never load `.env` (`REGISTA_DOTENV=""` in tests/conftest.py) and never reach Azure; a guard test enforces it. Each test gets its own feedback folder.
+- **Ask Foundry is open but limited** (`REGISTA_ASK_PER_MIN` 3, `REGISTA_ASK_PER_HOUR` 20 per visitor; `REGISTA_ASK_TOTAL_PER_HOUR` 60, `REGISTA_ASK_TOTAL_PER_DAY` 300; `REGISTA_ASK_CONCURRENT` 2). Its tools are public-only by design: never give the public Librarian the Cosmos DB namespace (annotations hold reviewers' notes) or `render_clip`.
 - **Writes on the live app need a token.** Uploads, verdicts, reviews and retraining require the `X-Regista-Token` header matching `REGISTA_ADMIN_TOKEN` (in `.env`, deployed as a Container Apps secret). The viewer asks for it once. Reads stay open for judges. `REGISTA_READONLY=1` switches writes off entirely.
 - **Never send a request that writes to the live app as a test.** Probe with requests that cannot write (no token, or an invalid body) and check Cosmos afterwards. On 2026-10-20 two test verdicts reached Cosmos while an old revision was still serving; they were identified by timestamp and deleted.
 - **A deploy is done only when the new revision is the latest ready one.** `deploy-app.sh` waits for that and prints logs on failure. Traffic weight alone is not proof.
-- The image workflow runs the full test suite first (a failure stops the push), and rebuilds on changes to `src/`, `tests/`, `data/synthetic/`, `Dockerfile`, `.dockerignore`, `pyproject.toml`; `tests/test_packaging.py` guards `.dockerignore` against dropping package files. `infra/provision.sh` can be re-run: it keeps the existing write token and App Insights connection string in `.env` and reuses the resource group's registry; `deploy-app.sh` no longer duplicates the Cosmos role assignment (the app identity has 7 duplicates from earlier deploys, harmless).
+- The image workflow runs the full test suite, builds the image, and runs `python -m regista.cloud.smoke` inside it (Regista MCP and Azure MCP must list their tools); any failure stops the push. Pull requests get the same checks and push nothing. It rebuilds on changes to `src/`, `tests/`, `data/synthetic/`, `Dockerfile`, `.dockerignore`, `pyproject.toml`; `tests/test_packaging.py` guards `.dockerignore` against dropping package files. `infra/provision.sh` can be re-run: it keeps the existing write token and App Insights connection string in `.env` and reuses the resource group's registry; `deploy-app.sh` no longer duplicates the Cosmos role assignment (the app identity has 7 duplicates from earlier deploys, harmless).
 - Cosmos DB still holds 16 clip and 16 label documents from before ids became player-scoped (`cl_000001` / `lb_000001` style): 11 of each for `syn_0294` and 5 of each for `syn_0141`. They are stale duplicates; delete them only with Zaid's go-ahead.
 - Tear down after judging: `./infra/provision.sh --destroy`.
 
@@ -264,7 +266,7 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - First real Keep/Drop verdicts in the viewer.
 
 **Next build work, in order (not blocked on footage):**
-1. Make the hero tech visible on the live app: list matches from Cosmos (filter stale ids), a read-only, rate-limited "Ask the Librarian (Foundry)" path showing tools used, check that azmcp and tracing work inside the container. A session for this was proposed but failed to start (sign-in expired); retry it.
+1. Make the hero tech visible on the live app: **built on branch `claude/live-hero-tech` (PR open, not deployed; deploy only on Zaid's approval).** Matches from Cosmos (stale ids filtered), Ask Foundry (`POST /api/matches/{id}/ask`, public read-only tools, rate-limited), health/footer naming the stack, tracing at app start, azmcp ICU fix + CI smoke test inside the image. After deploy: one Ask from the live app, then confirm spans from the container in App Insights and that `search_index_query` ran there; only then call it verified in docs.
 2. Event spotting in the vision layer (passes, shots, tackles, nutmegs), so vision-derived clips get labels, not only reasons.
 3. Vision for real footage: frame sampling inside ffmpeg with gap-normalised motion features, a person detector instead of discs, a real homography; designed now, trained when the footage arrives.
 4. Demo video (docs/demo-storyboard.md needs a rewrite around the real match), pitch text, make the repo public before 2026-10-27.

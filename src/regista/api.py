@@ -15,7 +15,8 @@ GET  /api/matches                               match directories under REGISTA_
 POST /api/matches                               upload events.jsonl (+ tracks.jsonl); runs the Agent Framework workflow       [write]
 GET  /api/matches/{match_id}                    manifest, roster, score
 GET  /api/matches/{match_id}/clips?player=&tag=&min_watchability=&reason=
-GET  /api/matches/{match_id}/search?q=          the Librarian
+GET  /api/matches/{match_id}/search?q=          the Librarian (rule-based, instant)
+POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools
 GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE
 GET  /api/matches/{match_id}/video.mp4          the whole broadcast, rendered on demand, cached
 GET  /api/matches/{match_id}/report             synthetic realism report (markdown)
@@ -30,6 +31,7 @@ The service only reads and writes under REGISTA_DATA, REGISTA_CACHE and REGISTA_
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import json
 import os
@@ -39,10 +41,11 @@ import tempfile
 import threading
 import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
-from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, UploadFile
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field, StrictFloat, StrictInt, StringConstraints, model_validator
@@ -59,7 +62,19 @@ MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SYNC_TTL_S = 30.0
 ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,120}$")
 
-app = FastAPI(title="Regista", version=__version__, description="Every touch. Every replay. Every player. Found instantly.")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    # Agent Framework and request spans go to Application Insights (and the Foundry project's Tracing page) whenever
+    # the connection string is set, which deploy-app.sh does from a Container Apps secret. A no-op otherwise.
+    from regista.cloud.telemetry import configure_tracing, flush_tracing
+
+    configure_tracing("regista-api")
+    yield
+    flush_tracing()
+
+
+app = FastAPI(title="Regista", version=__version__, description="Every touch. Every replay. Every player. Found instantly.",
+              lifespan=_lifespan)
 
 
 # ---------------------------------------------------------------------------- access control
@@ -117,11 +132,20 @@ class ReviewIn(BaseModel):
 
 # ---------------------------------------------------------------------------- helpers
 
-def _match_dir(match_id: str) -> Path:
+def _check_id(match_id: str) -> None:
     if not ID_RE.match(match_id) or ".." in match_id:
         raise HTTPException(400, "bad match id")
+
+
+def _match_dir(match_id: str) -> Path:
+    """The match's directory on this replica. A match that only Cosmos DB still holds has no event stream here, so
+    anything that needs one (video, search, verdicts, review) gets a 409 that says so rather than a bare 404."""
+    _check_id(match_id)
     d = DATA_ROOT / match_id
     if not (d / "events.jsonl").exists():
+        if match_id in _library():
+            raise HTTPException(409, f"match {match_id!r} is stored in Cosmos DB without its event stream: clips and labels can be "
+                                     "read, but video, search and verdicts need the match on this replica")
         raise HTTPException(404, f"no match {match_id!r}")
     return d
 
@@ -136,7 +160,7 @@ _last_sync = {"t": 0.0}
 
 
 def _feedback_store():
-    """Cosmos DB store for verdicts and the model when configured, else None. Never fatal; connected once."""
+    """Cosmos DB store (library, verdicts, the model) when configured, else None. Never fatal; connected once."""
     from regista.cloud import CloudConfig
 
     cfg = CloudConfig.from_env()
@@ -153,6 +177,34 @@ def _feedback_store():
             return None
         _store_cache[cfg.cosmos_endpoint] = store
         return store
+
+
+LIBRARY_TTL_S = 60.0
+_library_lock = threading.Lock()
+_library_cache: dict[str, Any] = {"t": None, "matches": {}}
+
+
+def _library() -> dict[str, dict[str, Any]]:
+    """Match headers Cosmos DB holds (match_id -> header), refreshed at most once a minute. Uploads land on this
+    replica's disk, which a restart wipes; the library is how they stay listed. Empty without Cosmos DB, and the
+    last good copy when Cosmos is briefly unreachable."""
+    store = _feedback_store()
+    if store is None:
+        return {}
+    with _library_lock:
+        now = time.monotonic()
+        if _library_cache["t"] is not None and now - _library_cache["t"] < LIBRARY_TTL_S:
+            return _library_cache["matches"]
+        try:
+            _library_cache["matches"] = {m["match_id"]: m for m in store.list_matches()}
+        except Exception:  # noqa: BLE001 - keep serving what we had
+            pass
+        _library_cache["t"] = now
+        return _library_cache["matches"]
+
+
+def _team_summary(h: dict[str, Any]) -> list[dict[str, Any]]:
+    return [{"team_id": t["team_id"], "name": t["name"], "short_name": t["short_name"], "kit": t["kit"]} for t in h["teams"]]
 
 
 def _sync_feedback(force: bool = False) -> None:
@@ -295,11 +347,17 @@ def health() -> dict[str, Any]:
     cfg = CloudConfig.from_env()
     return {"ok": True, "version": __version__, "data_root": str(DATA_ROOT), "cache_root": str(CACHE_ROOT), "writes": write_mode(),
             "cloud": {"foundry": cfg.foundry_enabled, "model": cfg.foundry_model if cfg.foundry_enabled else None, "cosmos": cfg.cosmos_enabled,
-                      "search": cfg.search_enabled}}
+                      "search": cfg.search_enabled},
+            "librarian": f"foundry:{cfg.foundry_model}" if cfg.foundry_enabled else "rules",
+            "azure_mcp": bool(shutil.which("azmcp")),
+            "tracing": bool(os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"))}
 
 
 @app.get("/api/matches")
 def list_matches() -> list[dict[str, Any]]:
+    """Matches on this replica (``source: local``, full features) and matches only Cosmos DB still holds
+    (``source: cosmos``: clips and labels, no video). ``in_cosmos`` marks local matches the library also holds."""
+    library = _library()
     out = []
     if DATA_ROOT.exists():
         for d in sorted(DATA_ROOT.iterdir()):
@@ -307,19 +365,38 @@ def list_matches() -> list[dict[str, Any]]:
                 m = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
                 h = _header(d)
                 out.append({"match_id": d.name, "score": m.get("score", h.get("score")), "clips_for": m.get("clips_for"),
-                            "teams": [{"team_id": t["team_id"], "name": t["name"], "short_name": t["short_name"], "kit": t["kit"]} for t in h["teams"]],
-                            "video_duration_s": h["video"]["duration_s"]})
+                            "teams": _team_summary(h), "video_duration_s": h["video"]["duration_s"], "source": "local",
+                            "video": True, "in_cosmos": d.name in library})
+    local = {m["match_id"] for m in out}
+    for mid, h in sorted(library.items()):
+        if mid not in local:
+            out.append({"match_id": mid, "score": h.get("score"), "clips_for": None, "teams": _team_summary(h),
+                        "video_duration_s": h.get("video", {}).get("duration_s"), "source": "cosmos", "video": False, "in_cosmos": True})
     return out
+
+
+def _cosmos_match(match_id: str) -> dict[str, Any] | None:
+    """The header of a match only Cosmos DB holds, or None when the match is local or unknown."""
+    _check_id(match_id)
+    if (DATA_ROOT / match_id / "events.jsonl").exists():
+        return None
+    return _library().get(match_id)
 
 
 @app.get("/api/matches/{match_id}")
 def get_match(match_id: str) -> dict[str, Any]:
-    d = _match_dir(match_id)
-    h = _header(d)
-    clips, labels = _clips(d)
+    h = _cosmos_match(match_id)
+    if h is not None:
+        clips, _labels = _feedback_store().clips_for(match_id)
+        source = "cosmos"
+    else:
+        d = _match_dir(match_id)
+        h = _header(d)
+        clips, _labels = _clips(d)
+        source = "local"
     players_with_clips = sorted({c["player_id"] for c in clips})
     return {"match_id": match_id, "teams": h["teams"], "players": h["players"], "score": h.get("score"), "video": h["video"],
-            "periods": h["periods"], "players_with_clips": players_with_clips, "clip_count": len(clips)}
+            "periods": h["periods"], "players_with_clips": players_with_clips, "clip_count": len(clips), "source": source}
 
 
 @app.get("/api/matches/{match_id}/clips")
@@ -327,8 +404,11 @@ def get_clips(match_id: str, player: str | None = None, tag: str | None = None, 
               min_watchability: float = Query(0.0, ge=0.0, le=1.0)) -> list[dict[str, Any]]:
     from regista.feedback import needs_review
 
-    d = _match_dir(match_id)
-    clips, labels = _clips(d, player)
+    cosmos = _cosmos_match(match_id) is not None
+    if cosmos:
+        clips, labels = _feedback_store().clips_for(match_id, player)
+    else:
+        clips, labels = _clips(_match_dir(match_id), player)
     _sync_feedback()
     verdicts = _verdicts_for(match_id)
     out = []
@@ -342,7 +422,8 @@ def get_clips(match_id: str, player: str | None = None, tag: str | None = None, 
             continue
         verdict = verdicts.get(c["id"])
         review = None if verdict else (lb.get("review") or needs_review(lb["watchability"], lb.get("prior_watchability")))
-        out.append({**c, "label": lb, "review": review, "verdict": verdict, "video_url": f"/api/matches/{match_id}/clips/{c['id']}.mp4"})
+        out.append({**c, "label": lb, "review": review, "verdict": verdict, "source": "cosmos" if cosmos else "local",
+                    "video_url": None if cosmos else f"/api/matches/{match_id}/clips/{c['id']}.mp4"})
     out.sort(key=lambda r: (-r["label"]["watchability"], r["t"]))
     return out
 
@@ -395,6 +476,126 @@ def report(match_id: str) -> str:
 
     _, md = report_match_dir(_match_dir(match_id))
     return md
+
+
+# ---------------------------------------------------------------------------- the Foundry Librarian, open to judges
+
+# Anyone can ask, so every limit is about cost and the single replica: short questions, a few per visitor, a cap per
+# hour and per day across everyone, two at a time. The tools are narrowed to reads of public data: Regista's own
+# search tools (no rendering, no file access beyond the match), and the Azure MCP Server's AI Search namespace only,
+# so a crafted question cannot reach the Cosmos DB annotations container where reviewers' verdicts and notes live.
+ASK_MAX_CHARS = 200
+ASK_TIMEOUT_S = 90.0
+PUBLIC_REGISTA_TOOLS = ["search_clips", "search_library", "list_matches"]
+PUBLIC_AZURE_NAMESPACES = ("search",)
+
+
+def _limit(name: str, default: int) -> int:
+    try:
+        return max(0, int(os.environ.get(name, default)))
+    except ValueError:
+        return default
+
+
+class AskLimiter:
+    """Sliding-window limits per visitor and for everyone, plus a cap on questions in flight. In memory: the app runs
+    one replica, and a restart forgetting the counts is acceptable."""
+
+    def __init__(self, per_visitor_per_min: int, per_visitor_per_hour: int, total_per_hour: int, total_per_day: int, concurrent: int):
+        self.rules = [(60.0, per_visitor_per_min, True), (3600.0, per_visitor_per_hour, True), (3600.0, total_per_hour, False),
+                      (86400.0, total_per_day, False)]
+        self.concurrent = concurrent
+        self.in_flight = 0
+        self.hits: dict[str, list[float]] = {}
+        self.lock = threading.Lock()
+
+    @classmethod
+    def from_env(cls) -> AskLimiter:
+        return cls(_limit("REGISTA_ASK_PER_MIN", 3), _limit("REGISTA_ASK_PER_HOUR", 20), _limit("REGISTA_ASK_TOTAL_PER_HOUR", 60),
+                   _limit("REGISTA_ASK_TOTAL_PER_DAY", 300), max(1, _limit("REGISTA_ASK_CONCURRENT", 2)))
+
+    def acquire(self, visitor: str, now: float | None = None) -> tuple[bool, float, str]:
+        """(allowed, seconds until it would be, which limit). On success the question is counted and in flight."""
+        now = time.monotonic() if now is None else now
+        with self.lock:
+            if self.in_flight >= self.concurrent:
+                return False, 5.0, "busy"
+            for window, cap, per_visitor in self.rules:
+                key = visitor if per_visitor else "*"
+                times = [t for t in self.hits.get(key, []) if now - t < window]
+                self.hits[key] = times
+                if len(times) >= cap:
+                    return False, round(window - (now - times[0]), 1), f"{cap} per {int(window)}s" + (" per visitor" if per_visitor else "")
+            for key in (visitor, "*"):
+                self.hits.setdefault(key, []).append(now)
+            self.in_flight += 1
+            return True, 0.0, ""
+
+    def release(self) -> None:
+        with self.lock:
+            self.in_flight = max(0, self.in_flight - 1)
+
+
+_ask_limiter = AskLimiter.from_env()
+
+
+def _visitor(request: Request) -> str:
+    """The client address. Behind Container Apps ingress the real client is the last X-Forwarded-For entry (the
+    proxy appends it; earlier entries are whatever the client sent)."""
+    fwd = request.headers.get("x-forwarded-for", "")
+    hops = [h.strip() for h in fwd.split(",") if h.strip()]
+    return hops[-1] if hops else (request.client.host if request.client else "unknown")
+
+
+def _librarian_agent():
+    """The Foundry Librarian with public-safe tools, or None when Foundry is not configured. Tests replace this."""
+    from regista.cloud import CloudConfig
+
+    cfg = CloudConfig.from_env()
+    if not cfg.foundry_enabled:
+        return None
+    from regista.cloud.foundry import FoundryLibrarianAgent
+
+    return FoundryLibrarianAgent(config={"limit": 10, "regista_tools": PUBLIC_REGISTA_TOOLS, "azure_namespaces": PUBLIC_AZURE_NAMESPACES},
+                                 cloud=cfg)
+
+
+class AskIn(BaseModel):
+    q: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=ASK_MAX_CHARS)]
+
+
+@app.post("/api/matches/{match_id}/ask")
+async def ask(match_id: str, body: AskIn, request: Request) -> dict[str, Any]:
+    """Ask the Foundry Librarian (Microsoft Agent Framework + Foundry, calling Regista's MCP server and the Azure MCP
+    Server). Returns its answer, the clips the search found, and the tools it called. Without Foundry, the rule-based
+    Librarian answers and ``answered_by`` says so."""
+    from fastapi.responses import JSONResponse
+
+    d = _match_dir(match_id)
+    agent = _librarian_agent()
+    if agent is None:
+        out = search_clips(d, body.q, 10)
+        out.update(answer=out["message"], answered_by="rules (Foundry is not configured on this deployment)", tools_used=[])
+    else:
+        ok, wait, which = _ask_limiter.acquire(_visitor(request))
+        if not ok:
+            return JSONResponse({"detail": f"Too many questions right now ({which}); try again in {wait:.0f}s."}, status_code=429,
+                                headers={"Retry-After": str(max(1, int(wait)))})
+        def run() -> dict[str, Any]:
+            try:  # the slot frees when the work ends, even if the request has already timed out
+                return agent.handle({"match_dir": str(d), "queries": [body.q]})
+            finally:
+                _ask_limiter.release()
+
+        try:
+            state = await asyncio.wait_for(run_in_threadpool(run), ASK_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            raise HTTPException(504, "the Librarian took too long; try a simpler question")
+        out = state["answers"][0]
+        out.setdefault("tools_used", [])
+    for r in out.get("results", []):
+        r["video_url"] = f"/api/matches/{match_id}/clips/{r['clip_id']}.mp4"
+    return out
 
 
 # ---------------------------------------------------------------------------- uploads

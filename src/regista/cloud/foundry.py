@@ -74,26 +74,50 @@ def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
     return env
 
 
-def azure_mcp_tool(cloud: CloudConfig):
+AZURE_MCP_TOOLS = {"cosmos": ["cosmos_database_container_item_query", "cosmos_list"], "search": ["search_index_query"]}
+
+
+def azure_mcp_args(cloud: CloudConfig, namespaces: tuple[str, ...] | None = None) -> tuple[list[str], list[str]]:
+    """Command-line arguments and allowed tools for the Azure MCP Server: read-only, only the namespaces asked for
+    (default: Cosmos DB, plus AI Search when configured), and only those a configured service backs."""
+    wanted = namespaces if namespaces is not None else ("cosmos", "search")
+    have = {"cosmos": cloud.cosmos_enabled, "search": cloud.search_enabled}
+    use = [ns for ns in wanted if have.get(ns)]
+    args = ["server", "start", "--mode", "all", "--read-only"]
+    allowed: list[str] = []
+    for ns in use:
+        args += ["--namespace", ns]
+        allowed += AZURE_MCP_TOOLS[ns]
+    return args, allowed
+
+
+def azure_mcp_env() -> dict[str, str]:
+    """Environment for the azmcp child: configuration and Azure identity only (see ``child_env``).
+
+    azmcp is a .NET binary that loads ICU for culture data unless told not to; the slim container image has no ICU,
+    so it runs in invariant-globalization mode (its queries and answers do not depend on culture)."""
+    import os
+
+    managed = bool(os.environ.get("IDENTITY_ENDPOINT") or os.environ.get("MSI_ENDPOINT"))
+    return child_env({"AZURE_TOKEN_CREDENTIALS": "prod" if managed else "AzureCliCredential", "AZURE_MCP_COLLECT_TELEMETRY": "false",
+                      "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "1"})
+
+
+def azure_mcp_tool(cloud: CloudConfig, namespaces: tuple[str, ...] | None = None):
     """Microsoft's Azure MCP Server (pip package msmcp-azure), read-only, limited to Cosmos DB and AI Search queries.
 
-    Locally it signs in with the Azure CLI; in Container Apps with the app's managed identity."""
-    import os
+    Locally it signs in with the Azure CLI; in Container Apps with the app's managed identity. None when the binary is
+    missing or no requested namespace is backed by a configured service."""
     import shutil
 
     from agent_framework import MCPStdioTool
 
     exe = shutil.which("azmcp")
-    if exe is None:
+    args, allowed = azure_mcp_args(cloud, namespaces)
+    if exe is None or not allowed:
         return None
-    managed = bool(os.environ.get("IDENTITY_ENDPOINT") or os.environ.get("MSI_ENDPOINT"))
-    env = child_env({"AZURE_TOKEN_CREDENTIALS": "prod" if managed else "AzureCliCredential", "AZURE_MCP_COLLECT_TELEMETRY": "false"})
-    args = ["server", "start", "--mode", "all", "--read-only", "--namespace", "cosmos"]
-    allowed = ["cosmos_database_container_item_query", "cosmos_list"]
-    if cloud.search_enabled:
-        args += ["--namespace", "search"]
-        allowed += ["search_index_query"]
-    return MCPStdioTool(name="azure", command=exe, args=args, env=env, allowed_tools=allowed, load_prompts=False, approval_mode="never_require")
+    return MCPStdioTool(name="azure", command=exe, args=args, env=azure_mcp_env(), allowed_tools=allowed, load_prompts=False,
+                        approval_mode="never_require")
 
 
 def tools_used(result: Any) -> list[str]:
@@ -271,7 +295,8 @@ class FoundryLibrarianAgent(LibrarianAgent):
     description: str = "Answers questions with a Microsoft Foundry model that calls Regista's MCP search_clips tool (Agent Framework)."
     config: dict[str, Any] = field(default_factory=dict)
     cloud: CloudConfig | None = None
-    answerer: Callable[[str, str], Awaitable[str]] | None = None  # (match_dir, query) -> text; injectable for tests
+    # (match_dir, query) -> text, or (text, tools used); injectable for tests
+    answerer: Callable[[str, str], Awaitable[str | tuple[str, list[str]]]] | None = None
     last_tools_used: list[str] = field(default_factory=list)
 
     def handle(self, state: State) -> State:
@@ -299,7 +324,10 @@ class FoundryLibrarianAgent(LibrarianAgent):
 
     async def _answer(self, cloud: CloudConfig, match_dir: str, query: str) -> str:
         if self.answerer is not None:
-            return await self.answerer(match_dir, query)
+            out = await self.answerer(match_dir, query)
+            if isinstance(out, tuple):
+                out, self.last_tools_used = out[0], list(out[1])
+            return out
         from agent_framework import Agent, MCPStdioTool
         from agent_framework.foundry import FoundryChatClient
         from azure.identity.aio import DefaultAzureCredential
@@ -308,9 +336,12 @@ class FoundryLibrarianAgent(LibrarianAgent):
 
         async with DefaultAzureCredential() as credential, AsyncExitStack() as stack:
             client = FoundryChatClient(project_endpoint=cloud.foundry_project_endpoint, model=cloud.foundry_model, credential=credential)
-            regista_mcp = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"], env=child_env())
+            # config["regista_tools"] / config["azure_namespaces"] narrow the tools for public use (see regista.api /ask).
+            regista_mcp = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"], env=child_env(),
+                                       allowed_tools=self.config.get("regista_tools"))
             tools = [await stack.enter_async_context(regista_mcp)]
-            azure = azure_mcp_tool(cloud) if (cloud.cosmos_enabled or cloud.search_enabled) and self.config.get("azure_mcp", True) else None
+            azure = (azure_mcp_tool(cloud, self.config.get("azure_namespaces"))
+                     if (cloud.cosmos_enabled or cloud.search_enabled) and self.config.get("azure_mcp", True) else None)
             context = [f"match_dir: {match_dir}"]
             if azure is not None:
                 try:
@@ -318,10 +349,17 @@ class FoundryLibrarianAgent(LibrarianAgent):
                 except Exception:  # noqa: BLE001 - the Librarian still answers with Regista's own tools
                     azure = None
             if azure is not None:
-                if cloud.cosmos_enabled:
+                _args, allowed = azure_mcp_args(cloud, self.config.get("azure_namespaces"))
+                if cloud.cosmos_enabled and "cosmos_list" in allowed:
                     context.append(f"cosmos account: {cosmos_account_name(cloud)}, database: {cloud.cosmos_database}")
-                if cloud.search_enabled:
+                if cloud.search_enabled and "search_index_query" in allowed:
                     context.append(f"search service: {search_service_name(cloud)}, index: regista-clips")
+            # Name the tools it actually holds, so it never offers one this deployment withheld (the public endpoint has no Cosmos DB tool).
+            held = list(self.config.get("regista_tools") or ["search_clips", "search_library", "derive_clips", "validate_stream",
+                                                               "render_clip", "list_matches"])
+            if azure is not None:
+                held += azure_mcp_args(cloud, self.config.get("azure_namespaces"))[1]
+            context.append("tools you hold (offer nothing else): " + ", ".join(held))
             agent = await stack.enter_async_context(Agent(client=client, name="regista-librarian", instructions=LIBRARIAN_INSTRUCTIONS))
             result = await agent.run("\n".join(context) + f"\nquery: {query}", tools=tools)
             self.last_tools_used = tools_used(result)

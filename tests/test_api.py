@@ -254,6 +254,9 @@ def test_viewer_escapes_everything_it_renders():
 
     html = (Path(__file__).resolve().parents[1] / "src/regista/static/viewer.html").read_text()
     assert "const esc = " in html
-    for needle in ("${r.title}", "${r.explanation", "${r.verdict.annotator}", "${p.name}", "${team.name}", "${r.review}", "${t.replace("):
+    for needle in ("${r.title}", "${r.explanation", "${r.verdict.annotator}", "${p.name}", "${team.name}", "${r.review}", "${t.replace(",
+                   "${out.answer}", "${out.answered_by}", "${out.detail}", "${t}</span>"):
         assert needle not in html, needle
     assert "esc(r.verdict.annotator)" in html and "esc(r.title)" in html
+    # The Foundry Librarian's answer is model output and the tool names come from MCP servers: both are escaped.
+    assert "esc(out.answer)" in html and "esc(out.answered_by)" in html and "esc(t)}</span>" in html

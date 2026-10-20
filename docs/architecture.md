@@ -45,7 +45,12 @@ These are the roles from the product design (CLAUDE.md §3.1). Identity is not a
 
 What the workflow guarantees, and `tests/test_workflow.py` checks: typed handoffs (a failing role sends a `DeadLetter` message that only the `dead_letter` executor accepts), fan-out and fan-in, shared state under one key per value, retries on retryable errors, remaining roles recorded as skipped after a failure, the human-in-the-loop pause and resume, checkpointing, a per-attempt `trace.jsonl`, and a `dead_letter.jsonl` with the failing agent's inputs. The trace format is the same as the reference orchestrator's.
 
-On the live app, uploads pass no questions to the Librarian, so the Foundry Librarian and the Azure MCP Server are exercised from the CLI (`python3 -m regista.agents … --cloud --query …`). The open search box on the live app is the rule-based Librarian.
+On the live app the viewer has two buttons. **Search** runs the rule-based Librarian. **Ask Foundry** (`POST /api/matches/{id}/ask`) runs the Foundry Librarian, open to everyone and limited for cost and safety:
+- questions of at most 200 characters;
+- per visitor 3 a minute and 20 an hour; for everyone 60 an hour and 300 a day; two at a time (`REGISTA_ASK_*` to change);
+- public tools only: Regista's `search_clips`, `search_library` and `list_matches` (no rendering), and the Azure MCP Server's AI Search namespace. A crafted question cannot reach Cosmos DB, where the `annotations` container holds reviewers' verdicts and notes. The CLI keeps the Cosmos DB tools.
+
+The answer shows which model answered and every tool it called. Uploads still pass no questions to the Librarian.
 
 ## MCP tools
 
@@ -99,7 +104,7 @@ Provision with `infra/provision.sh` (idempotent; creates the Foundry resource, p
 
 **Auth.** The app and the CLI reach Foundry, Cosmos DB, and AI Search with Microsoft Entra ID (`DefaultAzureCredential`: `az login` on a laptop, the managed identity in Container Apps) through role assignments; the code uses no keys for them. Keys still exist elsewhere: the Container App pulls its image with the registry's admin credential, stored as a Container Apps secret; GitHub Actions pushes with the same admin login; and key-based local auth is still enabled on the Cosmos DB and AI Search accounts, though nothing uses it. Writes on the live app (uploads, verdicts, reviews, retraining) need the `X-Regista-Token` header, checked against a Container Apps secret. `.env` holds the endpoints plus `REGISTA_ADMIN_TOKEN` and `APPLICATIONINSIGHTS_CONNECTION_STRING`; it is git-ignored and docker-ignored.
 
-**What the live app serves.** Only the committed sample match (`syn_0294`). Uploaded matches are written to the container's local disk and do not survive a restart or a new revision, although their Cosmos DB documents and Search entries remain.
+**What the live app serves.** The committed sample match (`syn_0294`) with everything, plus every match Cosmos DB holds (`source: cosmos` in `/api/matches`): teams, players, clips and labels read back from Cosmos, skipping the stale pre-0.1.1 documents. Uploaded matches are written to the container's local disk and lose their event stream on a restart or new revision, so their video, search, and verdicts are unavailable from then on (the API answers 409 and says why). `/api/health` names what the deployment runs (`librarian`, `azure_mcp`, `tracing`), and the viewer's footer shows it. Agent Framework spans start with the app whenever the Application Insights connection string is set.
 
 ## What is deliberately not here
 
