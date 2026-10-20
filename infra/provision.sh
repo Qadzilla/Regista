@@ -4,6 +4,7 @@
 #   az login
 #   ./infra/provision.sh                 # everything: Foundry + model, Cosmos DB, Container Apps
 #   SKIP_ACA=1 ./infra/provision.sh      # Foundry + Cosmos only (cheapest; run the service locally)
+#   COSMOS_LOCATION=eastus2 ./infra/provision.sh   # when a region reports "high demand" for Cosmos DB
 #   ./infra/provision.sh --destroy       # delete the whole resource group
 #
 # Every step is idempotent: existing resources are reused. Names are suffixed with 6 characters of
@@ -27,6 +28,7 @@ SUFFIX=$(echo "$SUB_ID" | tr -d '-' | cut -c1-6)
 : "${MODEL_SKU:=GlobalStandard}"
 : "${MODEL_CAPACITY:=10}"
 : "${COSMOS:=regista-cosmos-$SUFFIX}"
+: "${COSMOS_LOCATION:=$LOCATION}"   # Cosmos capacity varies by region; override when a region is full
 : "${COSMOS_DB:=regista}"
 : "${ACA_ENV:=regista-env}"
 : "${ACA_APP:=regista-api}"
@@ -78,9 +80,9 @@ fi
 log "Foundry User role for $ME_UPN on the project"
 az role assignment create --role "$FOUNDRY_USER_ROLE" --assignee-object-id "$ME_OID" --assignee-principal-type User --scope "$PROJECT_ID" -o none 2>/dev/null || true
 
-log "Cosmos DB account $COSMOS (serverless)"
+log "Cosmos DB account $COSMOS (serverless) in $COSMOS_LOCATION"
 if ! az cosmosdb show -n "$COSMOS" -g "$RG" -o none 2>/dev/null; then
-  az cosmosdb create -n "$COSMOS" -g "$RG" --locations regionName="$LOCATION" --capabilities EnableServerless \
+  az cosmosdb create -n "$COSMOS" -g "$RG" --locations regionName="$COSMOS_LOCATION" --capabilities EnableServerless \
     --default-consistency-level Session -o none
 fi
 COSMOS_ENDPOINT=$(az cosmosdb show -n "$COSMOS" -g "$RG" --query documentEndpoint -o tsv)
@@ -110,7 +112,7 @@ if [[ -z "${SKIP_ACA:-}" ]]; then
   az containerapp up --name "$ACA_APP" --resource-group "$RG" --environment "$ACA_ENV" --location "$LOCATION" \
     --source . --ingress external --target-port 8000 \
     --env-vars "FOUNDRY_PROJECT_ENDPOINT=$PROJECT_ENDPOINT" "FOUNDRY_MODEL=$MODEL" \
-               "REGISTA_COSMOS_ENDPOINT=$COSMOS_ENDPOINT" "REGISTA_COSMOS_DATABASE=$COSMOS_DB" "REGISTA_CLOUD=1" -o none
+               "REGISTA_COSMOS_ENDPOINT=$COSMOS_ENDPOINT" "REGISTA_COSMOS_DATABASE=$COSMOS_DB" "REGISTA_CLOUD=1"
   APP_OID=$(az containerapp identity assign -n "$ACA_APP" -g "$RG" --system-assigned --query principalId -o tsv)
   log "Roles for the app's managed identity"
   az role assignment create --role "$FOUNDRY_USER_ROLE" --assignee-object-id "$APP_OID" --assignee-principal-type ServicePrincipal --scope "$PROJECT_ID" -o none 2>/dev/null || true
