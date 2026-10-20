@@ -5,7 +5,7 @@ because the labels come from ``regista.vision.truth``. Inference code never impo
 
 Reproduce the numbers in docs/vision.md with:
 
-    python3 -m regista.vision data                     # render 10 training + 6 held-out matches to /tmp/regista_vision
+    python3 -m regista.vision data                     # render 10 training + 6 development matches to /tmp/regista_vision
     python3 -m regista.vision train --models models/vision
     python3 -m regista.vision evaluate --models models/vision --out /tmp/regista_vision/eval.json
 """
@@ -96,7 +96,7 @@ def train_reader(items: list[dict[str, Any]], n_synth: int = 20000, sample_fps: 
 
 
 def evaluate_reader(reader: DigitClassifierReader, items: list[dict[str, Any]], sample_fps: float = 2.0) -> dict[str, Any]:
-    """Per-crop accuracy on held-out matches: free reading (1-99) and constrained to the team sheet."""
+    """Per-crop accuracy on evaluation matches: free reading (1-99) and constrained to the team sheet."""
     from regista.vision.identity import team_numbers
 
     out: dict[str, Any] = {"by_kind": {}}
@@ -346,7 +346,7 @@ def train_all(root: Path | str, models_dir: Path | str, train_specs: list[MatchS
 
 def evaluate_all(root: Path | str, models_dir: Path | str, test_specs: list[MatchSpec] | None = None, e2e_seed: int | None = None,
                  log=print) -> dict[str, Any]:
-    """Every metric in docs/vision.md, on held-out matches."""
+    """Every metric in docs/vision.md, on the development set (default) or the given matches."""
     from regista.schema import iter_jsonl
     from regista.vision.dataset import TEST_SPECS
     from regista.vision.identity import IdentityConfig, run_identity
@@ -382,7 +382,8 @@ def evaluate_all(root: Path | str, models_dir: Path | str, test_specs: list[Matc
         idr = evaluate_identity(res, truth)
         cut = evaluate_cutaways(res, truth)
         main = [s for s in segs if s["kind"] == "main"]
-        poss = evaluate_possessions(infer_possessions(res.frames, truth.match, "eval", fps=cfg.sample_fps), truth.possessions(), main,
+        poss = evaluate_possessions(infer_possessions(res.frames, truth.match, "eval", fps=cfg.sample_fps,
+                                                      segment_end={s["id"]: s["t_end"] for s in segs}), truth.possessions(), main,
                                     [f["t"] for f in res.frames])
         id_rows.append(idr)
         cut_rows.append(cut)
@@ -402,7 +403,7 @@ def evaluate_all(root: Path | str, models_dir: Path | str, test_specs: list[Matc
     report["possession"]["true_possessions"] = int(sum(w))
     report["possession"]["predicted_possessions"] = int(sum(p["predicted_possessions"] for p in poss_rows))
 
-    # End to end on one held-out match: predicted segments, the full pipeline, then the intelligence layer's clip rule.
+    # End to end on one evaluation match: predicted segments, the full pipeline, then the intelligence layer's clip rule.
     e2e_item = next((it for it in items if e2e_seed is None or it["spec"].seed == e2e_seed), items[0])
     t0 = time.perf_counter()
     out_dir = Path(root) / "out" / f"vis_{e2e_item['spec'].match_id}"

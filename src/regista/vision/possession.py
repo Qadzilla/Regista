@@ -42,8 +42,8 @@ class PossessionConfig:
     pressure_m: float = 2.5
 
 
-def holder_sequence(frames: list[dict[str, Any]], cfg: PossessionConfig) -> list[tuple[float, str | None, str | None]]:
-    """Per frame: (t, player_id or None, segment_id). None when nobody is close enough or the ball is unseen."""
+def holder_sequence(frames: list[dict[str, Any]], cfg: PossessionConfig) -> list[tuple[float, str | None, str | None, bool]]:
+    """Per frame: (t, player_id or None, segment_id, ball seen). None when nobody is close enough or the ball is unseen."""
     out = []
     for fr in frames:
         b = fr.get("ball")
@@ -62,8 +62,11 @@ def holder_sequence(frames: list[dict[str, Any]], cfg: PossessionConfig) -> list
 
 
 def infer_possessions(frames: list[dict[str, Any]], match: Record, match_id: str, cfg: PossessionConfig | None = None,
-                      fps: float = 5.0) -> list[Record]:
+                      fps: float = 5.0, segment_end: dict[str, float] | None = None) -> list[Record]:
+    """``possession`` records from per-frame holders. ``segment_end`` (segment id -> end time) keeps a possession
+    from running past the cut that ends its shot."""
     cfg = cfg or PossessionConfig()
+    segment_end = segment_end or {}
     team_of = {p["player_id"]: p["team_id"] for p in match["players"]}
     seq = holder_sequence(frames, cfg)
     if not seq:
@@ -98,7 +101,7 @@ def infer_possessions(frames: list[dict[str, Any]], match: Record, match_id: str
     for n, r in enumerate(runs, start=1):
         pid = r["player_id"]
         team = team_of.get(pid, "unknown")
-        t0, t1 = r["t"], r["t_last"] + dt
+        t0, t1 = r["t"], min(r["t_last"] + dt, segment_end.get(r["segment_id"], float("inf")))
         prev = runs[n - 2] if n >= 2 else None
         nxt = runs[n] if n < len(runs) else None
         gained = "pass_received" if prev and team_of.get(prev["player_id"]) == team and t0 - (prev["t_last"] + dt) <= cfg.pass_gap_s else "unknown"

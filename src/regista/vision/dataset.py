@@ -2,8 +2,8 @@
 
 Every item is a match directory (events.jsonl + tracks.jsonl from ``regista.synth``) plus the
 broadcast video ``regista.render`` draws from it. Clubs and kit colours vary per match so the
-models learn "a kit colour" rather than one club, and the held-out test matches use clubs and
-colours the training matches never show.
+models learn "a kit colour" rather than one club. The development matches (``TEST_SPECS``) use clubs the
+training matches never show; the fresh matches (``FRESH_SPECS``) also use colours far from every training kit.
 
 Everything is written under a caller-chosen root (default ``/tmp/regista_vision``), never into
 the repo: the repo holds no footage, rendered or otherwise.
@@ -48,7 +48,8 @@ TRAIN_SPECS: list[MatchSpec] = [
     MatchSpec(110, "Castleford,CAS,#BE185D,#FFFFFF,#4ADE80", "Moorgate,MOO,#1E40AF,#FFFFFF,#FDBA74", minutes=5),
 ]
 
-# Held out: clubs and colours unseen in training (the first is the demo pairing from CLAUDE.md).
+# Development set: clubs unseen in training (the first is the demo pairing from CLAUDE.md). Not held out: these were
+# checked while tuning, and three keeper/primary colours repeat training kits (docs/vision.md).
 TEST_SPECS: list[MatchSpec] = [
     MatchSpec(201, "Eastbury Rovers,EAS,#00A650,#FFFFFF,#F97316", "Westfield Town,WES,#6A0DAD,#FFFFFF,#FDE047", minutes=5),
     MatchSpec(202, "Corrin,COR,#DC2626,#FFFFFF,#22D3EE", "Lakeside,LAK,#2563EB,#FFFFFF,#A3E635", minutes=2.5, periods=2),
@@ -56,6 +57,15 @@ TEST_SPECS: list[MatchSpec] = [
     MatchSpec(204, "Hollins,HOL,#0891B2,#FFFFFF,#EF4444", "Brackley,BRA,#9F1239,#FFFFFF,#A3E635", minutes=5),
     MatchSpec(205, "Kelso,KEL,#BE123C,#FFFFFF,#F0ABFC", "Ravenmoor,RAV,#F59E0B,#000000,#3B82F6", minutes=5),
     MatchSpec(206, "Ilford Vale,ILF,#6D28D9,#FFFFFF,#FB7185", "Selby,SEL,#0284C7,#FFFFFF,#FACC15", minutes=2.5, periods=2),
+]
+
+
+# Fresh matches, made after the audit and scored once with frozen models: new clubs, and primary and goalkeeper colours
+# at least 20 CIE76 ΔE from every training and development kit, the grass, and the neutrals.
+FRESH_SPECS: list[MatchSpec] = [
+    MatchSpec(301, "Hartwell,HRT,#1717E6,#FFFFFF,#F28D61", "Penrose,PEN,#B28F59,#000000,#55E617", minutes=5),
+    MatchSpec(302, "Ashgrove,ASG,#66052C,#FFFFFF,#A1B259", "Varley,VAR,#F261E4,#000000,#053666", minutes=2.5, periods=2),
+    MatchSpec(303, "Calloway,CLW,#663605,#FFFFFF,#7D59B2", "Linden,LIN,#B25959,#FFFFFF,#050F66", minutes=5),
 ]
 
 

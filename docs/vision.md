@@ -26,9 +26,37 @@ The vision layer emits no `event` records yet (passes, shots, tackles, nutmegs).
 
 ## Measured numbers
 
-Data: 10 training matches and 6 held-out matches, 5 minutes of play each (two of each set are 2 x 2.5-minute halves, which adds a half-time graphic). Each was rendered at 640x360, 10 fps, by `python3 -m regista.vision data`. **Every held-out match uses clubs and kit colours that never appear in training.** One held-out pairing is the demo's (Eastbury green vs Westfield purple); the green shirt sits about 17 ΔE from the grass. Identity, cutaway, and possession numbers use the true camera segments, so each stage is scored on its own. The end-to-end row runs every stage from the video.
+Data: 10 training matches, 6 development matches (seeds 201-206), and 3 fresh matches (seeds 301-303), 5 minutes of play each (some are 2 x 2.5-minute halves, which adds a half-time graphic). Each was rendered at 640x360, 10 fps, by `python3 -m regista.vision data`. Identity, cutaway, and possession numbers use the true camera segments, so each stage is scored on its own. The end-to-end rows run every stage from the video.
 
-| Stage | Metric (6 held-out matches unless noted) | Measured |
+**Development set, not held out.** No model is trained on seeds 201-206, but they were used while building: detector fixes, the possession thresholds (`PossessionConfig` defaults), and cut tuning were checked against them. Their numbers are development numbers and flatter the pipeline. Their clubs are not in training, but three of their kit colours are (an exact reuse in seeds 201, 205, and 206), so they do not test unseen colours either.
+
+**Fresh matches.** Seeds 301-303 were created after the audit, with new clubs and primary and goalkeeper colours at least 20 ΔE from every training kit and from the development kits (and well away from the grass and neutrals). They were scored once with the frozen v2 models; nothing was changed after seeing the result. These are the numbers to quote.
+
+| Stage | Metric (3 fresh matches, seeds 301-303) | Measured |
+|---|---|---|
+| Shots | frame accuracy after segmentation (9,872 frames) | **99.7%** (main, replay, highlight, crowd 100%; closeup 88.9%; graphic 99.3%) |
+| Shots | segment-boundary precision / recall / F1, within 0.5 s (45 true boundaries) | 0.955 / 0.933 / **0.944** |
+| Camera calibration | mean error of the recovered pan | 0.05 m |
+| Detection | player precision / recall (4,175 frames at 5 fps) | **0.966 / 0.987** (precision 0.915 on syn_0302, the one real drop on unseen colours) |
+| Detection | ball precision / recall; mean ball position error | 0.996 / 0.995; 0.15 m |
+| Team | team accuracy over matched detections | **99.99%** |
+| Kit number | per-crop reading, number visible (33,671 crops: main / replay / highlight / closeup) | **99.3%** (99.5 / 95.6 / 98.7 / 100) |
+| Identity | detections whose track is named, and named correctly | 97.8% named; **99.8%** of those correct (97.5% of all matched detections) |
+| Position | mean / 95th-percentile pitch error of player ground points | **0.18 m** / 0.43 m |
+| Cutaway appearances | replay, highlight, and closeup players vs generator appearances (36 true) | precision 0.69, recall **0.56** |
+| Possession | frame accuracy / holder precision / holder recall | 0.82 / 0.92 / **0.72** |
+| Possession | true possessions found (IoU ≥ 0.5) / predicted ones that match / player right when overlapping (209 true) | 0.75 / 0.85 / **0.98** |
+| End to end (each match, every stage from video, all 22 starters) | clip recall / precision at IoU ≥ 0.5; true clip-seconds covered | syn_0301: 0.62 / 0.90; 57%. syn_0302: 0.79 / 0.96; 80%. syn_0303: 0.87 / 0.96; 84% |
+| End to end (all three, 234 true clips) | clip recall / precision at IoU ≥ 0.5 | **0.76 / 0.94** |
+| End to end, t_home_09 only | clip recall / precision at IoU ≥ 0.5 | 0.78 / 1.00, 0.86 / 1.00, 1.00 / 1.00 (9, 7, 4 true clips) |
+
+The fresh numbers sit close to the development numbers: identity, kit numbers, and shots carry over to unseen colours; player-detection precision is the one stage that drops, and end-to-end recall varies by match (0.62 to 0.87) with possession recall. Reproduce: `python3 -m regista.vision evaluate --set fresh --models models/vision` (the end-to-end row runs on the set's first match unless `--e2e-seed` is given). These runs include two fixes made after the audit: appearance and possession records no longer run past the end of their shot, and vision roles no longer retry deterministic failures.
+
+### Development set (seeds 201-206)
+
+Re-scored with the same frozen models and today's code, after the two fixes above; no figure moved by more than 0.02.
+
+| Stage | Metric (6 development matches unless noted) | Measured |
 |---|---|---|
 | Shots | frame accuracy after segmentation (19,752 frames) | **99.98%** (main 100%, replay 100%, highlight 99.75%, closeup 100%, crowd 100% on 50 frames, graphic 100%) |
 | Shots | segment-boundary precision / recall / F1, within 0.5 s (77 true boundaries) | 0.959 / 0.909 / **0.933** |
@@ -38,16 +66,16 @@ Data: 10 training matches and 6 held-out matches, 5 minutes of play each (two of
 | Team | team accuracy over matched detections | **99.99%** |
 | Kit number | per-crop reading, number visible (69,202 crops: main / replay / highlight / closeup) | **99.5%** (99.6 / 98.1 / 99.1 / 100) |
 | Kit number | free reading of fresh synthetic discs, numbers 1-99 (3,000) | 85.9% (84.9% for 12-99) |
-| Identity | detections whose track is named, and named correctly | 97.4% named; **99.3%** of those correct (96.8% of all matched detections) |
+| Identity | detections whose track is named, and named correctly | 97.2% named; **99.3%** of those correct (96.6% of all matched detections) |
 | Position | mean / 95th-percentile pitch error of player ground points | **0.20 m** / 0.46 m |
-| Cutaway appearances | replay, highlight, and closeup players vs generator appearances (66 true) | precision 0.75, recall **0.61** |
+| Cutaway appearances | replay, highlight, and closeup players vs generator appearances (66 true) | precision 0.77, recall **0.61** |
 | Possession | frame accuracy (holder or nobody) / holder precision / holder recall | 0.81 / 0.90 / **0.72** |
-| Possession | true possessions found (same player, time IoU ≥ 0.5) / predicted ones that match / player right when overlapping (429 true) | 0.72 / 0.82 / **0.97** |
+| Possession | true possessions found (same player, time IoU ≥ 0.5) / predicted ones that match / player right when overlapping (429 true) | 0.71 / 0.83 / **0.97** |
 | End to end (syn_0201, every stage from video) | clips for t_home_09 from the vision stream vs from ground truth: recall / precision at IoU ≥ 0.5; true clip-seconds covered | 0.80 / 1.00; 84% |
 | End to end (syn_0201, all 22 starters) | clips recall / precision at IoU ≥ 0.5 (67 true clips); true clip-seconds covered | **0.75 / 0.96**; 73% |
 | End to end, by clip reason (all starters) | on-ball main / replay / highlight / closeup recall | 0.81 (58) / 0.50 (2) / 0.17 (6) / 1.00 (1) |
 
-Reproduce (about 25 minutes on a 10-core laptop: render 1.5, train 7.5, evaluate 15; everything is written under `/tmp/regista_vision`, nothing in the repo):
+Reproduce the development-set numbers (about 25 minutes on a 10-core laptop: render 1.5, train 7.5, evaluate 15; everything is written under `/tmp/regista_vision`, nothing in the repo):
 
 ```bash
 python3 -m regista.vision data                                     # render the 16 matches with ground truth
@@ -77,7 +105,13 @@ The default model directory is `models/vision/`. Trained models are build artefa
 - **On-ball clips end to end (0.81 recall, 1.00 precision)** inherit the possession recall. Missed clips are short possessions; no clip is invented.
 - **Kit numbers 12-99** have never been seen in rendered matches (the synthetic league plays 1-11). On fresh synthetic discs, free reading of numbers 1-99 is about 86% correct, against 99.5% on the crops of numbers 1-11 from rendered matches. On real footage the team sheet constrains the answer anyway.
 - **Kits close to the grass** work down to about 17 ΔE (the Eastbury green), but are not guaranteed: a shirt within about 5 ΔE of the grass (tried, then dropped from the test set as unrealistic) is invisible to this detector.
-- **Speed**: about 95 s for a 5.5-minute match at 640x360 on a laptop CPU (shots 12 s, identity 80 s at 5 analysed frames per second, about 50 ms per frame).
+- **Speed**: about 95 s for a 5.5-minute match at 640x360 on a laptop CPU (shots 12 s, identity 80 s at 5 analysed frames per second, about 50 ms per frame). Measured separately at about 0.3x real time, a 90-minute match at 640x360 would take about half an hour, at 1280x720 about an hour, and at 1080p several hours. The frame reader decodes every frame at full size and drops the unsampled ones in Python, and one run decodes the video about four times; sampling inside ffmpeg and probing once are the first speed fixes.
+
+### Limits of what was tested
+
+- **One format.** Every training and test video is 640x360 at 10 fps. At 1280x720 the shot model classed every replay frame as a highlight (replay accuracy 0%). At 25 fps replay accuracy fell to 76% and boundaries were found later, because sampling 10 of 25 frames gives uneven gaps and the motion features (slow motion is the replay cue) were learned at even 0.1 s gaps. Identity held at about 99.7% in both. Real footage needs the shot model retrained on its own format, with features normalised by the frame gap.
+- **What inference is given.** Besides the team sheet and kit colours, the vision run receives the match header's period start and end times and attacking directions. On a real broadcast those come from the broadcast log or the on-screen clock, which v0 does not read. Inference also knows the renderer's camera model and its grass, shadow, and line colours; the 0.05 m pan and 0.20 m position errors depend on that prior.
+- **Kit colours.** The detector takes its colours from the roster, so unseen colours mainly test the colour clustering and the number reader's normalisation; the fresh matches cover that.
 
 ## What changes for real broadcast footage
 

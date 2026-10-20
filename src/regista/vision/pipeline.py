@@ -100,7 +100,8 @@ def run_vision(video: Path | str, roster: Record, out_dir: Path | str, *, models
     timings["identity_s"] = round(time.perf_counter() - t0, 2)
 
     t0 = time.perf_counter()
-    possessions = infer_possessions(ident.frames, roster, match_id, possession_cfg, fps=identity_cfg.sample_fps)
+    possessions = infer_possessions(ident.frames, roster, match_id, possession_cfg, fps=identity_cfg.sample_fps,
+                                    segment_end={r["id"]: r["t_end"] for r in seg_recs})
     timings["possession_s"] = round(time.perf_counter() - t0, 2)
 
     return write_match_dir(out_dir, roster, info, match_id, seg_recs, ident, possessions, track_hz, timings)
@@ -109,7 +110,7 @@ def run_vision(video: Path | str, roster: Record, out_dir: Path | str, *, models
 def write_match_dir(out_dir: Path | str, roster: Record, info: VideoInfo, match_id: str, seg_recs: list[Record], ident: IdentityResult,
                     possessions: list[Record], track_hz: float = 2.0, timings: dict[str, float] | None = None) -> dict[str, Any]:
     out_dir = Path(out_dir)
-    appearances = appearance_records(ident, possessions, match_id)
+    appearances = appearance_records(ident, possessions, match_id, segment_end={r["id"]: r["t_end"] for r in seg_recs})
     tracks = track_records(ident, match_id, info.fps, track_hz)
     header = vision_match_header(roster, info, match_id, ident)
     order = {"camera_segment": 0, "possession": 1, "appearance": 2}

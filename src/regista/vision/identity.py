@@ -466,8 +466,12 @@ def track_records(result: IdentityResult, match_id: str, fps: float, track_hz: f
     return out
 
 
-def appearance_records(result: IdentityResult, possessions: list[Record], match_id: str, gap_s: float = 1.0) -> list[Record]:
-    """``appearance`` records: runs of a named player in a main segment, and every cutaway involvement."""
+def appearance_records(result: IdentityResult, possessions: list[Record], match_id: str, gap_s: float = 1.0,
+                       segment_end: dict[str, float] | None = None) -> list[Record]:
+    """``appearance`` records: runs of a named player in a main segment, and every cutaway involvement.
+
+    ``segment_end`` (segment id -> end time) clamps a run so it never outlasts its shot."""
+    segment_end = segment_end or {}
     w, h = result.info["video"]["width"], result.info["video"]["height"]
     runs: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
     for fr in result.frames:
@@ -485,7 +489,7 @@ def appearance_records(result: IdentityResult, possessions: list[Record], match_
                 chunk.append(o)
                 continue
             if chunk:
-                t0, t1 = chunk[0]["t"], chunk[-1]["t"] + dt
+                t0, t1 = chunk[0]["t"], min(chunk[-1]["t"] + dt, segment_end.get(sid, float("inf")))
                 area = float(np.mean([(2 * c["r"] / w) * (2 * c["r"] / h) for c in chunk]))
                 on_ball = any(p["player_id"] == pid and p["t"] < t1 and t0 < p["t_end"] for p in possessions)
                 n += 1

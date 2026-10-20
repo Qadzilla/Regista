@@ -73,6 +73,8 @@ def test_frames_iterator_samples_and_downscales(clips):
     info = probe(clips["test"]["video"])
     assert info.fps == FPS and (info.width, info.height) == SIZE
     frames = list(iter_frames(clips["test"]["video"], sample_fps=2.0, size=(128, 72), end_s=5.0))
+    # Sampling keeps real frames, so a rate that does not divide the source rate gives uneven gaps. The shot model
+    # was trained at the renders' own rate and is not robust to this (docs/vision.md, "Limits").
     assert [round(t, 2) for _i, t, _f in frames] == [0.0, 0.6, 1.0, 1.6, 2.0, 2.6, 3.0, 3.6, 4.0, 4.6]
     i, t, f = frames[3]
     assert f.shape == (72, 128, 3) and f.dtype == np.uint8 and abs(t - i / FPS) < 1e-9
@@ -147,6 +149,7 @@ def test_identity_detects_reads_and_names_players(clips, vision_run):
     assert r["detection_recall"] >= 0.97, r
     assert r["team_accuracy"] >= 0.99, r
     assert r["identity_accuracy"] >= 0.95, r
+    assert r["named_fraction"] >= 0.9, r  # most tracked players must carry a name, not just the few that were read
     assert r["position_error_m_mean"] < 0.4, r
     assert r["ball_recall"] >= 0.9 and r["ball_precision"] >= 0.9, r
 
@@ -203,6 +206,36 @@ def test_vision_workflow_writes_a_valid_match_the_intelligence_layer_can_use(cli
     truth_stream = list(iter_jsonl(clips["test"]["match_dir"] + "/events.jsonl"))
     cmp = compare_clips(stream, truth_stream, "t_home_09")
     assert cmp["true_clips"] > 0 and cmp["true_seconds_covered"] >= 0.5, cmp
+    assert cmp["vision_seconds_inside_true"] >= 0.85, cmp  # what vision cuts must mostly be real moments
+
+
+def test_vision_records_stay_inside_their_shot(vision_run):
+    stream = list(iter_jsonl(vision_run["out"] / "events.jsonl"))
+    seg = {r["id"]: r for r in stream if r["type"] == "camera_segment"}
+    for r in stream:
+        if r["type"] == "appearance":
+            assert seg[r["segment_id"]]["t"] - 1e-6 <= r["t"] < r["t_end"] <= seg[r["segment_id"]]["t_end"] + 1e-6, r
+        elif r["type"] == "possession":
+            assert any(s["t"] - 1e-6 <= r["t"] and r["t_end"] <= s["t_end"] + 1e-6 for s in seg.values()), r
+
+
+def test_vision_workflow_dead_letters_without_retrying_deterministic_failures(tmp_path, clips):
+    from regista.vision.agents import run_vision_workflow
+
+    roster = load_match_header(clips["test"]["match_dir"])
+    # A missing video: the first role refuses, nothing downstream runs.
+    run = run_vision_workflow({"video_path": str(tmp_path / "nope.mp4"), "roster": roster, "out_dir": str(tmp_path / "a")},
+                              config={"models_dir": str(tmp_path / "no_models")})
+    assert not run.ok and run.failed_role == "shots"
+    assert [r["attempt"] for r in run.trace if r["agent"] == "shots"] == [1]
+    assert len(run.dead_letters) == 1
+    # Missing models behind known shot boundaries: identity fails on its first attempt and is not retried.
+    segs = [{"id": "cs_1", "t": 0.0, "t_end": 5.0, "kind": "main"}]
+    run = run_vision_workflow({"video_path": clips["test"]["video"], "roster": roster, "out_dir": str(tmp_path / "b")},
+                              config={"models_dir": str(tmp_path / "no_models"), "segments": segs}, max_retries=2)
+    assert not run.ok and run.failed_role == "identity", run.dead_letters
+    assert [(r["attempt"], r["status"]) for r in run.trace if r["agent"] == "identity"] == [(1, "failed")]
+    assert not (tmp_path / "b" / "events.jsonl").exists()
 
 
 def test_vision_roles_declare_their_contract():

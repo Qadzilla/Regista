@@ -58,6 +58,20 @@ def _cached(kind: str, models_dir: str):
     return _MODEL_CACHE[key]
 
 
+def _not_retryable(handle):
+    """Vision work is deterministic: a decode error or a bug fails the same way on a second try, and a retry
+    of the identity pass costs minutes. Anything that is not already an ``AgentError`` dead-letters at once."""
+    def wrapped(self, state: State) -> State:
+        try:
+            return handle(self, state)
+        except AgentError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - reported in the dead letter with its type
+            raise AgentError(f"{type(exc).__name__}: {exc}", retryable=False) from exc
+    wrapped.__doc__ = handle.__doc__
+    return wrapped
+
+
 def _work_dir(state: State) -> Path:
     d = Path(state.get("work_dir") or (Path(state["out_dir"]) / ".vision_work"))
     d.mkdir(parents=True, exist_ok=True)
@@ -75,14 +89,18 @@ class ShotsAgent(Agent):
     outputs: tuple[str, ...] = ("camera_segments",)
     description: str = "Cuts the broadcast into shots and classifies each (main, replay, highlight, closeup, crowd, graphic)."
 
+    @_not_retryable
     def handle(self, state: State) -> State:
         from regista.vision.shots import segments_to_records
 
         video = Path(state["video_path"])
         if not video.exists():
             raise AgentError(f"{video} does not exist", retryable=False)
-        model = self.config.get("shot_model") or _cached("shots", self.config.get("models_dir", str(DEFAULT_MODELS_DIR)))
-        segments = self.config.get("segments") or model.predict(video)
+        # config["segments"] supplies known shot boundaries (evaluations that score identity on true segments).
+        segments = self.config.get("segments")
+        if not segments:
+            model = self.config.get("shot_model") or _cached("shots", self.config.get("models_dir", str(DEFAULT_MODELS_DIR)))
+            segments = model.predict(video)
         state["camera_segments"] = segments_to_records(segments, _match_id(state))
         return state
 
@@ -95,6 +113,7 @@ class IdentityAgent(Agent):
     description: str = ("Detects players and the ball in main-camera frames, reads kit numbers, maps to pitch metres, tracks and "
                         "names players; finds who appears in each replay, highlight and closeup.")
 
+    @_not_retryable
     def handle(self, state: State) -> State:
         import joblib
 
@@ -118,6 +137,7 @@ class PossessionVisionAgent(Agent):
     outputs: tuple[str, ...] = ("possessions",)
     description: str = "Decides who is on the ball from ball and player positions over time; writes possession records."
 
+    @_not_retryable
     def handle(self, state: State) -> State:
         import joblib
 
@@ -126,7 +146,8 @@ class PossessionVisionAgent(Agent):
         result = joblib.load(state["identity_path"])
         cfg = self.config.get("possession_cfg") or PossessionConfig()
         state["possessions"] = infer_possessions(result.frames, state["roster"], _match_id(state), cfg,
-                                                 fps=result.info.get("sample_fps", 5.0))
+                                                 fps=result.info.get("sample_fps", 5.0),
+                                                 segment_end={r["id"]: r["t_end"] for r in state["camera_segments"]})
         return state
 
 
@@ -137,6 +158,7 @@ class VisionWriterAgent(Agent):
     outputs: tuple[str, ...] = ("match_dir", "vision_summary")
     description: str = "Writes events.jsonl + tracks.jsonl + manifest.json and validates them against the event contract."
 
+    @_not_retryable
     def handle(self, state: State) -> State:
         import joblib
 

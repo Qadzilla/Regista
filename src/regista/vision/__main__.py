@@ -1,6 +1,6 @@
 """CLI for the private vision layer.
 
-    python3 -m regista.vision data                       # render training + held-out matches (with ground truth) to /tmp/regista_vision
+    python3 -m regista.vision data                       # render training + development matches (with ground truth) to /tmp/regista_vision
     python3 -m regista.vision train --models models/vision
     python3 -m regista.vision evaluate --models models/vision --out /tmp/regista_vision/eval.json
     python3 -m regista.vision run VIDEO --roster MATCH_DIR_OR_EVENTS_JSONL --out OUT_DIR [--workflow]
@@ -26,7 +26,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python3 -m regista.vision", description="Regista vision layer: broadcast video in, event stream out.")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
-    d = sub.add_parser("data", help="generate and render the training and held-out matches")
+    d = sub.add_parser("data", help="generate and render the training and development matches")
     d.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     d.add_argument("--workers", type=int, default=None)
 
@@ -35,11 +35,13 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
     t.add_argument("--synth", type=int, default=20000, help="synthetic number discs added to the reader's training set")
 
-    e = sub.add_parser("evaluate", help="measure every stage on the held-out matches")
+    e = sub.add_parser("evaluate", help="measure every stage on the development set or the fresh matches")
+    e.add_argument("--set", choices=["dev", "fresh"], default="dev", dest="match_set",
+                   help="dev: seeds 201-206, used while tuning; fresh: seeds 301-303, scored once with frozen models")
     e.add_argument("--root", type=Path, default=DEFAULT_ROOT)
     e.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
     e.add_argument("--out", type=Path, default=None, help="write the full report as JSON")
-    e.add_argument("--e2e-seed", type=int, default=201, help="held-out match for the end-to-end clip comparison")
+    e.add_argument("--e2e-seed", type=int, default=None, help="match for the end-to-end clip comparison (default: the set's first)")
 
     r = sub.add_parser("run", help="run the vision layer on a video and write a match directory")
     r.add_argument("video", type=Path)
@@ -74,7 +76,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "evaluate":
         from regista.vision.evaluate import evaluate_all
 
-        report = evaluate_all(args.root, args.models, e2e_seed=args.e2e_seed)
+        from regista.vision.dataset import FRESH_SPECS, TEST_SPECS
+
+        report = evaluate_all(args.root, args.models, test_specs=FRESH_SPECS if args.match_set == "fresh" else TEST_SPECS,
+                              e2e_seed=args.e2e_seed)
         if args.out:
             args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
