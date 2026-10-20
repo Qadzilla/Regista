@@ -85,7 +85,7 @@ def test_clip_render_on_demand_and_cache(client):
     assert cached.exists()
     assert count_frames(cached) == len(frame_times(clip["t"], clip["t_end"], 5.0))
     assert client.get(url, params={"fps": 5, "width": 320}).content == r.content  # served from cache
-    assert client.get(f"/api/matches/{client.match_id}/clips/cl_999999.mp4").status_code == 404
+    assert client.get(f"/api/matches/{client.match_id}/clips/cl_t_home_09_999999.mp4").status_code == 404
 
 
 def test_report_endpoint(client):

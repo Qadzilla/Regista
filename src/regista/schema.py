@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 Record = dict[str, Any]
 
-SCHEMA_VERSION = "0.1.0"
+SCHEMA_VERSION = "0.1.1"  # 0.1.1: annotation.context (additive)
 # The schemas ship inside the package so validation works from any install, not only a repo checkout.
 SCHEMA_DIR = Path(__file__).resolve().parent / "schemas"
 EVENTS_SCHEMA = SCHEMA_DIR / "regista-events.schema.json"

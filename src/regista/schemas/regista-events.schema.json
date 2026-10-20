@@ -317,6 +317,7 @@
         "annotated_at": { "type": "string", "format": "date-time" },
         "source": { "type": "string", "enum": ["human", "synthetic"] },
         "simulates": { "const": "human", "description": "Present only on synthetic placeholder annotations: the record shows the shape of human feedback; no person produced it." },
+        "context": { "type": "object", "description": "Snapshot of what the reviewer saw (tags, reason, duration, scores, model), so feedback can train models without the match files." },
         "confidence": { "const": 1 }
       },
       "required": ["type", "t", "target_id", "target_type", "verdict", "annotator", "annotated_at", "confidence"],

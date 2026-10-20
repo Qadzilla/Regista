@@ -330,3 +330,13 @@ def test_schemas_ship_inside_the_package():
         assert path.exists() and pkg in path.resolve().parents, path
     data = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
     assert "schemas/*.json" in data["tool"]["setuptools"]["package-data"]["regista"]
+
+
+def test_clip_and_label_ids_are_unique_across_players_in_a_match(result):
+    """Several players' clips share clips.jsonl and one Cosmos DB partition; a repeated id overwrites a clip."""
+    ids = []
+    for pid in ("t_home_09", "t_home_10", "t_away_09"):
+        clips, labels = derive_clips(result.stream, pid)
+        ids += [c["id"] for c in clips] + [lb["id"] for lb in labels]
+        assert all(pid in c["id"] for c in clips)
+    assert len(ids) == len(set(ids))

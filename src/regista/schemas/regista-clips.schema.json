@@ -56,6 +56,8 @@
         "summary": { "type": "string" },
         "explanation": { "type": "string" },
         "watchability": { "$ref": "#/$defs/confidence" },
+        "prior_watchability": { "$ref": "#/$defs/confidence", "description": "The score before the model in `model` revised it (rules-v0 or the learned model)." },
+        "review": { "type": "string", "description": "Why this clip was sent to a human, when it was." },
         "language": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
         "model": { "type": "string" }
       },

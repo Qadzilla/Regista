@@ -6,6 +6,7 @@
     "seed": 294,
     "params": {
       "minutes": 3.0,
+      "periods": 1,
       "track_hz": 1.0,
       "fps": 25.0,
       "profile": "demo"

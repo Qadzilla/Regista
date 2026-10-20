@@ -125,8 +125,11 @@ class StreamIndex:
         return None
 
 
-def _envelope(match_id: str, prefix: str, n: int) -> Record:
-    return {"type": None, "id": f"{prefix}_{n:06d}", "match_id": match_id, "schema_version": SCHEMA_VERSION, "source": "derived", "confidence": 1.0}
+def _envelope(match_id: str, prefix: str, n: int, player_id: str) -> Record:
+    # Ids are unique within a match across players (cl_t_home_09_000001), because clips of several players
+    # share clips.jsonl and the same Cosmos DB partition, where a repeated id would overwrite another player's clip.
+    return {"type": None, "id": f"{prefix}_{player_id}_{n:06d}", "match_id": match_id, "schema_version": SCHEMA_VERSION,
+            "source": "derived", "confidence": 1.0}
 
 
 # ---------------------------------------------------------------------------- step 1: cut
@@ -175,7 +178,7 @@ def cut_clips(index: StreamIndex, player_id: str, *, pre_roll_s: float = 2.0, po
         relevant = _relevant_events(index, c, player_id)
         key_event = _key_event(relevant, c, player_id)
         keyframe_t = key_event["t"] if key_event and c["t"] <= key_event["t"] < c["t_end"] else round((c["t"] + c["t_end"]) / 2, 2)
-        clip = _envelope(match_id, "cl", n)
+        clip = _envelope(match_id, "cl", n, player_id)
         clip.update(
             type="clip", player_id=player_id, t=round(c["t"], 2), t_end=round(c["t_end"], 2), segment_ids=c["segment_ids"],
             reason=c["reason"], event_ids=[e["id"] for e in relevant], possession_ids=c["possession_ids"], keyframe_t=round(keyframe_t, 2),
@@ -197,8 +200,12 @@ def _key_event(relevant: list[Record], c: Record, player_id: str) -> Record | No
 
 # ---------------------------------------------------------------------------- step 2: label
 
-def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-v0", language: str = "en") -> list[Record]:
-    """Tag, title, score, and explain each clip. Deterministic ``rules-v0``; a Foundry model can replace it."""
+def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-v0", language: str = "en", scorer: Any = None) -> list[Record]:
+    """Tag, title, score, and explain each clip.
+
+    Deterministic ``rules-v0`` by default. ``scorer`` is a trained ``regista.feedback.WatchabilityModel``:
+    when given, it scores the clip from what Zaid's verdicts taught it, and the rules score is kept as
+    ``prior_watchability``. A Foundry model can then revise either (``regista.cloud.foundry``)."""
     match_id = index.match["match_id"]
     roster = index.roster
     labels: list[Record] = []
@@ -218,7 +225,17 @@ def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-
 
         scored = [(TAG_WEIGHTS.get(t, 0.1), t) for t in tags]
         best_w, best_tag = max(scored)
-        watchability = round(min(1.0, best_w + 0.03 * (len(tags) - 1)), 3)
+        rules_w = round(min(1.0, best_w + 0.03 * (len(tags) - 1)), 3)
+        duration = clip["t_end"] - clip["t"]
+        if scorer is not None and getattr(scorer, "trained", False):
+            watchability = scorer.score(tags, clip["reason"], duration, rules_w)
+            explanation = f"Scored {watchability:.2f}, {scorer.explain(tags, clip['reason'], duration, rules_w)}. Rules alone gave {rules_w:.2f}."
+            label_model = scorer.name
+        else:
+            watchability = rules_w
+            explanation = (f"Scored {watchability:.2f}: strongest tag '{best_tag}' weighs {best_w:.2f}, plus {len(tags) - 1} supporting tag(s). "
+                           f"Reason for the cut: {clip['reason'].replace('_', ' ')}.")
+            label_model = model
         key_event = _key_event(relevant, clip, player_id)
         headline_tag = max(((TAG_WEIGHTS.get(t, 0.1), t) for t in tags if t not in REASON_TAGS), default=(0.0, ""))[1]
         headline = headline_tag.replace("_", " ") if headline_tag else "appearance"
@@ -235,13 +252,11 @@ def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-
         else:
             title = f"{who}: closeup at {when}"
 
-        label = _envelope(match_id, "lb", n)
+        label = _envelope(match_id, "lb", n, player_id)
         label.update(
             type="label", clip_id=clip["id"], player_id=player_id, tags=tags, title=title,
             summary=_summary(player, clip["reason"], relevant, when),
-            explanation=(f"Scored {watchability:.2f}: strongest tag '{best_tag}' weighs {best_w:.2f}, plus {len(tags) - 1} supporting tag(s). "
-                         f"Reason for the cut: {clip['reason'].replace('_', ' ')}."),
-            watchability=watchability, language=language, model=model,
+            explanation=explanation, watchability=watchability, prior_watchability=rules_w, language=language, model=label_model,
         )
         labels.append(label)
     return labels
