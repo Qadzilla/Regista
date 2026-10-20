@@ -27,6 +27,8 @@ footage/
 *.ckpt
 *.h5
 models/weights/
+models/vision/
+*.joblib
 
 # Python
 __pycache__/

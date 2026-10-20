@@ -100,3 +100,10 @@ def test_parse_is_pure(match):
     p = parse_query("Top 3 nutmegs by the away keeper after the 60th minute", match)
     assert p["tags"] == ["nutmeg"] and p["limit"] == 3 and p["minutes"][0] == 60
     assert p["player_id"] == "t_away_01"
+
+
+def test_team_plus_bare_kit_number(match_dir):
+    out = search_clips(match_dir, "every touch by the home 9")
+    assert out["parsed"]["player_ids"] == ["t_home_09"], out["parsed"]
+    q = search_clips(match_dir, "home goals after 2 minutes")
+    assert q["parsed"]["player_ids"] == [] and q["parsed"]["minutes"] is not None, "a minute is not a kit number"

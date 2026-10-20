@@ -42,6 +42,8 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 | **Azure Container Registry + GitHub Actions** | `build-image.yml` builds the image on every push to main |
 | **Microsoft Entra ID** | Keyless auth everywhere: role assignments for the developer and the app; no keys in code or containers |
 
+**The vision layer (private, v0).** `python3 -m regista.vision run VIDEO --roster MATCH_DIR --out OUT --workflow` watches a broadcast video and writes the same event stream: shot segmentation and classification, player and ball detection, team and kit-number identity, tracking, and possession, as a second Agent Framework workflow. It is trained and measured on Regista's own rendered broadcast, where the generator gives exact ground truth (held-out matches with unseen kits: 99.98% shot frames, 0.99 player detection precision and recall, 99.3% of named players correct, 0.20 m position error). Those numbers come from easy synthetic footage and say nothing yet about real broadcasts; `docs/vision.md` lists what changes for real footage.
+
 **Learning from people.** When the Label agent is unsure (its rules prior and the model disagree, or a score sits on the keep/drop line) the workflow pauses and asks. Verdicts come from the viewer's Keep/Drop buttons, the `--review` terminal prompt, or the review API, and are stored as human annotations. A watchability model is retrained from them and becomes the Label agent's prior. This is learning from human feedback, not reinforcement learning.
 
 **Planned, not wired:** Microsoft Fabric (needs a work or school tenant), Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator. GitHub Copilot Agent Mode is not used; the project is built with Claude Code.

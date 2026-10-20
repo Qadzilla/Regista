@@ -181,8 +181,11 @@ def _find_player(text: str, match: Record) -> tuple[list[Record], str, str | Non
             team_id, text = match["home_team_id"], re.sub(r"\bhome\b", " ", text)
         elif re.search(r"\baway\b", text):
             team_id, text = match["away_team_id"], re.sub(r"\baway\b", " ", text)
-    # Kit number: "number 9", "#9", "no 9", "no. 9", "the 9". Without a team both 9s are candidates.
+    # Kit number: "number 9", "#9", "no 9", "no. 9", "the 9", or a bare number once a team is named ("the home 9",
+    # "Southgate's 10"). Without a team both 9s are candidates.
     m = re.search(r"\b(?:number|no\.?|#|nr)\s?(\d{1,2})\b|#(\d{1,2})\b|\bthe (\d{1,2})\b", text)
+    if m is None and team_id is not None:
+        m = re.search(r"(?<![\d.])\b(\d{1,2})\b(?!\s*(?:min|minute|minutes|'|th|st|nd|rd))", text)
     if m:
         num = int(next(g for g in m.groups() if g))
         cands = [p for p in roster if p["kit_number"] == num and (team_id is None or p["team_id"] == team_id)]

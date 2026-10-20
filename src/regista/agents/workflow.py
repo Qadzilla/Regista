@@ -149,8 +149,12 @@ def _size(value: Any) -> int | None:
     return len(value) if isinstance(value, (list, dict, str)) else None
 
 
-def _key(name: str) -> str:
+def state_key(name: str) -> str:
+    """The workflow-state key under which a pipeline value is stored (public: the vision workflow shares it)."""
     return f"p.{name}"
+
+
+_key = state_key
 
 
 def _known_keys(agents: list[Agent]) -> list[str]:
