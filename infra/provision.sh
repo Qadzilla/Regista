@@ -104,24 +104,27 @@ REGISTA_RESOURCE_GROUP=$RG
 EOF
 
 if [[ -z "${SKIP_ACA:-}" ]]; then
-  log "Container Apps environment $ACA_ENV and app $ACA_APP (builds the image in Azure from this folder)"
+  log "Container Apps environment $ACA_ENV and registry"
   az config set extension.use_dynamic_install=yes_without_prompt -o none
   if ! az containerapp env show -n "$ACA_ENV" -g "$RG" -o none 2>/dev/null; then
     az containerapp env create -n "$ACA_ENV" -g "$RG" --location "$LOCATION" -o none
   fi
-  az containerapp up --name "$ACA_APP" --resource-group "$RG" --environment "$ACA_ENV" --location "$LOCATION" \
-    --source . --ingress external --target-port 8000 \
-    --env-vars "FOUNDRY_PROJECT_ENDPOINT=$PROJECT_ENDPOINT" "FOUNDRY_MODEL=$MODEL" \
-               "REGISTA_COSMOS_ENDPOINT=$COSMOS_ENDPOINT" "REGISTA_COSMOS_DATABASE=$COSMOS_DB" "REGISTA_CLOUD=1"
-  APP_OID=$(az containerapp identity assign -n "$ACA_APP" -g "$RG" --system-assigned --query principalId -o tsv)
-  log "Roles for the app's managed identity"
-  az role assignment create --role "$FOUNDRY_USER_ROLE" --assignee-object-id "$APP_OID" --assignee-principal-type ServicePrincipal --scope "$PROJECT_ID" -o none 2>/dev/null || true
-  az cosmosdb sql role assignment create -a "$COSMOS" -g "$RG" --scope "/" --principal-id "$APP_OID" --role-definition-id "$COSMOS_DATA_CONTRIBUTOR" -o none 2>/dev/null || true
-  APP_URL="https://$(az containerapp show -n "$ACA_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
-  echo "REGISTA_APP_URL=$APP_URL" >> "$ENV_FILE"
+  : "${ACR_NAME:=registaacr$SUFFIX}"
+  if ! az acr show -n "$ACR_NAME" -g "$RG" -o none 2>/dev/null; then
+    az acr create -n "$ACR_NAME" -g "$RG" --sku Basic --admin-enabled true -o none
+  fi
+  ACR_LOGIN_SERVER=$(az acr show -n "$ACR_NAME" -g "$RG" --query loginServer -o tsv)
+  echo "ACR_LOGIN_SERVER=$ACR_LOGIN_SERVER" >> "$ENV_FILE"
+  cat <<MSG
+
+The image is built by GitHub Actions (.github/workflows/build-image.yml), because free-trial subscriptions
+cannot run ACR Tasks. Set the repository secrets ACR_LOGIN_SERVER, ACR_USERNAME, ACR_PASSWORD from
+  az acr credential show -n $ACR_NAME
+push to main (or run the workflow), then deploy the app with:
+  ./infra/deploy-app.sh
+MSG
 fi
 
 log "Done"
 cat "$ENV_FILE"
-[[ -n "${APP_URL:-}" ]] && echo "Viewer: $APP_URL   Health: $APP_URL/api/health"
 echo "Try: python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --cloud --query \"find me Castellanos doing a nutmeg\""
