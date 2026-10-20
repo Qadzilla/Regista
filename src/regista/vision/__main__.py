@@ -18,7 +18,7 @@ import sys
 import time
 from pathlib import Path
 
-from regista.vision.dataset import DEFAULT_ROOT, TEST_SPECS, TRAIN_SPECS, make_match
+from regista.vision.dataset import DEFAULT_ROOT, FRESH_SPECS, TEST_SPECS, TRAIN_SPECS, make_match
 from regista.vision.shots import DEFAULT_MODELS_DIR
 
 
@@ -75,8 +75,6 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "evaluate":
         from regista.vision.evaluate import evaluate_all
-
-        from regista.vision.dataset import FRESH_SPECS, TEST_SPECS
 
         report = evaluate_all(args.root, args.models, test_specs=FRESH_SPECS if args.match_set == "fresh" else TEST_SPECS,
                               e2e_seed=args.e2e_seed)

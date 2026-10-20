@@ -248,3 +248,20 @@ def test_vision_roles_declare_their_contract():
     assert agents[0].inputs == ("video_path",) and "roster" in agents[1].inputs
     workflow, keys = build_vision_workflow(agents)
     assert {"video_path", "roster", "camera_segments", "possessions", "match_dir"} <= set(keys)
+
+
+def test_vision_cli_commands_reach_their_work(monkeypatch, tmp_path):
+    """Every subcommand gets past argument handling (a function-local import once made `data` crash at once)."""
+    from regista.vision import __main__ as cli
+
+    seen = []
+    monkeypatch.setattr(cli, "make_match", lambda spec, root, workers=None: seen.append(spec.match_id) or {"video": "v.mp4"})
+    assert cli.main(["data", "--root", str(tmp_path)]) == 0
+    assert seen[0] == "syn_0101" and "syn_0201" in seen
+    import regista.vision.evaluate as ev
+
+    calls = []
+    monkeypatch.setattr(ev, "evaluate_all", lambda root, models, test_specs=None, e2e_seed=None: calls.append([s.seed for s in test_specs]) or {})
+    assert cli.main(["evaluate", "--set", "fresh", "--root", str(tmp_path)]) == 0
+    assert cli.main(["evaluate", "--root", str(tmp_path)]) == 0
+    assert calls == [[301, 302, 303], [201, 202, 203, 204, 205, 206]]

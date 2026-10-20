@@ -197,7 +197,9 @@ def _find_player(text: str, match: Record) -> tuple[list[Record], str, str | Non
         if re.search(r"\b" + re.escape(w) + r"\b", text):
             cands = [p for p in roster if p["position"] == pos and p["starter"] and (team_id is None or p["team_id"] == team_id)]
             if cands:
-                rank = lambda p: (p["team_id"] != match["home_team_id"], prefer.index(p["kit_number"]) if p["kit_number"] in prefer else 99, p["kit_number"])
+                def rank(p, prefer=prefer):
+                    return p["team_id"] != match["home_team_id"], prefer.index(p["kit_number"]) if p["kit_number"] in prefer else 99, p["kit_number"]
+
                 pick = sorted(cands, key=rank)[0]
                 return [pick], re.sub(r"\b" + re.escape(w) + r"\b", " ", text).strip(), f"{w} of {teams[pick['team_id']]['name']}", team_id
     # Name tokens: exact surname/first name, then fuzzy.
