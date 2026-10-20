@@ -44,6 +44,7 @@ class CloudConfig:
     cosmos_endpoint: str | None = None
     cosmos_database: str = "regista"
     cosmos_key: str | None = None
+    search_endpoint: str | None = None
 
     @classmethod
     def from_env(cls, dotenv: Path | str | None = None) -> CloudConfig:
@@ -58,6 +59,7 @@ class CloudConfig:
             cosmos_endpoint=os.environ.get("REGISTA_COSMOS_ENDPOINT") or None,
             cosmos_database=os.environ.get("REGISTA_COSMOS_DATABASE") or "regista",
             cosmos_key=os.environ.get("REGISTA_COSMOS_KEY") or None,
+            search_endpoint=os.environ.get("REGISTA_SEARCH_ENDPOINT") or None,
         )
 
     @property
@@ -68,9 +70,14 @@ class CloudConfig:
     def cosmos_enabled(self) -> bool:
         return bool(self.cosmos_endpoint)
 
+    @property
+    def search_enabled(self) -> bool:
+        return bool(self.search_endpoint)
+
     def describe(self) -> str:
         parts = [
             f"Foundry: {'on (' + str(self.foundry_model) + ')' if self.foundry_enabled else 'off'}",
             f"Cosmos DB: {'on (' + self.cosmos_database + ')' if self.cosmos_enabled else 'off'}",
+            f"AI Search: {'on' if self.search_enabled else 'off'}",
         ]
         return "; ".join(parts)

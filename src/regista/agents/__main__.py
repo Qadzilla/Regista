@@ -120,6 +120,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"review: {len(log['applied'])} verdict(s) by {log['annotator']} recorded; model: {log['retrained']}")
     for q, ans in zip(args.query, result.state.get("answers", [])):
         print(f"Q: {q}\n   {ans.get('answer') or ans['message']}" + (f"   [{ans['answered_by']}]" if ans.get("answered_by") else ""))
+        if ans.get("tools_used"):
+            print(f"   tools used: {', '.join(ans['tools_used'])}")
         for r in ans["results"][:5]:
             print(f"   {r['clip_id']}  {r['watchability']:.2f}  {r['title']}")
     print(f"trace: {result.state_dir / 'trace.jsonl'}   dead letters: {len(result.dead_letters)}   ok: {result.ok}")

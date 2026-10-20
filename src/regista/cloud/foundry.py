@@ -49,10 +49,60 @@ was involved in, and a rule-based prior label. Return JSON only, with keys:
 Never invent events that are not listed. Never mention that you are a model."""
 
 LIBRARIAN_INSTRUCTIONS = """You are Regista's Librarian for a football broadcast desk. The user asks for clips of a player
-in plain English. Always call the search_clips tool with the match_dir and the user's exact query
-before answering. Answer in at most two sentences: say how many clips matched and name the best
-one or two by title and minute. If nothing matched, say what the tool reported and suggest the
-nearest thing it offered. Never invent clips that the tool did not return."""
+in plain English. Tools:
+- search_clips (Regista MCP): one match's clips; always call it first with the match_dir and the user's exact query.
+- search_library (Regista MCP): every indexed match at once, when the user asks beyond this match.
+- Azure MCP Server, when attached: cosmos_database_container_item_query runs a read-only SELECT on the Cosmos DB library
+  (account, database "regista", containers matches / clips / labels / annotations, partition key match_id) for counts and
+  history; search_index_query queries the Azure AI Search index "regista-clips".
+Answer in at most two sentences: say how many clips matched and name the best one or two by title and minute. If nothing
+matched, say what the tool reported and suggest the nearest thing it offered. Never invent clips a tool did not return."""
+
+
+def azure_mcp_tool(cloud: CloudConfig):
+    """Microsoft's Azure MCP Server (pip package msmcp-azure), read-only, limited to Cosmos DB and AI Search queries.
+
+    Locally it signs in with the Azure CLI; in Container Apps with the app's managed identity."""
+    import os
+    import shutil
+
+    from agent_framework import MCPStdioTool
+
+    exe = shutil.which("azmcp")
+    if exe is None:
+        return None
+    managed = bool(os.environ.get("IDENTITY_ENDPOINT") or os.environ.get("MSI_ENDPOINT"))
+    env = {**os.environ, "AZURE_TOKEN_CREDENTIALS": "prod" if managed else "AzureCliCredential", "AZURE_MCP_COLLECT_TELEMETRY": "false"}
+    args = ["server", "start", "--mode", "all", "--read-only", "--namespace", "cosmos"]
+    allowed = ["cosmos_database_container_item_query", "cosmos_list"]
+    if cloud.search_enabled:
+        args += ["--namespace", "search"]
+        allowed += ["search_index_query"]
+    return MCPStdioTool(name="azure", command=exe, args=args, env=env, allowed_tools=allowed, load_prompts=False, approval_mode="never_require")
+
+
+def tools_used(result: Any) -> list[str]:
+    """Names of the tools the agent called during a run, in order (for the trace and for transparency)."""
+    names = []
+    for msg in getattr(result, "messages", []) or []:
+        for c in getattr(msg, "contents", []) or []:
+            if getattr(c, "type", None) == "function_call" and getattr(c, "name", None):
+                names.append(c.name)
+    return names
+
+
+def cosmos_account_name(cloud: CloudConfig) -> str | None:
+    import re
+
+    m = re.match(r"https://([^.]+)\.", cloud.cosmos_endpoint or "")
+    return m.group(1) if m else None
+
+
+def search_service_name(cloud: CloudConfig) -> str | None:
+    import re
+
+    m = re.match(r"https://([^.]+)\.", cloud.search_endpoint or "")
+    return m.group(1) if m else None
 
 
 @dataclass
@@ -201,6 +251,7 @@ class FoundryLibrarianAgent(LibrarianAgent):
     config: dict[str, Any] = field(default_factory=dict)
     cloud: CloudConfig | None = None
     answerer: Callable[[str, str], Awaitable[str]] | None = None  # (match_dir, query) -> text; injectable for tests
+    last_tools_used: list[str] = field(default_factory=list)
 
     def handle(self, state: State) -> State:
         cloud = self.cloud or CloudConfig.from_env()
@@ -213,9 +264,11 @@ class FoundryLibrarianAgent(LibrarianAgent):
         for q in state["queries"]:
             structured = search_clips(state["match_dir"], q, self.config.get("limit", 10))
             try:
+                self.last_tools_used = []
                 text = run_sync(self._answer(cloud, state["match_dir"], q))
                 structured["answer"] = text
                 structured["answered_by"] = f"foundry:{cloud.foundry_model}" if self.answerer is None else "foundry:test"
+                structured["tools_used"] = list(self.last_tools_used)
             except Exception as exc:  # noqa: BLE001
                 structured["answer"] = structured["message"]
                 structured["answered_by"] = f"rules (foundry fallback: {type(exc).__name__})"
@@ -230,11 +283,20 @@ class FoundryLibrarianAgent(LibrarianAgent):
         from agent_framework.foundry import FoundryChatClient
         from azure.identity.aio import DefaultAzureCredential
 
-        async with DefaultAzureCredential() as credential:
+        from contextlib import AsyncExitStack
+
+        async with DefaultAzureCredential() as credential, AsyncExitStack() as stack:
             client = FoundryChatClient(project_endpoint=cloud.foundry_project_endpoint, model=cloud.foundry_model, credential=credential)
-            async with (
-                MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"]) as tool,
-                Agent(client=client, name="regista-librarian", instructions=LIBRARIAN_INSTRUCTIONS) as agent,
-            ):
-                result = await agent.run(f"match_dir: {match_dir}\nquery: {query}", tools=tool)
-                return getattr(result, "text", None) or str(result)
+            tools = [await stack.enter_async_context(MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"]))]
+            azure = azure_mcp_tool(cloud) if (cloud.cosmos_enabled or cloud.search_enabled) and self.config.get("azure_mcp", True) else None
+            context = [f"match_dir: {match_dir}"]
+            if azure is not None:
+                tools.append(await stack.enter_async_context(azure))
+                if cloud.cosmos_enabled:
+                    context.append(f"cosmos account: {cosmos_account_name(cloud)}, database: {cloud.cosmos_database}")
+                if cloud.search_enabled:
+                    context.append(f"search service: {search_service_name(cloud)}, index: regista-clips")
+            agent = await stack.enter_async_context(Agent(client=client, name="regista-librarian", instructions=LIBRARIAN_INSTRUCTIONS))
+            result = await agent.run("\n".join(context) + f"\nquery: {query}", tools=tools)
+            self.last_tools_used = tools_used(result)
+            return getattr(result, "text", None) or str(result)

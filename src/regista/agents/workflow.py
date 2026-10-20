@@ -55,7 +55,7 @@ WORKFLOW_NAME = "regista-pipeline"
 TRACE_EVENT = "regista_trace"
 DEAD_EVENT = "regista_dead_letter"
 HEAVY_KEYS = ("stream", "index")           # rebuildable from match_dir; kept out of workflow state
-ROLE_ORDER = ["ingest", "validator", "possession", "clip", "label", "review", "persist", "librarian"]
+ROLE_ORDER = ["ingest", "validator", "possession", "clip", "label", "review", "persist", "indexer", "librarian"]  # "indexer" is optional
 
 
 # ---------------------------------------------------------------------------- messages
@@ -394,7 +394,8 @@ class WorkflowPipeline:
                             start_executor=roles["ingest"], checkpoint_storage=storage, output_from=[finish, dead])
         b.add_fan_out_edges(roles["ingest"], [roles["validator"], roles["possession"]])
         b.add_fan_in_edges([roles["validator"], roles["possession"]], roles["clip"])
-        b.add_chain([roles["clip"], roles["label"], review, roles["persist"], roles["librarian"], finish])
+        tail = [roles["persist"]] + ([roles["indexer"]] if "indexer" in roles else []) + [roles["librarian"], finish]
+        b.add_chain([roles["clip"], roles["label"], review] + tail)
         for ex in roles.values():
             b.add_edge(ex, dead)  # only DeadLetter messages reach it; handoffs are routed by type to the next role
         return b.build()

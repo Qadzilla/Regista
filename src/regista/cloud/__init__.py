@@ -15,7 +15,7 @@ def agents_for(config: CloudConfig | None = None, *, require: bool = False):
     from regista.agents.roles import default_agents
 
     config = config or CloudConfig.from_env()
-    if require and not (config.foundry_enabled or config.cosmos_enabled):
+    if require and not (config.foundry_enabled or config.cosmos_enabled or config.search_enabled):
         raise RuntimeError("no cloud configuration found; set FOUNDRY_PROJECT_ENDPOINT/FOUNDRY_MODEL and/or REGISTA_COSMOS_ENDPOINT (see .env.example)")
     agents = default_agents()
     if config.foundry_enabled:
@@ -26,6 +26,11 @@ def agents_for(config: CloudConfig | None = None, *, require: bool = False):
         from regista.cloud.cosmos import CosmosPersistAgent
 
         agents = [CosmosPersistAgent(cloud=config) if a.role == "persist" else a for a in agents]
+    if config.search_enabled:
+        from regista.cloud.search import ClipIndex, SearchIndexAgent
+
+        pos = next(i for i, a in enumerate(agents) if a.role == "persist") + 1
+        agents.insert(pos, SearchIndexAgent(clip_index=None))
     return agents
 
 

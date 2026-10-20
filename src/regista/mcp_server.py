@@ -98,6 +98,16 @@ def render_clip(match_dir: str, clip_id: str, out_dir: str, fps: float = 25.0, s
 
 
 @server.tool()
+def search_library(query: str, top: int = 10) -> dict[str, Any]:
+    """Search every indexed match at once through Azure AI Search, e.g. "every nutmeg by the home 9" or
+    "most watchable replays". Returns ranked clips with match, player, title, tags, watchability, minute.
+    Needs REGISTA_SEARCH_ENDPOINT; for one match's files use search_clips instead."""
+    from regista.cloud.search import search_library as _search_library
+
+    return _search_library(query, top=top)
+
+
+@server.tool()
 def list_matches(root: str = "data/synthetic/sample") -> list[dict[str, Any]]:
     """List match directories under ``root`` with their manifest summaries."""
     out = []
