@@ -226,7 +226,11 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - The free trial blocks ACR Tasks, so `az containerapp up --source` and `az acr build` fail. The image builds on GitHub Actions (`.github/workflows/build-image.yml`, secrets ACR_LOGIN_SERVER/USERNAME/PASSWORD) and deploys with `infra/deploy-app.sh` (pin `IMAGE=...:<sha>`).
 - Auth is keyless everywhere (Entra ID roles). `.env` holds endpoints only and is git-ignored.
 - Also in `regista-rg`: Azure AI Search `regista-search-a7fbe6` (**free tier, South Central US**: free tier is not offered in East US); Application Insights `regista-appi` on the existing Log Analytics workspace (daily cap 0.1 GB), connected to the Foundry project for tracing; Cosmos DB container `annotations` for human verdicts and the learned model.
-- Tests never load `.env` (`REGISTA_DOTENV=""` in tests/conftest.py) and never reach Azure; a guard test enforces it.
+- Tests never load `.env` (`REGISTA_DOTENV=""` in tests/conftest.py) and never reach Azure; a guard test enforces it. Each test gets its own feedback folder.
+- **Writes on the live app need a token.** Uploads, verdicts, reviews and retraining require the `X-Regista-Token` header matching `REGISTA_ADMIN_TOKEN` (in `.env`, deployed as a Container Apps secret). The viewer asks for it once. Reads stay open for judges. `REGISTA_READONLY=1` switches writes off entirely.
+- **Never send a request that writes to the live app as a test.** Probe with requests that cannot write (no token, or an invalid body) and check Cosmos afterwards. On 2026-10-20 two test verdicts reached Cosmos while an old revision was still serving; they were identified by timestamp and deleted.
+- **A deploy is done only when the new revision is the latest ready one.** `deploy-app.sh` waits for that and prints logs on failure. Traffic weight alone is not proof.
+- The image workflow rebuilds on changes to `src/`, `data/synthetic/`, `Dockerfile`, `.dockerignore`, `pyproject.toml`; `tests/test_packaging.py` guards `.dockerignore` against dropping package files.
 - Cosmos DB still holds the sample match's clip and label documents from before ids became player-scoped (cl_000001 style). They are stale duplicates; delete them only with Zaid's go-ahead.
 - Tear down after judging: `./infra/provision.sh --destroy`.
 
