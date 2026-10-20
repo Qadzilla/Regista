@@ -136,21 +136,22 @@ src/regista/schema.py        load + validate JSONL streams by record type
 src/regista/synth/           synthetic match generator (possessions, passes, shots, director cuts, replays)
 src/regista/clips.py         clip rule + first labeller (watchability, tags, explanation)
 src/regista/validate.py      CLI validator
+src/regista/camera.py        the main-camera model shared by generator and renderer (what is in frame)
 src/regista/render/          2D broadcast renderer: scene.py (interpolation, captions, score, clock),
-                             draw.py (pitch, players, replays, closeups, crowd, HUD), video.py (parallel
-                             MP4 parts + ffmpeg concat), clips.py (per-clip videos and best-first reel)
+                             draw.py (pitch, players, replays, closeups, crowd, end card, HUD), video.py
+                             (parallel MP4 parts + ffmpeg concat), clips.py (per-clip videos, best-first reel)
 data/synthetic/README.md     the contract, record by record
 data/synthetic/schema/       regista-events.schema.json, regista-clips.schema.json
-data/synthetic/sample/       committed sample match (seed 109: home #10 scores, a nutmeg, replays)
+data/synthetic/sample/       committed sample match (seed 294: home #9 scores, nutmegs a defender, replays, closeup, highlights)
 tests/test_synthetic.py      schema + generator + clip rule must agree
 ```
 
 ```bash
 python3 -m pytest -q
-python3 -m regista.synth --minutes 3 --seed 109 --track-hz 1 --player t_home_10 --out data/synthetic/sample
-python3 -m regista.validate data/synthetic/sample/syn_0109
-python3 -m regista.render data/synthetic/sample/syn_0109 --out docs/demo/syn_0109.mp4 --frames-dir docs/demo/syn_0109_frames
-python3 -m regista.render.clips data/synthetic/sample/syn_0109 --player t_home_10 --out docs/demo/clips_t_home_10
+python3 -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 --out data/synthetic/sample
+python3 -m regista.validate data/synthetic/sample/syn_0294
+python3 -m regista.render data/synthetic/sample/syn_0294 --out docs/demo/syn_0294.mp4 --frames-dir docs/demo/syn_0294_frames
+python3 -m regista.render.clips data/synthetic/sample/syn_0294 --player t_home_09 --out docs/demo/clips_t_home_09
 ```
 
 `docs/demo/` is git-ignored rendered output. The renderer uses the ffmpeg bundled in the `imageio-ffmpeg` pip package, so no system install is needed; without it, output falls back to GIF.
@@ -184,8 +185,8 @@ Orchestrated with Microsoft Agent Framework; tools exposed via MCP; failure reco
 
 - Keep this file current. When the idea changes, edit section 2; when the stack changes, edit section 3.
 - Never commit raw broadcast video, large model weights, or secrets. `.gitignore` covers the common cases; keep it that way.
-- Name the hero technology in commit messages and docs when a change uses one. Judges read the repo.
-- Use GitHub Copilot Agent Mode where sensible and keep evidence of it (it is a named hero tech).
+- Name a hero technology in commit messages and docs only when the change actually uses it. Never list a service as part of the architecture until code runs against it; mark it "planned" until then. Judges read the repo and will check.
+- Do not claim GitHub Copilot Agent Mode (or any tool) in the pitch unless it was genuinely used and the evidence exists.
 - Keep the README demo-ready: a judge should be able to understand and run the project from it.
 - The demo video is under 2 minutes. Design features so they demo well in that window.
 

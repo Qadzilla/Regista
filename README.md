@@ -28,17 +28,17 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 
 ## Microsoft and Azure technologies
 
-Initial plan (will evolve): Microsoft Foundry, Microsoft Agent Framework, Azure MCP, Azure AI Vision and Video Indexer, Azure AI Speech and Translator, Azure Cosmos DB / Microsoft Fabric, Azure Container Apps, Azure Functions, GitHub Copilot Agent Mode.
+**Planned, not yet wired** (no Azure resources exist yet): Microsoft Foundry, Microsoft Agent Framework, Azure MCP, Azure AI Vision and Video Indexer, Azure AI Speech and Translator, Azure Cosmos DB / Microsoft Fabric, Azure Container Apps, Azure Functions. What runs today runs locally with no cloud dependency; see Status.
 
 ## Quickstart
 
 ```bash
 pip install -e ".[dev]"
 python3 -m pytest -q
-python3 -m regista.synth --minutes 3 --seed 109 --player t_home_10 --out data/synthetic/sample
-python3 -m regista.validate data/synthetic/sample/syn_0109
-python3 -m regista.render data/synthetic/sample/syn_0109 --out docs/demo/syn_0109.mp4
-python3 -m regista.render.clips data/synthetic/sample/syn_0109 --player t_home_10 --out docs/demo/clips_t_home_10
+python3 -m regista.synth --minutes 3 --seed 294 --player t_home_09 --out data/synthetic/sample
+python3 -m regista.validate data/synthetic/sample/syn_0294
+python3 -m regista.render data/synthetic/sample/syn_0294 --out docs/demo/syn_0294.mp4
+python3 -m regista.render.clips data/synthetic/sample/syn_0294 --player t_home_09 --out docs/demo/clips_t_home_09
 ```
 
 The renderer turns the event and track streams into a broadcast-style 1280x720 MP4: a perspective pitch with kit-coloured numbered players, a camera that follows the ball, replays at the director's slow-motion speed with a REPLAY badge and a different framing per angle, player closeups, crowd shots, a highlights package, a live scoreboard and clock, and timed captions for goals, shots, nutmegs, skill moves, fouls, and saves. The clip cutter writes one video per clip plus a best-first reel with title cards. A 3-minute match renders in about 15 seconds on an 8-core Mac. Nothing in the output comes from real footage.

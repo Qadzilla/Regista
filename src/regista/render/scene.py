@@ -102,6 +102,10 @@ class Scene:
     duration: float
     sample_gap: float
     stream: list[Record] = field(default_factory=list)
+    _seg_ts: list[float] = field(default_factory=list, repr=False)
+    _poss_ts: list[float] = field(default_factory=list, repr=False)
+    _events_by_id: dict[str, Record] = field(default_factory=dict, repr=False)
+    _event_ts: list[float] = field(default_factory=list, repr=False)
 
     # ------------------------------------------------------------------ loading
     @classmethod
@@ -167,26 +171,43 @@ class Scene:
         goal_times: dict[str, list[float]] = {t: [] for t in teams}
         for e in events:
             if e["event_type"] == "goal" and e.get("team_id"):
-                goal_times[e["team_id"]].append(e["t"])
+                goal_times.setdefault(e["team_id"], []).append(e["t"])
         duration = segments[-1]["t_end"] if segments else match["video"]["duration_s"]
         return cls(
             match=match, segments=segments, events=events, possessions=possessions, roster=roster, teams=teams,
             players=players, ball=ball, cutaway_players=cutaway, captions=captions, goal_times=goal_times,
             duration=duration, sample_gap=sample_gap, stream=stream,
+            _seg_ts=[s["t"] for s in segments], _poss_ts=[p["t"] for p in possessions],
+            _events_by_id={e["id"]: e for e in events}, _event_ts=[e["t"] for e in events],
         )
 
     # ------------------------------------------------------------------ queries
     def segment_at(self, t: float) -> Record:
-        i = bisect.bisect_right([s["t"] for s in self.segments], t) - 1
+        i = bisect.bisect_right(self._seg_ts, t) - 1
         i = max(0, min(i, len(self.segments) - 1))
         return self.segments[i]
 
     def segment_by_id(self, seg_id: str) -> Record:
         return next(s for s in self.segments if s["id"] == seg_id)
 
+    def event_by_id(self, event_id: str) -> Record | None:
+        return self._events_by_id.get(event_id)
+
+    def last_player_before(self, t: float) -> str | None:
+        """The player of the most recent event at or before ``t`` (who the director would cut to)."""
+        i = bisect.bisect_right(self._event_ts, t) - 1
+        while i >= 0:
+            pid = self.events[i].get("player_id")
+            if pid and pid in self.roster:
+                return pid
+            i -= 1
+        return None
+
     def positions_at(self, t: float) -> dict[str, Point]:
+        # Cutaway tracks are not in the timelines, so right after a cut back to the main camera the
+        # nearest sample can be a full sampling period away; hold at least that long so nobody vanishes.
         max_gap = self.sample_gap * 1.6
-        hold = self.sample_gap * 0.6
+        hold = self.sample_gap * 1.05
         out: dict[str, Point] = {}
         for pid, tl in self.players.items():
             p = tl.at(t, max_gap, hold)
@@ -205,31 +226,29 @@ class Scene:
         return (PITCH_L / 2, PITCH_W / 2)
 
     def holder_at(self, t: float) -> str | None:
-        for p in self.possessions:
+        i = bisect.bisect_right(self._poss_ts, t) - 1
+        if i >= 0:
+            p = self.possessions[i]
             if p["t"] <= t < p["t_end"]:
                 return p["player_id"]
-            if p["t"] > t:
-                break
         return None
 
     def score_at(self, t: float) -> dict[str, int]:
         return {team: sum(1 for gt in times if gt <= t) for team, times in self.goal_times.items()}
 
     def clock_at(self, t: float) -> str:
-        """Match clock from the period table: MM:SS inside a period, HT/FT markers between."""
+        """Match clock from the period table: MM:SS inside a period, HT between periods, FT after the last."""
         periods = self.match["periods"]
-        base = 0.0
         for per in periods:
-            start_min = {1: 0, 2: 45, 3: 90, 4: 105, 5: 120}.get(per["period"], 0)
+            if t < per["t"]:
+                # Before this period starts: either pre-match (first period) or an interval.
+                return "00:00" if per is periods[0] else ("HT" if per["period"] == 2 else "ET")
             if per["t"] <= t < per["t_end"]:
+                start_min = {1: 0, 2: 45, 3: 90, 4: 105, 5: 120}.get(per["period"], 0)
                 secs = start_min * 60 + (t - per["t"])
                 return f"{int(secs // 60):02d}:{int(secs % 60):02d}"
-            if t >= per["t_end"]:
-                base = start_min * 60 + (per["t_end"] - per["t"])
-                last = per
-        if t >= periods[-1]["t_end"]:
-            return "FT" if periods[-1]["period"] >= 2 else "HT"
-        return f"{int(base // 60):02d}:{int(base % 60):02d}"
+        # The stream holds every period there is, so after the last one the match is over.
+        return "FT"
 
     def caption_at(self, t: float) -> Caption | None:
         active = [c for c in self.captions if c.t <= t < c.t_end]
@@ -238,7 +257,7 @@ class Scene:
         return max(active, key=lambda c: (c.priority, c.t))
 
     def describe_event(self, event_id: str) -> str:
-        e = next((x for x in self.events if x["id"] == event_id), None)
+        e = self._events_by_id.get(event_id)
         if e is None:
             return event_id
         return _caption_text(e, self.roster, self.teams) or e["event_type"].replace("_", " ")
@@ -247,10 +266,16 @@ class Scene:
         p = self.roster.get(pid)
         return p["name"] if p else pid
 
+    def kit_number(self, pid: str) -> str:
+        p = self.roster.get(pid)
+        return str(p["kit_number"]) if p else ""
+
     def kit(self, pid: str) -> tuple[str, str]:
-        """(fill, text) colours for a player's disc."""
-        p = self.roster[pid]
-        team = self.teams[p["team_id"]]
+        """(fill, text) colours for a player's disc. Unknown ids (vision-layer tracks the roster lacks) get grey."""
+        p = self.roster.get(pid)
+        team = self.teams.get(p["team_id"]) if p else None
+        if p is None or team is None:
+            return "#8C8C8C", "#111111"
         if p["position"] == "GK":
             return team["kit"]["gk"], "#111111" if _is_light(team["kit"]["gk"]) else "#FFFFFF"
         fill = team["kit"]["primary"]
@@ -285,7 +310,7 @@ def _caption_text(e: Record, roster: dict[str, Record], teams: dict[str, Record]
         return f"{trick.title()}  {who}"
     if et == "shot":
         how = next((q for q in quals if q in ("saved", "blocked", "off_target", "goal")), "")
-        how = {"saved": "saved", "blocked": "blocked", "off_target": "off target", "goal": ""}.get(how, how)
+        how = {"saved": "saved", "blocked": "blocked", "off_target": "off target", "goal": "goal"}.get(how, how)
         return f"Shot  {who}" + (f"  ({how})" if how else "")
     if et == "save":
         return f"Save  {who}"
@@ -296,7 +321,7 @@ def _caption_text(e: Record, roster: dict[str, Record], teams: dict[str, Record]
     if et == "card_red":
         return f"Red card  {who}"
     if et == "take_on":
-        return f"Beats {other}  {who}" if e.get("outcome") == "success" else None
+        return f"TAKE-ON  {who} beats {other}" if e.get("outcome") == "success" else None
     if et == "assist":
         return f"Assist  {who}"
     return None

@@ -15,6 +15,7 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
+from regista.camera import MAIN_K, MAIN_WINDOW_M, camera_centre, screen_x
 from regista.schema import SCHEMA_VERSION
 
 GENERATOR_NAME = "regista-synth"
@@ -23,7 +24,6 @@ GENERATOR_VERSION = "0.1.0"
 PITCH_L = 105.0
 PITCH_W = 68.0
 SIM_DT = 0.1          # simulation step, seconds
-MAIN_WINDOW_M = 48.0  # metres of pitch length visible in the main wide camera
 PLAYER_SPEED = 7.0    # m/s cap for off-ball movement
 
 Record = dict[str, Any]
@@ -45,7 +45,7 @@ LAST_NAMES = [
 FORMATION_433 = [
     ("GK", 1, 5, 34),
     ("DF", 2, 24, 8), ("DF", 4, 21, 25), ("DF", 5, 21, 43), ("DF", 3, 24, 60),
-    ("MF", 8, 42, 18), ("MF", 6, 36, 34), ("MF", 10, 46, 50),
+    ("MF", 8, 44, 20), ("MF", 6, 37, 34), ("MF", 10, 56, 44),  # the 10 plays between the lines
     ("FW", 7, 66, 10), ("FW", 9, 70, 34), ("FW", 11, 66, 58),
 ]
 BENCH = [("GK", 13), ("DF", 15), ("MF", 14), ("MF", 16), ("FW", 17), ("FW", 20), ("DF", 22)]
@@ -146,6 +146,8 @@ class MatchSim:
         self.track_hz = track_hz
         self.fps = fps
         self.rng = random.Random(seed)
+        # Track sampling has its own stream so the camera model and --track-hz never change the match itself.
+        self.track_rng = random.Random(seed * 7919 + 1)
         self.match_id = f"syn_{seed:04d}"
 
         self.t = 0.0
@@ -289,12 +291,13 @@ class MatchSim:
         return seg
 
     def _project(self, px: float, py: float) -> dict[str, float] | None:
-        cx = clamp(self.ball[0], MAIN_WINDOW_M / 2, PITCH_L - MAIN_WINDOW_M / 2)
-        xn = (px - (cx - MAIN_WINDOW_M / 2)) / MAIN_WINDOW_M
+        """Main-camera bbox (normalised) using the shared camera model; None when out of frame."""
+        cx = camera_centre(self.ball[0], MAIN_WINDOW_M)
+        xn = screen_x(px, py, cx, MAIN_WINDOW_M, MAIN_K)
         depth = py / PITCH_W
-        yc = 0.88 - 0.70 * depth
-        s = 1.0 - 0.45 * depth
-        w, h = 0.035 * s, 0.12 * s
+        yc = 0.86 - 0.72 * depth
+        s = 1.0 - MAIN_K * depth
+        w, h = 0.032 * s, 0.11 * s
         if xn < -w or xn > 1 + w:
             return None
         return {"x": round(clamp(xn - w / 2, 0, 1), 4), "y": round(clamp(yc - h, 0, 1), 4), "w": round(w, 4), "h": round(h, 4)}
@@ -304,10 +307,12 @@ class MatchSim:
         t = round(self.t, 2)
         frame = int(round(self.t * self.fps))
 
+        trng = self.track_rng
+
         def base(obj: str, track_id: str) -> Record:
             return {
                 "type": "track", "id": self._id("tr"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
-                "source": "synthetic", "confidence": self._conf(0.8, 0.99),
+                "source": "synthetic", "confidence": round(trng.uniform(0.8, 0.99), 3),
                 "t": t, "frame": frame, "segment_id": seg.id, "object": obj, "track_id": track_id,
             }
 
@@ -318,11 +323,11 @@ class MatchSim:
                     if bbox is None:
                         continue
                     rec = base("player", f"{seg.id}:{p.player_id}")
-                    sees_number = self.rng.random() < 0.72
+                    sees_number = trng.random() < 0.72
                     rec.update(
                         player_id=p.player_id, team_id=team.team_id, pitch=pt(p.x, p.y), bbox=bbox,
                         identity={
-                            "confidence": self._conf(0.86, 0.99) if sees_number else self._conf(0.6, 0.85),
+                            "confidence": round(trng.uniform(0.86, 0.99), 3) if sees_number else round(trng.uniform(0.6, 0.85), 3),
                             "evidence": ["kit_number", "team_colour", "continuity"] if sees_number else ["team_colour", "continuity"],
                         },
                     )
@@ -343,7 +348,7 @@ class MatchSim:
             rec.update(
                 player_id=p.player_id, team_id=p.team.team_id, pitch=pt(p.x, p.y),
                 bbox={"x": round(x0, 4), "y": 0.08, "w": round(width, 4), "h": 0.84},
-                identity={"confidence": self._conf(0.9, 0.995), "evidence": ["kit_number", "team_colour"]},
+                identity={"confidence": round(trng.uniform(0.9, 0.995), 3), "evidence": ["kit_number", "team_colour"]},
             )
             self.tracks.append(rec)
         if seg.kind in ("replay", "highlight"):
@@ -743,7 +748,7 @@ class MatchSim:
     def _segment_record(self, s: Segment) -> Record:
         rec: Record = {
             "type": "camera_segment", "id": s.id, "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
-            "source": "synthetic", "confidence": self._conf(0.9, 0.995),
+            "source": "synthetic", "confidence": round(self.track_rng.uniform(0.9, 0.995), 3),
             "t": round(s.t, 2), "t_end": round(s.t_end, 2), "kind": s.kind, "playback_speed": s.playback_speed,
         }
         if s.replay_of:
@@ -799,7 +804,7 @@ class MatchSim:
                         on_ball = any(p["player_id"] == player_id and p["t"] < t1 and t0 < p["t_end"] for p in self.possessions)
                         out.append({
                             "type": "appearance", "id": self._id("ap"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
-                            "source": "synthetic", "confidence": self._conf(0.85, 0.99),
+                            "source": "synthetic", "confidence": round(self.track_rng.uniform(0.85, 0.99), 3),
                             "t": round(t0, 2), "t_end": round(t1, 2), "segment_id": seg_id, "player_id": player_id,
                             "on_ball": on_ball, "prominence": round(clamp(area / 0.3, 0.0, 1.0), 3),
                         })
@@ -807,15 +812,17 @@ class MatchSim:
         return out
 
     def _annotations(self) -> list[Record]:
-        """A few human-in-the-loop records so consumers see the shape of Zaid's feedback."""
+        """Placeholder annotations showing the shape of human feedback. No person produced these:
+        they are ``source: synthetic`` with ``simulates: human`` so nothing downstream can mistake
+        them for real review data."""
         out: list[Record] = []
 
         def ann(target: Record, verdict: str, note: str, correction: Record | None = None) -> None:
             rec: Record = {
                 "type": "annotation", "id": self._id("an"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
-                "source": "human", "confidence": 1,
+                "source": "synthetic", "simulates": "human", "confidence": 1,
                 "t": target["t"], "target_id": target["id"], "target_type": target["type"], "verdict": verdict,
-                "note": note, "annotator": "zaid", "annotated_at": f"2026-10-19T18:{len(out):02d}:00Z",
+                "note": note, "annotator": "placeholder", "annotated_at": f"2026-10-19T18:{len(out):02d}:00Z",
             }
             if correction:
                 rec["correction"] = correction

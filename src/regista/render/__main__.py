@@ -17,8 +17,8 @@ from regista.render.video import has_ffmpeg, render_video, stderr_is_tty
 
 
 def parse_size(text: str) -> tuple[int, int]:
-    w, h = text.lower().split("x")
-    return int(w), int(h)
+    w, h = (int(v) for v in text.lower().split("x"))
+    return w - w % 2, h - h % 2  # libx264 needs even dimensions
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,6 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--frames-dir", type=Path, default=None, help="also save one PNG per second and per segment start here")
     parser.add_argument("--start", type=float, default=0.0, help="start time in seconds")
     parser.add_argument("--end", type=float, default=None, help="end time in seconds (default: whole video)")
+    parser.add_argument("--end-card", type=float, default=3.0, help="seconds of closing card after the last segment (0 to disable)")
     args = parser.parse_args(argv)
 
     scene = Scene.load(args.match_dir)
@@ -45,12 +46,12 @@ def main(argv: list[str] | None = None) -> int:
             print(f"\r  {done}/{total} frames", end="", file=sys.stderr, flush=True)
 
     manifest = render_video(scene, args.out, fps=args.fps, style=style, workers=args.workers, t0=args.start, t1=args.end,
-                            frames_dir=args.frames_dir, progress=progress)
+                            frames_dir=args.frames_dir, end_card_s=args.end_card, progress=progress)
     elapsed = time.perf_counter() - started
     if stderr_is_tty():
         print(file=sys.stderr)
-    print(f"wrote {manifest['path']}  ({manifest['frames']} frames @ {args.fps:g} fps, {manifest['mode']}, "
-          f"{manifest['workers']} worker(s), {elapsed:.1f}s)")
+    print(f"wrote {manifest['path']}  ({manifest['frames']} frames @ {args.fps:g} fps incl. {manifest['end_card_frames']} end-card frames, "
+          f"{manifest['mode']}, {manifest['workers']} worker(s), {elapsed:.1f}s)")
     if manifest["frames_dir"]:
         print(f"keyframes: {manifest['keyframes']} PNGs in {manifest['frames_dir']}")
     return 0

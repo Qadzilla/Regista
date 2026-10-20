@@ -65,6 +65,16 @@ def _overlaps(a0: float, a1: float, b0: float, b1: float) -> bool:
     return a0 < b1 and b0 < a1
 
 
+def match_minute(match: Record, t: float) -> int:
+    """Football minute (1-based) for a video time, from the match's period table."""
+    starts = {1: 0, 2: 45, 3: 90, 4: 105, 5: 120}
+    for per in match["periods"]:
+        if per["t"] <= t < per["t_end"]:
+            return starts.get(per["period"], 0) + int((t - per["t"]) // 60) + 1
+    last = match["periods"][-1]
+    return starts.get(last["period"], 0) + int((last["t_end"] - last["t"]) // 60) + 1
+
+
 def derive_clips(
     records: Iterable[Record],
     player_id: str,
@@ -209,16 +219,27 @@ def derive_clips(
         )
         clips.append(clip)
 
-        headline = best_tag.replace("_", " ")
-        clock = key_event.get("clock") if key_event else None
-        when = f"{clock['minute']}'" if clock else f"{int(c['t'] // 60)}:{int(c['t'] % 60):02d} video time"
+        reason_tags = set(APPEARANCE_REASONS.values()) | {"on_ball_main"}
+        headline_tag = max(((TAG_WEIGHTS.get(t, 0.1), t) for t in tags if t not in reason_tags), default=(0.0, ""))[1]
+        headline = headline_tag.replace("_", " ") if headline_tag else "appearance"
+        seg = seg_by_id[c["segment_ids"][0]]
+        minute = match_minute(match, key_event["t"] if key_event else c["t"])
+        when = f"{minute}'"
+        if c["reason"] == "on_ball_main":
+            title = f"{player['name']} ({player['kit_number']}): {headline} at {when}"
+        elif c["reason"] == "replay_appearance":
+            title = f"{player['name']} ({player['kit_number']}): {headline} · replay {seg.get('playback_speed', 1):g}x {(seg.get('angle') or '').replace('_', ' ')}".rstrip()
+        elif c["reason"] == "highlight_appearance":
+            title = f"{player['name']} ({player['kit_number']}): {headline} · highlights"
+        else:
+            title = f"{player['name']} ({player['kit_number']}): closeup at {when}"
         label = envelope("lb", n)
         label.update(
             type="label",
             clip_id=clip["id"],
             player_id=player_id,
             tags=tags,
-            title=f"{player['name']} ({player['kit_number']}): {headline} at {when}",
+            title=title,
             summary=_summary(player, c["reason"], relevant, when),
             explanation=(
                 f"Scored {watchability:.2f}: strongest tag '{best_tag}' weighs {best_w:.2f}, "

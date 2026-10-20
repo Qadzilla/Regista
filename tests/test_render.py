@@ -18,15 +18,15 @@ from regista.render.video import count_frames, frame_times, has_ffmpeg, render_v
 from regista.synth import generate
 
 REPO = Path(__file__).resolve().parents[1]
-SAMPLE = REPO / "data" / "synthetic" / "sample" / "syn_0109"
-PLAYER = "t_home_10"
+SAMPLE = REPO / "data" / "synthetic" / "sample" / "syn_0294"
+PLAYER = "t_home_09"
 SMALL = Style(width=320, height=180)
 FPS = 5.0
 
 
 @pytest.fixture(scope="module")
 def result():
-    return generate(seed=109, minutes=3.0, track_hz=1.0)
+    return generate(seed=294, minutes=3.0, track_hz=1.0)
 
 
 @pytest.fixture(scope="module")
@@ -62,8 +62,8 @@ def test_score_and_clock_follow_the_events(scene):
     assert after[g["team_id"]] == before[g["team_id"]] + 1
     assert scene.clock_at(0.0) == "00:00"
     assert scene.clock_at(61.0) == "01:01"
-    period_end = scene.match["periods"][0]["t_end"]
-    assert scene.clock_at(period_end + 1.0) == "HT"
+    period_end = scene.match["periods"][-1]["t_end"]
+    assert scene.clock_at(period_end + 1.0) == "FT"
 
 
 # ----------------------------------------------------------------------------- frame info and pixels
@@ -126,12 +126,28 @@ def test_every_segment_kind_renders(scene):
 def test_title_card_is_drawn_when_requested(scene):
     s = SMALL
     card = {"t": 0.0, "t_end": 2.0, "title": "Test title", "subtitle": "tags", "watchability": 0.8}
-    probe = (int(40 * s.s + 4 * s.s), int(s.height - 150 * s.s))
+    probe = (int(24 * s.s + 4 * s.s), int(106 * s.s))
     assert render_frame(scene, 0.5, s, card).getpixel(probe) == COLOUR_HIGHLIGHT
     assert render_frame(scene, 0.5, s).getpixel(probe) != COLOUR_HIGHLIGHT
 
 
 # ----------------------------------------------------------------------------- video files
+
+def test_end_card_adds_exactly_its_frames(scene, tmp_path):
+    base = render_video(scene, tmp_path / "a.mp4", fps=FPS, style=SMALL, workers=1, t1=6.0)
+    assert base["end_card_frames"] == 0, "end card only after the final segment"
+    full = render_video(scene, tmp_path / "b.mp4", fps=FPS, style=SMALL, workers=1, end_card_s=2.0)
+    assert full["end_card_frames"] == round(2.0 * FPS)
+    assert count_frames(full["path"]) == len(frame_times(0.0, scene.duration, FPS)) + round(2.0 * FPS)
+
+
+def test_focus_player_is_drawn_on_top(scene):
+    """The featured player of a clip must be visible even when another disc overlaps."""
+    s = Style(640, 360)
+    pos_t = next(p["t"] + 0.2 for p in scene.possessions if p["player_id"] == PLAYER)
+    img = render_frame(scene, pos_t, s, focus=PLAYER)
+    assert img.size == (640, 360)
+
 
 def test_frame_count_matches_segment_durations(scene, tmp_path):
     out = tmp_path / "match.mp4"
@@ -146,12 +162,73 @@ def test_frame_count_matches_segment_durations(scene, tmp_path):
 
 @pytest.mark.skipif(not has_ffmpeg(), reason="parallel parts need ffmpeg concat")
 def test_parallel_render_matches_single_process(scene, tmp_path):
-    t1 = 20.0
+    import imageio
+    import numpy as np
+
+    replay = next(sg for sg in scene.segments if sg["kind"] == "replay")
+    t1 = replay["t"] + 2.0
     single = render_video(scene, tmp_path / "one.mp4", fps=FPS, style=SMALL, workers=1, t1=t1)
     multi = render_video(scene, tmp_path / "many.mp4", fps=FPS, style=SMALL, workers=2, t1=t1)
     assert single["frames"] == multi["frames"] == len(frame_times(0.0, t1, FPS))
     assert count_frames(multi["path"]) == multi["frames"]
     assert multi["parts"] > 1
+    # Same frames in the same order: decode a few (one inside the replay) and compare.
+    a, b = imageio.get_reader(single["path"], "ffmpeg"), imageio.get_reader(multi["path"], "ffmpeg")
+    try:
+        for k in (0, single["frames"] // 2, single["frames"] - 1):
+            diff = np.abs(a.get_data(k).astype(int) - b.get_data(k).astype(int)).mean()
+            assert diff < 2.0, (k, diff)
+    finally:
+        a.close()
+        b.close()
+
+
+@pytest.mark.skipif(not has_ffmpeg(), reason="parallel parts need ffmpeg concat")
+def test_parallel_render_survives_quotes_in_the_output_path(scene, tmp_path):
+    out_dir = tmp_path / "Zaid's renders"
+    manifest = render_video(scene, out_dir / "m.mp4", fps=FPS, style=SMALL, workers=2, t1=12.0)
+    assert count_frames(manifest["path"]) == manifest["frames"]
+    assert not [p for p in out_dir.iterdir() if p.name.startswith(".")], "temporary parts must be cleaned up"
+
+
+def test_players_do_not_vanish_after_a_cut_back_to_main(scene):
+    mains = [sg for sg in scene.segments if sg["kind"] == "main"][1:]
+    assert mains, "need a main segment that follows a cutaway"
+    for seg in mains:
+        for k in range(int(FPS)):
+            t = seg["t"] + k / FPS
+            if t >= seg["t_end"]:
+                break
+            assert len(scene.positions_at(t)) >= 8, (seg["id"], t)
+
+
+def test_replay_without_window_still_replays_the_event(result):
+    stream = [dict(r) for r in result.stream]
+    seg = next(r for r in stream if r["type"] == "camera_segment" and r["kind"] == "replay")
+    seg.pop("replays_window")
+    sc = Scene.from_records(stream, result.tracks)
+    info = frame_info(sc, seg["t"] + 1.0)
+    ev = sc.event_by_id(seg["replay_of"][0])
+    assert ev["t"] - 10 < info["scene_t"] <= ev["t"] + 2
+    assert len(sc.positions_at(info["scene_t"])) >= 8
+
+
+def test_clock_between_periods_shows_ht(result):
+    stream = [dict(r) for r in result.stream]
+    match = dict(stream[0])
+    match["periods"] = [{"period": 1, "t": 0.0, "t_end": 100.0, "left_to_right_team_id": "t_home"},
+                        {"period": 2, "t": 120.0, "t_end": 200.0, "left_to_right_team_id": "t_away"}]
+    stream[0] = match
+    sc = Scene.from_records(stream, result.tracks)
+    assert sc.clock_at(50.0) == "00:50"
+    assert sc.clock_at(110.0) == "HT"
+    assert sc.clock_at(120.0) == "45:00"
+    assert sc.clock_at(130.0) == "45:10"
+    assert sc.clock_at(250.0) == "FT"
+
+
+def test_odd_sizes_are_rounded_to_even():
+    assert (Style(321, 181).width, Style(321, 181).height) == (320, 180)
 
 
 def test_keyframes_are_dumped_with_an_index(scene, tmp_path):
@@ -195,12 +272,19 @@ def test_clip_cutter_derives_clips_for_a_player_not_in_clips_file(result, tmp_pa
     match_dir.mkdir()
     (match_dir / "events.jsonl").write_text("\n".join(json.dumps(r) for r in result.stream) + "\n")
     (match_dir / "tracks.jsonl").write_text("\n".join(json.dumps(r) for r in result.tracks) + "\n")
-    other = next(p["player_id"] for p in result.match["players"] if p["player_id"] != PLAYER and p["starter"] and p["team_id"] == "t_away")
+    # clips.jsonl exists but only for PLAYER; ask for an away player who is known to have possessions.
+    clips, labels = derive_clips(result.stream, PLAYER)
+    (match_dir / "clips.jsonl").write_text("\n".join(json.dumps(r) for r in clips + labels) + "\n")
+    possessions = [r for r in result.stream if r["type"] == "possession" and r["team_id"] == "t_away"]
+    other = possessions[0]["player_id"]
+    expected, _ = derive_clips(result.stream, other)
+    assert expected, "chosen away player must have clips for this test to mean anything"
     out = tmp_path / "clips"
-    code = clips_main([str(match_dir), "--player", other, "--out", str(out), "--fps", str(FPS), "--size", "320x180", "--no-reel"])
-    assert code in (0, 1)  # 1 only if that player genuinely has no clips
-    if code == 0:
-        assert (out / "index.json").exists()
+    assert clips_main([str(match_dir), "--player", other, "--out", str(out), "--fps", str(FPS), "--size", "320x180", "--no-reel"]) == 0
+    index = json.loads((out / "index.json").read_text())
+    assert index["player_id"] == other
+    assert {c["clip_id"] for c in index["clips"]} == {c["id"] for c in expected}
+    assert index["reel"] is None
 
 
 @pytest.mark.parametrize("seed", [5, 77])

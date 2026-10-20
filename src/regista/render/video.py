@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import multiprocessing as mp
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -23,7 +24,7 @@ from typing import Any
 import numpy as np
 from PIL import Image
 
-from regista.render.draw import Style, frame_info, render_frame
+from regista.render.draw import Style, draw_end_card, frame_info, render_frame
 from regista.render.scene import Scene
 
 Record = dict[str, Any]
@@ -52,8 +53,16 @@ def frame_times(t0: float, t1: float, fps: float) -> list[float]:
 
 # ---------------------------------------------------------------------------- writer
 
+GIF_MAX_FRAMES = 1500   # the GIF fallback keeps frames in memory; beyond this ask for a lower --fps or --end
+GIF_MAX_WIDTH = 640
+
+
 class VideoWriter:
-    """MP4 (libx264) via imageio + imageio-ffmpeg, or GIF fallback. Use as a context manager."""
+    """MP4 (libx264) via imageio + imageio-ffmpeg, or GIF fallback. Use as a context manager.
+
+    The GIF fallback is for machines without the bundled ffmpeg: frames are downscaled to at most
+    640 px wide and capped at GIF_MAX_FRAMES, because Pillow needs every frame in memory to write a GIF.
+    """
 
     def __init__(self, path: Path | str, fps: float):
         self.path = Path(path)
@@ -67,6 +76,8 @@ class VideoWriter:
             if self.path.suffix.lower() != ".gif":
                 warnings.warn("ffmpeg not available: writing GIF instead of MP4", stacklevel=2)
                 self.path = self.path.with_suffix(".gif")
+        elif self.path.suffix.lower() != ".mp4":
+            raise ValueError(f"unsupported output suffix {self.path.suffix!r}: use .mp4 or .gif")
 
     def __enter__(self) -> VideoWriter:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -82,8 +93,14 @@ class VideoWriter:
     def append(self, img: Image.Image) -> None:
         if self.mode == "mp4":
             assert self._writer is not None
+            if img.width % 2 or img.height % 2:
+                raise ValueError(f"frame size {img.size} must be even for yuv420p")
             self._writer.append_data(np.asarray(img))
         else:
+            if self.frames_written >= GIF_MAX_FRAMES:
+                raise ValueError(f"GIF fallback is capped at {GIF_MAX_FRAMES} frames; lower --fps, use --end, or install ffmpeg (pip install imageio-ffmpeg)")
+            if img.width > GIF_MAX_WIDTH:
+                img = img.resize((GIF_MAX_WIDTH, int(img.height * GIF_MAX_WIDTH / img.width)))
             self._gif_frames.append(img.convert("P", palette=Image.Palette.ADAPTIVE, colors=128))
         self.frames_written += 1
 
@@ -93,7 +110,7 @@ class VideoWriter:
                 self._writer.close()
         elif self._gif_frames:
             first, rest = self._gif_frames[0], self._gif_frames[1:]
-            first.save(self.path, save_all=True, append_images=rest, duration=int(1000 / self.fps), loop=0, optimize=False)
+            first.save(self.path, save_all=True, append_images=rest, duration=round(1000 / self.fps), loop=0, optimize=False)
 
 
 def count_frames(path: Path | str) -> int:
@@ -112,23 +129,29 @@ def count_frames(path: Path | str) -> int:
 
 
 def concat_mp4(parts: list[Path], out: Path) -> None:
-    """Lossless concatenation of same-codec MP4 parts."""
-    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as fh:
+    """Lossless concatenation of same-codec MP4 parts. The list file sits next to the parts and names
+    them relatively, so quotes or other odd characters in the output path never reach the demuxer."""
+    if not parts:
+        raise ValueError("nothing to concatenate")
+    part_dir = parts[0].parent
+    list_path = part_dir / "concat.txt"
+    with list_path.open("w", encoding="utf-8") as fh:
         for p in parts:
-            fh.write(f"file '{p.resolve().as_posix()}'\n")
-        list_path = fh.name
+            name = p.name.replace("'", "'\\''")
+            fh.write(f"file '{name}'\n")
     try:
-        subprocess.run([ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", list_path, "-c", "copy", str(out)], check=True)
+        subprocess.run([ffmpeg_exe(), "-y", "-loglevel", "error", "-f", "concat", "-safe", "0", "-i", str(list_path), "-c", "copy", str(out)], check=True)
     finally:
-        os.unlink(list_path)
+        list_path.unlink(missing_ok=True)
 
 
 # ---------------------------------------------------------------------------- in-process rendering
 
-def render_frames(scene: Scene, times: Iterable[float], style: Style, titles: list[dict[str, Any]] | None = None) -> Iterator[Image.Image]:
+def render_frames(scene: Scene, times: Iterable[float], style: Style, titles: list[dict[str, Any]] | None = None,
+                  focus: str | None = None) -> Iterator[Image.Image]:
     """Yield frames in order, in this process. Used for clips, which are short."""
     for t in times:
-        yield render_frame(scene, t, style, _title_for(titles, t))
+        yield render_frame(scene, t, style, _title_for(titles, t), focus)
 
 
 def _title_for(titles: list[dict[str, Any]] | None, t: float) -> dict[str, Any] | None:
@@ -171,6 +194,13 @@ def _render_part(job: dict[str, Any]) -> dict[str, Any]:
             if frames_dir is not None and i in keyframes:
                 frames_dir.mkdir(parents=True, exist_ok=True)
                 img.save(frames_dir / keyframes[i])
+        end_frames = int(job.get("end_frames", 0))
+        if end_frames:
+            card = draw_end_card(_SCENE, _STYLE)
+            for _ in range(end_frames):
+                w.append(card)
+            if frames_dir is not None:
+                card.save(frames_dir / "frame_end_card.png")
         return {"part": job["part"], "path": str(w.path), "frames": w.frames_written, "mode": w.mode}
 
 
@@ -188,8 +218,8 @@ def _split(n: int, parts: int) -> list[tuple[int, int]]:
 def render_video(scene: Scene, out: Path | str, *, fps: float = 25.0, style: Style | None = None, workers: int | None = None,
                  t0: float = 0.0, t1: float | None = None, frames_dir: Path | str | None = None,
                  titles: list[dict[str, Any]] | None = None, keyframe_every: float = 1.0,
-                 progress: Callable[[int, int], None] | None = None) -> dict[str, Any]:
-    """Render ``scene`` between ``t0`` and ``t1`` to ``out``. Returns a small manifest."""
+                 end_card_s: float = 0.0, progress: Callable[[int, int], None] | None = None) -> dict[str, Any]:
+    """Render ``scene`` between ``t0`` and ``t1`` to ``out``. ``end_card_s`` appends a closing card. Returns a manifest."""
     style = style or Style()
     out = Path(out)
     t1 = scene.duration if t1 is None else t1
@@ -201,12 +231,12 @@ def render_video(scene: Scene, out: Path | str, *, fps: float = 25.0, style: Sty
     frames_dir = Path(frames_dir) if frames_dir else None
 
     # Decide keyframes up front so every worker names them consistently.
-    infos = [frame_info(scene, t) for t in times]
     keyframes: dict[int, str] = {}
     index: list[dict[str, Any]] = []
     seen: set[str] = set()
     if frames_dir is not None:
-        for i, (t, info) in enumerate(zip(times, infos)):
+        for i, t in enumerate(times):
+            info = frame_info(scene, t)
             first = info["segment_id"] not in seen
             seen.add(info["segment_id"])
             on_second = keyframe_every > 0 and abs(((t - t0) / keyframe_every) - round((t - t0) / keyframe_every)) * keyframe_every < 0.5 / fps
@@ -219,45 +249,44 @@ def render_video(scene: Scene, out: Path | str, *, fps: float = 25.0, style: Sty
     gif = out.suffix.lower() == ".gif" or not has_ffmpeg()
     n_parts = 1 if (gif or workers <= 1 or len(times) < 2 * workers) else workers * 3
     ranges = _split(len(times), n_parts)
-    tmp_dir = out.parent / f".{out.stem}_parts"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    tmp_dir = Path(tempfile.mkdtemp(prefix=f".{out.stem}_parts_", dir=out.parent)) if n_parts > 1 else out.parent
     jobs = []
     for p, (a, b) in enumerate(ranges):
         path = out if n_parts == 1 else tmp_dir / f"part_{p:03d}.mp4"
         jobs.append({"part": p, "indices": list(range(a, b)), "times": times[a:b], "path": str(path), "fps": fps,
                      "frames_dir": str(frames_dir) if frames_dir else None, "keyframes": keyframes})
 
+    end_frames = int(round(end_card_s * fps)) if end_card_s > 0 and t1 >= scene.duration else 0
     results: list[dict[str, Any]] = []
     if n_parts == 1:
         _init_worker(scene, style, titles)
+        jobs[0]["end_frames"] = end_frames
         results.append(_render_part(jobs[0]))
         if progress:
             progress(len(times), len(times))
     else:
-        tmp_dir.mkdir(parents=True, exist_ok=True)
+        jobs[-1]["end_frames"] = end_frames
         ctx = mp.get_context("spawn")
         done = 0
-        with ctx.Pool(processes=workers, initializer=_init_worker, initargs=(scene, style, titles)) as pool:
-            for res in pool.imap_unordered(_render_part, jobs):
-                results.append(res)
-                done += res["frames"]
-                if progress:
-                    progress(done, len(times))
-        results.sort(key=lambda r: r["part"])
-        out.parent.mkdir(parents=True, exist_ok=True)
-        concat_mp4([Path(r["path"]) for r in results], out)
-        for r in results:
-            Path(r["path"]).unlink(missing_ok=True)
         try:
-            tmp_dir.rmdir()
-        except OSError:
-            pass
+            with ctx.Pool(processes=workers, initializer=_init_worker, initargs=(scene, style, titles)) as pool:
+                for res in pool.imap_unordered(_render_part, jobs):
+                    results.append(res)
+                    done += res["frames"]
+                    if progress:
+                        progress(done, len(times))
+            results.sort(key=lambda r: r["part"])
+            concat_mp4([Path(r["path"]) for r in results], out)
+        finally:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
 
     if frames_dir is not None:
         frames_dir.mkdir(parents=True, exist_ok=True)
         (frames_dir / "frames.json").write_text(json.dumps(index, indent=1), encoding="utf-8")
     final_path = Path(results[0]["path"]) if n_parts == 1 else out
     return {"path": str(final_path), "mode": results[0]["mode"], "fps": fps, "frames": sum(r["frames"] for r in results),
-            "t0": t0, "t1": t1, "workers": workers if n_parts > 1 else 1, "parts": n_parts,
+            "end_card_frames": end_frames, "t0": t0, "t1": t1, "workers": workers if n_parts > 1 else 1, "parts": n_parts,
             "keyframes": len(index), "frames_dir": str(frames_dir) if frames_dir else None}
 
 

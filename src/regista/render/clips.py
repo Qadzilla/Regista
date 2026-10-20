@@ -46,14 +46,18 @@ def load_clips(match_dir: Path, scene: Scene, player_id: str) -> tuple[list[Reco
 
 
 def title_card(clip: Record, label: Record | None, offset: float) -> dict[str, Any]:
-    """A title card active for the first ``TITLE_SECONDS`` of a clip that starts at ``offset`` on the output timeline."""
+    """A title card active for the first ``TITLE_SECONDS`` of a clip. ``offset`` is on the *input* (match) timeline,
+    the same axis ``render_frames`` evaluates titles on, so pass ``clip["t"]``."""
     title = label["title"] if label else f"{clip['player_id']} · {clip['reason'].replace('_', ' ')}"
-    tags = ", ".join(t.replace("_", " ") for t in (label["tags"] if label else [clip["reason"]]))
+    hide = {"on_ball_main", "replay_appearance", "highlight_appearance", "closeup_appearance", "touch"}
+    tags = [t.replace("_", " ") for t in (label["tags"] if label else []) if t not in hide]
+    span = f"{int(clip['t'] // 60)}:{int(clip['t'] % 60):02d}–{int(clip['t_end'] // 60)}:{int(clip['t_end'] % 60):02d}"
+    subtitle = "  ·  ".join(filter(None, [", ".join(tags[:5]), span]))
     return {
         "t": offset,
         "t_end": offset + TITLE_SECONDS,
         "title": title,
-        "subtitle": f"{tags}   ·   {clip['t']:.1f}s – {clip['t_end']:.1f}s   ·   {clip['reason'].replace('_', ' ')}",
+        "subtitle": subtitle,
         "watchability": label["watchability"] if label else 0.0,
     }
 
@@ -62,7 +66,7 @@ def render_clip(scene: Scene, clip: Record, label: Record | None, out: Path, fps
     times = frame_times(clip["t"], clip["t_end"], fps)
     card = title_card(clip, label, clip["t"])
     with VideoWriter(out, fps) as w:
-        for img in render_frames(scene, times, style, titles=[card]):
+        for img in render_frames(scene, times, style, titles=[card], focus=clip["player_id"]):
             w.append(img)
         return {"clip_id": clip["id"], "path": str(w.path), "frames": w.frames_written, "t": clip["t"], "t_end": clip["t_end"],
                 "reason": clip["reason"], "watchability": label["watchability"] if label else None, "title": card["title"]}
@@ -75,7 +79,7 @@ def render_reel(scene: Scene, clips: list[Record], labels: dict[str, Record], ou
         for clip in ordered:
             times = frame_times(clip["t"], clip["t_end"], fps)
             card = title_card(clip, labels.get(clip["id"]), clip["t"])
-            for img in render_frames(scene, times, style, titles=[card]):
+            for img in render_frames(scene, times, style, titles=[card], focus=clip["player_id"]):
                 w.append(img)
         return {"path": str(w.path), "frames": w.frames_written, "order": [c["id"] for c in ordered]}
 

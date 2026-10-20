@@ -5,7 +5,7 @@ This folder defines the **boundary between Regista's two layers** (see `CLAUDE.m
 - The **private vision layer** reads video and writes this event stream.
 - The **public intelligence layer** reads this event stream and writes clips, labels, and chatbot answers.
 
-Nothing that crosses this boundary contains a pixel of footage. A synthetic match generator produces the same stream from no footage at all, which is what powers the public demo and what the judges score under "optimised synthetic data creation".
+Nothing that crosses this boundary contains a pixel of footage. A synthetic match generator produces the same stream from no footage at all, which is what powers the public demo.
 
 ```
 data/synthetic/
@@ -23,8 +23,8 @@ data/synthetic/
 Generate and validate:
 
 ```bash
-python -m regista.synth --minutes 3 --seed 109 --track-hz 1 --player t_home_10 --out data/synthetic/sample
-python -m regista.validate data/synthetic/sample/syn_0109
+python -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 --out data/synthetic/sample
+python -m regista.validate data/synthetic/sample/syn_0294
 ```
 
 ## Conventions
@@ -35,7 +35,7 @@ python -m regista.validate data/synthetic/sample/syn_0109
 | Envelope | Every record has `type`, `id`, `match_id`, `schema_version`, `source`, and (except `match`) `confidence`. |
 | `id` | Unique within a match. Prefix by type: `ev_`, `po_`, `cs_`, `tr_`, `ap_`, `an_`, `cl_`, `lb_`. |
 | `match_id` | Partition key everywhere (Cosmos DB, Fabric). |
-| `source` | `vision` (from footage), `synthetic` (from the generator), `human` (Zaid's corrections), `derived` (intelligence layer). |
+| `source` | `vision` (from footage), `synthetic` (from the generator), `human` (a person's corrections), `derived` (intelligence layer). |
 | `confidence` | 0–1. Vision and derived records carry real model confidence; synthetic records jitter it so downstream code never assumes 1.0. |
 | Time `t` | Seconds from the start of the **video**, not the match clock. Broadcast feeds pause, replay, and cut; video time is the only axis that lines up with frames. `t_end` is exclusive. `frame` is optional and equals `round(t * video.fps)`. |
 | `clock` | Match clock on events: `{period, minute, second}`. Derived from `match.periods`. |
@@ -87,7 +87,7 @@ The hackathon brief names passes, shots, tackles, possession changes, pressure e
 
 ### `annotation` — the human-in-the-loop record
 
-Zaid's feedback on any record: `target_id`, `target_type`, `verdict` (`confirm`, `reject`, `correct`), `correction` (partial fields to overwrite), `note`, `annotator`, `annotated_at`. Annotations are appended, never applied in place, so the training loop can replay them and the audit trail survives. `source` is always `human`, `confidence` is always 1.
+A person's feedback on any record: `target_id`, `target_type`, `verdict` (`confirm`, `reject`, `correct`), `correction` (partial fields to overwrite), `note`, `annotator`, `annotated_at`. Annotations are appended, never applied in place, so a training loop can replay them and the audit trail survives. Real ones have `source: human`. **The generator emits placeholders** with `source: synthetic` and `simulates: human` so consumers can see the shape; no person has reviewed synthetic data, and the review tool that would produce real annotations does not exist yet.
 
 ## Record types (intelligence layer → `regista-clips.schema.json`)
 
@@ -105,7 +105,9 @@ A time range for one player: `t`/`t_end`, `segment_ids`, `reason`, `event_ids`, 
 
 One per clip: `tags` (snake_case; event types and qualifiers plus the clip reason), `title`, `summary`, `explanation` (why it scored what it scored, in plain English), `watchability` (0–1), `language`, `model`. The chatbot searches over labels; the explanation is what makes a result defensible on air.
 
-## Azure mapping
+## Azure mapping (planned, not implemented)
+
+Nothing below runs today; this is the intended landing zone once Azure resources exist.
 
 | Record | Where it lands |
 |---|---|

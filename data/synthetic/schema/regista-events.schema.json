@@ -315,10 +315,13 @@
         "note": { "type": "string" },
         "annotator": { "type": "string", "minLength": 1 },
         "annotated_at": { "type": "string", "format": "date-time" },
-        "source": { "const": "human" },
+        "source": { "type": "string", "enum": ["human", "synthetic"] },
+        "simulates": { "const": "human", "description": "Present only on synthetic placeholder annotations: the record shows the shape of human feedback; no person produced it." },
         "confidence": { "const": 1 }
       },
       "required": ["type", "t", "target_id", "target_type", "verdict", "annotator", "annotated_at", "confidence"],
+      "if": { "properties": { "source": { "const": "synthetic" } } },
+      "then": { "required": ["simulates"] },
       "unevaluatedProperties": false
     }
   }

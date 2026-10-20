@@ -11,12 +11,12 @@ from regista.clips import derive_clips
 from regista.schema import SCHEMA_VERSION, clips_validator, events_validator
 from regista.synth import generate
 
-PLAYER = "t_home_10"
+PLAYER = "t_home_09"
 
 
 @pytest.fixture(scope="module")
 def result():
-    return generate(seed=109, minutes=3.0, track_hz=2.0)
+    return generate(seed=294, minutes=3.0, track_hz=2.0)
 
 
 @pytest.fixture(scope="module")
@@ -129,12 +129,24 @@ def test_tracks_have_identity_evidence_and_pitch(result):
             assert 0 <= tr["pitch"]["x"] <= 105 and 0 <= tr["pitch"]["y"] <= 68
 
 
-def test_annotations_are_human_and_target_real_records(result):
+def test_placeholder_annotations_declare_themselves_and_target_real_records(result):
     by = _by_type(result.events)
     ids = {r["id"] for r in result.stream[1:] + result.tracks}
-    for a in by.get("annotation", []):
-        assert a["source"] == "human" and a["confidence"] == 1
+    assert by.get("annotation"), "generator should emit placeholder annotations so consumers see the shape"
+    for a in by["annotation"]:
+        assert a["source"] == "synthetic" and a.get("simulates") == "human" and a["confidence"] == 1
+        assert a["annotator"] != "zaid", "no real person annotated synthetic data"
         assert a["target_id"] in ids
+
+
+def test_schema_requires_simulates_on_synthetic_annotations():
+    v = events_validator()
+    base = {"type": "annotation", "id": "an_000001", "match_id": "m", "schema_version": SCHEMA_VERSION, "confidence": 1,
+            "t": 1.0, "target_id": "ev_000001", "target_type": "event", "verdict": "confirm", "annotator": "x",
+            "annotated_at": "2026-10-19T00:00:00Z"}
+    assert not v.errors({**base, "source": "human"})
+    assert v.errors({**base, "source": "synthetic"}), "synthetic annotation without simulates must fail"
+    assert not v.errors({**base, "source": "synthetic", "simulates": "human"})
 
 
 # ----------------------------------------------------------------------------- clip rule
@@ -201,6 +213,17 @@ def test_same_seed_same_stream():
     b = generate(seed=3, minutes=0.5, track_hz=1.0)
     assert json.dumps(a.stream, sort_keys=True) == json.dumps(b.stream, sort_keys=True)
     assert json.dumps(a.tracks, sort_keys=True) == json.dumps(b.tracks, sort_keys=True)
+
+
+def test_track_rate_does_not_change_the_match():
+    """Sampling is observation, not simulation: the same seed must give the same events at any track rate."""
+    a = generate(seed=3, minutes=0.5, track_hz=1.0)
+    b = generate(seed=3, minutes=0.5, track_hz=4.0)
+    # Observation-side confidences (camera segments, appearances, tracks) may differ; the match may not.
+    strip = lambda rows: [{k: v for k, v in r.items() if k not in ("id",) and not (r["type"] == "camera_segment" and k == "confidence")}
+                          for r in rows if r["type"] in ("event", "possession", "camera_segment")]
+    assert json.dumps(strip(a.events), sort_keys=True) == json.dumps(strip(b.events), sort_keys=True)
+    assert len(b.tracks) > len(a.tracks)
 
 
 def test_different_seed_different_stream():

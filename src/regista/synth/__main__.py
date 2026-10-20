@@ -1,6 +1,6 @@
 """CLI: generate a synthetic match and derive clips for one player.
 
-    python -m regista.synth --minutes 3 --seed 42 --track-hz 1 --player t_home_10 --out data/synthetic/sample
+    python -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 --out data/synthetic/sample
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--minutes", type=float, default=3.0, help="minutes of play to simulate")
     parser.add_argument("--track-hz", type=float, default=1.0, help="track samples per second")
     parser.add_argument("--fps", type=float, default=25.0)
-    parser.add_argument("--player", default="t_home_10", help="player_id to derive clips for")
+    parser.add_argument("--player", default="t_home_09", help="player_id to derive clips for")
     parser.add_argument("--out", type=Path, default=Path("data/synthetic/sample"), help="output root; a <match_id>/ folder is created inside")
     args = parser.parse_args(argv)
 
