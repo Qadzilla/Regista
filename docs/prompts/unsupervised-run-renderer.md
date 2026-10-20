@@ -1,14 +1,14 @@
-# Unsupervised hour: 2D renderer and what follows
+# Unsupervised run: 2D renderer and what follows
 
 Paste the block below as a single message. It assumes the session is in `~/Desktop/Regista` with `CLAUDE.md` loaded.
 
 ---
 
-I'm away for about one hour. Work continuously and autonomously until the whole list is done or the hour is up. Do not ask me questions; make reasonable calls, record them in `CLAUDE.md` section 5 if they're open questions, and keep going.
+I'm away. Work continuously and autonomously until the whole list is done. Do not ask me questions; make reasonable calls, record them in `CLAUDE.md` section 5 if they're open questions, and keep going.
 
 ## Before anything else: keep the Mac awake
 
-Call the app's keep-awake tool (`request_keep_awake`) for 75 minutes so the machine does not sleep while you work. If that tool is unavailable or refuses, run `caffeinate -dims -t 4500` in the background with the Bash tool and confirm it is running. Do this before the first file edit.
+Call the app's keep-awake tool (`request_keep_awake`) for the longest duration it allows so the machine does not sleep while you work, and renew it if it expires before you finish. If that tool is unavailable or refuses, run `caffeinate -dims` in the background with the Bash tool and confirm it is running. Do this before the first file edit.
 
 ## Guardrails (absolute)
 
@@ -39,7 +39,7 @@ After milestone 1, run three reviewers as subagents in parallel and act on their
 
 1. **Visual QA agent.** Give it the frames directory and the clip reel. Have it read a dozen keyframes as images (kick-off, a pass, the goal, the goal replay, a closeup, the highlight package, two clip title cards) and report anything illegible, overlapping, off-pitch, mis-timed, or ugly, with the frame filename for each. Fix everything it reports that is real; re-render; have it confirm.
 2. **Code review agent.** Review the diff of milestone 1 for correctness bugs and anything that will break on a longer match or a different seed. Fix the confirmed findings.
-3. **Judge simulator agent.** Give it `CLAUDE.md` section 1.1 and the README, and ask it to score the repo as a hackathon judge would on the five criteria, with the single most valuable improvement per criterion that could be done in under 20 minutes. Do the ones that fit the remaining time and don't need Azure.
+3. **Judge simulator agent.** Give it `CLAUDE.md` section 1.1 and the README, and ask it to score the repo as a hackathon judge would on the five criteria, with the single most valuable improvement per criterion. Do every one that doesn't need Azure.
 
 Commit after fixes as "Address visual QA, code review, and judge feedback on renderer".
 
@@ -51,7 +51,7 @@ Build `src/regista/librarian.py` and `python3 -m regista.librarian <match_dir> "
 
 Write `docs/demo-storyboard.md`: a shot-by-shot plan for the sub-2-minute demo video using only our rendered output, with timestamps, what's on screen, what the voiceover says, and which hero technology is named on screen at each beat. Write `docs/architecture.md`: the two-layer architecture, the six agents from `CLAUDE.md` section 3.1 mapped to concrete Microsoft Agent Framework roles with their tools, the MCP tool list (the Librarian's search, the clip cutter, the validator), the Azure services per pipeline stage, and what runs where in a demo deployment on Azure Container Apps. No provisioning. Commit.
 
-## Milestone 5: only if time remains, in this order
+## Milestone 5: after the above, in this order
 
 1. Second period in the generator (`match.periods` already supports it): teams swap ends, clock continues from 45', tests updated.
 2. A `--teams` option to pick kit colours and names, so the demo can show two different matches.
