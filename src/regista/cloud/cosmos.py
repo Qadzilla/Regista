@@ -2,12 +2,14 @@
 
 Containers (created by infra/provision.sh): ``matches``, ``clips``, ``labels``, each with partition
 key ``/match_id``. Documents are the stream records with an added ``id`` that Cosmos requires.
-Keyless by default (``DefaultAzureCredential``, needs the "Cosmos DB Built-in Data Contributor"
-role); ``REGISTA_COSMOS_KEY`` is honoured when set.
+Entra ID by default (``DefaultAzureCredential``, needs the "Cosmos DB Built-in Data Contributor"
+role); ``REGISTA_COSMOS_KEY`` is honoured when set. The live app also reads the library back
+(``list_matches``, ``get_match``, ``clips_for``) so matches survive container restarts.
 """
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -17,10 +19,15 @@ from regista.cloud.config import CloudConfig
 
 Record = dict[str, Any]
 
+# Clip ids became player-scoped in schema 0.1.1 (cl_t_home_09_000001). Documents written before that (cl_000001,
+# lb_000001) are stale duplicates; readers skip them, and only Zaid decides when they are deleted.
+CURRENT_CLIP_ID = re.compile(r"^cl_.+_\d{6}$")
+
 
 class ContainerLike(Protocol):  # the slice of azure.cosmos ContainerProxy we use; tests pass a fake
     def upsert_item(self, body: dict[str, Any]) -> Any: ...
-    def query_items(self, query: str, parameters: list[dict[str, Any]] | None = None, enable_cross_partition_query: bool = False) -> Any: ...
+    def query_items(self, query: str, parameters: list[dict[str, Any]] | None = None, enable_cross_partition_query: bool = False,
+                    partition_key: Any = None) -> Any: ...
 
 
 class ClipStore:
@@ -97,11 +104,30 @@ class ClipStore:
             return None
         return {k: v for k, v in rows[0].items() if not k.startswith("_") and k not in ("id", "match_id", "type")}
 
+    # -- reading the library back (the live app lists matches that only Cosmos DB still holds)
+    @staticmethod
+    def _clean(doc: Record) -> Record:
+        return {k: v for k, v in doc.items() if not k.startswith("_")}
+
+    def list_matches(self) -> list[Record]:
+        """Every match header stored by the Persist agent."""
+        rows = self.matches.query_items("SELECT * FROM c WHERE c.type = 'match'", enable_cross_partition_query=True)
+        return sorted((self._clean(r) for r in rows), key=lambda m: m["match_id"])
+
+    def get_match(self, match_id: str) -> Record | None:
+        rows = list(self.matches.query_items("SELECT * FROM c WHERE c.type = 'match' AND c.match_id = @m",
+                                             parameters=[{"name": "@m", "value": match_id}], partition_key=match_id))
+        return self._clean(rows[0]) if rows else None
+
     def clips_for(self, match_id: str, player_id: str | None = None) -> tuple[list[Record], dict[str, Record]]:
+        """Current clips and their labels for one match (one partition), skipping stale pre-0.1.1 documents."""
         q = "SELECT * FROM c WHERE c.match_id = @m" + (" AND c.player_id = @p" if player_id else "")
         params = [{"name": "@m", "value": match_id}] + ([{"name": "@p", "value": player_id}] if player_id else [])
-        clips = list(self.clips.query_items(q, parameters=params))
-        labels = {lb["clip_id"]: lb for lb in self.labels.query_items(q, parameters=params)}
+        clips = [self._clean(c) for c in self.clips.query_items(q, parameters=params, partition_key=match_id)
+                 if CURRENT_CLIP_ID.match(c.get("id", ""))]
+        keep = {c["id"] for c in clips}
+        labels = {lb["clip_id"]: self._clean(lb) for lb in self.labels.query_items(q, parameters=params, partition_key=match_id)
+                  if lb.get("clip_id") in keep}
         return clips, labels
 
 

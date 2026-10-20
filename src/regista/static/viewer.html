@@ -50,6 +50,13 @@
   .vbtn { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-weight: 600; cursor: pointer; }
   .vbtn.keep:hover { border-color: #4ade80; color: #4ade80; } .vbtn.drop:hover { border-color: #f87171; color: #f87171; }
   .chip.rev { border-color: var(--accent); color: var(--accent); }
+  button.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  button:disabled { opacity: .5; cursor: wait; }
+  .answer { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; }
+  .answer .text { font-size: 15px; margin-bottom: 8px; }
+  .answer .by { color: var(--muted); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .answer .tool { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--text); }
+  .novideo { aspect-ratio: 16 / 9; background: #000; display: grid; place-items: center; color: var(--muted); font-size: 12.5px; padding: 0 18px; text-align: center; }
 </style>
 </head>
 <body>
@@ -59,16 +66,18 @@
   <select id="player"></select>
   <input id="q" type="search" placeholder='Ask: "find me Castellanos doing a nutmeg", "replays of the home striker&#39;s goal", "top 3 moments"'>
   <button id="go">Search</button>
+  <button id="ask" class="alt" title="Microsoft Foundry model, calling Regista's MCP server and the Azure MCP Server">Ask Foundry</button>
 </header>
 <main>
   <div class="learn" id="learn">Loading what Regista has learned…</div>
   <div class="player" id="playerHead"></div>
   <div class="chips" id="chips"></div>
   <p class="understood" id="understood"></p>
+  <div class="answer" id="answer" hidden></div>
   <div class="grid" id="grid"></div>
   <div class="empty" id="empty" hidden>No clips match.</div>
 </main>
-<footer>Every touch. Every replay. Every player. Found instantly. Rendered from synthetic match data; no real footage.</footer>
+<footer>Every touch. Every replay. Every player. Found instantly. Rendered from synthetic match data; no real footage.<br><span id="stack"></span></footer>
 <script>
 const $ = (id) => document.getElementById(id);
 // Everything that reaches innerHTML from the API goes through esc(): names, titles, tags, notes and verdict authors
@@ -81,7 +90,8 @@ async function api(path) { const r = await fetch(path); if (!r.ok) throw new Err
 
 async function init() {
   const matches = await api('/api/matches');
-  $('match').innerHTML = matches.map(m => `<option value="${esc(m.match_id)}">${esc(m.match_id)} · ${esc(m.teams[0].short_name)} ${m.score ? esc(m.score[m.teams[0].team_id]) : ''} - ${m.score ? esc(m.score[m.teams[1].team_id]) : ''} ${esc(m.teams[1].short_name)}</option>`).join('');
+  $('match').innerHTML = matches.map(m => `<option value="${esc(m.match_id)}">${esc(m.match_id)} · ${esc(m.teams[0].short_name)} ${m.score ? esc(m.score[m.teams[0].team_id]) : ''} - ${m.score ? esc(m.score[m.teams[1].team_id]) : ''} ${esc(m.teams[1].short_name)}${m.source === 'cosmos' ? ' · from Cosmos DB' : ''}</option>`).join('');
+  $('ask').onclick = ask;
   $('match').onchange = () => loadMatch($('match').value);
   $('player').onchange = () => { state.player = $('player').value; state.tag = null; loadClips(); };
   $('go').onclick = search;
@@ -108,6 +118,7 @@ function textOn(hex) { const n = parseInt(hex.slice(1), 16); const l = 0.299 * (
 
 async function loadClips() {
   $('understood').textContent = '';
+  $('answer').hidden = true;
   const url = `/api/matches/${state.match}/clips?player=${encodeURIComponent(state.player)}` + (state.tag ? `&tag=${encodeURIComponent(state.tag)}` : '');
   state.clips = await api(url);
   renderHead();
@@ -187,7 +198,7 @@ function renderGrid(rows) {
   $('empty').hidden = rows.length > 0;
   $('grid').innerHTML = rows.map(r => `
     <div class="card">
-      <video controls preload="metadata" src="${esc(r.video_url)}"></video>
+      ${r.video_url ? `<video controls preload="metadata" src="${esc(r.video_url)}"></video>` : `<div class="novideo">Read from Cosmos DB. This replica no longer has the match's event stream, so there is no video to render.</div>`}
       <div class="body">
         <div class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${nice(r.reason)}</div>
         <div class="title">${esc(r.title)}</div>
@@ -197,7 +208,7 @@ function renderGrid(rows) {
         <div class="why">${esc(r.explanation || '')}</div>
         ${r.review ? `<span class="review">Regista is unsure: ${esc(r.review)}</span>` : ''}
         ${r.verdict ? `<span class="done ${r.verdict.keep ? 'keep' : 'drop'}"><b>${r.verdict.keep ? 'Kept' : 'Dropped'}</b> by ${esc(r.verdict.annotator)}</span>` : ''}
-        <div class="vbtns"><button class="vbtn keep" data-clip="${esc(r.clip_id)}" data-v="keep">Keep</button><button class="vbtn drop" data-clip="${esc(r.clip_id)}" data-v="drop">Drop</button></div>
+        ${r.video_url ? `<div class="vbtns"><button class="vbtn keep" data-clip="${esc(r.clip_id)}" data-v="keep">Keep</button><button class="vbtn drop" data-clip="${esc(r.clip_id)}" data-v="drop">Drop</button></div>` : ''}
       </div>
     </div>`).join('');
   for (const b of $('grid').querySelectorAll('.vbtn')) b.onclick = () => sendVerdict(b.dataset.clip, b.dataset.v);
@@ -206,7 +217,16 @@ function renderGrid(rows) {
 async function search() {
   const q = $('q').value.trim();
   if (!q) return loadClips();
-  const out = await api(`/api/matches/${state.match}/search?q=${encodeURIComponent(q)}`);
+  $('answer').hidden = true;
+  let out;
+  try { out = await api(`/api/matches/${encodeURIComponent(state.match)}/search?q=${encodeURIComponent(q)}`); }
+  catch (e) { $('understood').textContent = detail(e); return; }
+  showResults(out);
+}
+
+function detail(e) { try { return JSON.parse(e.message).detail; } catch (_) { return e.message; } }
+
+function showResults(out) {
   const p = out.parsed;
   $('understood').innerHTML = `Understood: player <b>${esc(p.player || 'any')}</b>${p.player_how ? ` (${esc(p.player_how)})` : ''} · tags <b>${p.tags.length ? esc(p.tags.join(', ')) : 'any'}</b>${p.reasons.length ? ` · only <b>${esc(p.reasons.map(r => r.replace('_appearance', 's')).join(', '))}</b>` : ''}${p.minutes ? ` · minutes <b>${esc(p.minutes[0])}–${esc(p.minutes[1])}</b>` : ''} · ${esc(out.message)}`;
   if (p.player_id && p.player_id !== state.player) { state.player = p.player_id; $('player').value = p.player_id; }
@@ -216,7 +236,39 @@ async function search() {
   renderGrid(out.results);
 }
 
-init().then(loadLearn).catch(e => { $('understood').textContent = 'Could not load: ' + e.message; });
+// The Foundry Librarian: a Microsoft Foundry model (through Microsoft Agent Framework) that calls Regista's MCP server
+// and the Azure MCP Server. Slower than Search; its answer and every tool it called are shown as returned.
+async function ask() {
+  const q = $('q').value.trim();
+  if (!q) { $('q').focus(); return; }
+  $('ask').disabled = true; $('ask').textContent = 'Asking…';
+  $('answer').hidden = false;
+  $('answer').innerHTML = '<div class="by">The Librarian is working: it searches with its tools, then writes an answer.</div>';
+  try {
+    const r = await fetch(`/api/matches/${encodeURIComponent(state.match)}/ask`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }) });
+    const out = await r.json();
+    if (!r.ok) { $('answer').innerHTML = `<div class="text">${esc(typeof out.detail === 'string' ? out.detail : 'The Librarian could not answer.')}</div>`; return; }
+    const tools = (out.tools_used || []).map(t => `<span class="tool">${esc(t)}</span>`).join('');
+    $('answer').innerHTML = `<div class="text">${esc(out.answer)}</div><div class="by">answered by <b>${esc(out.answered_by)}</b>${tools ? ' · tools called ' + tools : ''}</div>`;
+    if (out.parsed) { const keep = $('answer').innerHTML; showResults(out); $('answer').hidden = false; $('answer').innerHTML = keep; }
+  } catch (e) {
+    $('answer').innerHTML = `<div class="text">${esc(e.message)}</div>`;
+  } finally {
+    $('ask').disabled = false; $('ask').textContent = 'Ask Foundry';
+  }
+}
+
+async function loadStack() {
+  try {
+    const h = await api('/api/health');
+    const on = [h.librarian && h.librarian !== 'rules' ? `Microsoft Foundry (${h.librarian.replace('foundry:', '')})` : null, 'Microsoft Agent Framework',
+      h.azure_mcp ? 'Azure MCP Server' : null, h.cloud.cosmos ? 'Azure Cosmos DB' : null, h.cloud.search ? 'Azure AI Search' : null,
+      h.tracing ? 'Application Insights tracing' : null].filter(Boolean);
+    $('stack').textContent = 'This deployment runs: ' + on.join(' · ');
+  } catch (e) {}
+}
+
+init().then(loadLearn).then(loadStack).catch(e => { $('understood').textContent = 'Could not load: ' + e.message; });
 </script>
 </body>
 </html>

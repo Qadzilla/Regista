@@ -12,6 +12,7 @@ from regista.cloud.config import CloudConfig, load_dotenv
 from regista.cloud.cosmos import ClipStore, CosmosPersistAgent
 from regista.cloud.foundry import ALLOWED_TAGS, FoundryLabelAgent, FoundryLibrarianAgent, LabelOut, validate_label
 from regista.synth import generate
+from fakes import FakeContainer  # noqa: E402
 
 PLAYER = "t_home_09"
 
@@ -23,21 +24,6 @@ def match_dir(tmp_path):
     d.mkdir()
     (d / "events.jsonl").write_text("\n".join(json.dumps(x) for x in r.stream) + "\n")
     return d
-
-
-class FakeContainer:
-    def __init__(self):
-        self.items: dict[str, dict] = {}
-
-    def upsert_item(self, body):
-        assert "id" in body and "match_id" in body
-        self.items[body["id"]] = body
-
-    def query_items(self, query, parameters=None, enable_cross_partition_query=False):
-        want = {p["name"]: p["value"] for p in (parameters or [])}
-        for it in self.items.values():
-            if it["match_id"] == want.get("@m") and ("@p" not in want or it.get("player_id") == want["@p"]):
-                yield it
 
 
 def test_config_from_env_and_dotenv(tmp_path, monkeypatch):
