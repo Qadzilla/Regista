@@ -136,6 +136,9 @@ src/regista/schema.py        load + validate JSONL streams by record type
 src/regista/synth/           synthetic match generator (possessions, passes, shots, director cuts, replays)
 src/regista/clips.py         clip rule + first labeller (watchability, tags, explanation)
 src/regista/validate.py      CLI validator
+src/regista/render/          2D broadcast renderer: scene.py (interpolation, captions, score, clock),
+                             draw.py (pitch, players, replays, closeups, crowd, HUD), video.py (parallel
+                             MP4 parts + ffmpeg concat), clips.py (per-clip videos and best-first reel)
 data/synthetic/README.md     the contract, record by record
 data/synthetic/schema/       regista-events.schema.json, regista-clips.schema.json
 data/synthetic/sample/       committed sample match (seed 109: home #10 scores, a nutmeg, replays)
@@ -146,7 +149,11 @@ tests/test_synthetic.py      schema + generator + clip rule must agree
 python3 -m pytest -q
 python3 -m regista.synth --minutes 3 --seed 109 --track-hz 1 --player t_home_10 --out data/synthetic/sample
 python3 -m regista.validate data/synthetic/sample/syn_0109
+python3 -m regista.render data/synthetic/sample/syn_0109 --out docs/demo/syn_0109.mp4 --frames-dir docs/demo/syn_0109_frames
+python3 -m regista.render.clips data/synthetic/sample/syn_0109 --player t_home_10 --out docs/demo/clips_t_home_10
 ```
+
+`docs/demo/` is git-ignored rendered output. The renderer uses the ffmpeg bundled in the `imageio-ffmpeg` pip package, so no system install is needed; without it, output falls back to GIF.
 
 Rule of thumb when extending: change the schema, the generator, the clip rule, and the tests together, then bump `schema_version`.
 
@@ -186,6 +193,6 @@ Orchestrated with Microsoft Agent Framework; tools exposed via MCP; failure reco
 
 - **Footage rights.** Does the broadcast-server access come with a written licence to use the footage for this, or is it access only? If a licence exists, the demo-video constraint relaxes; the public repo still holds no footage either way.
 - **Organiser answer.** Have we asked on the Innovation Studio platform whether licensed clips will be provided or Premier League footage may appear in demos?
-- **Demo footage pick.** Synthetic renderer, own recorded match, CC clips, pitch-diagram visualisation, or a mix? (See 1.5.) The event generator exists; a visual renderer of its output (2D pitch animation) is the natural next step.
+- **Demo footage pick.** The 2D renderer now produces broadcast-style video from the synthetic stream (`python -m regista.render`), which is footage we own outright. Still open: whether to add our own recorded match or CC clips on top for realism.
 - Do we host the chatbot UI as a web app on Azure Container Apps, or keep it simpler for the demo?
 - Team: solo or up to 4?

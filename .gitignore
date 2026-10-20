@@ -52,3 +52,6 @@ Thumbs.db
 
 # Claude local settings
 .claude/settings.local.json
+
+# Rendered demo output (regenerate with python -m regista.render)
+docs/demo/

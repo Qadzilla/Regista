@@ -37,13 +37,17 @@ pip install -e ".[dev]"
 python3 -m pytest -q
 python3 -m regista.synth --minutes 3 --seed 109 --player t_home_10 --out data/synthetic/sample
 python3 -m regista.validate data/synthetic/sample/syn_0109
+python3 -m regista.render data/synthetic/sample/syn_0109 --out docs/demo/syn_0109.mp4
+python3 -m regista.render.clips data/synthetic/sample/syn_0109 --player t_home_10 --out docs/demo/clips_t_home_10
 ```
+
+The renderer turns the event and track streams into a broadcast-style 1280x720 MP4: a perspective pitch with kit-coloured numbered players, a camera that follows the ball, replays at the director's slow-motion speed with a REPLAY badge and a different framing per angle, player closeups, crowd shots, a highlights package, a live scoreboard and clock, and timed captions for goals, shots, nutmegs, skill moves, fouls, and saves. The clip cutter writes one video per clip plus a best-first reel with title cards. A 3-minute match renders in about 15 seconds on an 8-core Mac. Nothing in the output comes from real footage.
 
 The generator writes `events.jsonl` (match header, camera segments, possessions, events, appearances, human annotations), `tracks.jsonl` (sampled positions), and `clips.jsonl` (the clip rule applied to one player, with labels and watchability scores). The contract is documented in [data/synthetic/README.md](data/synthetic/README.md).
 
 ## Status
 
-Day 1. The event-stream contract between the vision layer and the intelligence layer is defined, schema-validated, and exercised end to end by a synthetic match generator and the clip rule. Next: a visual renderer for the synthetic match, then the agents.
+Day 1. The event-stream contract is defined, schema-validated, and exercised end to end by the synthetic generator, the clip rule, and a 2D broadcast renderer that produces demo footage we own. Next: the Librarian (clip search) and the agents.
 
 ## Licence
 
