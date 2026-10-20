@@ -23,9 +23,12 @@ data/synthetic/
 Generate and validate:
 
 ```bash
-python -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 --out data/synthetic/sample
+python -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 --out data/synthetic/sample --report
 python -m regista.validate data/synthetic/sample/syn_0294
+python -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 ```
+
+The generator has two profiles. `demo` (default) packs a short sample with shots, take-ons, and nutmegs so a 3-minute clip reel has content; its per-90 rates sit well above real football. `realistic` is tuned so that per-90 passes, completion, shots, xG per shot, tackles, interceptions, take-ons, nutmegs, fouls, corners, throw-ins, and possession length sit inside approximate Premier League bands (see `regista/synth/report.py` for the bands and their source). `report.md` next to a generated match states which bands it meets.
 
 ## Conventions
 

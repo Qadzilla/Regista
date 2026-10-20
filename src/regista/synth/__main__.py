@@ -23,10 +23,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--track-hz", type=float, default=1.0, help="track samples per second")
     parser.add_argument("--fps", type=float, default=25.0)
     parser.add_argument("--player", default="t_home_09", help="player_id to derive clips for")
+    parser.add_argument("--profile", choices=["demo", "realistic"], default="demo", help="demo packs action into a short sample; realistic matches Premier League rates")
+    parser.add_argument("--report", action="store_true", help="also write report.md comparing the match with Premier League norms")
     parser.add_argument("--out", type=Path, default=Path("data/synthetic/sample"), help="output root; a <match_id>/ folder is created inside")
     args = parser.parse_args(argv)
 
-    result = generate(seed=args.seed, minutes=args.minutes, track_hz=args.track_hz, fps=args.fps)
+    result = generate(seed=args.seed, minutes=args.minutes, track_hz=args.track_hz, fps=args.fps, profile=args.profile)
     clips, labels = derive_clips(result.stream, args.player)
 
     out_dir = args.out / result.match["match_id"]
@@ -48,7 +50,13 @@ def main(argv: list[str] | None = None) -> int:
         "clips_for": args.player,
         "clip_reasons": dict(Counter(c["reason"] for c in clips)),
     }
+    manifest["generator"]["params"]["profile"] = args.profile
     (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    if args.report:
+        from regista.synth.report import compute_metrics, render_markdown
+
+        md = render_markdown(compute_metrics(result.stream, result.tracks), result.match["match_id"], args.profile)
+        (out_dir / "report.md").write_text(md, encoding="utf-8")
 
     print(f"wrote {out_dir}")
     print(f"  events.jsonl  {n_events:>7} records  {dict(counts)}")

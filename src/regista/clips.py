@@ -10,11 +10,15 @@ The rule, from CLAUDE.md §2.3 step 4:
    Overlapping clips merge.
 2. Any replay, highlight, or closeup the player appears in becomes a clip, on or off the ball.
 3. Main view, off the ball: no clip. Otherwise the output would be the whole game.
+
+Two steps, two owners: ``cut_clips`` is the Clip Agent's job, ``label_clips`` the Label
+Agent's. ``derive_clips`` runs both for callers that want the whole thing.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass, field
 from typing import Any
 
 from regista.schema import SCHEMA_VERSION
@@ -59,10 +63,7 @@ APPEARANCE_REASONS = {
     "highlight": "highlight_appearance",
     "closeup": "closeup_appearance",
 }
-
-
-def _overlaps(a0: float, a1: float, b0: float, b1: float) -> bool:
-    return a0 < b1 and b0 < a1
+REASON_TAGS = set(APPEARANCE_REASONS.values()) | {"on_ball_main"}
 
 
 def match_minute(match: Record, t: float) -> int:
@@ -75,67 +76,73 @@ def match_minute(match: Record, t: float) -> int:
     return starts.get(last["period"], 0) + int((last["t_end"] - last["t"]) // 60) + 1
 
 
-def derive_clips(
-    records: Iterable[Record],
-    player_id: str,
-    *,
-    pre_roll_s: float = 2.0,
-    post_roll_s: float = 2.0,
-    merge_gap_s: float = 1.0,
-    model: str = "rules-v0",
-    language: str = "en",
-) -> tuple[list[Record], list[Record]]:
-    """Apply the clip rule for ``player_id`` and label each clip. Returns ``(clips, labels)``."""
-    match: Record | None = None
-    segments: list[Record] = []
-    possessions: list[Record] = []
-    events: list[Record] = []
-    appearances: list[Record] = []
-    for rec in records:
-        t = rec.get("type")
-        if t == "match":
-            match = rec
-        elif t == "camera_segment":
-            segments.append(rec)
-        elif t == "possession":
-            possessions.append(rec)
-        elif t == "event":
-            events.append(rec)
-        elif t == "appearance":
-            appearances.append(rec)
-    if match is None:
-        raise ValueError("event stream has no match header")
+@dataclass
+class StreamIndex:
+    """The parts of an event stream the clip rule needs, indexed once."""
 
-    match_id = match["match_id"]
-    roster = {p["player_id"]: p for p in match["players"]}
-    if player_id not in roster:
-        raise ValueError(f"{player_id} is not in the roster of {match_id}")
-    player = roster[player_id]
-    segments.sort(key=lambda s: s["t"])
-    events.sort(key=lambda e: e["t"])
+    match: Record
+    segments: list[Record]
+    possessions: list[Record]
+    events: list[Record]
+    appearances: list[Record]
+    seg_by_id: dict[str, Record] = field(default_factory=dict)
+    events_by_id: dict[str, Record] = field(default_factory=dict)
 
-    def envelope(prefix: str, n: int) -> Record:
-        return {
-            "type": None,
-            "id": f"{prefix}_{n:06d}",
-            "match_id": match_id,
-            "schema_version": SCHEMA_VERSION,
-            "source": "derived",
-            "confidence": 1.0,
-        }
+    @classmethod
+    def build(cls, records: Iterable[Record]) -> StreamIndex:
+        match = None
+        segments: list[Record] = []
+        possessions: list[Record] = []
+        events: list[Record] = []
+        appearances: list[Record] = []
+        for rec in records:
+            t = rec.get("type")
+            if t == "match":
+                match = rec
+            elif t == "camera_segment":
+                segments.append(rec)
+            elif t == "possession":
+                possessions.append(rec)
+            elif t == "event":
+                events.append(rec)
+            elif t == "appearance":
+                appearances.append(rec)
+        if match is None:
+            raise ValueError("event stream has no match header")
+        segments.sort(key=lambda s: s["t"])
+        events.sort(key=lambda e: e["t"])
+        return cls(match=match, segments=segments, possessions=possessions, events=events, appearances=appearances,
+                   seg_by_id={s["id"]: s for s in segments}, events_by_id={e["id"]: e for e in events})
 
-    def segment_at(t: float) -> Record | None:
-        for seg in segments:
+    @property
+    def roster(self) -> dict[str, Record]:
+        return {p["player_id"]: p for p in self.match["players"]}
+
+    def segment_at(self, t: float) -> Record | None:
+        for seg in self.segments:
             if seg["t"] <= t < seg["t_end"]:
                 return seg
         return None
 
-    # --- rule 1: main view, on the ball -------------------------------------------------
+
+def _envelope(match_id: str, prefix: str, n: int) -> Record:
+    return {"type": None, "id": f"{prefix}_{n:06d}", "match_id": match_id, "schema_version": SCHEMA_VERSION, "source": "derived", "confidence": 1.0}
+
+
+# ---------------------------------------------------------------------------- step 1: cut
+
+def cut_clips(index: StreamIndex, player_id: str, *, pre_roll_s: float = 2.0, post_roll_s: float = 2.0, merge_gap_s: float = 1.0) -> list[Record]:
+    """Apply the clip rule for one player. Returns ``clip`` records without labels."""
+    if player_id not in index.roster:
+        raise ValueError(f"{player_id} is not in the roster of {index.match['match_id']}")
+    match_id = index.match["match_id"]
+
+    # Rule 1: main view, on the ball.
     raw: list[Record] = []
-    for pos in possessions:
+    for pos in index.possessions:
         if pos["player_id"] != player_id:
             continue
-        seg = segment_at(pos["t"])
+        seg = index.segment_at(pos["t"])
         if seg is None or seg["kind"] != "main":
             continue
         t0 = max(seg["t"], pos["t"] - pre_roll_s)
@@ -152,106 +159,100 @@ def derive_clips(
         else:
             merged.append(c)
 
-    # --- rule 2: replays, highlights, closeups the player appears in ----------------------
-    seg_by_id = {s["id"]: s for s in segments}
-    for app in appearances:
+    # Rule 2: replays, highlights, closeups the player appears in. Rule 3 is the absence of anything else.
+    for app in index.appearances:
         if app["player_id"] != player_id:
             continue
-        seg = seg_by_id.get(app["segment_id"])
+        seg = index.seg_by_id.get(app["segment_id"])
         if seg is None or seg["kind"] not in APPEARANCE_REASONS:
             continue
-        merged.append(
-            {
-                "t": seg["t"],
-                "t_end": seg["t_end"],
-                "segment_ids": [seg["id"]],
-                "reason": APPEARANCE_REASONS[seg["kind"]],
-                "possession_ids": [],
-                "replay_of": list(seg.get("replay_of", [])),
-            }
-        )
+        merged.append({"t": seg["t"], "t_end": seg["t_end"], "segment_ids": [seg["id"]], "reason": APPEARANCE_REASONS[seg["kind"]],
+                       "possession_ids": [], "replay_of": list(seg.get("replay_of", []))})
     merged.sort(key=lambda c: (c["t"], c["reason"]))
 
-    # --- attach events, keyframes, labels -------------------------------------------------
-    events_by_id = {e["id"]: e for e in events}
     clips: list[Record] = []
-    labels: list[Record] = []
     for n, c in enumerate(merged, start=1):
-        mine = [
-            e
-            for e in events
-            if c["t"] <= e["t"] < c["t_end"] and (e.get("player_id") == player_id or e.get("related_player_id") == player_id)
-        ]
-        replayed = [events_by_id[i] for i in c.get("replay_of", []) if i in events_by_id]
-        relevant = mine + [e for e in replayed if e not in mine]
+        relevant = _relevant_events(index, c, player_id)
+        key_event = _key_event(relevant, c, player_id)
+        keyframe_t = key_event["t"] if key_event and c["t"] <= key_event["t"] < c["t_end"] else round((c["t"] + c["t_end"]) / 2, 2)
+        clip = _envelope(match_id, "cl", n)
+        clip.update(
+            type="clip", player_id=player_id, t=round(c["t"], 2), t_end=round(c["t_end"], 2), segment_ids=c["segment_ids"],
+            reason=c["reason"], event_ids=[e["id"] for e in relevant], possession_ids=c["possession_ids"], keyframe_t=round(keyframe_t, 2),
+            pre_roll_s=pre_roll_s if c["reason"] == "on_ball_main" else 0.0, post_roll_s=post_roll_s if c["reason"] == "on_ball_main" else 0.0,
+        )
+        clips.append(clip)
+    return clips
 
+
+def _relevant_events(index: StreamIndex, c: Record, player_id: str) -> list[Record]:
+    mine = [e for e in index.events if c["t"] <= e["t"] < c["t_end"] and (e.get("player_id") == player_id or e.get("related_player_id") == player_id)]
+    replayed = [index.events_by_id[i] for i in c.get("replay_of", []) if i in index.events_by_id]
+    return mine + [e for e in replayed if e not in mine]
+
+
+def _key_event(relevant: list[Record], c: Record, player_id: str) -> Record | None:
+    return next((e for e in sorted(relevant, key=lambda e: -TAG_WEIGHTS.get(e["event_type"], 0)) if e.get("player_id") == player_id), None)
+
+
+# ---------------------------------------------------------------------------- step 2: label
+
+def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-v0", language: str = "en") -> list[Record]:
+    """Tag, title, score, and explain each clip. Deterministic ``rules-v0``; a Foundry model can replace it."""
+    match_id = index.match["match_id"]
+    roster = index.roster
+    labels: list[Record] = []
+    for n, clip in enumerate(clips, start=1):
+        player_id = clip["player_id"]
+        player = roster[player_id]
+        relevant = [index.events_by_id[i] for i in clip["event_ids"] if i in index.events_by_id]
         tags: list[str] = []
         for e in relevant:
             if e.get("player_id") == player_id:
                 tags.append(e["event_type"])
                 tags.extend(q for q in e.get("qualifiers", []) if q in TAG_WEIGHTS)
             elif e.get("related_player_id") == player_id and e["event_type"] in ("goal", "nutmeg", "take_on", "foul"):
-                # Player was on the receiving end: still worth tagging so "X got nutmegged" is searchable.
-                tags.append(f"{e['event_type']}_against")
-        tags.append(c["reason"])
-        tags = list(dict.fromkeys(t for t in tags if t))  # dedupe, keep order
+                tags.append(f"{e['event_type']}_against")  # on the receiving end: "X got nutmegged" stays searchable
+        tags.append(clip["reason"])
+        tags = list(dict.fromkeys(t for t in tags if t))
 
         scored = [(TAG_WEIGHTS.get(t, 0.1), t) for t in tags]
         best_w, best_tag = max(scored)
         watchability = round(min(1.0, best_w + 0.03 * (len(tags) - 1)), 3)
-
-        key_event = next((e for e in sorted(relevant, key=lambda e: -TAG_WEIGHTS.get(e["event_type"], 0)) if e.get("player_id") == player_id), None)
-        keyframe_t = key_event["t"] if key_event and c["t"] <= key_event["t"] < c["t_end"] else round((c["t"] + c["t_end"]) / 2, 2)
-
-        clip = envelope("cl", n)
-        clip.update(
-            type="clip",
-            player_id=player_id,
-            t=round(c["t"], 2),
-            t_end=round(c["t_end"], 2),
-            segment_ids=c["segment_ids"],
-            reason=c["reason"],
-            event_ids=[e["id"] for e in relevant],
-            possession_ids=c["possession_ids"],
-            keyframe_t=round(keyframe_t, 2),
-            pre_roll_s=pre_roll_s if c["reason"] == "on_ball_main" else 0.0,
-            post_roll_s=post_roll_s if c["reason"] == "on_ball_main" else 0.0,
-        )
-        clips.append(clip)
-
-        reason_tags = set(APPEARANCE_REASONS.values()) | {"on_ball_main"}
-        headline_tag = max(((TAG_WEIGHTS.get(t, 0.1), t) for t in tags if t not in reason_tags), default=(0.0, ""))[1]
+        key_event = _key_event(relevant, clip, player_id)
+        headline_tag = max(((TAG_WEIGHTS.get(t, 0.1), t) for t in tags if t not in REASON_TAGS), default=(0.0, ""))[1]
         headline = headline_tag.replace("_", " ") if headline_tag else "appearance"
-        seg = seg_by_id[c["segment_ids"][0]]
-        minute = match_minute(match, key_event["t"] if key_event else c["t"])
+        seg = index.seg_by_id[clip["segment_ids"][0]]
+        minute = match_minute(index.match, key_event["t"] if key_event else clip["t"])
         when = f"{minute}'"
-        if c["reason"] == "on_ball_main":
-            title = f"{player['name']} ({player['kit_number']}): {headline} at {when}"
-        elif c["reason"] == "replay_appearance":
-            title = f"{player['name']} ({player['kit_number']}): {headline} · replay {seg.get('playback_speed', 1):g}x {(seg.get('angle') or '').replace('_', ' ')}".rstrip()
-        elif c["reason"] == "highlight_appearance":
-            title = f"{player['name']} ({player['kit_number']}): {headline} · highlights"
+        who = f"{player['name']} ({player['kit_number']})"
+        if clip["reason"] == "on_ball_main":
+            title = f"{who}: {headline} at {when}"
+        elif clip["reason"] == "replay_appearance":
+            title = f"{who}: {headline} · replay {seg.get('playback_speed', 1):g}x {(seg.get('angle') or '').replace('_', ' ')}".rstrip()
+        elif clip["reason"] == "highlight_appearance":
+            title = f"{who}: {headline} · highlights"
         else:
-            title = f"{player['name']} ({player['kit_number']}): closeup at {when}"
-        label = envelope("lb", n)
+            title = f"{who}: closeup at {when}"
+
+        label = _envelope(match_id, "lb", n)
         label.update(
-            type="label",
-            clip_id=clip["id"],
-            player_id=player_id,
-            tags=tags,
-            title=title,
-            summary=_summary(player, c["reason"], relevant, when),
-            explanation=(
-                f"Scored {watchability:.2f}: strongest tag '{best_tag}' weighs {best_w:.2f}, "
-                f"plus {len(tags) - 1} supporting tag(s). Reason for the cut: {c['reason'].replace('_', ' ')}."
-            ),
-            watchability=watchability,
-            language=language,
-            model=model,
+            type="label", clip_id=clip["id"], player_id=player_id, tags=tags, title=title,
+            summary=_summary(player, clip["reason"], relevant, when),
+            explanation=(f"Scored {watchability:.2f}: strongest tag '{best_tag}' weighs {best_w:.2f}, plus {len(tags) - 1} supporting tag(s). "
+                         f"Reason for the cut: {clip['reason'].replace('_', ' ')}."),
+            watchability=watchability, language=language, model=model,
         )
         labels.append(label)
+    return labels
 
-    return clips, labels
+
+def derive_clips(records: Iterable[Record], player_id: str, *, pre_roll_s: float = 2.0, post_roll_s: float = 2.0, merge_gap_s: float = 1.0,
+                 model: str = "rules-v0", language: str = "en") -> tuple[list[Record], list[Record]]:
+    """Cut and label in one call. Returns ``(clips, labels)``."""
+    index = StreamIndex.build(records)
+    clips = cut_clips(index, player_id, pre_roll_s=pre_roll_s, post_roll_s=post_roll_s, merge_gap_s=merge_gap_s)
+    return clips, label_clips(index, clips, model=model, language=language)
 
 
 def _summary(player: Record, reason: str, events: list[Record], when: str) -> str:

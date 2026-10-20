@@ -55,3 +55,8 @@ Thumbs.db
 
 # Rendered demo output (regenerate with python -m regista.render)
 docs/demo/
+
+# Agent pipeline run output (trace, state, dead letters); regenerate with python -m regista.agents
+**/agents/trace.jsonl
+**/agents/state.json
+**/agents/dead_letter.jsonl

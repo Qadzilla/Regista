@@ -57,6 +57,23 @@ TEAM_SPECS = [
 
 REPLAY_ANGLES = ["reverse", "behind_goal", "high_wide", "touchline_cam"]
 
+# Tuning profiles. "demo" packs a short sample with action; "realistic" lands inside the
+# Premier League bands in regista.synth.report over a full match. See that module.
+PROFILES: dict[str, dict[str, Any]] = {
+    "demo": {
+        "hold": (0.8, 3.5), "shot_weights": (20.0, 0.5, 30.0, 0.25, 38.0, 0.06), "take_on": 1.0, "lose": 1.0,
+        "nutmeg": 0.18, "skill": 0.20, "foul_on_take_on": 0.25, "foul_on_tackle": 0.0,
+        "failed_pass": {"interception": 1.0, "recovery": 0.0, "out": 0.0, "clearance": 0.0},
+        "corner_after_off_target": 0.0, "corner_after_block": 0.0, "replay_xg": 0.08,
+    },
+    "realistic": {  # tuned 2026-10-19 over 8 seeds x 30 min: 13 of 13 bands in regista.synth.report
+        "hold": (1.0, 4.0), "shot_weights": (16.0, 0.24, 24.0, 0.08, 32.0, 0.02), "take_on": 0.3, "lose": 0.68,
+        "nutmeg": 0.06, "skill": 0.12, "foul_on_take_on": 0.55, "foul_on_tackle": 0.4,
+        "failed_pass": {"interception": 0.12, "recovery": 0.64, "out": 0.06, "clearance": 0.18},
+        "corner_after_off_target": 0.55, "corner_after_block": 0.55, "replay_xg": 0.15,
+    },
+}
+
 
 def clamp(v: float, lo: float, hi: float) -> float:
     return max(lo, min(hi, v))
@@ -140,7 +157,11 @@ class SynthResult:
 
 
 class MatchSim:
-    def __init__(self, seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0):
+    def __init__(self, seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo"):
+        if profile not in PROFILES:
+            raise ValueError(f"unknown profile {profile!r}; choose from {', '.join(PROFILES)}")
+        self.profile = profile
+        self.tune = PROFILES[profile]
         self.seed = seed
         self.minutes = minutes
         self.track_hz = track_hz
@@ -491,7 +512,7 @@ class MatchSim:
             self.cur_pos["under_pressure"] = True
             self._event("pressure", marker, related=p, pitch=marker.pos, under_pressure=False)
 
-        hold = rng.uniform(0.8, 3.5)
+        hold = rng.uniform(*self.tune["hold"])
         touches = max(1, int(hold / 0.8))
         self.cur_pos["touches"] += touches
         for k in range(touches):
@@ -518,10 +539,11 @@ class MatchSim:
                         qualifiers=["dribble"] if pressure else None)
 
         dgoal = dist(p.pos, team.goal)
+        d1, w1, d2, w2, d3, w3 = self.tune["shot_weights"]
         w_pass = 0.6
-        w_take_on = 0.07 + (0.12 if pressure else 0.0)
-        w_shot = 0.5 if dgoal < 20 else 0.25 if dgoal < 30 else 0.06 if dgoal < 38 else 0.0
-        w_lose = 0.02 + (0.08 if pressure else 0.0)
+        w_take_on = (0.07 + (0.12 if pressure else 0.0)) * self.tune["take_on"]
+        w_shot = w1 if dgoal < d1 else w2 if dgoal < d2 else w3 if dgoal < d3 else 0.0
+        w_lose = (0.02 + (0.08 if pressure else 0.0)) * self.tune["lose"]
         w_out = 0.02
         action = rng.choices(["pass", "take_on", "shot", "lose", "out"], weights=[w_pass, w_take_on, w_shot, w_lose, w_out])[0]
         if action == "pass":
@@ -531,9 +553,12 @@ class MatchSim:
         elif action == "shot":
             self._do_shot(p)
         elif action == "lose":
-            self._end_possession("dispossessed")
-            self._event("tackle", marker, related=p, pitch=marker.pos, outcome="success")
-            self._start_possession(marker, "tackle", from_player=p)
+            if rng.random() < self.tune["foul_on_tackle"]:
+                self._foul(marker, p)
+            else:
+                self._end_possession("dispossessed")
+                self._event("tackle", marker, related=p, pitch=marker.pos, outcome="success")
+                self._start_possession(marker, "tackle", from_player=p)
         else:
             self._do_out_of_play(p)
 
@@ -590,11 +615,43 @@ class MatchSim:
         if ok:
             self.last_pass = ev
             self._start_possession(target, "pass_received", from_player=p)
+            return
+        self.last_pass = None
+        fp = self.tune["failed_pass"]
+        how = rng.choices(list(fp), weights=list(fp.values()))[0]
+        here = (self.ball[0], self.ball[1])
+        if how == "out" or (kind == "cross" and rng.random() < 0.3):
+            # Misplaced ball runs out of play: a throw-in, or a corner when a cross drifts over the goal line.
+            if kind == "cross" and rng.random() < 0.35:
+                self._corner(team, p)
+            else:
+                side = 0.0 if here[1] < PITCH_W / 2 else PITCH_W
+                self.ball = [clamp(here[0], 1, PITCH_L - 1), side]
+                self._dead_ball(rng.uniform(6.0, 9.0))
+                thrower = self.nearest((self.ball[0], self.ball[1]), opp, outfield=True)
+                thrower.x, thrower.y = self.ball[0], clamp(side, 0.5, PITCH_W - 0.5)
+                self._event("throw_in", thrower, pitch=thrower.pos)
+                self._start_possession(thrower, "set_piece", from_player=p)
+            return
+        winner = self.nearest(here, opp)
+        if how == "interception":
+            self._event("interception", winner, related=p, pitch=winner.pos, outcome="success")
+            self._start_possession(winner, "interception", from_player=p)
+        elif how == "clearance":
+            self._event("clearance", winner, related=p, pitch=winner.pos, outcome="success")
+            far = (clamp(winner.x + opp.attack_sign * rng.uniform(25.0, 40.0), 1, PITCH_L - 1), clamp(winner.y + rng.gauss(0, 10.0), 1, PITCH_W - 1))
+            self.ball_speed = 18.0
+            self.advance(dist(winner.pos, far) / 18.0, ball_to=far)
+            self.ball_speed = 0.0
+            cands = team.starters + opp.starters
+            taker = min(cands, key=lambda q: dist(q.pos, far))
+            taker.x, taker.y = far
+            self._event("recovery", taker, pitch=far, outcome="success")
+            self._start_possession(taker, "loose_ball", from_player=winner)
         else:
-            self.last_pass = None
-            interceptor = self.nearest((self.ball[0], self.ball[1]), opp)
-            self._event("interception", interceptor, related=p, pitch=interceptor.pos, outcome="success")
-            self._start_possession(interceptor, "interception", from_player=p)
+            winner.x, winner.y = here
+            self._event("recovery", winner, related=p, pitch=winner.pos, outcome="success")
+            self._start_possession(winner, "loose_ball", from_player=p)
 
     def _do_take_on(self, p: Player, defender: Player) -> None:
         rng = self.rng
@@ -603,11 +660,11 @@ class MatchSim:
         if rng.random() < 0.5:
             ev = self._event("take_on", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True)
             flourish = rng.random()
-            if flourish < 0.18:
+            if flourish < self.tune["nutmeg"]:
                 nut = self._event("nutmeg", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True, qualifiers=["nutmeg"])
                 ev["qualifiers"] = ["nutmeg"]
                 self._queue_replay(nut)
-            elif flourish < 0.38:
+            elif flourish < self.tune["nutmeg"] + self.tune["skill"]:
                 sm = self._event("skill_move", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True,
                                  qualifiers=[rng.choice(["stepover", "elastico", "drag_back", "roulette", "body_feint"])])
                 if rng.random() < 0.5:
@@ -617,25 +674,44 @@ class MatchSim:
             self.advance(0.8, ball_to=past)
             self.ball_speed = 0.0
             return
-        if rng.random() < 0.25:
-            foul = self._event("foul", defender, related=p, pitch=defender.pos, outcome="fail")
-            self._event("foul_won", p, related=defender, pitch=p.pos, outcome="success")
-            if rng.random() < 0.15:
-                self._event("card_yellow", defender, related=p, pitch=defender.pos)
-            self._queue_replay(foul)
-            spot = p.pos
-            self._end_possession("foul")
-            self._dead_ball(rng.uniform(9.0, 13.0), closeup_of=p if rng.random() < 0.5 else None)
-            self.ball = [spot[0], spot[1]]
-            taker = self.nearest(spot, team, outfield=True)
-            taker.x, taker.y = spot
-            self._event("free_kick", taker, pitch=spot)
-            self._start_possession(taker, "set_piece")
+        if rng.random() < self.tune["foul_on_take_on"]:
+            self._event("take_on", p, related=defender, pitch=p.pos, outcome="fail", under_pressure=True)
+            self._foul(defender, p)
             return
         self._event("take_on", p, related=defender, pitch=p.pos, outcome="fail", under_pressure=True)
         self._event("tackle", defender, related=p, pitch=defender.pos, outcome="success")
         self._end_possession("tackled")
         self._start_possession(defender, "tackle", from_player=p)
+
+    def _foul(self, defender: Player, victim: Player) -> None:
+        """Defender fouls the ball carrier: free kick to the victim's team from the spot."""
+        rng = self.rng
+        foul = self._event("foul", defender, related=victim, pitch=defender.pos, outcome="fail")
+        self._event("foul_won", victim, related=defender, pitch=victim.pos, outcome="success")
+        if rng.random() < 0.15:
+            self._event("card_yellow", defender, related=victim, pitch=defender.pos)
+        self._queue_replay(foul)
+        spot = victim.pos
+        team = victim.team
+        self._end_possession("foul")
+        self._dead_ball(rng.uniform(9.0, 13.0), closeup_of=victim if rng.random() < 0.5 else None)
+        self.ball = [spot[0], spot[1]]
+        taker = self.nearest(spot, team, outfield=True)
+        taker.x, taker.y = spot
+        self._event("free_kick", taker, pitch=spot)
+        self._start_possession(taker, "set_piece")
+
+    def _corner(self, team: Team, last: Player) -> None:
+        """Ball over the goal line off a defender: corner to ``team``."""
+        rng = self.rng
+        gx = PITCH_L if team.attack_sign > 0 else 0.0
+        spot = (gx, 0.0 if rng.random() < 0.5 else PITCH_W)
+        self.ball = [clamp(spot[0], 0.3, PITCH_L - 0.3), clamp(spot[1], 0.3, PITCH_W - 0.3)]
+        self._dead_ball(rng.uniform(10.0, 14.0))
+        taker = self.nearest((self.ball[0], self.ball[1]), team, outfield=True)
+        taker.x, taker.y = self.ball[0], self.ball[1]
+        self._event("corner", taker, pitch=taker.pos)
+        self._start_possession(taker, "set_piece", from_player=last)
 
     def _do_shot(self, p: Player) -> None:
         rng = self.rng
@@ -662,7 +738,7 @@ class MatchSim:
                            qualifiers=[result] + (["header"] if headed else []), body_part=body_part,
                            under_pressure=bool(self.cur_pos and self.cur_pos["under_pressure"]),
                            metrics={"shot_distance_m": d, "shot_speed_kmh": speed_kmh, "xg": xg})
-        if result == "goal" or xg > 0.08:
+        if result == "goal" or xg > self.tune["replay_xg"]:
             self._queue_replay(shot)
         self._end_possession("shot")
         self.ball_speed = speed_kmh / 3.6
@@ -696,6 +772,10 @@ class MatchSim:
         elif result == "blocked":
             blocker = self.nearest(p.pos, opp, outfield=True)
             self._event("block", blocker, related=p, pitch=blocker.pos, outcome="success")
+            if rng.random() < self.tune["corner_after_block"]:
+                self._corner(team, blocker)
+                self.last_pass = None
+                return
             loose = (clamp(self.ball[0] + rng.gauss(0, 4.0), 1, PITCH_L - 1), clamp(self.ball[1] + rng.gauss(0, 4.0), 1, PITCH_W - 1))
             self.ball_speed = 6.0
             self.advance(0.7, ball_to=loose)
@@ -705,6 +785,9 @@ class MatchSim:
             winner.x, winner.y = loose
             self._event("recovery", winner, pitch=loose, outcome="success")
             self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=p)
+        elif rng.random() < self.tune["corner_after_off_target"]:
+            self._dead_ball(1.5, closeup_of=p if rng.random() < 0.5 else None)
+            self._corner(team, self.nearest(p.pos, opp, outfield=True))
         else:
             self._dead_ball(rng.uniform(10.0, 14.0), closeup_of=p if rng.random() < 0.5 else None)
             keeper = opp.keeper
@@ -776,7 +859,7 @@ class MatchSim:
             "periods": [{"period": 1, "t": 0.0, "t_end": round(period_end_t, 2), "left_to_right_team_id": self.home.team_id}],
             "score": dict(self.score),
             "generator": {"name": GENERATOR_NAME, "version": GENERATOR_VERSION, "seed": self.seed,
-                          "params": {"minutes": self.minutes, "track_hz": self.track_hz, "fps": self.fps}},
+                          "params": {"minutes": self.minutes, "track_hz": self.track_hz, "fps": self.fps, "profile": self.profile}},
         }
 
     def _appearances(self) -> list[Record]:
@@ -842,5 +925,5 @@ class MatchSim:
         return out
 
 
-def generate(seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0) -> SynthResult:
-    return MatchSim(seed=seed, minutes=minutes, track_hz=track_hz, fps=fps).run()
+def generate(seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo") -> SynthResult:
+    return MatchSim(seed=seed, minutes=minutes, track_hz=track_hz, fps=fps, profile=profile).run()

@@ -230,3 +230,41 @@ def test_different_seed_different_stream():
     a = generate(seed=3, minutes=0.5, track_hz=1.0)
     b = generate(seed=4, minutes=0.5, track_hz=1.0)
     assert json.dumps(a.events, sort_keys=True) != json.dumps(b.events, sort_keys=True)
+
+
+# ----------------------------------------------------------------------------- realism
+
+def test_realistic_profile_sits_inside_premier_league_bands():
+    """The realistic profile must land inside most of the published bands over a decent sample of minutes.
+    Variance over two simulated hours is still real, so the bar is 10 of 13 bands plus the five that define
+    the shape of a football match."""
+    from regista.synth.report import NORMS, compute_metrics, verdicts
+
+    stream = []
+    for seed in (31, 32, 33, 34):
+        stream += generate(seed=seed, minutes=30.0, track_hz=1.0, profile="realistic").stream
+    metrics = compute_metrics(stream)
+    v = verdicts(metrics)
+    in_band = [k for k, x in v.items() if x == "in band"]
+    assert len(in_band) >= 10, {k: (metrics[k], v[k], NORMS[k][:2]) for k in v if v[k] != "in band"}
+    for key in ("passes_per90", "pass_completion", "shots_per90", "interceptions_per90", "possession_mean_s"):
+        assert v[key] == "in band", (key, metrics[key], NORMS[key][:2])
+
+
+def test_demo_profile_is_denser_than_realistic():
+    from regista.synth.report import compute_metrics
+
+    demo = compute_metrics(generate(seed=5, minutes=10.0, profile="demo").stream)
+    real = compute_metrics(generate(seed=5, minutes=10.0, profile="realistic").stream)
+    assert demo["shots_per90"] > real["shots_per90"] * 1.5
+    assert demo["take_ons_per90"] > real["take_ons_per90"] * 1.5
+
+
+def test_report_markdown_names_every_band():
+    from regista.synth.report import NORMS, compute_metrics, render_markdown
+
+    r = generate(seed=5, minutes=2.0)
+    md = render_markdown(compute_metrics(r.stream, r.tracks), r.match["match_id"], "demo")
+    for key in NORMS:
+        assert key in md
+    assert "in band" in md or "high" in md

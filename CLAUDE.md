@@ -136,6 +136,11 @@ src/regista/schema.py        load + validate JSONL streams by record type
 src/regista/synth/           synthetic match generator (possessions, passes, shots, director cuts, replays)
 src/regista/clips.py         clip rule + first labeller (watchability, tags, explanation)
 src/regista/validate.py      CLI validator
+src/regista/librarian.py     the Librarian: plain-English clip search (player, tags, minutes, replays), no cloud
+src/regista/mcp_server.py    MCP server exposing search_clips, derive_clips, validate_stream, render_clip, list_matches
+src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
+src/regista/agents/          multi-agent pipeline v0: Ingest, Validator, Possession, Clip, Label, Persist, Librarian roles with
+                             declared inputs/outputs, shared state, orchestrator with retries, trace.jsonl, dead_letter.jsonl
 src/regista/camera.py        the main-camera model shared by generator and renderer (what is in frame)
 src/regista/render/          2D broadcast renderer: scene.py (interpolation, captions, score, clock),
                              draw.py (pitch, players, replays, closeups, crowd, end card, HUD), video.py
@@ -152,6 +157,11 @@ python3 -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 
 python3 -m regista.validate data/synthetic/sample/syn_0294
 python3 -m regista.render data/synthetic/sample/syn_0294 --out docs/demo/syn_0294.mp4 --frames-dir docs/demo/syn_0294_frames
 python3 -m regista.render.clips data/synthetic/sample/syn_0294 --player t_home_09 --out docs/demo/clips_t_home_09
+python3 -m regista.librarian data/synthetic/sample/syn_0294 "find me Castellanos doing a nutmeg"
+python3 -m regista.mcp_server --list-tools        # or without the flag: stdio MCP server for any MCP host
+python3 -m regista.synth.report data/synthetic/sample/syn_0294
+python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
+python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
 ```
 
 `docs/demo/` is git-ignored rendered output. The renderer uses the ffmpeg bundled in the `imageio-ffmpeg` pip package, so no system install is needed; without it, output falls back to GIF.
@@ -177,7 +187,7 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - **Label Agent** — names the event and scores watchability; asks the human when unsure (RL loop).
 - **Librarian Agent** — chatbot interface; translates "Pogba nutmeg" into a query over the clip index and returns clips.
 
-Orchestrated with Microsoft Agent Framework; tools exposed via MCP; failure recovery via retries and dead-letter queues.
+**Status:** a local, rule-based v0 of this pipeline exists in `src/regista/agents/` (roles Ingest, Validator, Possession, Clip, Label, Persist, Librarian; the Identity role belongs to the private vision layer and is played by the generator for the demo). It has distinct roles with declared inputs and outputs, shared state handed along, retries, a per-attempt trace, and a dead-letter file; downstream agents are skipped, not crashed, when an upstream one fails. The Microsoft Agent Framework version keeps the same roles, state keys, and trace, swapping the rule-based Label and Librarian agents for Foundry-backed ones once Azure exists. Tools are exposed today through `regista.mcp_server` (local MCP, stdio).
 
 ---
 
