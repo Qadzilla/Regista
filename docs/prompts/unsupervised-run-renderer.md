@@ -19,6 +19,19 @@ Call the app's keep-awake tool (`request_keep_awake`) for the longest duration i
 - Keep `CLAUDE.md` current: update section 3.0 (code layout) and the README quickstart whenever you add a module or command.
 - Install only via `pip install` into the current environment, pinned in `pyproject.toml`. Prefer libraries already present (check first); `ffmpeg` may be used if it is installed, otherwise fall back to GIF or frame sequences without stopping.
 
+## No shortcuts, no reward hacking
+
+The goal is a renderer that genuinely works and a repo a judge would genuinely rate well, not a green test run or a flattering report. Specifically:
+
+- Never weaken, delete, skip, xfail, or loosen a test to make it pass. If a test is wrong, fix the test and say in the commit message why the old assertion was wrong. If the code is wrong, fix the code.
+- Never special-case the committed sample or the seed used in tests. Everything must work on an arbitrary seed; prove it by running the renderer and the tests on at least two seeds you did not tune for.
+- Never hardcode, stub, or fake an output to satisfy a requirement (for example a REPLAY badge drawn on every frame, a caption that always fires, a clip video that is an empty file, a "reel" that is a single clip). Each requirement must be met by the real mechanism it describes.
+- Do not mark a milestone done until you have actually run its command on the sample and looked at the output yourself: open rendered frames as images and check them, play back the frame sequence, run the CLI the way the README says to.
+- Give the reviewer agents only the artefacts and the requirements, never your own opinion of the work, and do not steer them toward a verdict. Act on real findings; if you dismiss a finding, write down why.
+- The judge simulator's score is information, not a target. Do not rephrase docs or rename things to game it; make improvements that would change a real judge's view.
+- In the final report, state plainly what is incomplete, flaky, slow, ugly, or untested. A report that overstates the work is worse than a smaller amount of honest work. Include the exact commands and the exact test output so I can reproduce every claim.
+- If you hit something you cannot solve, stop that item, leave it clearly marked in the code and in the report, and move to the next milestone. Do not disguise it.
+
 ## Milestone 1: the 2D broadcast renderer (the main deliverable)
 
 Build `src/regista/render/` that turns a sample match directory (`events.jsonl`, `tracks.jsonl`, `clips.jsonl`) into a watchable, broadcast-style 2D animation we own outright.
