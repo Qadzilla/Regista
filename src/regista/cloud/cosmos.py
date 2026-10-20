@@ -69,9 +69,8 @@ class ClipStore:
     def write_annotation(self, annotation: Record) -> None:
         if self.annotations is None:
             raise AgentError("no annotations container configured", retryable=False)
-        # Annotation ids restart per local file, so the document id adds the match and timestamp to stay unique.
-        doc = {**annotation, "annotation_id": annotation["id"],
-               "id": f"{annotation['match_id']}-{annotation['id']}-{annotation['annotated_at']}".replace(":", "-")}
+        # Annotation ids are unique (time + random suffix), so they double as the document id; upserts are idempotent.
+        doc = {**annotation, "annotation_id": annotation["id"], "id": annotation["id"]}
         self.annotations.upsert_item(doc)
 
     def all_annotations(self) -> list[Record]:

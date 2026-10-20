@@ -59,6 +59,21 @@ Answer in at most two sentences: say how many clips matched and name the best on
 matched, say what the tool reported and suggest the nearest thing it offered. Never invent clips a tool did not return."""
 
 
+_CHILD_ENV_PREFIXES = ("REGISTA_", "FOUNDRY_", "AZURE_", "IDENTITY_", "MSI_")
+_CHILD_ENV_NAMES = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "TMPDIR", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
+_CHILD_ENV_SECRETS = ("REGISTA_COSMOS_KEY", "APPLICATIONINSIGHTS_CONNECTION_STRING")
+
+
+def child_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """An allowlisted environment for MCP child processes: configuration and Azure identity, never stored secrets."""
+    import os
+
+    env = {k: v for k, v in os.environ.items()
+           if (k in _CHILD_ENV_NAMES or k.startswith(_CHILD_ENV_PREFIXES)) and k not in _CHILD_ENV_SECRETS}
+    env.update(extra or {})
+    return env
+
+
 def azure_mcp_tool(cloud: CloudConfig):
     """Microsoft's Azure MCP Server (pip package msmcp-azure), read-only, limited to Cosmos DB and AI Search queries.
 
@@ -72,7 +87,7 @@ def azure_mcp_tool(cloud: CloudConfig):
     if exe is None:
         return None
     managed = bool(os.environ.get("IDENTITY_ENDPOINT") or os.environ.get("MSI_ENDPOINT"))
-    env = {**os.environ, "AZURE_TOKEN_CREDENTIALS": "prod" if managed else "AzureCliCredential", "AZURE_MCP_COLLECT_TELEMETRY": "false"}
+    env = child_env({"AZURE_TOKEN_CREDENTIALS": "prod" if managed else "AzureCliCredential", "AZURE_MCP_COLLECT_TELEMETRY": "false"})
     args = ["server", "start", "--mode", "all", "--read-only", "--namespace", "cosmos"]
     allowed = ["cosmos_database_container_item_query", "cosmos_list"]
     if cloud.search_enabled:
@@ -232,12 +247,18 @@ class FoundryLabelAgent(LabelAgent):
                     text = await runner(LABEL_INSTRUCTIONS, clip_prompt(index, clip, prior))
                     out, why = validate_label(LabelOut.parse(text), prior)
                     notes.extend(f"{clip['id']}: {w}" for w in why)
+                    # prior_watchability stays the rules score (the learned model's training input); the score Foundry revised
+                    # (rules or learned) is what needs_review compares against.
                     revised = {**prior, "title": out.title, "tags": out.tags, "watchability": out.watchability, "summary": out.summary,
-                               "explanation": out.explanation, "model": model_name, "prior_watchability": prior["watchability"]}
-                    return flag_for_review([revised])[0]
+                               "explanation": out.explanation, "model": model_name,
+                               "prior_watchability": prior.get("prior_watchability", prior["watchability"])}
+                    flagged = flag_for_review([{**revised, "prior_watchability": prior["watchability"]}])[0]
+                    if flagged.get("review"):
+                        revised["review"] = flagged["review"]
+                    return revised
                 except Exception as exc:  # noqa: BLE001 - a bad model answer must not lose the clip
-                    notes.append(f"{clip['id']}: fell back to rules-v0 ({type(exc).__name__}: {str(exc)[:120]})")
-                    return {**prior, "model": "rules-v0 (foundry fallback)"}
+                    notes.append(f"{clip['id']}: fell back to {prior.get('model', 'rules-v0')} ({type(exc).__name__}: {str(exc)[:120]})")
+                    return flag_for_review([{**prior, "model": f"{prior.get('model', 'rules-v0')} (foundry fallback)"}])[0]
 
         results = await asyncio.gather(*(one(c, p) for c, p in zip(clips, priors)))
         return list(results), notes
@@ -287,11 +308,16 @@ class FoundryLibrarianAgent(LibrarianAgent):
 
         async with DefaultAzureCredential() as credential, AsyncExitStack() as stack:
             client = FoundryChatClient(project_endpoint=cloud.foundry_project_endpoint, model=cloud.foundry_model, credential=credential)
-            tools = [await stack.enter_async_context(MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"]))]
+            regista_mcp = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"], env=child_env())
+            tools = [await stack.enter_async_context(regista_mcp)]
             azure = azure_mcp_tool(cloud) if (cloud.cosmos_enabled or cloud.search_enabled) and self.config.get("azure_mcp", True) else None
             context = [f"match_dir: {match_dir}"]
             if azure is not None:
-                tools.append(await stack.enter_async_context(azure))
+                try:
+                    tools.append(await stack.enter_async_context(azure))
+                except Exception:  # noqa: BLE001 - the Librarian still answers with Regista's own tools
+                    azure = None
+            if azure is not None:
                 if cloud.cosmos_enabled:
                     context.append(f"cosmos account: {cosmos_account_name(cloud)}, database: {cloud.cosmos_database}")
                 if cloud.search_enabled:

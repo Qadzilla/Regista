@@ -1,0 +1,15 @@
+# Keep run state, local secrets, caches, and rendered output out of the image.
+.env
+.git
+.github
+**/__pycache__
+**/*.pyc
+**/agents/
+data/clips/
+data/feedback/
+docs/demo/
+models/
+build/
+*.egg-info
+.pytest_cache
+.claude

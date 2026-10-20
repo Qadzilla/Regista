@@ -103,7 +103,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.engine == "workflow":
         from regista.agents.workflow import WorkflowPipeline
 
-        pipeline = WorkflowPipeline(agents, state_dir, max_retries=args.max_retries, checkpoint_dir=state_dir / "checkpoints")
+        pipeline = WorkflowPipeline(agents, state_dir, max_retries=args.max_retries,
+                                    checkpoint_dir=state_dir / "checkpoints" if args.review else None)
         result = pipeline.run(initial, reviewer=terminal_reviewer(args.annotator) if args.review else None)
         print(f"engine: Microsoft Agent Framework workflow '{pipeline.workflow.name}'")
     else:

@@ -223,3 +223,23 @@ def test_tests_never_see_real_cloud_configuration():
     """Guard: the project's .env must not leak into tests, or API tests would write to real Cosmos DB."""
     cfg = CloudConfig.from_env()
     assert not cfg.foundry_enabled and not cfg.cosmos_enabled
+
+
+def test_foundry_labels_keep_the_rules_score_as_prior(match_dir, monkeypatch):
+    """prior_watchability is the learned model's training input: it must stay the rules score, not a model's score."""
+    from regista.feedback import WatchabilityModel, feedback_dir
+
+    WatchabilityModel(feature_names=["tag:goal"], coef=[4.0], intercept=-2.0, n_samples=12, version=3).save()
+
+    async def runner(instructions, prompt):
+        return json.dumps({"title": "t", "tags": ["goal"], "watchability": 0.9, "summary": "s", "explanation": "Scored 0.9"})
+
+    agents = [IngestAgent(), PossessionAgent(), ClipAgent(), FoundryLabelAgent(runner=runner, cloud=CloudConfig())]
+    result = Orchestrator(agents, match_dir / "agents").run({"match_dir": str(match_dir), "player_ids": [PLAYER], "queries": []})
+    from regista.clips import StreamIndex, cut_clips, label_clips
+    from regista.schema import iter_jsonl
+
+    index = StreamIndex.build(list(iter_jsonl(match_dir / "events.jsonl")))
+    rules = {lb["clip_id"]: lb["watchability"] for lb in label_clips(index, cut_clips(index, PLAYER))}
+    for lb in result.state["labels"][PLAYER]:
+        assert lb["prior_watchability"] == rules[lb["clip_id"]]

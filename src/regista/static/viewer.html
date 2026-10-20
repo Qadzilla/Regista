@@ -71,13 +71,17 @@
 <footer>Every touch. Every replay. Every player. Found instantly. Rendered from synthetic match data; no real footage.</footer>
 <script>
 const $ = (id) => document.getElementById(id);
+// Everything that reaches innerHTML from the API goes through esc(): names, titles, tags, notes and verdict authors
+// can come from uploads or reviewers, so they are never trusted as markup.
+const esc = (v) => String(v ?? '').replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
+const nice = (t) => esc(String(t).replace(/_/g, ' '));
 const state = { match: null, player: null, tag: null, clips: [], matchInfo: null };
 
 async function api(path) { const r = await fetch(path); if (!r.ok) throw new Error(await r.text()); return r.json(); }
 
 async function init() {
   const matches = await api('/api/matches');
-  $('match').innerHTML = matches.map(m => `<option value="${m.match_id}">${m.match_id} · ${m.teams[0].short_name} ${m.score ? m.score[m.teams[0].team_id] : ''} - ${m.score ? m.score[m.teams[1].team_id] : ''} ${m.teams[1].short_name}</option>`).join('');
+  $('match').innerHTML = matches.map(m => `<option value="${esc(m.match_id)}">${esc(m.match_id)} · ${esc(m.teams[0].short_name)} ${m.score ? esc(m.score[m.teams[0].team_id]) : ''} - ${m.score ? esc(m.score[m.teams[1].team_id]) : ''} ${esc(m.teams[1].short_name)}</option>`).join('');
   $('match').onchange = () => loadMatch($('match').value);
   $('player').onchange = () => { state.player = $('player').value; state.tag = null; loadClips(); };
   $('go').onclick = search;
@@ -87,11 +91,11 @@ async function init() {
 
 async function loadMatch(id) {
   state.match = id;
-  const info = await api(`/api/matches/${id}`);
+  const info = await api(`/api/matches/${encodeURIComponent(id)}`);
   state.matchInfo = info;
   const starters = info.players.filter(p => p.starter);
   const withClips = new Set(info.players_with_clips);
-  $('player').innerHTML = starters.map(p => `<option value="${p.player_id}" ${withClips.has(p.player_id) ? 'selected' : ''}>${withClips.has(p.player_id) ? '★ ' : ''}${p.name} (${p.kit_number}) · ${teamShort(p.team_id)}</option>`).join('');
+  $('player').innerHTML = starters.map(p => `<option value="${esc(p.player_id)}" ${withClips.has(p.player_id) ? 'selected' : ''}>${withClips.has(p.player_id) ? '★ ' : ''}${esc(p.name)} (${esc(p.kit_number)}) · ${esc(teamShort(p.team_id))}</option>`).join('');
   state.player = info.players_with_clips[0] || starters[0].player_id;
   $('player').value = state.player;
   state.tag = null;
@@ -119,7 +123,7 @@ async function loadLearn() {
     const pct = (x) => x ? `${Math.round(x.agreement * 100)}%` : '–';
     const learned = f.model_name && ev[f.model_name];
     $('learn').innerHTML = `<span class="stat">Learning from people: <b>${f.verdicts}</b> verdict${f.verdicts === 1 ? '' : 's'} on <b>${f.clips_reviewed}</b> clip${f.clips_reviewed === 1 ? '' : 's'}</span>`
-      + `<span class="stat">model <b>${f.model_name || 'not trained yet'}</b></span>`
+      + `<span class="stat">model <b>${esc(f.model_name || 'not trained yet')}</b></span>`
       + (ev.n ? `<span class="stat">agreement with reviewers: rules <b>${pct(ev.rules_prior)}</b>${learned ? ` · learned <b>${pct(learned)}</b>` : ''}</span>` : '')
       + `<button id="retrain">Retrain</button><span class="stat" id="trainMsg"></span>`;
     $('retrain').onclick = retrain;
@@ -128,16 +132,33 @@ async function loadLearn() {
 
 async function retrain() {
   $('trainMsg').textContent = 'training…';
-  const r = await fetch('/api/feedback/train', { method: 'POST' });
+  const r = await post('/api/feedback/train');
   const body = await r.json();
   $('trainMsg').textContent = r.ok ? `trained ${body.model_name}` : (body.detail || 'not trained');
   if (r.ok) { await loadLearn(); await loadClips(); }
 }
 
+function writeHeaders() {
+  let token = null;
+  try { token = localStorage.getItem('regista-token'); } catch (e) {}
+  return { 'Content-Type': 'application/json', ...(token ? { 'X-Regista-Token': token } : {}) };
+}
+
+async function post(url, body) {
+  let r = await fetch(url, { method: 'POST', headers: writeHeaders(), body: body ? JSON.stringify(body) : undefined });
+  if (r.status === 401) {
+    const token = prompt('This Regista deployment needs a write token to record verdicts:');
+    if (!token) return r;
+    try { localStorage.setItem('regista-token', token); } catch (e) {}
+    r = await fetch(url, { method: 'POST', headers: writeHeaders(), body: body ? JSON.stringify(body) : undefined });
+  }
+  return r;
+}
+
 async function sendVerdict(clipId, verdict) {
-  const r = await fetch(`/api/matches/${state.match}/clips/${encodeURIComponent(clipId)}/verdict`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verdict }) });
-  if (!r.ok) { alert('Could not save verdict: ' + (await r.text())); return; }
+  const r = await post(`/api/matches/${encodeURIComponent(state.match)}/clips/${encodeURIComponent(clipId)}/verdict`, { verdict });
+  if (r.status === 403) { alert('This deployment is read-only.'); return; }
+  if (!r.ok) { alert('Could not save verdict: ' + (await r.text()).slice(0, 300)); return; }
   await loadClips(); await loadLearn();
 }
 
@@ -145,7 +166,7 @@ function renderHead() {
   const p = state.matchInfo.players.find(p => p.player_id === state.player);
   const team = state.matchInfo.teams.find(t => t.team_id === p.team_id);
   const k = kit(p);
-  $('playerHead').innerHTML = `<div class="disc" style="background:${k};color:${textOn(k)}">${p.kit_number}</div><div><h2>${p.name}</h2><div class="sub">${team.name} · ${p.position} · ${state.clips.length} clip${state.clips.length === 1 ? '' : 's'} in ${state.match}</div></div>`;
+  $('playerHead').innerHTML = `<div class="disc" style="background:${esc(k)};color:${textOn(k)}">${esc(p.kit_number)}</div><div><h2>${esc(p.name)}</h2><div class="sub">${esc(team.name)} · ${esc(p.position)} · ${state.clips.length} clip${state.clips.length === 1 ? '' : 's'} in ${esc(state.match)}</div></div>`;
 }
 
 function renderChips() {
@@ -155,7 +176,7 @@ function renderChips() {
   const nrev = state.clips.filter(c => c.review).length;
   $('chips').innerHTML = `<span class="chip ${state.tag || state.reviewOnly ? '' : 'on'}" data-tag="">all (${state.clips.length})</span>`
     + (nrev ? `<span class="chip rev ${state.reviewOnly ? 'on' : ''}" data-review="1">needs your review (${nrev})</span>` : '')
-    + tags.map(([t, n]) => `<span class="chip ${state.tag === t ? 'on' : ''}" data-tag="${t}">${t.replace(/_/g, ' ')} (${n})</span>`).join('');
+    + tags.map(([t, n]) => `<span class="chip ${state.tag === t ? 'on' : ''}" data-tag="${esc(t)}">${nice(t)} (${n})</span>`).join('');
   for (const el of $('chips').querySelectorAll('.chip')) el.onclick = () => {
     state.reviewOnly = !!el.dataset.review; state.tag = el.dataset.review ? null : (el.dataset.tag || null); loadClips(); };
 }
@@ -166,17 +187,17 @@ function renderGrid(rows) {
   $('empty').hidden = rows.length > 0;
   $('grid').innerHTML = rows.map(r => `
     <div class="card">
-      <video controls preload="metadata" src="${r.video_url}"></video>
+      <video controls preload="metadata" src="${esc(r.video_url)}"></video>
       <div class="body">
-        <div class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${r.reason.replace(/_/g, ' ')}</div>
-        <div class="title">${r.title}</div>
+        <div class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${nice(r.reason)}</div>
+        <div class="title">${esc(r.title)}</div>
         <div class="meta"><span>${fmt(r.t)} – ${fmt(r.t_end)}</span><span>watchability ${Number(r.watchability).toFixed(2)}</span></div>
         <div class="bar"><i style="width:${Math.round(r.watchability * 100)}%"></i></div>
-        <div class="tags">${r.tags.filter(t => !/_appearance$|^on_ball_main$/.test(t)).map(t => `<span>${t.replace(/_/g, ' ')}</span>`).join('')}</div>
-        <div class="why">${r.explanation || ''}</div>
-        ${r.review ? `<span class="review">Regista is unsure: ${r.review}</span>` : ''}
-        ${r.verdict ? `<span class="done ${r.verdict.keep ? 'keep' : 'drop'}"><b>${r.verdict.keep ? 'Kept' : 'Dropped'}</b> by ${r.verdict.annotator}</span>` : ''}
-        <div class="vbtns"><button class="vbtn keep" data-clip="${r.clip_id}" data-v="keep">Keep</button><button class="vbtn drop" data-clip="${r.clip_id}" data-v="drop">Drop</button></div>
+        <div class="tags">${r.tags.filter(t => !/_appearance$|^on_ball_main$/.test(t)).map(t => `<span>${nice(t)}</span>`).join('')}</div>
+        <div class="why">${esc(r.explanation || '')}</div>
+        ${r.review ? `<span class="review">Regista is unsure: ${esc(r.review)}</span>` : ''}
+        ${r.verdict ? `<span class="done ${r.verdict.keep ? 'keep' : 'drop'}"><b>${r.verdict.keep ? 'Kept' : 'Dropped'}</b> by ${esc(r.verdict.annotator)}</span>` : ''}
+        <div class="vbtns"><button class="vbtn keep" data-clip="${esc(r.clip_id)}" data-v="keep">Keep</button><button class="vbtn drop" data-clip="${esc(r.clip_id)}" data-v="drop">Drop</button></div>
       </div>
     </div>`).join('');
   for (const b of $('grid').querySelectorAll('.vbtn')) b.onclick = () => sendVerdict(b.dataset.clip, b.dataset.v);
@@ -187,7 +208,7 @@ async function search() {
   if (!q) return loadClips();
   const out = await api(`/api/matches/${state.match}/search?q=${encodeURIComponent(q)}`);
   const p = out.parsed;
-  $('understood').innerHTML = `Understood: player <b>${p.player || 'any'}</b>${p.player_how ? ` (${p.player_how})` : ''} · tags <b>${p.tags.length ? p.tags.join(', ') : 'any'}</b>${p.reasons.length ? ` · only <b>${p.reasons.map(r => r.replace('_appearance', 's')).join(', ')}</b>` : ''}${p.minutes ? ` · minutes <b>${p.minutes[0]}–${p.minutes[1]}</b>` : ''} · ${out.message}`;
+  $('understood').innerHTML = `Understood: player <b>${esc(p.player || 'any')}</b>${p.player_how ? ` (${esc(p.player_how)})` : ''} · tags <b>${p.tags.length ? esc(p.tags.join(', ')) : 'any'}</b>${p.reasons.length ? ` · only <b>${esc(p.reasons.map(r => r.replace('_appearance', 's')).join(', '))}</b>` : ''}${p.minutes ? ` · minutes <b>${esc(p.minutes[0])}–${esc(p.minutes[1])}</b>` : ''} · ${esc(out.message)}`;
   if (p.player_id && p.player_id !== state.player) { state.player = p.player_id; $('player').value = p.player_id; }
   state.tag = null;
   $('chips').innerHTML = '';

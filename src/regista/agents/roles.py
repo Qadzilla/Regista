@@ -115,11 +115,11 @@ class LabelAgent(Agent):
 
 def learned_model(config: dict[str, Any]):
     """The watchability model trained from human verdicts, if one has been trained (config key ``feedback_dir``)."""
-    from regista.feedback import FEEDBACK_DIR, MODEL_FILE, WatchabilityModel
+    from regista.feedback import MODEL_FILE, WatchabilityModel, feedback_dir
 
     if config.get("use_learned_model") is False:
         return None
-    path = Path(config.get("feedback_dir", FEEDBACK_DIR)) / MODEL_FILE
+    path = Path(config.get("feedback_dir") or feedback_dir()) / MODEL_FILE
     model = WatchabilityModel.load(path)
     return model if model and model.trained else None
 

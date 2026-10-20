@@ -129,36 +129,61 @@ def _quote(value: str) -> str:
     return str(value).replace("'", "''")
 
 
-def search_library(query: str, *, top: int = 10, index: ClipIndex | None = None, match: Record | None = None) -> dict[str, Any]:
-    """Plain-English search across every indexed match: the Librarian's parser turns the query into filters."""
+def search_library(query: str, *, top: int = 10, index: ClipIndex | None = None) -> dict[str, Any]:
+    """Plain-English search across every indexed match.
+
+    Player and team ids are positional within a match (t_home_09 is a different person in every match), so
+    across the library a player is identified by name and team. The Librarian's parser runs against a roster
+    built from the index; the resolved players become name + team filters."""
     from regista.librarian import parse_query
 
     index = index or ClipIndex()
-    roster_match = match or _any_indexed_roster(index)
-    parsed = parse_query(query, roster_match) if roster_match else {"player_ids": [], "tags": [], "reasons": [], "minutes": None, "limit": None}
-    player = parsed["player_ids"][0] if len(parsed.get("player_ids", [])) == 1 else None
-    reason = parsed["reasons"][0] if parsed.get("reasons") else None
-    rows = index.search("*", player_id=player, tags=parsed.get("tags") or None, reason=reason,
-                        minutes=tuple(parsed["minutes"]) if parsed.get("minutes") else None, top=parsed.get("limit") or top)
-    if not rows and parsed.get("tags"):
-        rows = index.search(" ".join(parsed["tags"]), player_id=player, top=parsed.get("limit") or top)  # relax to text match
-    return {"parsed": parsed, "results": rows, "backend": "azure-ai-search", "index": INDEX_NAME}
+    roster = library_roster(index)
+    if roster is None:
+        return {"parsed": {}, "results": [], "backend": "azure-ai-search", "index": INDEX_NAME, "message": "the index is empty"}
+    parsed = parse_query(query, roster)
+    clauses = []
+    if parsed["player_ids"]:
+        who = []
+        for key in parsed["player_ids"]:
+            team, name = key.split("|", 1)
+            who.append(f"(player_name eq '{_quote(name)}' and team eq '{_quote(team)}')")
+        clauses.append("(" + " or ".join(who) + ")")
+    elif parsed.get("team_id"):
+        clauses.append(f"team eq '{_quote(parsed['team_id'])}'")
+    elif parsed.get("unparsed"):
+        return {"parsed": parsed, "results": [], "backend": "azure-ai-search", "index": INDEX_NAME,
+                "message": f"no player or team recognised in {parsed['unparsed']!r}"}
+    for t in parsed.get("tags") or []:
+        clauses.append(f"tags/any(x: x eq '{_quote(t)}')")
+    if parsed.get("reasons"):
+        clauses.append("(" + " or ".join(f"reason eq '{_quote(r)}'" for r in parsed["reasons"]) + ")")
+    if parsed.get("minutes"):
+        clauses.append(f"minute ge {int(parsed['minutes'][0])} and minute le {int(parsed['minutes'][1])}")
+    results = index.search_client.search(search_text="*", filter=" and ".join(clauses) or None,
+                                         order_by=["watchability desc", "minute asc"], top=int(parsed.get("limit") or top))
+    rows = [{k: v for k, v in dict(r).items() if not k.startswith("@")} for r in results]
+    return {"parsed": parsed, "results": rows, "backend": "azure-ai-search", "index": INDEX_NAME,
+            "message": f"{len(rows)} clip(s) across the library"}
 
 
-def _any_indexed_roster(index: ClipIndex) -> Record | None:
-    """The parser needs a roster to resolve names; build one from the players present in the index."""
-    rows = index.search("*", top=1000)
+def library_roster(index: ClipIndex, max_docs: int = 1000) -> Record | None:
+    """A roster the query parser can use, built from the players in the index. Player keys are "team|name"."""
+    rows = index.search("*", top=max_docs)
     if not rows:
         return None
-    players, teams, home, away = {}, {}, None, None
+    players: dict[str, Record] = {}
+    teams: dict[str, Record] = {}
+    home = away = None
     for r in rows:
-        players[r["player_id"]] = {"player_id": r["player_id"], "name": r["player_name"], "kit_number": r["kit_number"],
-                                   "team_id": r["team_id"], "position": r.get("position") or "MF", "starter": True}
-        teams[r["team_id"]] = {"team_id": r["team_id"], "name": r["team"], "short_name": r.get("team_short") or r["team"][:3].upper()}
-        if r.get("home"):
-            home = r["team_id"]
-        else:
-            away = r["team_id"]
+        key = f"{r['team']}|{r['player_name']}"
+        players[key] = {"player_id": key, "name": r["player_name"], "kit_number": r["kit_number"], "team_id": r["team"],
+                        "position": r.get("position") or "MF", "starter": True}
+        teams[r["team"]] = {"team_id": r["team"], "name": r["team"], "short_name": r.get("team_short") or r["team"][:3].upper()}
+        if r.get("home") and home is None:
+            home = r["team"]
+        elif not r.get("home") and away is None:
+            away = r["team"]
     ids = list(teams)
     home = home or ids[0]
     away = away or ids[-1]

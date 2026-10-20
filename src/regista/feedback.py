@@ -26,7 +26,9 @@ import argparse
 import json
 import math
 import os
+import re
 import sys
+import uuid
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -37,7 +39,6 @@ from regista.schema import SCHEMA_VERSION, events_validator, iter_jsonl
 
 Record = dict[str, Any]
 
-FEEDBACK_DIR = Path(os.environ.get("REGISTA_FEEDBACK_DIR", "data/feedback"))  # where real verdicts and the model live
 ANNOTATIONS_FILE = "annotations.jsonl"
 MODEL_FILE = "watchability-model.json"
 MIN_SAMPLES = 8           # fewer verdicts than this and the model refuses to train
@@ -45,6 +46,45 @@ DISAGREEMENT = 0.30       # |prior - model| at or above this asks the human
 BOUNDARY = (0.40, 0.60)   # scores in this band are undecided and ask the human
 REGULARISATION = 3.0      # logistic regression C; chosen on held-out agreement with tens of verdicts
 VERDICTS = {"keep": "confirm", "drop": "reject", "fix": "correct"}
+ANNOTATOR_RE = re.compile(r"^[A-Za-z0-9_ .\-]{1,40}$")
+TAG_RE = re.compile(r"^[a-z0-9_]{1,40}$")
+MAX_TAGS = 20
+MAX_NOTE = 500
+
+
+def feedback_dir() -> Path:
+    """Where real verdicts and the learned model live: $REGISTA_FEEDBACK_DIR, else data/feedback. Read on every call."""
+    return Path(os.environ.get("REGISTA_FEEDBACK_DIR", "data/feedback"))
+
+
+def new_annotation_id() -> str:
+    """Unique across files, replicas, and Cosmos DB: time-ordered, with a random suffix."""
+    return f"an_{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}_{uuid.uuid4().hex[:6]}"
+
+
+def validate_verdict(verdict: str, *, watchability: float | None = None, tags: list[str] | None = None, note: str = "",
+                     annotator: str = "zaid") -> list[str]:
+    """Normalise and check one verdict's fields before anything is written. Returns the cleaned tags; raises ValueError."""
+    if verdict not in VERDICTS:
+        raise ValueError(f"verdict must be one of {sorted(VERDICTS)}")
+    if watchability is not None:
+        if isinstance(watchability, bool) or not isinstance(watchability, (int, float)) or not 0.0 <= float(watchability) <= 1.0:
+            raise ValueError("watchability must be a number between 0 and 1")
+        if verdict == "drop":
+            raise ValueError("a drop verdict cannot carry a watchability score; use fix with a score instead")
+    if not isinstance(annotator, str) or not ANNOTATOR_RE.match(annotator):
+        raise ValueError("annotator must be 1-40 letters, digits, spaces, dots, dashes or underscores")
+    if not isinstance(note, str) or len(note) > MAX_NOTE:
+        raise ValueError(f"note must be text of at most {MAX_NOTE} characters")
+    clean: list[str] = []
+    if tags is not None:
+        if not isinstance(tags, list) or len(tags) > MAX_TAGS or not all(isinstance(t, str) for t in tags):
+            raise ValueError(f"tags must be a list of at most {MAX_TAGS} strings")
+        clean = [t.strip().lower().replace(" ", "_") for t in tags if t.strip()]
+        bad = [t for t in clean if not TAG_RE.match(t)]
+        if bad:
+            raise ValueError(f"tags may contain only lowercase letters, digits and underscores: {bad[:3]}")
+    return clean
 
 
 def _now() -> str:
@@ -65,21 +105,17 @@ def snapshot(clip: Record, label: Record) -> Record:
 
 
 def record_verdict(clip: Record, label: Record, verdict: str, *, watchability: float | None = None, tags: list[str] | None = None,
-                   note: str = "", annotator: str = "zaid", path: Path | str | None = None, n: int | None = None) -> Record:
+                   note: str = "", annotator: str = "zaid", path: Path | str | None = None) -> Record:
     """Store one human verdict. ``verdict`` is keep, drop, or fix (fix = keep, but with corrected tags or score)."""
-    if verdict not in VERDICTS:
-        raise ValueError(f"verdict must be one of {sorted(VERDICTS)}")
-    if watchability is not None and not 0.0 <= watchability <= 1.0:
-        raise ValueError("watchability must be between 0 and 1")
+    clean_tags = validate_verdict(verdict, watchability=watchability, tags=tags, note=note, annotator=annotator)
     correction: Record = {"keep": verdict != "drop"}
     if watchability is not None:
         correction["watchability"] = round(float(watchability), 3)
     if tags is not None:
-        correction["tags"] = [t.strip().lower().replace(" ", "_") for t in tags if t.strip()]
-    path = Path(path) if path else FEEDBACK_DIR / ANNOTATIONS_FILE
-    existing = sum(1 for _ in iter_jsonl(path)) if path.exists() else 0
+        correction["tags"] = clean_tags
+    path = Path(path) if path else feedback_dir() / ANNOTATIONS_FILE
     rec: Record = {
-        "type": "annotation", "id": f"an_{(n or existing + 1):06d}", "match_id": clip["match_id"], "schema_version": SCHEMA_VERSION,
+        "type": "annotation", "id": new_annotation_id(), "match_id": clip["match_id"], "schema_version": SCHEMA_VERSION,
         "source": "human", "confidence": 1, "t": clip["t"], "target_id": label["id"], "target_type": "label",
         "verdict": VERDICTS[verdict], "correction": correction, "annotator": annotator, "annotated_at": _now(),
         "context": snapshot(clip, label),
@@ -96,7 +132,7 @@ def record_verdict(clip: Record, label: Record, verdict: str, *, watchability: f
 
 
 def load_annotations(path: Path | str | None = None, *, humans_only: bool = True) -> list[Record]:
-    path = Path(path) if path else FEEDBACK_DIR / ANNOTATIONS_FILE
+    path = Path(path) if path else feedback_dir() / ANNOTATIONS_FILE
     if not path.exists():
         return []
     rows = [r for r in iter_jsonl(path) if r.get("type") == "annotation" and r.get("target_type") == "label" and "context" in r]
@@ -113,11 +149,38 @@ def latest_per_label(annotations: Iterable[Record]) -> list[Record]:
 
 
 def target_of(a: Record) -> float:
-    """The training target: an explicit score when the reviewer gave one, else 1 for keep and 0 for drop."""
+    """The training target: 0 for a drop; else the reviewer's explicit score when given, else 1 for keep."""
     c = a.get("correction", {})
+    if not c.get("keep", a["verdict"] != "reject"):
+        return 0.0
     if "watchability" in c:
         return float(c["watchability"])
-    return 1.0 if c.get("keep", a["verdict"] != "reject") else 0.0
+    return 1.0
+
+
+def merge_annotations(local: list[Record], remote: list[Record]) -> tuple[list[Record], list[Record]]:
+    """Union of two verdict sets by annotation id, ordered by time. Returns (merged, local rows the remote lacks)."""
+    remote_ids = {a["id"] for a in remote}
+    local_only = [a for a in local if a["id"] not in remote_ids]
+    merged = {a["id"]: a for a in remote}
+    for a in local_only:
+        merged[a["id"]] = a
+    return sorted(merged.values(), key=lambda a: (a.get("annotated_at", ""), a["id"])), local_only
+
+
+def save_annotations(rows: list[Record], path: Path | str | None = None) -> Path:
+    path = Path(path) if path else feedback_dir() / ANNOTATIONS_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text("".join(json.dumps(a, ensure_ascii=False) + "\n" for a in rows), encoding="utf-8")
+    tmp.replace(path)
+    return path
+
+
+def usable(a: Record) -> bool:
+    """A verdict the model can learn from (hand-edited or legacy rows may lack the snapshot)."""
+    ctx = a.get("context") or {}
+    return isinstance(ctx.get("tags"), list) and "reason" in ctx and "duration_s" in ctx and "prior_watchability" in ctx
 
 
 # ---------------------------------------------------------------------------- when to ask
@@ -188,14 +251,14 @@ class WatchabilityModel:
                    metrics=data.get("metrics", {}))
 
     def save(self, path: Path | str | None = None) -> Path:
-        path = Path(path) if path else FEEDBACK_DIR / MODEL_FILE
+        path = Path(path) if path else feedback_dir() / MODEL_FILE
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(self.to_json(), indent=2) + "\n", encoding="utf-8")
         return path
 
     @classmethod
     def load(cls, path: Path | str | None = None) -> WatchabilityModel | None:
-        path = Path(path) if path else FEEDBACK_DIR / MODEL_FILE
+        path = Path(path) if path else feedback_dir() / MODEL_FILE
         if not path.exists():
             return None
         return cls.from_json(json.loads(path.read_text(encoding="utf-8")))
@@ -203,7 +266,7 @@ class WatchabilityModel:
 
 def train(annotations: list[Record], *, previous: WatchabilityModel | None = None) -> WatchabilityModel:
     """Fit on the latest verdict per label. Raises ValueError when there is too little or one-sided feedback."""
-    rows = latest_per_label(annotations)
+    rows = latest_per_label(a for a in annotations if usable(a))
     if len(rows) < MIN_SAMPLES:
         raise ValueError(f"need at least {MIN_SAMPLES} verdicts to train, have {len(rows)}")
     y_bin = [1 if target_of(a) >= 0.5 else 0 for a in rows]
@@ -230,7 +293,7 @@ def train(annotations: list[Record], *, previous: WatchabilityModel | None = Non
 
 def evaluate(annotations: list[Record], model: WatchabilityModel | None = None) -> dict[str, Any]:
     """Agreement with the human, per scorer that saw these clips: the label as reviewed, its rules prior, and the learned model."""
-    rows = latest_per_label(annotations)
+    rows = latest_per_label(a for a in annotations if usable(a))
     if not rows:
         return {"n": 0}
     out: dict[str, Any] = {"n": len(rows)}
@@ -260,8 +323,9 @@ def evaluate(annotations: list[Record], model: WatchabilityModel | None = None) 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Human feedback and the learned watchability model.")
     parser.add_argument("command", choices=["status", "train", "evaluate"])
-    parser.add_argument("--dir", type=Path, default=FEEDBACK_DIR, help="feedback directory (annotations.jsonl, watchability-model.json)")
+    parser.add_argument("--dir", type=Path, default=None, help="feedback directory (default: $REGISTA_FEEDBACK_DIR or data/feedback)")
     args = parser.parse_args(argv)
+    args.dir = args.dir or feedback_dir()
     ann_path, model_path = args.dir / ANNOTATIONS_FILE, args.dir / MODEL_FILE
     annotations = load_annotations(ann_path)
     model = WatchabilityModel.load(model_path)

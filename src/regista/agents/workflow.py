@@ -116,19 +116,29 @@ for _t in (PipelineRequest, Handoff, DeadLetter, ReviewRequest, ReviewVerdicts, 
 # ---------------------------------------------------------------------------- state helpers
 
 _INDEX_CACHE: dict[str, tuple[float, list[Record], StreamIndex]] = {}
+_INDEX_CACHE_MAX = 8  # a long-lived API sees many matches; keep only the most recent
 
 
 def stream_and_index(match_dir: str) -> tuple[list[Record], StreamIndex]:
     """The parsed stream and its index, cached per match file (rebuilt if the file changes)."""
     path = Path(match_dir) / "events.jsonl"
+    if not path.exists():
+        raise AgentError(f"{path} does not exist", retryable=False)
     mtime = path.stat().st_mtime
-    hit = _INDEX_CACHE.get(match_dir)
+    hit = _INDEX_CACHE.pop(match_dir, None)
     if hit and hit[0] == mtime:
+        _INDEX_CACHE[match_dir] = hit  # re-insert: most recently used last
         return hit[1], hit[2]
     stream = list(iter_jsonl(path))
     index = StreamIndex.build(stream)
     _INDEX_CACHE[match_dir] = (mtime, stream, index)
+    while len(_INDEX_CACHE) > _INDEX_CACHE_MAX:
+        _INDEX_CACHE.pop(next(iter(_INDEX_CACHE)))
     return stream, index
+
+
+def _status_key(role: str) -> str:
+    return f"status.{role}"
 
 
 def _now() -> str:
@@ -200,7 +210,13 @@ class RoleExecutor(Executor):
         before = _read_state(ctx, self.keys)
         state = copy.deepcopy(before)
         if "match_dir" in state and ({"stream", "index"} & set(agent.inputs) or agent.role == "ingest"):
-            state["stream"], state["index"] = stream_and_index(state["match_dir"])
+            try:
+                state["stream"], state["index"] = await asyncio.to_thread(stream_and_index, state["match_dir"])
+            except Exception as exc:  # noqa: BLE001 - a missing or malformed stream dead-letters like any other failure
+                if not isinstance(exc, AgentError):
+                    exc = AgentError(f"cannot read the event stream: {type(exc).__name__}: {exc}", retryable=False)
+                await self._dead(ctx, run_id, 1, exc, state)
+                return
         missing = agent.missing_inputs(state)
         if missing:
             await self._dead(ctx, run_id, 0, AgentError(f"missing inputs: {missing}", retryable=False), state)
@@ -231,6 +247,7 @@ class RoleExecutor(Executor):
         row = {"at": _now(), "agent": self.agent.role, "attempt": attempt, "status": status,
                "elapsed_ms": round((time.perf_counter() - started) * 1000, 1) if started else None,
                "records_in": records_in, "records_out": records_out, "error": error, "state_keys": sorted(keys or {})}
+        ctx.set_state(_status_key(self.agent.role), status)
         await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=row))
 
     async def _dead(self, ctx: WorkflowContext, run_id: str, attempts: int, exc: BaseException, state: dict, traced: bool = False) -> None:
@@ -251,7 +268,7 @@ class ReviewExecutor(Executor):
         self.retrain = retrain
 
     @handler
-    async def check(self, message: Handoff, ctx: WorkflowContext[Handoff]) -> None:
+    async def check(self, message: Handoff, ctx: WorkflowContext[Handoff | DeadLetter]) -> None:
         state = _read_state(ctx, self.keys)
         flagged = []
         for pid, labels in (state.get("labels") or {}).items():
@@ -264,23 +281,50 @@ class ReviewExecutor(Executor):
                                     "reason": lb["review"], "t": c["t"], "t_end": c["t_end"], "cut": c["reason"]})
         if not state.get("review") or not flagged:
             note = "review off" if not state.get("review") else "no clips flagged"
+            ctx.set_state(_status_key("review"), "ok")
             await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("ok", note=note, flagged=len(flagged))))
             await ctx.send_message(Handoff(from_role="review", run_id=message.run_id))
             return
         ctx.set_state(_key("review_run_id"), message.run_id)
+        ctx.set_state(_status_key("review"), "waiting")
         await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("waiting", note=f"asked a human about {len(flagged)} clip(s)",
                                                                       flagged=len(flagged))))
         await ctx.request_info(ReviewRequest(question=f"Keep, drop, or fix these {len(flagged)} clip(s)?", items=flagged), ReviewVerdicts)
 
     @response_handler
-    async def on_verdicts(self, request: ReviewRequest, answer: ReviewVerdicts, ctx: WorkflowContext[Handoff]) -> None:
-        from regista.feedback import ANNOTATIONS_FILE, FEEDBACK_DIR, WatchabilityModel, load_annotations, record_verdict, train
-
+    async def on_verdicts(self, request: ReviewRequest, answer: ReviewVerdicts, ctx: WorkflowContext[Handoff | DeadLetter]) -> None:
+        run_id = ctx.get_state(_key("review_run_id"), "")
         state = _read_state(ctx, self.keys)
-        fdir = Path(self.feedback_dir or FEEDBACK_DIR)
+        try:
+            labels, log = await asyncio.to_thread(self._apply, request, answer, state)
+        except Exception as exc:  # noqa: BLE001 - a bad answer must not escape the workflow
+            ctx.set_state(_status_key("review"), "failed")
+            await ctx.add_event(WorkflowEvent(TRACE_EVENT, data={**self._row("failed", note="verdicts rejected", flagged=len(request.items)),
+                                                                  "error": f"{type(exc).__name__}: {exc}"}))
+            await ctx.send_message(DeadLetter(role="review", error=f"{type(exc).__name__}: {exc}", retryable=False, attempts=1,
+                                              inputs={"verdicts": len(answer.verdicts)}, run_id=run_id))
+            return
+        ctx.set_state(_key("labels"), labels)
+        ctx.set_state(_key("review_log"), log)
+        ctx.set_state(_status_key("review"), "ok")
+        await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("ok", note=f"applied {len(log['applied'])} verdict(s)", flagged=len(request.items))))
+        await ctx.send_message(Handoff(from_role="review", run_id=run_id))
+
+    def _apply(self, request: ReviewRequest, answer: ReviewVerdicts, state: dict[str, Any]) -> tuple[dict, dict]:
+        """Validate every verdict, then record and apply them all; nothing is written if any verdict is invalid."""
+        from regista.feedback import ANNOTATIONS_FILE, WatchabilityModel, feedback_dir, load_annotations, record_verdict, train, validate_verdict
+
+        fdir = Path(self.feedback_dir or feedback_dir())
+        asked = {i["clip_id"] for i in request.items}
+        by_clip: dict[str, dict] = {}
+        for v in answer.verdicts:
+            if not isinstance(v, dict) or v.get("clip_id") not in asked:
+                raise ValueError(f"verdict for a clip that was not asked about: {v.get('clip_id') if isinstance(v, dict) else v!r}")
+            validate_verdict(v.get("verdict", "keep"), watchability=v.get("watchability"), tags=v.get("tags"), note=v.get("note", ""),
+                             annotator=answer.annotator)
+            by_clip[v["clip_id"]] = v
         clips = {c["id"]: c for cs in state.get("clips", {}).values() for c in cs}
         labels = state.get("labels", {})
-        by_clip = {v["clip_id"]: v for v in answer.verdicts}
         applied = []
         for pid, ls in labels.items():
             for lb in ls:
@@ -300,7 +344,7 @@ class ReviewExecutor(Executor):
                 lb.pop("review", None)
                 applied.append({"clip_id": lb["clip_id"], "verdict": verdict, "annotation_id": rec["id"]})
         retrained = None
-        if self.retrain:
+        if self.retrain and applied:
             try:
                 previous = WatchabilityModel.load(fdir / "watchability-model.json")
                 model = train(load_annotations(fdir / ANNOTATIONS_FILE), previous=previous)
@@ -308,10 +352,7 @@ class ReviewExecutor(Executor):
                 retrained = {"model": model.name, "metrics": model.metrics}
             except ValueError as exc:
                 retrained = {"skipped": str(exc)}
-        ctx.set_state(_key("labels"), labels)
-        ctx.set_state(_key("review_log"), {"applied": applied, "retrained": retrained, "annotator": answer.annotator})
-        await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("ok", note=f"applied {len(applied)} verdict(s)", flagged=len(request.items))))
-        await ctx.send_message(Handoff(from_role="review", run_id=ctx.get_state(_key("review_run_id"), "")))
+        return labels, {"applied": applied, "retrained": retrained, "annotator": answer.annotator}
 
     @staticmethod
     def _row(status: str, *, note: str, flagged: int) -> Record:
@@ -341,8 +382,13 @@ class DeadLetterExecutor(Executor):
     async def receive(self, letter: DeadLetter, ctx: WorkflowContext[Never, PipelineOutput]) -> None:
         await ctx.add_event(WorkflowEvent(DEAD_EVENT, data={"at": _now(), "agent": letter.role, "attempts": letter.attempts,
                                                              "error": letter.error, "retryable": letter.retryable, "inputs": letter.inputs}))
-        if letter.role in self.order:
-            for role in self.order[self.order.index(letter.role) + 1:]:
+        if ctx.get_state("deadletter.done", False):
+            return  # a parallel branch already ended this run; record its letter, but end it only once
+        ctx.set_state("deadletter.done", True)
+        for role in self.order:
+            # Skip only roles that never reported: a sibling branch that already ran keeps its own status.
+            if ctx.get_state(_status_key(role), None) is None:
+                ctx.set_state(_status_key(role), "skipped")
                 await ctx.add_event(WorkflowEvent(TRACE_EVENT, data={
                     "at": _now(), "agent": role, "attempt": 0, "status": "skipped", "elapsed_ms": None, "records_in": None,
                     "records_out": None, "error": f"upstream {letter.role} failed", "state_keys": []}))
@@ -381,6 +427,12 @@ class WorkflowPipeline:
         self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else None
         self.retrain = retrain
         self.keys = _known_keys(self.agents) + ["run_id", "review_run_id"]
+        if self.feedback_dir is not None:
+            for a in self.agents:  # the Label agent's learned prior comes from the same folder the reviewer writes to
+                if a.role == "label":
+                    a.config = {**a.config, "feedback_dir": str(self.feedback_dir)}
+        self._trace: list[Record] = []
+        self._dead: list[Record] = []
         self.workflow = self.build()
 
     def build(self):
@@ -396,7 +448,7 @@ class WorkflowPipeline:
         b.add_fan_in_edges([roles["validator"], roles["possession"]], roles["clip"])
         tail = [roles["persist"]] + ([roles["indexer"]] if "indexer" in roles else []) + [roles["librarian"], finish]
         b.add_chain([roles["clip"], roles["label"], review] + tail)
-        for ex in roles.values():
+        for ex in [*roles.values(), review]:
             b.add_edge(ex, dead)  # only DeadLetter messages reach it; handoffs are routed by type to the next role
         return b.build()
 
@@ -408,12 +460,15 @@ class WorkflowPipeline:
         req = PipelineRequest(match_dir=str(initial["match_dir"]), player_ids=list(initial["player_ids"]),
                               queries=list(initial.get("queries", [])), review=bool(initial.get("review", False)),
                               annotator=initial.get("annotator", "zaid"), run_id=initial.get("run_id") or uuid.uuid4().hex[:12])
+        self.workflow = self.build()  # a fresh workflow per run: no state or pending requests carried over
         self._reset_files()
         events = await self.workflow.run(req)
         return await self._collect(events)
 
     async def resume(self, answers: dict[str, ReviewVerdicts | dict], checkpoint_id: str | None = None) -> WorkflowRun:
         responses = {rid: (a if isinstance(a, ReviewVerdicts) else ReviewVerdicts(**a)) for rid, a in answers.items()}
+        if not self._trace:
+            self._load_files()  # resuming in a new process: continue the trace written before the pause
         if checkpoint_id:
             events = await self.workflow.run(checkpoint_id=checkpoint_id, responses=responses)
         else:
@@ -436,8 +491,14 @@ class WorkflowPipeline:
         self.state_dir.mkdir(parents=True, exist_ok=True)
         for name in ("trace.jsonl", "dead_letter.jsonl"):
             (self.state_dir / name).write_text("", encoding="utf-8")
-        self._trace: list[Record] = []
-        self._dead: list[Record] = []
+        (self.state_dir / "pending_review.json").unlink(missing_ok=True)
+        self._trace = []
+        self._dead = []
+
+    def _load_files(self) -> None:
+        self.state_dir.mkdir(parents=True, exist_ok=True)
+        self._trace = list(iter_jsonl(self.state_dir / "trace.jsonl")) if (self.state_dir / "trace.jsonl").exists() else []
+        self._dead = list(iter_jsonl(self.state_dir / "dead_letter.jsonl")) if (self.state_dir / "dead_letter.jsonl").exists() else []
 
     async def _collect(self, events) -> WorkflowRun:
         pending: list[PendingReview] = []
@@ -462,6 +523,7 @@ class WorkflowPipeline:
         state = dict(output.state) if output else {}
         if output:
             (self.state_dir / "state.json").write_text(json.dumps(summarise_state(state), indent=2, default=str) + "\n", encoding="utf-8")
+            (self.state_dir / "pending_review.json").unlink(missing_ok=True)
         else:
             (self.state_dir / "pending_review.json").write_text(json.dumps([{"request_id": p.request_id, "checkpoint_id": p.checkpoint_id,
                                                                            "request": asdict(p.request)} for p in pending], indent=2) + "\n",

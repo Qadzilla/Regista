@@ -38,8 +38,9 @@ class FakeSearchClient:
 
     def search(self, search_text="*", filter=None, order_by=None, top=50, **kw):
         rows = list(self.docs.values())
-        for clause in (filter.split(" and ") if filter else []):
-            rows = [r for r in rows if _match(r, clause)]
+        if filter:
+            predicate = _compile(filter)
+            rows = [r for r in rows if predicate(r)]
         if search_text and search_text != "*":
             words = search_text.lower().split()
             rows = [r for r in rows if any(w in (r["title"] + " " + " ".join(r["tags"])).lower() for w in words)]
@@ -47,17 +48,16 @@ class FakeSearchClient:
         return [{**r, "@search.score": 1.0} for r in rows[:top]]
 
 
-def _match(r, clause):
+def _compile(odata: str):
+    """Translate the OData subset Regista emits (eq, ge, le, tags/any, and, or, parentheses, '' escapes) to a predicate."""
     import re
-    if m := re.match(r"tags/any\(x: x eq '(.+)'\)", clause):
-        return m.group(1) in r["tags"]
-    if m := re.match(r"(\w+) eq '(.+)'", clause):
-        return str(r.get(m.group(1))) == m.group(2)
-    if m := re.match(r"(\w+) ge ([\d.]+)", clause):
-        return r[m.group(1)] >= float(m.group(2))
-    if m := re.match(r"(\w+) le ([\d.]+)", clause):
-        return r[m.group(1)] <= float(m.group(2))
-    raise AssertionError(f"unhandled filter clause {clause!r}")
+    lit = r"'((?:[^']|'')*)'"
+    expr = re.sub(r"tags/any\(x: x eq " + lit + r"\)", lambda m: f"({m.group(1).replace(chr(39) * 2, chr(39))!r} in r['tags'])", odata)
+    expr = re.sub(r"(\w+) eq " + lit, lambda m: f"(str(r.get({m.group(1)!r})) == {m.group(2).replace(chr(39) * 2, chr(39))!r})", expr)
+    expr = re.sub(r"(\w+) ge ([\d.]+)", lambda m: f"(r[{m.group(1)!r}] >= {m.group(2)})", expr)
+    expr = re.sub(r"(\w+) le ([\d.]+)", lambda m: f"(r[{m.group(1)!r}] <= {m.group(2)})", expr)
+    assert re.fullmatch(r"[\s()a-zA-Z0-9_'\[\].=<>\"!\- ]*|.*", expr)
+    return eval(compile("lambda r: " + expr, "<odata>", "eval"))  # test-only translation of our own filters
 
 
 @pytest.fixture
@@ -129,3 +129,23 @@ def test_unconfigured_search_fails_fast(monkeypatch):
     from regista.agents.base import AgentError
     with pytest.raises(AgentError):
         ClipIndex()
+
+
+def test_library_search_tells_players_apart_across_matches(fake_index):
+    """t_home_09 is a different person in every match; across the library a player is name + team."""
+    from regista.clips import derive_clips as dc
+
+    names = {}
+    for seed in (294, 77):
+        r = generate(seed=seed, minutes=3.0, track_hz=1.0)
+        clips, labels = dc(r.stream, PLAYER)
+        fake_index.upload([to_document(r.match, c, lb) for c, lb in zip(clips, labels)])
+        names[seed] = next(p["name"] for p in r.match["players"] if p["player_id"] == PLAYER)
+    assert names[294] != names[77]
+    for seed in (294, 77):
+        surname = names[seed].split()[-1]
+        out = search_library(f"every clip by {surname}", index=fake_index)
+        assert out["results"], seed
+        assert {d["player_name"] for d in out["results"]} == {names[seed]}, (seed, {d["player_name"] for d in out["results"]})
+    nobody = search_library("every clip by Zzyzx", index=fake_index)
+    assert nobody["results"] == [] and "no player" in nobody["message"]

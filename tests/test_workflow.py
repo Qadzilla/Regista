@@ -166,3 +166,107 @@ def test_graph_renders_to_mermaid(tmp_path):
     for node in ("ingest", "validator", "possession", "clip", "label", "review", "persist", "librarian", "finish", "dead_letter"):
         assert node in m
     assert "fan-in" in m
+
+
+# ----------------------------------------------------------------------------- review findings (2026-10-20)
+
+def test_a_failing_branch_does_not_mark_its_finished_sibling_skipped(match_dir, tmp_path):
+    from regista.agents.roles import ValidatorAgent
+
+    @dataclass
+    class BrokenValidator(ValidatorAgent):
+        def handle(self, state):
+            raise AgentError("schema service down", retryable=False)
+
+    agents = [BrokenValidator() if a.role == "validator" else a for a in default_agents()]
+    wf = WorkflowPipeline(agents, tmp_path / "s", feedback_dir=tmp_path / "fb").run(_req(match_dir))
+    assert wf.statuses["validator"] == "failed"
+    assert wf.statuses["possession"] == "ok", "possession ran in parallel and must keep its own status"
+    assert [r["status"] for r in wf.trace if r["agent"] == "possession"] == ["ok"]
+    assert wf.statuses["clip"] == "skipped" and len(wf.dead_letters) == 1
+
+
+def test_both_branches_failing_end_the_run_once(match_dir, tmp_path):
+    from regista.agents.roles import PossessionAgent, ValidatorAgent
+
+    @dataclass
+    class BadV(ValidatorAgent):
+        def handle(self, state):
+            raise AgentError("v down", retryable=False)
+
+    @dataclass
+    class BadP(PossessionAgent):
+        def handle(self, state):
+            raise AgentError("p down", retryable=False)
+
+    agents = [BadV() if a.role == "validator" else BadP() if a.role == "possession" else a for a in default_agents()]
+    wf = WorkflowPipeline(agents, tmp_path / "s", feedback_dir=tmp_path / "fb").run(_req(match_dir))
+    assert wf.statuses["validator"] == wf.statuses["possession"] == "failed"
+    assert len(wf.dead_letters) == 2
+    assert sum(1 for r in wf.trace if r["agent"] == "clip" and r["status"] == "skipped") == 1
+
+
+def test_an_invalid_verdict_writes_nothing_and_dead_letters(match_dir, tmp_path):
+    fb = tmp_path / "fb"
+
+    def reviewer(req):
+        good = {"clip_id": req.items[0]["clip_id"], "verdict": "keep"}
+        bad = {"clip_id": req.items[0]["clip_id"], "verdict": "maybe"}
+        return ReviewVerdicts(verdicts=[good, bad], annotator="test-reviewer")
+
+    wf = WorkflowPipeline(state_dir=tmp_path / "s", feedback_dir=fb).run(_req(match_dir, review=True), reviewer=reviewer)
+    assert not wf.ok and wf.output.failed_role == "review"
+    assert not (fb / "annotations.jsonl").exists() or not load_annotations(fb / "annotations.jsonl")
+    assert wf.statuses["persist"] == "skipped"
+
+
+def test_a_verdict_for_a_clip_not_asked_about_is_rejected(match_dir, tmp_path):
+    def reviewer(req):
+        return ReviewVerdicts(verdicts=[{"clip_id": "cl_t_home_09_999999", "verdict": "keep"}], annotator="test-reviewer")
+
+    wf = WorkflowPipeline(state_dir=tmp_path / "s", feedback_dir=tmp_path / "fb").run(_req(match_dir, review=True), reviewer=reviewer)
+    assert not wf.ok and "not asked about" in wf.dead_letters[0]["error"]
+
+
+def test_a_missing_match_dead_letters_instead_of_crashing(tmp_path):
+    wf = WorkflowPipeline(state_dir=tmp_path / "s", feedback_dir=tmp_path / "fb").run(
+        {"match_dir": str(tmp_path / "nope"), "player_ids": [PLAYER], "queries": []})
+    assert not wf.ok and wf.statuses["ingest"] == "failed" and "does not exist" in wf.dead_letters[0]["error"]
+
+
+def test_the_pipeline_feedback_dir_reaches_the_label_agent(match_dir, tmp_path):
+    """A model trained elsewhere must not leak into a pipeline pointed at an empty feedback folder."""
+    import os
+    from regista.feedback import WatchabilityModel
+
+    elsewhere = tmp_path / "elsewhere"
+    WatchabilityModel(feature_names=["tag:goal"], coef=[3.0], intercept=-1.0, n_samples=9, version=4).save(elsewhere / "watchability-model.json")
+    os.environ["REGISTA_FEEDBACK_DIR"] = str(elsewhere)  # the conftest fixture restores it after the test
+    wf = WorkflowPipeline(state_dir=tmp_path / "s", feedback_dir=tmp_path / "empty").run(_req(match_dir))
+    assert {lb["model"] for lb in wf.state["labels"][PLAYER]} == {"rules-v0"}
+    wf2 = WorkflowPipeline(state_dir=tmp_path / "s2", feedback_dir=elsewhere).run(_req(match_dir))
+    assert {lb["model"] for lb in wf2.state["labels"][PLAYER]} == {"learned-v4 (9 verdicts)"}
+
+
+def test_reusing_a_pipeline_does_not_leak_the_previous_run(match_dir, tmp_path):
+    p = WorkflowPipeline(state_dir=tmp_path / "s", feedback_dir=tmp_path / "fb")
+
+    def reviewer(req):
+        return ReviewVerdicts(verdicts=[{"clip_id": i["clip_id"], "verdict": "keep"} for i in req.items], annotator="test-reviewer")
+
+    first = p.run(_req(match_dir, review=True), reviewer=reviewer)
+    assert first.state.get("review_log")
+    second = p.run(_req(match_dir, review=False))
+    assert second.ok and "review_log" not in second.state
+    assert not (tmp_path / "s" / "pending_review.json").exists()
+
+
+def test_resume_on_a_fresh_pipeline_needs_no_private_calls(match_dir, tmp_path):
+    ckpt = tmp_path / "ckpt"
+    paused = asyncio.run(WorkflowPipeline(state_dir=tmp_path / "s", feedback_dir=tmp_path / "fb", checkpoint_dir=ckpt).start(_req(match_dir, review=True)))
+    p = paused.pending[0]
+    fresh = WorkflowPipeline(state_dir=tmp_path / "s", feedback_dir=tmp_path / "fb", checkpoint_dir=ckpt)
+    done = asyncio.run(fresh.resume({p.request_id: {"verdicts": [], "annotator": "test-reviewer"}}, checkpoint_id=p.checkpoint_id))
+    assert done.ok
+    agents = [r["agent"] for r in done.trace]
+    assert agents[0] == "ingest", "the resumed trace continues the one written before the pause"

@@ -46,12 +46,17 @@ def test_verdicts_are_schema_valid_human_annotations(corpus, tmp_path):
     assert a["correction"] == {"keep": True, "watchability": 0.8, "tags": ["goal", "nutmeg"]}
     assert a["context"]["tags"] == label["tags"] and a["context"]["clip_id"] == clip["id"]
     b = record_verdict(clip, label, "drop", annotator=REVIEWER, path=path)
-    assert b["id"] == "an_000002" and target_of(b) == 0.0 and target_of(a) == 0.8
-    assert [r["id"] for r in load_annotations(path)] == ["an_000001", "an_000002"]
-    with pytest.raises(ValueError):
-        record_verdict(clip, label, "maybe", path=path)
-    with pytest.raises(ValueError):
-        record_verdict(clip, label, "fix", watchability=1.5, path=path)
+    assert b["id"] != a["id"] and b["id"].startswith("an_") and target_of(b) == 0.0 and target_of(a) == 0.8
+    assert [r["id"] for r in load_annotations(path)] == [a["id"], b["id"]]
+    for bad in (dict(verdict="maybe"), dict(verdict="fix", watchability=1.5), dict(verdict="fix", watchability=True),
+                dict(verdict="fix", watchability="0.5"), dict(verdict="drop", watchability=0.9),
+                dict(verdict="keep", annotator="<img src=x onerror=alert(1)>"), dict(verdict="keep", annotator="x" * 41),
+                dict(verdict="fix", tags=["<script>"]), dict(verdict="fix", tags="goal"), dict(verdict="fix", tags=[1]),
+                dict(verdict="keep", note="n" * 501)):
+        v = bad.pop("verdict")
+        with pytest.raises(ValueError):
+            record_verdict(clip, label, v, path=path, **bad)
+    assert len(load_annotations(path)) == 2, "rejected verdicts write nothing"
 
 
 def test_model_refuses_too_little_or_one_sided_feedback(corpus, tmp_path):
@@ -120,6 +125,30 @@ def test_label_clips_uses_the_learned_model_as_prior(corpus, tmp_path):
     assert all(lb["model"] == model.name for lb in labels)
     assert all("learned from" in lb["explanation"] and "Rules alone gave" in lb["explanation"] for lb in labels)
     assert all(0.0 <= lb["prior_watchability"] <= 1.0 for lb in labels)
+
+
+def test_a_drop_never_trains_as_keep():
+    a = {"verdict": "reject", "correction": {"keep": False, "watchability": 0.9}}
+    assert target_of(a) == 0.0
+
+
+def test_merge_keeps_both_sides_and_reports_local_only():
+    from regista.feedback import merge_annotations
+
+    local = [{"id": "an_1", "annotated_at": "2026-10-20T01:00:00Z"}, {"id": "an_2", "annotated_at": "2026-10-20T02:00:00Z"}]
+    remote = [{"id": "an_2", "annotated_at": "2026-10-20T02:00:00Z"}, {"id": "an_3", "annotated_at": "2026-10-20T03:00:00Z"}]
+    merged, local_only = merge_annotations(local, remote)
+    assert [a["id"] for a in merged] == ["an_1", "an_2", "an_3"]
+    assert [a["id"] for a in local_only] == ["an_1"]
+
+
+def test_training_skips_rows_without_a_snapshot(corpus, tmp_path):
+    path = tmp_path / "a.jsonl"
+    for clip, label in corpus[:20]:
+        record_verdict(clip, label, "keep" if reviewer_keeps(label) else "drop", annotator=REVIEWER, path=path)
+    rows = load_annotations(path)
+    broken = {**rows[0], "id": "an_broken", "context": {"clip_id": "x"}}
+    assert train(rows + [broken]).n_samples == 20
 
 
 def test_needs_review_rules():

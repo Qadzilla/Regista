@@ -64,3 +64,7 @@ docs/demo/
 # Python build output
 build/
 *.egg-info/
+
+# Workflow checkpoints and paused reviews (run state, not source)
+**/agents/checkpoints/
+**/agents/pending_review*.json

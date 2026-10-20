@@ -155,3 +155,105 @@ def test_upload_with_review_pauses_and_resumes(client):
     out = done.json()
     assert out["pipeline_ok"] is True and out["review_log"]["applied"]
     assert client.get("/api/matches/syn_0294_review/review").json()["pending"] == []
+
+
+# ----------------------------------------------------------------------------- review findings (2026-10-20)
+
+def _clip_ids(client):
+    return [c["id"] for c in client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()]
+
+
+def test_writes_need_the_token_when_one_is_set(client, monkeypatch):
+    monkeypatch.setenv("REGISTA_ADMIN_TOKEN", "s3cret-token")
+    cid = _clip_ids(client)[0]
+    url = f"/api/matches/{client.match_id}/clips/{cid}/verdict"
+    assert client.post(url, json={"verdict": "keep"}).status_code == 401
+    assert client.post(url, json={"verdict": "keep"}, headers={"X-Regista-Token": "wrong"}).status_code == 401
+    assert client.post(url, json={"verdict": "keep", "annotator": "test-reviewer"}, headers={"X-Regista-Token": "s3cret-token"}).status_code == 200
+    assert client.post("/api/feedback/train").status_code == 401
+    assert client.get("/api/health").json()["writes"] == "token"
+    assert client.get(f"/api/matches/{client.match_id}/clips").status_code == 200, "reads stay open"
+
+
+def test_read_only_deployment_refuses_every_write(client, monkeypatch):
+    monkeypatch.setenv("REGISTA_READONLY", "1")
+    cid = _clip_ids(client)[0]
+    assert client.post(f"/api/matches/{client.match_id}/clips/{cid}/verdict", json={"verdict": "keep"}).status_code == 403
+    assert client.post("/api/feedback/train").status_code == 403
+    assert client.post(f"/api/matches/{client.match_id}/review", json={"verdicts": []}).status_code == 403
+    assert client.post("/api/matches", files={"events": ("e.jsonl", "{}\n", "application/x-ndjson")}).status_code == 403
+
+
+@pytest.mark.parametrize("body", [
+    {"verdict": "keep", "annotator": "<img src=x onerror=alert(1)>"},
+    {"verdict": "keep", "annotator": "x" * 41},
+    {"verdict": "fix", "watchability": "0.5"},
+    {"verdict": "fix", "watchability": True},
+    {"verdict": "fix", "watchability": 1.5},
+    {"verdict": "drop", "watchability": 0.9},
+    {"verdict": "fix", "tags": "goal"},
+    {"verdict": "fix", "tags": [1]},
+    {"verdict": "fix", "tags": ["<script>"]},
+    {"verdict": "fix", "tags": ["t"] * 21},
+    {"verdict": "keep", "note": "n" * 501},
+    {"verdict": "maybe"},
+])
+def test_bad_verdict_bodies_get_422_and_write_nothing(client, body):
+    from regista.feedback import load_annotations
+
+    before = len(load_annotations())
+    cid = _clip_ids(client)[0]
+    r = client.post(f"/api/matches/{client.match_id}/clips/{cid}/verdict", json=body)
+    assert r.status_code == 422, (body, r.status_code, r.text[:200])
+    assert len(load_annotations()) == before
+
+
+def test_verdicts_work_for_clips_derived_on_the_fly(client):
+    other = next(p["player_id"] for p in client.result.match["players"] if p["team_id"] == "t_away" and p["kit_number"] == 9)
+    clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": other}).json()
+    assert clips, "the away 9 has no clips on disk; they are derived"
+    r = client.post(f"/api/matches/{client.match_id}/clips/{clips[0]['id']}/verdict", json={"verdict": "keep", "annotator": "test-reviewer"})
+    assert r.status_code == 200, r.text
+    after = client.get(f"/api/matches/{client.match_id}/clips", params={"player": other}).json()
+    assert next(c for c in after if c["id"] == clips[0]["id"])["verdict"]["keep"] is True
+
+
+def test_upload_under_a_new_match_id_is_relabelled(client):
+    r = generate(seed=294, minutes=3.0, track_hz=1.0)
+    events = "\n".join(json.dumps(x) for x in r.stream) + "\n"
+    up = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")},
+                     params={"player": PLAYER, "match_id": "copy_of_294"})
+    assert up.status_code == 201, up.text
+    clips = client.get("/api/matches/copy_of_294/clips", params={"player": PLAYER}).json()
+    assert clips and all(c["match_id"] == "copy_of_294" for c in clips)
+    assert client.post(f"/api/matches/copy_of_294/clips/{clips[0]['id']}/verdict", json={"verdict": "drop", "annotator": "test-reviewer"}).status_code == 200
+    copy = {c["id"]: c for c in client.get("/api/matches/copy_of_294/clips", params={"player": PLAYER}).json()}
+    orig = {c["id"]: c for c in client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()}
+    assert copy[clips[0]["id"]]["verdict"] is not None
+    assert orig[clips[0]["id"]]["verdict"] is None or orig[clips[0]["id"]]["verdict"]["annotator"] != "test-reviewer" or orig[clips[0]["id"]]["verdict"]["keep"]
+
+
+def test_a_review_can_only_be_answered_once(client):
+    r = generate(seed=294, minutes=3.0, track_hz=1.0)
+    events = "\n".join(json.dumps(x) for x in r.stream) + "\n"
+    up = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")},
+                     params={"player": PLAYER, "match_id": "once_294", "review": "true"}).json()
+    assert up["paused"]
+    req = up["review"][0]
+    unknown = client.post("/api/matches/once_294/review", json={"request_id": req["request_id"], "verdicts": [{"clip_id": "cl_x_000001", "verdict": "keep"}]})
+    assert unknown.status_code == 422
+    body = {"request_id": req["request_id"], "annotator": "test-reviewer", "verdicts": [{"clip_id": i["clip_id"], "verdict": "keep"} for i in req["items"]]}
+    assert client.post("/api/matches/once_294/review", json=body).status_code == 200
+    assert client.post("/api/matches/once_294/review", json=body).status_code == 404
+
+
+def test_viewer_escapes_everything_it_renders():
+    """Static check: no API value reaches innerHTML unescaped."""
+    import re
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parents[1] / "src/regista/static/viewer.html").read_text()
+    assert "const esc = " in html
+    for needle in ("${r.title}", "${r.explanation", "${r.verdict.annotator}", "${p.name}", "${team.name}", "${r.review}", "${t.replace("):
+        assert needle not in html, needle
+    assert "esc(r.verdict.annotator)" in html and "esc(r.title)" in html
