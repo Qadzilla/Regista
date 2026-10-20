@@ -6,6 +6,10 @@ Paste the block below as a single message. It assumes the session is in `~/Deskt
 
 I'm away for about one hour. Work continuously and autonomously until the whole list is done or the hour is up. Do not ask me questions; make reasonable calls, record them in `CLAUDE.md` section 5 if they're open questions, and keep going.
 
+## Before anything else: keep the Mac awake
+
+Call the app's keep-awake tool (`request_keep_awake`) for 75 minutes so the machine does not sleep while you work. If that tool is unavailable or refuses, run `caffeinate -dims -t 4500` in the background with the Bash tool and confirm it is running. Do this before the first file edit.
+
 ## Guardrails (absolute)
 
 - Do not create, modify, or pay for any Azure resource, and do not make any call that needs an Azure or Foundry key. Design for them; don't provision them.
