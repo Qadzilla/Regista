@@ -1,5 +1,7 @@
 # Touchline — Project Source of Truth
 
+> **Name status:** "Touchline" is the working name. Zaid wants to revisit it; shortlist in section 5.
+
 > **Every touch. Every replay. Every player. Found instantly.**
 >
 > Touchline is an AI system that watches a full 90-minute football broadcast, learns to recognise every player, cuts every moment a chosen player is on the ball (plus every replay and highlight they appear in), labels those moments, and lets you find them through a chatbot: *"find me Pogba doing a nutmeg."*
@@ -65,9 +67,27 @@ Turn **synthetic, football-realistic** event data (passes, shots, tackles, posse
 
 ### 1.5 ⚠️ Data and footage constraint (read before every demo decision)
 
-- The organisers provide **no footage and no dataset**. Section 4.7 of the rules: projects must use synthetic, football-realistic data, and you warrant you hold the rights to any footage you use. The demo video may not contain third-party copyrighted material without permission.
-- **How Touchline stays compliant:** raw broadcast footage we have access to is used **privately** for development and model training. The system's **output is a synthetic event dataset** (touch events, player positions, replay markers, clip labels) which is what we submit, publish, and build the demo on. For the public demo, use footage we have rights to (our own recordings, openly licensed clips, or a synthetic/rendered match) and never commit raw broadcast video to this repo.
+- The organisers provide **no footage and no dataset**. Section 4.7 of the rules: projects must use synthetic, football-realistic data, and you warrant you hold the rights to any footage you use. The demo video may not contain third-party copyrighted material without permission, and judges may score from the video alone. The Premier League helps judge and is the rights holder for Premier League broadcasts, so its feed must never appear in the submission without a written licence.
 - "Optimised synthetic data creation" is scored under Technological Implementation, so the event dataset Touchline generates is a first-class deliverable, not a by-product.
+
+#### Decision: two layers, and the boundary between them is what we submit
+
+1. **Vision layer — private.** Video in, events out: player tracks, possession, camera-cut and replay markers. Trained and tuned on the broadcast footage we have access to, privately. Nothing from this layer is published except code and metrics. Raw footage never enters this repo, the demo video, or any judge-facing artifact.
+2. **Intelligence layer — public.** Events in; clips, labels, and chatbot out. Runs on the synthetic event stream the vision layer emits. The rules describe exactly this pipeline, so the event dataset becomes a headline deliverable.
+
+#### Demo and public-repo footage: options, best first
+
+1. **Build a synthetic match renderer.** Even a simple 2D or Unity-style render of players with kit numbers, a ball, and a director-style feed with cuts and replays. Perfect ground truth for free (easier training) and the strongest answer to the synthetic-data criterion.
+2. **Record our own match.** Phone on a tripod at a pickup, college, or local game. Full rights, real footage, great demo moment. Get consent from any player we identify.
+3. **Creative Commons clips** from Wikimedia Commons or Pexels for short demo segments. Check the exact licence on each clip.
+4. **Pitch-diagram visualisation.** Render tracking output as dots on a pitch, Opta style, with no original pixels. Derived from footage so not zero risk, but far safer than frames, and it demos the intelligence layer well.
+5. **Ask the organisers.** Post on the Innovation Studio platform asking whether licensed clips will be provided or whether Premier League footage may appear in demos. Costs nothing; the answer settles this.
+
+**Avoid:** football video-game footage (publisher copyright) and research datasets such as SoccerNet as demo material (research-only licences; a cash-prize hackathon likely falls outside them).
+
+#### Decision: identification is kit-number-first, not face-first
+
+Azure AI Face identification is a Limited Access service that Microsoft gates and restricts, and biometric identification of real people raises GDPR and similar issues. Microsoft judges will notice. The primary identity signal is **kit number + team colours + tracking continuity**, which is also more robust because faces are tiny in wide broadcast shots and numbers are not. Face recognition, if used at all, is an optional, local, non-Azure boost and never the primary path.
 
 ---
 
@@ -83,7 +103,7 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 
 ### 2.3 Workflow (the general first thought)
 
-1. **Train the model on raw broadcast footage** for spatial and facial recognition, player behaviour, and position on and off the ball at all times.
+1. **Train the model on raw broadcast footage** (privately, vision layer) for spatial recognition, player identity via kit number + team colours + tracking continuity, player behaviour, and position on and off the ball at all times. Face recognition is optional and local only (see 1.5).
 2. **Identify player moments**: every touch, every highlight, every replay.
 3. **Perfect the identification through reinforcement learning with Zaid** in the loop (human feedback on detections).
 4. **Pick one player and cut every clip** where that player is:
@@ -107,10 +127,12 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
+**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream (schema to be defined in `data/synthetic/`). A synthetic match renderer feeds the same contract for the public demo.
+
 | Pipeline stage | What Touchline does | Hero technology (initial pick) |
 |---|---|---|
 | **Ingest** | Pull the broadcast feed, split into frames/segments, detect scene cuts (main view vs replay) | Azure Blob Storage, Azure Functions / Event Grid, Azure AI Video Indexer |
-| **Interpret** | Detect and track players, recognise identity (face, kit number, gait), detect ball possession, emit a **synthetic event stream** | Azure AI Vision, custom models hosted in **Microsoft Foundry**, Cosmos DB or Fabric for the event store |
+| **Interpret** | Detect and track players, recognise identity (kit number OCR + team colours + tracking continuity), detect ball possession, emit the **synthetic event stream** that crosses the private/public boundary | Azure AI Vision (OCR, object detection), custom models hosted in **Microsoft Foundry**, Cosmos DB or Fabric for the event store |
 | **Explain** | Label each clip (nutmeg, dribble, shot...), score "worth watching", explain why | Foundry models + **Microsoft Agent Framework** labelling agent, RL-with-human feedback loop |
 | **Render** | Cut clips with timecodes, produce machine-readable overlays and reels | Azure Container Apps / AKS workers, FFmpeg, Azure Media handling |
 | **Personalize** | Chatbot: natural-language search over labelled clips, per-player reels, multi-language | Foundry Agent + **Azure MCP** tools, Azure AI Speech/Translator, web UI |
@@ -120,7 +142,7 @@ This is the initial mapping. Change it as we learn what is practical in the time
 Distinct agent roles with shared state and handoffs, so the system does something a single agent could not:
 
 - **Ingest Agent** — segments the feed, flags replays and highlights.
-- **Identity Agent** — finds and tracks the chosen player in every frame.
+- **Identity Agent** — finds and tracks the chosen player in every frame using kit number, team colours, and tracking continuity.
 - **Possession Agent** — decides when the tracked player is on the ball.
 - **Clip Agent** — cuts and stores clips per the rules in 2.3 step 4.
 - **Label Agent** — names the event and scores watchability; asks the human when unsure (RL loop).
@@ -141,7 +163,9 @@ Orchestrated with Microsoft Agent Framework; tools exposed via MCP; failure reco
 
 ## 5. Open questions
 
-- Which player-identification approach is feasible in 8 days: face recognition, kit number OCR, tracking + manual seed, or a combination?
-- Which footage do we have rights to use in the public demo?
+- **Name.** "Touchline" is the working name (touchline = edge of the pitch; the product finds every touch). Shortlist to discuss with Zaid: EveryTouch, Reelscout, Kickframe, OnBall. Folder and repo are easy to rename.
+- **Footage rights.** Does the broadcast-server access come with a written licence to use the footage for this, or is it access only? If a licence exists, the demo-video constraint relaxes; the public repo still holds no footage either way.
+- **Organiser answer.** Have we asked on the Innovation Studio platform whether licensed clips will be provided or Premier League footage may appear in demos?
+- **Demo footage pick.** Synthetic renderer, own recorded match, CC clips, pitch-diagram visualisation, or a mix? (See 1.5.)
 - Do we host the chatbot UI as a web app on Azure Container Apps, or keep it simpler for the demo?
 - Team: solo or up to 4?
