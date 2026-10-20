@@ -315,3 +315,18 @@ def test_same_seed_same_match_regardless_of_team_names():
     ea = [(e["t"], e["event_type"], e.get("player_id")) for e in a.events if e["type"] == "event"]
     eb = [(e["t"], e["event_type"], e.get("player_id")) for e in b.events if e["type"] == "event"]
     assert ea == eb
+
+
+def test_schemas_ship_inside_the_package():
+    """Validation must work from an installed package, not only a repo checkout (the container broke on this)."""
+    import tomllib
+    from pathlib import Path
+
+    import regista
+    from regista.schema import CLIPS_SCHEMA, EVENTS_SCHEMA
+
+    pkg = Path(regista.__file__).resolve().parent
+    for path in (EVENTS_SCHEMA, CLIPS_SCHEMA):
+        assert path.exists() and pkg in path.resolve().parents, path
+    data = tomllib.loads((Path(__file__).resolve().parents[1] / "pyproject.toml").read_text())
+    assert "schemas/*.json" in data["tool"]["setuptools"]["package-data"]["regista"]

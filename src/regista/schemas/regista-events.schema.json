@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Qadzilla/Regista/data/synthetic/schema/regista-events.schema.json",
+  "$id": "https://github.com/Qadzilla/Regista/src/regista/schemas/regista-events.schema.json",
   "title": "Regista event stream (vision layer output)",
   "description": "One JSON record per line. The contract between the private vision layer and the public intelligence layer. See data/synthetic/README.md.",
   "oneOf": [

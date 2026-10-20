@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Qadzilla/Regista/data/synthetic/schema/regista-clips.schema.json",
+  "$id": "https://github.com/Qadzilla/Regista/src/regista/schemas/regista-clips.schema.json",
   "title": "Regista clip stream (intelligence layer output)",
   "description": "Clips and labels derived from the event stream for one player. See data/synthetic/README.md for the clip rule.",
   "oneOf": [

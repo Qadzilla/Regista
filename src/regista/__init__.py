@@ -1,7 +1,7 @@
 """Regista: every touch, every replay, every player, found instantly.
 
 Package layout:
-- ``regista.schema``  load and validate the event and clip streams against data/synthetic/schema
+- ``regista.schema``  load and validate the event and clip streams against regista/schemas (shipped in the package)
 - ``regista.synth``   synthetic match generator (football-realistic events with no footage)
 - ``regista.clips``   the clip rule and labelling (intelligence layer reference implementation)
 """

@@ -13,7 +13,7 @@ Regista turns a football broadcast into a searchable library of one player's mom
                                 the EVENT STREAM ─────┤  ◀── synthetic generator feeds the same stream
                                                       │      (demo profile for reels, realistic for stats)
                                                  the boundary:
-                                     data/synthetic/schema/*.schema.json
+                                     src/regista/schemas/*.schema.json   
 ```
 
 ## The contract

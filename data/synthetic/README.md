@@ -8,11 +8,12 @@ This folder defines the **boundary between Regista's two layers** (see `CLAUDE.m
 Nothing that crosses this boundary contains a pixel of footage. A synthetic match generator produces the same stream from no footage at all, which is what powers the public demo.
 
 ```
+src/regista/schemas/               shipped inside the package, so any install can validate
+├── regista-events.schema.json        vision-layer output (match, camera_segment, track, appearance, possession, event, annotation)
+└── regista-clips.schema.json         intelligence-layer output (clip, label)
+
 data/synthetic/
 ├── README.md                          this document
-├── schema/
-│   ├── regista-events.schema.json     vision-layer output (match, camera_segment, track, appearance, possession, event, annotation)
-│   └── regista-clips.schema.json      intelligence-layer output (clip, label)
 └── sample/<match_id>/
     ├── events.jsonl                   everything except tracks, sorted by t (match header first)
     ├── tracks.jsonl                   sampled positions, sorted by t (large; sampled at --track-hz)

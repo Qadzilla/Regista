@@ -60,3 +60,7 @@ docs/demo/
 **/agents/trace.jsonl
 **/agents/state.json
 **/agents/dead_letter.jsonl
+
+# Python build output
+build/
+*.egg-info/

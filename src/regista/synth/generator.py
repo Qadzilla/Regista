@@ -3,7 +3,7 @@
 Simulates a period of play as a chain of possessions (touches, carries, passes, take-ons,
 shots, tackles, interceptions, set pieces) on a 105x68 m pitch, and a broadcast director
 who cuts away from the main camera for replays, closeups, and crowd shots at dead balls.
-Every record it emits conforms to data/synthetic/schema/regista-events.schema.json.
+Every record it emits conforms to regista/schemas/regista-events.schema.json.
 
 Deterministic for a given seed. Tunable with ``minutes`` and ``track_hz``.
 """

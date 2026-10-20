@@ -36,7 +36,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-regista = ["static/*.html"]
+regista = ["static/*.html", "schemas/*.json"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

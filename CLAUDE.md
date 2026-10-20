@@ -127,7 +127,7 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
-**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `data/synthetic/schema/`** (schema version 0.1.0). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
+**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.1.0). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
 
 ### 3.0 Code layout and how to run it
 
@@ -154,7 +154,7 @@ src/regista/render/          2D broadcast renderer: scene.py (interpolation, cap
                              draw.py (pitch, players, replays, closeups, crowd, end card, HUD), video.py
                              (parallel MP4 parts + ffmpeg concat), clips.py (per-clip videos, best-first reel)
 data/synthetic/README.md     the contract, record by record
-data/synthetic/schema/       regista-events.schema.json, regista-clips.schema.json
+src/regista/schemas/        regista-events.schema.json, regista-clips.schema.json (package data)
 data/synthetic/sample/       committed sample match (seed 294: home #9 scores, nutmegs a defender, replays, closeup, highlights)
 tests/test_synthetic.py      schema + generator + clip rule must agree
 ```
