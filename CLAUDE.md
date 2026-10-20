@@ -249,6 +249,26 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - Cosmos DB still holds 16 clip and 16 label documents from before ids became player-scoped (`cl_000001` / `lb_000001` style): 11 of each for `syn_0294` and 5 of each for `syn_0141`. They are stale duplicates; delete them only with Zaid's go-ahead.
 - Tear down after judging: `./infra/provision.sh --destroy`.
 
+## 4.2 Where we are and what's next (update at the end of every work session)
+
+**As of 2026-10-20, evening.** `main` is at the latest pushed commit; CI (tests, then image build) is green; the live app runs image 285ba93 (no app-facing change since, so no redeploy was needed). 158 tests pass.
+
+**Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.76, precision 0.94; docs/vision.md).
+
+**Audited 2026-10-20** by independent agents; every finding was fixed or is listed below. The full record is in commits 6d1a870 and d1de317.
+
+**Waiting on Zaid:**
+- Footage: our own consenting match (§1.5), recording planned for about 2026-10-23. Bring: video files, the team sheet (name, number, team), notes of key moments. Then: label, retrain the shot model on that format, run vision end to end, cut the demo.
+- Go-ahead to delete 16 stale clip + 16 label docs in Cosmos (old-style ids).
+- Go-ahead to harden auth: registry pull by managed identity (AcrPull) and local auth off on Cosmos DB and AI Search.
+- First real Keep/Drop verdicts in the viewer.
+
+**Next build work, in order (not blocked on footage):**
+1. Make the hero tech visible on the live app: list matches from Cosmos (filter stale ids), a read-only, rate-limited "Ask the Librarian (Foundry)" path showing tools used, check that azmcp and tracing work inside the container. A session for this was proposed but failed to start (sign-in expired); retry it.
+2. Event spotting in the vision layer (passes, shots, tackles, nutmegs), so vision-derived clips get labels, not only reasons.
+3. Vision for real footage: frame sampling inside ffmpeg with gap-normalised motion features, a person detector instead of discs, a real homography; designed now, trained when the footage arrives.
+4. Demo video (docs/demo-storyboard.md needs a rewrite around the real match), pitch text, make the repo public before 2026-10-27.
+
 ## 5. Open questions
 
 - **Decided 2026-10-19 (unsupervised run):** the renderer uses the ffmpeg bundled in the `imageio-ffmpeg` wheel (pip, no system install); the featured sample player is the home 9 (seed 294) because a goal by the 10 is a one-in-eighty event in the simulator; the generator keeps a `demo` profile for dense 3-minute samples and a `realistic` profile for statistics; placeholder annotations are `source: synthetic` + `simulates: human`, never claimed as real review; the FastAPI service is the deployable unit and the Dockerfile is unbuilt on this machine (no docker).
