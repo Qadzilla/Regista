@@ -1,8 +1,10 @@
-# Touchline
+# Regista
 
-**Every touch. Every replay. Every player. Found instantly.**
+**Regista directs every touch.** Every touch. Every replay. Every player. Found instantly.
 
-Touchline is an AI system for the Microsoft × Premier League **Inside the Game: Developer Hackathon** (October 2026). It watches a full 90-minute football broadcast, learns to recognise players, cuts every moment a chosen player is on the ball plus every replay and highlight they appear in, labels those moments, and lets you find them through a chatbot:
+*Regista* (Italian, "director"): the deep-lying playmaker who sees the whole pitch and directs every move, and the word for a film director. Both meanings are the product.
+
+Regista is an AI system for the Microsoft × Premier League **Inside the Game: Developer Hackathon** (October 2026). It watches a full 90-minute football broadcast, learns to recognise players, cuts every moment a chosen player is on the ball plus every replay and highlight they appear in, labels those moments, and lets you find them through a chatbot:
 
 > "Find me Pogba doing a nutmeg."
 

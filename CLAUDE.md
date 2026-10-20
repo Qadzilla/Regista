@@ -1,10 +1,10 @@
-# Touchline — Project Source of Truth
+# Regista — Project Source of Truth
 
-> **Name status:** "Touchline" is the working name. Zaid wants to revisit it; shortlist in section 5.
+> **Name:** *Regista* (Italian: "director"). In football, the regista is the deep-lying playmaker who sees the whole pitch and directs every move. In cinema, the regista is the film director. Regista directs every touch.
 
-> **Every touch. Every replay. Every player. Found instantly.**
+> **Regista directs every touch.** Every touch. Every replay. Every player. Found instantly.
 >
-> Touchline is an AI system that watches a full 90-minute football broadcast, learns to recognise every player, cuts every moment a chosen player is on the ball (plus every replay and highlight they appear in), labels those moments, and lets you find them through a chatbot: *"find me Pogba doing a nutmeg."*
+> Regista is an AI system that watches a full 90-minute football broadcast, learns to recognise every player, cuts every moment a chosen player is on the ball (plus every replay and highlight they appear in), labels those moments, and lets you find them through a chatbot: *"find me Pogba doing a nutmeg."*
 
 This file is the heart and soul of the project. It is the first general thought, not the final idea; we will improve it over time. Update it whenever the idea, the architecture, or the hackathon strategy changes. Claude reads this at the start of every session.
 
@@ -63,12 +63,12 @@ A project can win **one Grand Prize and one Category Prize**.
 
 ### 1.4 The challenge, in the organisers' words
 
-Turn **synthetic, football-realistic** event data (passes, shots, tackles, possession changes, pressure events, match metadata) into explainable match intelligence, real-time narratives, and automated recaps for studio, broadcast, or streaming, personalised per fan. Expected pipeline: **Ingest → Interpret → Explain → Render → Personalize**. "Auto-eventing from a video feed" and "player identification" are explicitly listed as suggested features, which is exactly what Touchline does. A metrics-only or personalisation-only project is considered incomplete.
+Turn **synthetic, football-realistic** event data (passes, shots, tackles, possession changes, pressure events, match metadata) into explainable match intelligence, real-time narratives, and automated recaps for studio, broadcast, or streaming, personalised per fan. Expected pipeline: **Ingest → Interpret → Explain → Render → Personalize**. "Auto-eventing from a video feed" and "player identification" are explicitly listed as suggested features, which is exactly what Regista does. A metrics-only or personalisation-only project is considered incomplete.
 
 ### 1.5 ⚠️ Data and footage constraint (read before every demo decision)
 
 - The organisers provide **no footage and no dataset**. Section 4.7 of the rules: projects must use synthetic, football-realistic data, and you warrant you hold the rights to any footage you use. The demo video may not contain third-party copyrighted material without permission, and judges may score from the video alone. The Premier League helps judge and is the rights holder for Premier League broadcasts, so its feed must never appear in the submission without a written licence.
-- "Optimised synthetic data creation" is scored under Technological Implementation, so the event dataset Touchline generates is a first-class deliverable, not a by-product.
+- "Optimised synthetic data creation" is scored under Technological Implementation, so the event dataset Regista generates is a first-class deliverable, not a by-product.
 
 #### Decision: two layers, and the boundary between them is what we submit
 
@@ -91,11 +91,11 @@ Azure AI Face identification is a Limited Access service that Microsoft gates an
 
 ---
 
-## 2. What Touchline is
+## 2. What Regista is
 
 ### 2.1 Purpose
 
-Content creation and ease of finding significant moments and clips. Highlight reels and edits are everywhere and are the craze; Touchline makes that process easier. It also serves scouting: a scout can find **every moment a player is on the ball** across a full match, or a season, in seconds.
+Content creation and ease of finding significant moments and clips. Highlight reels and edits are everywhere and are the craze; Regista makes that process easier. It also serves scouting: a scout can find **every moment a player is on the ball** across a full match, or a season, in seconds.
 
 ### 2.2 Input
 
@@ -123,13 +123,13 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 
 ---
 
-## 3. How Touchline maps to the hackathon pipeline and hero tech
+## 3. How Regista maps to the hackathon pipeline and hero tech
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
 **Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream (schema to be defined in `data/synthetic/`). A synthetic match renderer feeds the same contract for the public demo.
 
-| Pipeline stage | What Touchline does | Hero technology (initial pick) |
+| Pipeline stage | What Regista does | Hero technology (initial pick) |
 |---|---|---|
 | **Ingest** | Pull the broadcast feed, split into frames/segments, detect scene cuts (main view vs replay) | Azure Blob Storage, Azure Functions / Event Grid, Azure AI Video Indexer |
 | **Interpret** | Detect and track players, recognise identity (kit number OCR + team colours + tracking continuity), detect ball possession, emit the **synthetic event stream** that crosses the private/public boundary | Azure AI Vision (OCR, object detection), custom models hosted in **Microsoft Foundry**, Cosmos DB or Fabric for the event store |
@@ -163,7 +163,6 @@ Orchestrated with Microsoft Agent Framework; tools exposed via MCP; failure reco
 
 ## 5. Open questions
 
-- **Name.** "Touchline" is the working name (touchline = edge of the pitch; the product finds every touch). Shortlist to discuss with Zaid: EveryTouch, Reelscout, Kickframe, OnBall. Folder and repo are easy to rename.
 - **Footage rights.** Does the broadcast-server access come with a written licence to use the footage for this, or is it access only? If a licence exists, the demo-video constraint relaxes; the public repo still holds no footage either way.
 - **Organiser answer.** Have we asked on the Innovation Studio platform whether licensed clips will be provided or Premier League footage may appear in demos?
 - **Demo footage pick.** Synthetic renderer, own recorded match, CC clips, pitch-diagram visualisation, or a mix? (See 1.5.)
