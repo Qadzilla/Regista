@@ -9,7 +9,7 @@ name: build-image
 on:
   push:
     branches: [main]
-    paths: ["src/**", "data/synthetic/**", "Dockerfile", "pyproject.toml", "README.md", "LICENSE", ".github/workflows/build-image.yml"]
+    paths: ["src/**", "data/synthetic/**", "Dockerfile", ".dockerignore", "pyproject.toml", "README.md", "LICENSE", ".github/workflows/build-image.yml"]
   workflow_dispatch:
 
 jobs:
