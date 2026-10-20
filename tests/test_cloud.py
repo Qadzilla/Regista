@@ -67,8 +67,8 @@ def test_foundry_label_agent_uses_model_output_validated(match_dir):
     seen = []
 
     async def runner(instructions, prompt):
-        seen.append(json.loads(prompt))
-        p = json.loads(prompt)
+        seen.append(json.loads(prompt.split("\n\n")[0]))
+        p = json.loads(prompt.split("\n\n")[0])
         return json.dumps({"title": f"{p['player']['name']} ({p['player']['kit_number']}): model title",
                            "tags": ["goal", "made_up_tag", "Skill Move"], "watchability": 1.7,
                            "summary": "A commentator line.", "explanation": "Scored high because of the goal."})
@@ -101,6 +101,19 @@ def test_foundry_label_agent_falls_back_per_clip(match_dir):
     models = {lb["model"] for lb in labels}
     assert models == {"foundry:test", "rules-v0 (foundry fallback)"}
     assert any("fell back" in n for n in result.state["label_notes"][PLAYER])
+
+
+def test_clip_prompt_mentions_json_for_json_mode(match_dir):
+    """The Responses API rejects json_object output unless the input itself says 'json'."""
+    from regista.clips import StreamIndex, cut_clips, label_clips
+    from regista.cloud.foundry import clip_prompt
+    from regista.schema import iter_jsonl
+
+    index = StreamIndex.build(list(iter_jsonl(match_dir / "events.jsonl")))
+    clips = cut_clips(index, PLAYER)
+    prompt = clip_prompt(index, clips[0], label_clips(index, clips[:1])[0])
+    assert "json" in prompt.lower()
+    json.loads(prompt.split("\n\n")[0])  # the structured part is still valid JSON
 
 
 def test_validate_label_keeps_reason_and_vocabulary():

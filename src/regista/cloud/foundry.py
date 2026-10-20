@@ -105,7 +105,7 @@ def clip_prompt(index: StreamIndex, clip: Record, prior: Record) -> str:
         "events": events,
         "prior_label": {"title": prior["title"], "tags": prior["tags"], "watchability": prior["watchability"]},
         "allowed_tags": sorted(ALLOWED_TAGS),
-    }, ensure_ascii=False)
+    }, ensure_ascii=False) + "\n\nRespond with JSON only."  # JSON mode requires the word 'json' in the input, not only the instructions
 
 
 def validate_label(out: LabelOut, prior: Record) -> tuple[LabelOut, list[str]]:
