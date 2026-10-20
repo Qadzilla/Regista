@@ -199,7 +199,7 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - **Label Agent** — names the event and scores watchability; asks the human when unsure (RL loop).
 - **Librarian Agent** — chatbot interface; translates "Pogba nutmeg" into a query over the clip index and returns clips.
 
-**Status:** a local, rule-based v0 of this pipeline exists in `src/regista/agents/` (roles Ingest, Validator, Possession, Clip, Label, Persist, Librarian; the Identity role belongs to the private vision layer and is played by the generator for the demo). It has distinct roles with declared inputs and outputs, shared state handed along, retries, a per-attempt trace, and a dead-letter file; downstream agents are skipped, not crashed, when an upstream one fails. The Microsoft Agent Framework version keeps the same roles, state keys, and trace, swapping the rule-based Label and Librarian agents for Foundry-backed ones once Azure exists. Tools are exposed today through `regista.mcp_server` (local MCP, stdio).
+**Status (2026-10-20):** the Label and Librarian roles run on Microsoft Foundry (`gpt-5-mini`) through Microsoft Agent Framework, the Librarian calling Regista's MCP server as its tool, and the Persist role writes to Cosmos DB; `python3 -m regista.agents … --cloud` and uploads on the live app use them. Previously: a local, rule-based v0 of this pipeline exists in `src/regista/agents/` (roles Ingest, Validator, Possession, Clip, Label, Persist, Librarian; the Identity role belongs to the private vision layer and is played by the generator for the demo). It has distinct roles with declared inputs and outputs, shared state handed along, retries, a per-attempt trace, and a dead-letter file; downstream agents are skipped, not crashed, when an upstream one fails. The Microsoft Agent Framework version keeps the same roles, state keys, and trace, swapping the rule-based Label and Librarian agents for Foundry-backed ones once Azure exists. Tools are exposed today through `regista.mcp_server` (local MCP, stdio).
 
 ---
 
@@ -211,6 +211,14 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - Do not claim GitHub Copilot Agent Mode (or any tool) in the pitch unless it was genuinely used and the evidence exists.
 - Keep the README demo-ready: a judge should be able to understand and run the project from it.
 - The demo video is under 2 minutes. Design features so they demo well in that window.
+
+## 4.1 Azure (live since 2026-10-20)
+
+- Subscription: Azure free trial on Zaid's account ($200 credit, 30 days, ends about **2026-11-19**). The rules require the demo to stay reachable free of charge until judging ends **2026-11-10**, so the trial covers judging with about a week to spare. Do not upgrade to pay-as-you-go without asking Zaid.
+- Resource group `regista-rg`, East US: Foundry resource + project `regista` + `gpt-5-mini` deployment; Container Apps env `regista-env` + app `regista-api`; Container Registry (Basic). **Cosmos DB is in East US 2** because East US had no capacity.
+- The free trial blocks ACR Tasks, so `az containerapp up --source` and `az acr build` fail. The image builds on GitHub Actions (`.github/workflows/build-image.yml`, secrets ACR_LOGIN_SERVER/USERNAME/PASSWORD) and deploys with `infra/deploy-app.sh` (pin `IMAGE=...:<sha>`).
+- Auth is keyless everywhere (Entra ID roles). `.env` holds endpoints only and is git-ignored.
+- Tear down after judging: `./infra/provision.sh --destroy`.
 
 ## 5. Open questions
 
