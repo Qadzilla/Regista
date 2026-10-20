@@ -139,6 +139,11 @@ src/regista/validate.py      CLI validator
 src/regista/librarian.py     the Librarian: plain-English clip search (player, tags, minutes, replays), no cloud
 src/regista/mcp_server.py    MCP server exposing search_clips, derive_clips, validate_stream, render_clip, list_matches
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
+src/regista/api.py           FastAPI service: viewer at /, matches, clips with filters, search, on-demand MP4, upload → pipeline
+src/regista/static/viewer.html the clip viewer (player header, tag chips, watchability-sorted grid, search box)
+Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (not built here: no docker)
+docs/architecture.md         two layers, the seven roles mapped to Agent Framework, MCP tools, Azure per stage (planned)
+docs/demo-storyboard.md      shot-by-shot plan for the sub-2-minute video, voiceover, what is named on screen
 src/regista/agents/          multi-agent pipeline v0: Ingest, Validator, Possession, Clip, Label, Persist, Librarian roles with
                              declared inputs/outputs, shared state, orchestrator with retries, trace.jsonl, dead_letter.jsonl
 src/regista/camera.py        the main-camera model shared by generator and renderer (what is in frame)
@@ -162,6 +167,8 @@ python3 -m regista.mcp_server --list-tools        # or without the flag: stdio M
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
+uvicorn regista.api:app          # viewer at http://localhost:8000, OpenAPI at /docs
+docker build -t regista . && docker run -p 8000:8000 regista
 ```
 
 `docs/demo/` is git-ignored rendered output. The renderer uses the ffmpeg bundled in the `imageio-ffmpeg` pip package, so no system install is needed; without it, output falls back to GIF.
@@ -205,5 +212,5 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - **Footage rights.** Does the broadcast-server access come with a written licence to use the footage for this, or is it access only? If a licence exists, the demo-video constraint relaxes; the public repo still holds no footage either way.
 - **Organiser answer.** Have we asked on the Innovation Studio platform whether licensed clips will be provided or Premier League footage may appear in demos?
 - **Demo footage pick.** The 2D renderer now produces broadcast-style video from the synthetic stream (`python -m regista.render`), which is footage we own outright. Still open: whether to add our own recorded match or CC clips on top for realism.
-- Do we host the chatbot UI as a web app on Azure Container Apps, or keep it simpler for the demo?
+- Hosting: the FastAPI service + viewer is container-ready (Dockerfile); deploying it to Azure Container Apps is the first Azure step once resources exist.
 - Team: solo or up to 4?
