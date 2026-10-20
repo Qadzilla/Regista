@@ -28,7 +28,19 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 
 ## Microsoft and Azure technologies
 
-**Planned, not yet wired** (no Azure resources exist yet): Microsoft Foundry, Microsoft Agent Framework, Azure MCP, Azure AI Vision and Video Indexer, Azure AI Speech and Translator, Azure Cosmos DB / Microsoft Fabric, Azure Container Apps, Azure Functions. What runs today runs locally with no cloud dependency; see Status.
+**Running in Azure today** (resource group `regista-rg`, provisioned by `infra/provision.sh`):
+
+| Technology | What it does in Regista |
+|---|---|
+| **Microsoft Foundry** (project `regista`, `gpt-5-mini` deployment) | The Label agent titles, tags, scores, and explains every clip; the Librarian agent answers questions. Sample output: `docs/evidence/foundry-labels-syn_0294.jsonl` |
+| **Microsoft Agent Framework** | Hosts both Foundry agents; the Librarian calls Regista's own MCP server as a tool |
+| **MCP** | `regista.mcp_server` exposes search_clips, derive_clips, validate_stream, render_clip, list_matches |
+| **Azure Cosmos DB** (serverless, `matches` / `clips` / `labels`, partition `/match_id`) | The Persist agent upserts every match, clip, and label |
+| **Azure Container Apps** | Serves the viewer and API; uploads run the cloud agent pipeline under the app's managed identity |
+| **Azure Container Registry + GitHub Actions** | `build-image.yml` builds the image on every push to main |
+| **Microsoft Entra ID** | Keyless auth everywhere: Foundry User and Cosmos DB data-contributor roles for the developer and the app |
+
+**Planned, not wired:** Azure MCP Server, Microsoft Fabric (Eventstream, Lakehouse), Azure AI Search, Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator.
 
 ## Quickstart
 
@@ -55,7 +67,7 @@ The generator also does two halves (`--periods 2`), custom clubs (`--home "Name,
 
 ## Status
 
-Day 1. Everything below runs locally with no cloud dependency: the event-stream contract (schema-validated), a synthetic generator with a demo profile and a realistic profile that sits inside Premier League per-90 bands, the clip rule and labeller, a 2D broadcast renderer and clip cutter, the Librarian, an MCP server, and a v0 multi-agent pipeline with retries and dead letters. Also local: a FastAPI service with the clip viewer and a Dockerfile for it. See `docs/architecture.md` for how each piece maps to Azure and `docs/demo-storyboard.md` for the video plan. Not yet: any Azure or Foundry service, the private vision layer, the demo video itself.
+Day 1. Everything below runs locally with no cloud dependency: the event-stream contract (schema-validated), a synthetic generator with a demo profile and a realistic profile that sits inside Premier League per-90 bands, the clip rule and labeller, a 2D broadcast renderer and clip cutter, the Librarian, an MCP server, and a v0 multi-agent pipeline with retries and dead letters. Also local: a FastAPI service with the clip viewer and a Dockerfile for it. See `docs/architecture.md` for how each piece maps to Azure and `docs/demo-storyboard.md` for the video plan. In Azure: Foundry labelling and Q&A through Agent Framework, Cosmos DB persistence, and the service on Container Apps (see the table above; `python3 -m regista.agents … --cloud` runs the cloud pipeline locally against the same resources). Not yet: the private vision layer, the demo video itself.
 
 ## Licence
 

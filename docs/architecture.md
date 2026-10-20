@@ -55,36 +55,36 @@ What the orchestrator guarantees, and the tests prove: distinct roles with decla
 
 Any MCP host can drive Regista with these: Copilot Agent Mode in VS Code, a Microsoft Agent Framework agent, or Claude. Azure MCP Server sits beside it for the Azure-side resources (Cosmos DB, Blob, Fabric) once they exist.
 
-## Services per pipeline stage (planned; nothing below runs yet)
+## Services per pipeline stage
 
-| Stage | Component today | Azure target |
+**Running** marks what code calls in Azure today; everything else is planned.
+
+| Stage | Running today | Planned next |
 |---|---|---|
-| Ingest | file read | Blob Storage for feeds; Azure Functions + Event Grid to trigger; Azure AI Video Indexer for scene cuts |
-| Interpret | synthetic generator | Azure AI Vision (detection, OCR for kit numbers) and custom tracking models in Microsoft Foundry; event stream to Event Hubs → Fabric Eventstream → Lakehouse |
-| Explain | `label_clips` | Foundry-hosted model behind the Label agent; evaluation with Foundry evals against human annotations |
-| Render | `regista.render` | Azure Container Apps job workers (CPU), output to Blob; the service's on-demand render cache becomes Blob + CDN |
-| Personalize | Librarian, viewer, API | Foundry agent + Agent Framework orchestration; Azure AI Search over labels; Azure AI Translator and Speech for languages; viewer on Container Apps |
+| Ingest | file read of `events.jsonl`; API upload on Container Apps (**running**) | Blob Storage for feeds; Functions + Event Grid triggers; AI Video Indexer for scene cuts |
+| Interpret | synthetic generator (local) | AI Vision (detection, kit-number OCR) and tracking models in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
+| Explain | `FoundryLabelAgent`: `gpt-5-mini` on **Microsoft Foundry** via **Agent Framework**, rules-v0 as prior and fallback (**running**) | Foundry evaluations against human annotations from the review tool |
+| Render | `regista.render` inside the Container Apps service, on-demand with a local cache (**running**) | Container Apps jobs for batch renders; Blob + CDN for the cache |
+| Persist | `CosmosPersistAgent`: **Cosmos DB** serverless, `matches` / `clips` / `labels` (**running**) | AI Search index over labels |
+| Personalize | `FoundryLibrarianAgent` on Foundry calling Regista's **MCP** server; viewer and API on **Container Apps** (**running**) | Azure MCP Server for Azure-side tools; AI Translator and Speech for languages |
 
-## Demo deployment on Azure Container Apps (planned)
+## Deployment on Azure Container Apps (running)
 
 ```
-Container Apps environment
-├── regista-api        image from Dockerfile; uvicorn regista.api:app; 1–3 replicas; ingress on :8000
-│                      env REGISTA_DATA=/mnt/data/matches  REGISTA_CACHE=/mnt/data/clips
-├── regista-render     Container Apps job: python -m regista.render / render.clips on queue messages
-└── storage mount      Azure Files share for matches and the clip cache (Blob + CDN later)
-
-Cosmos DB (serverless)   clip / label / match documents, partition key match_id
-Azure AI Search          index over label.title, summary, explanation, tags
-Microsoft Foundry        project with the Label model deployment and the Librarian agent
-Agent Framework          orchestrator hosting the seven roles; MCP client to regista.mcp_server and Azure MCP Server
-Fabric                   Eventstream + Lakehouse for event/possession/segment streams; notebooks for the realism report
+resource group regista-rg (East US; Cosmos DB in East US 2, where capacity was available)
+├── regista-foundry-<id>   Microsoft Foundry resource, project "regista", deployment gpt-5-mini (GlobalStandard)
+├── regista-cosmos-<id>    Cosmos DB serverless, database "regista", containers matches/clips/labels (/match_id)
+├── <registry>acr          Container Registry (Basic); images pushed by GitHub Actions build-image.yml
+├── regista-env            Container Apps environment + Log Analytics workspace
+└── regista-api            Container App: uvicorn regista.api:app on :8000, 1-2 replicas, external ingress,
+                           system-assigned identity with Foundry User (project) and Cosmos data-contributor roles,
+                           env FOUNDRY_PROJECT_ENDPOINT, FOUNDRY_MODEL, REGISTA_COSMOS_ENDPOINT, REGISTA_CLOUD=1
 ```
 
-The container already builds from the `Dockerfile` in the repo root and serves the viewer, the API, on-demand rendering, uploads, and the agent pipeline with no cloud dependency, so the Container Apps step is a deployment, not a rewrite.
+Provision with `infra/provision.sh` (idempotent; writes `.env`), build the image by pushing to `main`, deploy with `infra/deploy-app.sh`. Free-trial subscriptions cannot run ACR Tasks, which is why the image builds on GitHub Actions rather than with `az containerapp up --source`.
 
 ## What is deliberately not here
 
 - No real footage, anywhere. The vision layer is designed and its output contract is enforced, but no model has been trained; the generator stands in for it.
-- No Azure resource exists yet. Every service above is marked planned until code runs against it.
+- Only Foundry, Agent Framework, Cosmos DB, Container Apps, and Container Registry are running. Every other service above is planned until code runs against it.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.

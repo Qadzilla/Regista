@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, Query, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 
 from regista import __version__
@@ -207,10 +208,16 @@ async def upload_match(events: UploadFile = File(...), tracks: UploadFile | None
             agents = agents_for()
         else:
             agents = default_agents()
-        result = Orchestrator(agents, dest / "agents").run({"match_dir": str(dest), "player_ids": players, "queries": []})
+        # The agents are synchronous and may do blocking network calls (Foundry, Cosmos): keep them off the event loop.
+        orchestrator = Orchestrator(agents, dest / "agents")
+        result = await run_in_threadpool(orchestrator.run, {"match_dir": str(dest), "player_ids": players, "queries": []})
         (dest / "manifest.json").write_text(json.dumps({"match_id": mid, "score": header.get("score"), "clips_for": players[0],
                                                         "video_duration_s": header["video"]["duration_s"]}, indent=2))
+        labels = result.state.get("labels", {})
         return {"match_id": mid, "players": players, "clips": {p: len(c) for p, c in result.state.get("clips", {}).items()},
-                "pipeline_ok": result.ok, "statuses": result.statuses}
+                "pipeline_ok": result.ok, "statuses": result.statuses,
+                "label_models": sorted({lb.get("model", "") for ls in labels.values() for lb in ls}),
+                "cosmos": result.state.get("cosmos"),
+                "dead_letters": [{"agent": d["agent"], "error": d["error"]} for d in result.dead_letters]}
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

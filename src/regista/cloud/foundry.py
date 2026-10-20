@@ -34,6 +34,22 @@ from regista.librarian import search_clips
 Record = dict[str, Any]
 Runner = Callable[[str, str], Awaitable[str]]  # (instructions, prompt) -> model text
 
+def run_sync(coro: Awaitable[Any]) -> Any:
+    """Run a coroutine to completion from synchronous agent code, whether or not an event loop is running.
+
+    Agents are synchronous (the orchestrator calls ``handle``), but the API calls the orchestrator from
+    FastAPI's event loop, where ``asyncio.run`` refuses to start. In that case the coroutine runs on a
+    fresh loop in a worker thread."""
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+    import concurrent.futures
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+        return pool.submit(asyncio.run, coro).result()
+
+
 ALLOWED_TAGS = set(TAG_WEIGHTS) | REASON_TAGS | {f"{t}_against" for t in ("goal", "nutmeg", "take_on", "foul")}
 
 LABEL_INSTRUCTIONS = """You are Regista's Label Agent, writing for a football broadcast studio.
@@ -164,7 +180,7 @@ class FoundryLabelAgent(LabelAgent):
         notes: dict[str, list[str]] = {}
         for pid, clips in state["clips"].items():
             priors = label_clips(index, clips, model="rules-v0")
-            labels[pid], notes[pid] = asyncio.run(self._label_all(cloud, index, clips, priors))
+            labels[pid], notes[pid] = run_sync(self._label_all(cloud, index, clips, priors))
         state["labels"] = labels
         state["label_notes"] = notes
         return state
@@ -211,7 +227,7 @@ class FoundryLibrarianAgent(LibrarianAgent):
         for q in state["queries"]:
             structured = search_clips(state["match_dir"], q, self.config.get("limit", 10))
             try:
-                text = asyncio.run(self._answer(cloud, state["match_dir"], q))
+                text = run_sync(self._answer(cloud, state["match_dir"], q))
                 structured["answer"] = text
                 structured["answered_by"] = f"foundry:{cloud.foundry_model}" if self.answerer is None else "foundry:test"
             except Exception as exc:  # noqa: BLE001

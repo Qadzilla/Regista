@@ -156,3 +156,62 @@ def test_cosmos_unconfigured_fails_fast(match_dir, monkeypatch):
     monkeypatch.delenv("REGISTA_COSMOS_ENDPOINT", raising=False)
     with pytest.raises(AgentError):
         ClipStore.connect(CloudConfig())
+
+
+def test_foundry_agents_work_inside_a_running_event_loop(match_dir):
+    """The API runs inside FastAPI's event loop; asyncio.run() there fails and labels were silently lost."""
+    import asyncio
+
+    async def runner(instructions, prompt):
+        return json.dumps({"title": "t", "tags": ["goal"], "watchability": 0.9, "summary": "s", "explanation": "Scored 0.9"})
+
+    async def answerer(md, q):
+        return "answered"
+
+    from regista.agents.roles import PersistAgent
+
+    agents = [IngestAgent(), PossessionAgent(), ClipAgent(), FoundryLabelAgent(runner=runner, cloud=CloudConfig()), PersistAgent(),
+              FoundryLibrarianAgent(answerer=answerer, cloud=CloudConfig())]
+
+    async def inside_loop():
+        # Called synchronously from a coroutine, exactly like a sync helper inside an async endpoint.
+        return Orchestrator(agents, match_dir / "agents").run({"match_dir": str(match_dir), "player_ids": [PLAYER], "queries": ["goal"]})
+
+    result = asyncio.run(inside_loop())
+    assert result.ok, (result.statuses, result.dead_letters)
+    assert all(lb["model"] == "foundry:test" for lb in result.state["labels"][PLAYER])
+    assert result.state["answers"][0]["answer"] == "answered"
+
+
+def test_api_upload_reports_dead_letters(tmp_path, monkeypatch):
+    """A failing cloud agent must be visible in the upload response, not only in the container's files."""
+    from fastapi.testclient import TestClient
+
+    from regista import api
+
+    monkeypatch.setattr(api, "DATA_ROOT", tmp_path / "data")
+    monkeypatch.setattr(api, "CACHE_ROOT", tmp_path / "cache")
+    monkeypatch.setenv("REGISTA_CLOUD", "1")
+    monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://invalid.example/api/projects/x")
+    monkeypatch.setenv("FOUNDRY_MODEL", "nope")
+    monkeypatch.delenv("REGISTA_COSMOS_ENDPOINT", raising=False)
+
+    def broken_agents():
+        from regista.agents.roles import default_agents
+
+        class Broken(FoundryLabelAgent):
+            def handle(self, state):
+                raise AgentError("endpoint unreachable", retryable=False)
+
+        return [Broken(cloud=CloudConfig()) if a.role == "label" else a for a in default_agents()]
+
+    import regista.cloud as cloud_pkg
+
+    monkeypatch.setattr(cloud_pkg, "agents_for", lambda *a, **k: broken_agents())
+    r = generate(seed=7, minutes=0.5)
+    events = "\n".join(json.dumps(x) for x in r.stream) + "\n"
+    with TestClient(api.app) as client:
+        resp = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")}, params={"player": PLAYER})
+    body = resp.json()
+    assert resp.status_code == 201 and body["pipeline_ok"] is False
+    assert body["dead_letters"] == [{"agent": "label", "error": "AgentError: endpoint unreachable"}]
