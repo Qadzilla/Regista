@@ -9,7 +9,8 @@
 # with the Foundry User role on the project and the Cosmos DB data-contributor role, so no keys are
 # stored in the container.
 set -euo pipefail
-set -a; [[ -f .env ]] && source .env; set +a
+. "$(dirname "$0")/lib/dotenv.sh"
+load_dotenv .env   # parsed, never executed: values may contain ';'
 
 : "${RG:=${REGISTA_RESOURCE_GROUP:-regista-rg}}"
 : "${ACA_ENV:=regista-env}"
@@ -49,7 +50,10 @@ if az containerapp show -n "$ACA_APP" -g "$RG" -o none 2>/dev/null; then
   az containerapp registry set -n "$ACA_APP" -g "$RG" --server "$ACR_LOGIN_SERVER" --username "$ACR_USER" --password "$ACR_PASS" -o none
   [[ ${#SECRETS[@]} -gt 0 ]] && az containerapp secret set -n "$ACA_APP" -g "$RG" --secrets "${SECRETS[@]}" -o none
   # One replica: uploaded matches and paused reviews live on the replica's disk.
-  az containerapp update -n "$ACA_APP" -g "$RG" --image "$IMAGE" --set-env-vars "${ENV_VARS[@]}" --min-replicas 1 --max-replicas 1 -o none
+  # A fresh revision on every deploy: secrets are read when a revision starts, so a secret change on an otherwise
+  # unchanged template would leave the running revision on the old value.
+  az containerapp update -n "$ACA_APP" -g "$RG" --image "$IMAGE" --set-env-vars "${ENV_VARS[@]}" --min-replicas 1 --max-replicas 1 \
+    --revision-suffix "d$(date -u +%m%d%H%M%S)" -o none
 else
   log "Creating $ACA_APP from $IMAGE"
   az containerapp create -n "$ACA_APP" -g "$RG" --environment "$ACA_ENV" --image "$IMAGE" \
