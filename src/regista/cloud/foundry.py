@@ -26,29 +26,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from regista.agents.base import AgentError, State
-from regista.agents.roles import LabelAgent, LibrarianAgent
+from regista.aio import run_sync
+from regista.agents.roles import LabelAgent, LibrarianAgent, flag_for_review, learned_model
 from regista.clips import REASON_TAGS, TAG_WEIGHTS, StreamIndex, label_clips, match_minute
 from regista.cloud.config import CloudConfig
 from regista.librarian import search_clips
 
 Record = dict[str, Any]
 Runner = Callable[[str, str], Awaitable[str]]  # (instructions, prompt) -> model text
-
-def run_sync(coro: Awaitable[Any]) -> Any:
-    """Run a coroutine to completion from synchronous agent code, whether or not an event loop is running.
-
-    Agents are synchronous (the orchestrator calls ``handle``), but the API calls the orchestrator from
-    FastAPI's event loop, where ``asyncio.run`` refuses to start. In that case the coroutine runs on a
-    fresh loop in a worker thread."""
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return asyncio.run(coro)
-    import concurrent.futures
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(asyncio.run, coro).result()
-
 
 ALLOWED_TAGS = set(TAG_WEIGHTS) | REASON_TAGS | {f"{t}_against" for t in ("goal", "nutmeg", "take_on", "foul")}
 
@@ -179,7 +164,7 @@ class FoundryLabelAgent(LabelAgent):
         labels: dict[str, list[Record]] = {}
         notes: dict[str, list[str]] = {}
         for pid, clips in state["clips"].items():
-            priors = label_clips(index, clips, model="rules-v0")
+            priors = label_clips(index, clips, model="rules-v0", scorer=learned_model(self.config))
             labels[pid], notes[pid] = run_sync(self._label_all(cloud, index, clips, priors))
         state["labels"] = labels
         state["label_notes"] = notes
@@ -197,8 +182,9 @@ class FoundryLabelAgent(LabelAgent):
                     text = await runner(LABEL_INSTRUCTIONS, clip_prompt(index, clip, prior))
                     out, why = validate_label(LabelOut.parse(text), prior)
                     notes.extend(f"{clip['id']}: {w}" for w in why)
-                    return {**prior, "title": out.title, "tags": out.tags, "watchability": out.watchability, "summary": out.summary,
-                            "explanation": out.explanation, "model": model_name}
+                    revised = {**prior, "title": out.title, "tags": out.tags, "watchability": out.watchability, "summary": out.summary,
+                               "explanation": out.explanation, "model": model_name, "prior_watchability": prior["watchability"]}
+                    return flag_for_review([revised])[0]
                 except Exception as exc:  # noqa: BLE001 - a bad model answer must not lose the clip
                     notes.append(f"{clip['id']}: fell back to rules-v0 ({type(exc).__name__}: {str(exc)[:120]})")
                     return {**prior, "model": "rules-v0 (foundry fallback)"}

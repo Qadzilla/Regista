@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -36,7 +37,7 @@ from regista.schema import SCHEMA_VERSION, events_validator, iter_jsonl
 
 Record = dict[str, Any]
 
-FEEDBACK_DIR = Path("data/feedback")
+FEEDBACK_DIR = Path(os.environ.get("REGISTA_FEEDBACK_DIR", "data/feedback"))  # where real verdicts and the model live
 ANNOTATIONS_FILE = "annotations.jsonl"
 MODEL_FILE = "watchability-model.json"
 MIN_SAMPLES = 8           # fewer verdicts than this and the model refuses to train

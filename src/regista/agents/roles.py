@@ -100,15 +100,41 @@ class LabelAgent(Agent):
     role: str = "label"
     inputs: tuple[str, ...] = ("index", "clips")
     outputs: tuple[str, ...] = ("labels",)
-    description: str = "Tags, titles, scores (watchability) and explains each clip. rules-v0 today; Foundry model later."
+    description: str = ("Tags, titles, scores and explains each clip: the model learned from Zaid's verdicts when one exists, "
+                        "else rules-v0. Flags clips it is unsure about for human review.")
 
     def handle(self, state: State) -> State:
         index: StreamIndex = state["index"]
+        scorer = learned_model(self.config)
         labels: dict[str, list[dict[str, Any]]] = {}
         for pid, clips in state["clips"].items():
-            labels[pid] = label_clips(index, clips, model=self.config.get("model", "rules-v0"))
+            labels[pid] = flag_for_review(label_clips(index, clips, model=self.config.get("model", "rules-v0"), scorer=scorer))
         state["labels"] = labels
         return state
+
+
+def learned_model(config: dict[str, Any]):
+    """The watchability model trained from human verdicts, if one has been trained (config key ``feedback_dir``)."""
+    from regista.feedback import FEEDBACK_DIR, MODEL_FILE, WatchabilityModel
+
+    if config.get("use_learned_model") is False:
+        return None
+    path = Path(config.get("feedback_dir", FEEDBACK_DIR)) / MODEL_FILE
+    model = WatchabilityModel.load(path)
+    return model if model and model.trained else None
+
+
+def flag_for_review(labels: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Mark each label the Label agent is unsure about, with the reason, so the workflow can ask a human."""
+    from regista.feedback import needs_review
+
+    for lb in labels:
+        why = needs_review(lb["watchability"], lb.get("prior_watchability"))
+        if why:
+            lb["review"] = why
+        else:
+            lb.pop("review", None)
+    return labels
 
 
 @dataclass
