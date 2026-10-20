@@ -144,6 +144,9 @@ src/regista/static/viewer.html the clip viewer (player header, tag chips, watcha
 Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (not built here: no docker)
 docs/architecture.md         two layers, the seven roles mapped to Agent Framework, MCP tools, Azure per stage (planned)
 docs/demo-storyboard.md      shot-by-shot plan for the sub-2-minute video, voiceover, what is named on screen
+src/regista/cloud/           Azure wiring: config (.env), FoundryLabelAgent + FoundryLibrarianAgent (Agent Framework,
+                             Regista MCP server as the Librarian's tool), CosmosPersistAgent; agents_for() swaps them in
+infra/provision.sh           az CLI provisioning: Foundry resource + project + model, Cosmos DB serverless, Container Apps
 src/regista/agents/          multi-agent pipeline v0: Ingest, Validator, Possession, Clip, Label, Persist, Librarian roles with
                              declared inputs/outputs, shared state, orchestrator with retries, trace.jsonl, dead_letter.jsonl
 src/regista/camera.py        the main-camera model shared by generator and renderer (what is in frame)
@@ -169,6 +172,7 @@ python3 -m regista.synth.report data/synthetic/sample/syn_0294
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
 uvicorn regista.api:app          # viewer at http://localhost:8000, OpenAPI at /docs
+az login && ./infra/provision.sh # Azure: writes .env; then add --cloud to regista.agents (Foundry + Cosmos)
 docker build -t regista . && docker run -p 8000:8000 regista
 ```
 

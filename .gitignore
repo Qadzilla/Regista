@@ -1,4 +1,4 @@
-# Secrets and local config
+# Secrets and local config (infra/provision.sh writes .env)
 .env
 .env.*
 !.env.example

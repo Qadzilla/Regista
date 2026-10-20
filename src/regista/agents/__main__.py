@@ -20,6 +20,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--query", action="append", default=[], help="question for the Librarian (repeatable)")
     parser.add_argument("--state-dir", type=Path, default=None, help="where trace.jsonl, dead_letter.jsonl, state.json go (default: <match_dir>/agents)")
     parser.add_argument("--max-retries", type=int, default=2)
+    parser.add_argument("--cloud", action="store_true", help="use Foundry (Label, Librarian) and Cosmos DB (Persist) agents from .env / environment")
     args = parser.parse_args(argv)
 
     players = args.player
@@ -31,7 +32,15 @@ def main(argv: list[str] | None = None) -> int:
             players = [json.loads(manifest.read_text()).get("clips_for") or "t_home_09"]
         else:
             players = ["t_home_09"]
-    orchestrator = Orchestrator(default_agents(), args.state_dir or args.match_dir / "agents", max_retries=args.max_retries)
+    if args.cloud:
+        from regista.cloud import CloudConfig, agents_for
+
+        config = CloudConfig.from_env()
+        agents = agents_for(config, require=True)
+        print(f"cloud: {config.describe()}")
+    else:
+        agents = default_agents()
+    orchestrator = Orchestrator(agents, args.state_dir or args.match_dir / "agents", max_retries=args.max_retries)
     result = orchestrator.run({"match_dir": str(args.match_dir), "player_ids": players, "queries": args.query})
     for row in result.trace:
         extra = f"  {row['error']}" if row["error"] else ""
@@ -39,7 +48,7 @@ def main(argv: list[str] | None = None) -> int:
     for pid, clips in result.state.get("clips", {}).items():
         print(f"{pid}: {len(clips)} clips")
     for q, ans in zip(args.query, result.state.get("answers", [])):
-        print(f"Q: {q}\n   {ans['message']}")
+        print(f"Q: {q}\n   {ans.get('answer') or ans['message']}" + (f"   [{ans['answered_by']}]" if ans.get("answered_by") else ""))
         for r in ans["results"][:5]:
             print(f"   {r['clip_id']}  {r['watchability']:.2f}  {r['title']}")
     print(f"trace: {result.state_dir / 'trace.jsonl'}   dead letters: {len(result.dead_letters)}   ok: {result.ok}")

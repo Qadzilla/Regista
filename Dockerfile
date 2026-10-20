@@ -15,7 +15,7 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 COPY data/synthetic ./data/synthetic
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[cloud]"
 
 ENV REGISTA_DATA=/app/data/synthetic/sample \
     REGISTA_CACHE=/app/data/clips \

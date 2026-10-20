@@ -72,7 +72,11 @@ def viewer() -> str:
 
 @app.get("/api/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "version": __version__, "data_root": str(DATA_ROOT), "cache_root": str(CACHE_ROOT)}
+    from regista.cloud import CloudConfig
+
+    cfg = CloudConfig.from_env()
+    return {"ok": True, "version": __version__, "data_root": str(DATA_ROOT), "cache_root": str(CACHE_ROOT),
+            "cloud": {"foundry": cfg.foundry_enabled, "model": cfg.foundry_model if cfg.foundry_enabled else None, "cosmos": cfg.cosmos_enabled}}
 
 
 @app.get("/api/matches")
@@ -197,7 +201,13 @@ async def upload_match(events: UploadFile = File(...), tracks: UploadFile | None
         if tracks is not None:
             (dest / "tracks.jsonl").write_bytes(await tracks.read())
         players = [player] if player else [p["player_id"] for p in header["players"] if p["starter"]][:1]
-        result = Orchestrator(default_agents(), dest / "agents").run({"match_dir": str(dest), "player_ids": players, "queries": []})
+        if os.environ.get("REGISTA_CLOUD"):
+            from regista.cloud import agents_for
+
+            agents = agents_for()
+        else:
+            agents = default_agents()
+        result = Orchestrator(agents, dest / "agents").run({"match_dir": str(dest), "player_ids": players, "queries": []})
         (dest / "manifest.json").write_text(json.dumps({"match_id": mid, "score": header.get("score"), "clips_for": players[0],
                                                         "video_duration_s": header["video"]["duration_s"]}, indent=2))
         return {"match_id": mid, "players": players, "clips": {p: len(c) for p, c in result.state.get("clips", {}).items()},
