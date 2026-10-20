@@ -1,0 +1,325 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Qadzilla/Regista/data/synthetic/schema/regista-events.schema.json",
+  "title": "Regista event stream (vision layer output)",
+  "description": "One JSON record per line. The contract between the private vision layer and the public intelligence layer. See data/synthetic/README.md.",
+  "oneOf": [
+    { "$ref": "#/$defs/match" },
+    { "$ref": "#/$defs/camera_segment" },
+    { "$ref": "#/$defs/track" },
+    { "$ref": "#/$defs/appearance" },
+    { "$ref": "#/$defs/possession" },
+    { "$ref": "#/$defs/event" },
+    { "$ref": "#/$defs/annotation" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^[a-z]{2}_[A-Za-z0-9_.:-]+$" },
+    "ref_id": { "type": "string", "minLength": 1 },
+    "schema_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+    "source": { "type": "string", "enum": ["vision", "synthetic", "human", "derived"] },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "seconds": { "type": "number", "minimum": 0 },
+    "hex_colour": { "type": "string", "pattern": "^#[0-9A-Fa-f]{6}$" },
+    "pitch_point": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 105 },
+        "y": { "type": "number", "minimum": 0, "maximum": 68 }
+      },
+      "required": ["x", "y"],
+      "additionalProperties": false
+    },
+    "bbox": {
+      "type": "object",
+      "properties": {
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "w": { "type": "number", "minimum": 0, "maximum": 1 },
+        "h": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "required": ["x", "y", "w", "h"],
+      "additionalProperties": false
+    },
+    "clock": {
+      "type": "object",
+      "properties": {
+        "period": { "type": "integer", "minimum": 1, "maximum": 5 },
+        "minute": { "type": "integer", "minimum": 0 },
+        "second": { "type": "integer", "minimum": 0, "maximum": 59 }
+      },
+      "required": ["period", "minute", "second"],
+      "additionalProperties": false
+    },
+    "envelope": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "$ref": "#/$defs/id" },
+        "match_id": { "type": "string", "minLength": 1 },
+        "schema_version": { "$ref": "#/$defs/schema_version" },
+        "source": { "$ref": "#/$defs/source" },
+        "confidence": { "$ref": "#/$defs/confidence" }
+      },
+      "required": ["type", "id", "match_id", "schema_version", "source"]
+    },
+
+    "match": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "match" },
+        "competition": { "type": "string" },
+        "season": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "venue": { "type": "string" },
+        "home_team_id": { "type": "string" },
+        "away_team_id": { "type": "string" },
+        "teams": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {
+              "team_id": { "type": "string", "minLength": 1 },
+              "name": { "type": "string" },
+              "short_name": { "type": "string", "maxLength": 4 },
+              "kit": {
+                "type": "object",
+                "properties": {
+                  "primary": { "$ref": "#/$defs/hex_colour" },
+                  "secondary": { "$ref": "#/$defs/hex_colour" },
+                  "gk": { "$ref": "#/$defs/hex_colour" }
+                },
+                "required": ["primary", "gk"],
+                "additionalProperties": false
+              }
+            },
+            "required": ["team_id", "name", "short_name", "kit"],
+            "additionalProperties": false
+          }
+        },
+        "players": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "properties": {
+              "player_id": { "type": "string", "minLength": 1 },
+              "team_id": { "type": "string", "minLength": 1 },
+              "name": { "type": "string" },
+              "kit_number": { "type": "integer", "minimum": 1, "maximum": 99 },
+              "position": { "type": "string", "enum": ["GK", "DF", "MF", "FW"] },
+              "starter": { "type": "boolean" }
+            },
+            "required": ["player_id", "team_id", "name", "kit_number", "position", "starter"],
+            "additionalProperties": false
+          }
+        },
+        "video": {
+          "type": "object",
+          "properties": {
+            "video_id": { "type": "string" },
+            "fps": { "type": "number", "exclusiveMinimum": 0 },
+            "width": { "type": "integer", "minimum": 1 },
+            "height": { "type": "integer", "minimum": 1 },
+            "duration_s": { "$ref": "#/$defs/seconds" },
+            "main_camera": { "type": "string" }
+          },
+          "required": ["video_id", "fps", "width", "height", "duration_s"],
+          "additionalProperties": false
+        },
+        "periods": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "properties": {
+              "period": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "t": { "$ref": "#/$defs/seconds" },
+              "t_end": { "$ref": "#/$defs/seconds" },
+              "left_to_right_team_id": { "type": "string" }
+            },
+            "required": ["period", "t", "t_end", "left_to_right_team_id"],
+            "additionalProperties": false
+          }
+        },
+        "score": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "generator": {
+          "type": "object",
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" },
+            "seed": { "type": "integer" },
+            "params": { "type": "object" }
+          },
+          "required": ["name", "version"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["type", "home_team_id", "away_team_id", "teams", "players", "video", "periods"],
+      "unevaluatedProperties": false
+    },
+
+    "camera_segment": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "camera_segment" },
+        "t": { "$ref": "#/$defs/seconds" },
+        "t_end": { "$ref": "#/$defs/seconds" },
+        "kind": { "type": "string", "enum": ["main", "replay", "highlight", "closeup", "crowd", "bench", "graphic", "other"] },
+        "playback_speed": { "type": "number", "exclusiveMinimum": 0, "maximum": 4 },
+        "replay_of": { "type": "array", "items": { "$ref": "#/$defs/ref_id" } },
+        "replays_window": {
+          "type": "object",
+          "properties": { "t": { "$ref": "#/$defs/seconds" }, "t_end": { "$ref": "#/$defs/seconds" } },
+          "required": ["t", "t_end"],
+          "additionalProperties": false
+        },
+        "angle": { "type": "string" }
+      },
+      "required": ["type", "t", "t_end", "kind", "confidence"],
+      "unevaluatedProperties": false
+    },
+
+    "track": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "track" },
+        "t": { "$ref": "#/$defs/seconds" },
+        "frame": { "type": "integer", "minimum": 0 },
+        "segment_id": { "$ref": "#/$defs/ref_id" },
+        "object": { "type": "string", "enum": ["player", "ball", "referee"] },
+        "track_id": { "type": "string", "minLength": 1 },
+        "player_id": { "type": ["string", "null"] },
+        "team_id": { "type": ["string", "null"] },
+        "pitch": { "$ref": "#/$defs/pitch_point" },
+        "bbox": { "$ref": "#/$defs/bbox" },
+        "speed_kmh": { "type": "number", "minimum": 0 },
+        "identity": {
+          "type": "object",
+          "properties": {
+            "confidence": { "$ref": "#/$defs/confidence" },
+            "evidence": {
+              "type": "array",
+              "items": { "type": "string", "enum": ["kit_number", "team_colour", "continuity", "lineup_prior", "human", "face_local"] }
+            }
+          },
+          "required": ["confidence", "evidence"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["type", "t", "segment_id", "object", "track_id", "bbox", "confidence"],
+      "unevaluatedProperties": false
+    },
+
+    "appearance": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "appearance" },
+        "t": { "$ref": "#/$defs/seconds" },
+        "t_end": { "$ref": "#/$defs/seconds" },
+        "segment_id": { "$ref": "#/$defs/ref_id" },
+        "player_id": { "type": "string", "minLength": 1 },
+        "on_ball": { "type": "boolean" },
+        "prominence": { "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "required": ["type", "t", "t_end", "segment_id", "player_id", "on_ball", "prominence", "confidence"],
+      "unevaluatedProperties": false
+    },
+
+    "possession": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "possession" },
+        "t": { "$ref": "#/$defs/seconds" },
+        "t_end": { "$ref": "#/$defs/seconds" },
+        "player_id": { "type": "string", "minLength": 1 },
+        "team_id": { "type": "string", "minLength": 1 },
+        "gained_by": {
+          "type": "string",
+          "enum": ["pass_received", "interception", "tackle", "loose_ball", "rebound", "set_piece", "kickoff", "goalkeeper_claim", "unknown"]
+        },
+        "lost_by": {
+          "type": "string",
+          "enum": ["pass", "shot", "dispossessed", "tackled", "clearance", "out_of_play", "foul", "period_end", "unknown"]
+        },
+        "touches": { "type": "integer", "minimum": 0 },
+        "pitch": { "$ref": "#/$defs/pitch_point" },
+        "pitch_end": { "$ref": "#/$defs/pitch_point" },
+        "under_pressure": { "type": "boolean" }
+      },
+      "required": ["type", "t", "t_end", "player_id", "team_id", "gained_by", "lost_by", "touches", "confidence"],
+      "unevaluatedProperties": false
+    },
+
+    "event": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "event" },
+        "t": { "$ref": "#/$defs/seconds" },
+        "t_end": { "$ref": "#/$defs/seconds" },
+        "clock": { "$ref": "#/$defs/clock" },
+        "event_type": {
+          "type": "string",
+          "enum": [
+            "touch", "pass", "cross", "carry", "dribble", "take_on", "nutmeg", "skill_move",
+            "shot", "goal", "assist", "save", "block", "header",
+            "tackle", "interception", "clearance", "recovery", "pressure",
+            "foul", "foul_won", "offside", "card_yellow", "card_red", "substitution",
+            "kick_off", "throw_in", "corner", "free_kick", "goal_kick", "penalty",
+            "possession_change", "period_start", "period_end", "injury_stoppage", "var_review"
+          ]
+        },
+        "player_id": { "type": ["string", "null"] },
+        "team_id": { "type": ["string", "null"] },
+        "related_player_id": { "type": ["string", "null"] },
+        "possession_id": { "type": ["string", "null"] },
+        "segment_id": { "type": ["string", "null"] },
+        "pitch": { "$ref": "#/$defs/pitch_point" },
+        "pitch_end": { "$ref": "#/$defs/pitch_point" },
+        "outcome": { "type": "string", "enum": ["success", "fail", "neutral"] },
+        "body_part": { "type": "string", "enum": ["left_foot", "right_foot", "head", "chest", "other"] },
+        "under_pressure": { "type": "boolean" },
+        "qualifiers": { "type": "array", "items": { "type": "string", "pattern": "^[a-z0-9_]+$" } },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "pass_distance_m": { "type": "number", "minimum": 0 },
+            "pass_difficulty": { "type": "number", "minimum": 0, "maximum": 1 },
+            "shot_distance_m": { "type": "number", "minimum": 0 },
+            "shot_speed_kmh": { "type": "number", "minimum": 0 },
+            "ball_speed_kmh": { "type": "number", "minimum": 0 },
+            "xg": { "type": "number", "minimum": 0, "maximum": 1 },
+            "sprint_speed_kmh": { "type": "number", "minimum": 0 },
+            "carry_distance_m": { "type": "number", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "required": ["type", "t", "event_type", "outcome", "confidence"],
+      "unevaluatedProperties": false
+    },
+
+    "annotation": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "annotation" },
+        "t": { "$ref": "#/$defs/seconds" },
+        "target_id": { "$ref": "#/$defs/ref_id" },
+        "target_type": { "type": "string", "enum": ["camera_segment", "track", "appearance", "possession", "event", "clip", "label"] },
+        "verdict": { "type": "string", "enum": ["confirm", "reject", "correct"] },
+        "correction": { "type": "object" },
+        "note": { "type": "string" },
+        "annotator": { "type": "string", "minLength": 1 },
+        "annotated_at": { "type": "string", "format": "date-time" },
+        "source": { "const": "human" },
+        "confidence": { "const": 1 }
+      },
+      "required": ["type", "t", "target_id", "target_type", "verdict", "annotator", "annotated_at", "confidence"],
+      "unevaluatedProperties": false
+    }
+  }
+}

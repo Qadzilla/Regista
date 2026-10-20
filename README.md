@@ -30,9 +30,20 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 
 Initial plan (will evolve): Microsoft Foundry, Microsoft Agent Framework, Azure MCP, Azure AI Vision and Video Indexer, Azure AI Speech and Translator, Azure Cosmos DB / Microsoft Fabric, Azure Container Apps, Azure Functions, GitHub Copilot Agent Mode.
 
+## Quickstart
+
+```bash
+pip install -e ".[dev]"
+python3 -m pytest -q
+python3 -m regista.synth --minutes 3 --seed 109 --player t_home_10 --out data/synthetic/sample
+python3 -m regista.validate data/synthetic/sample/syn_0109
+```
+
+The generator writes `events.jsonl` (match header, camera segments, possessions, events, appearances, human annotations), `tracks.jsonl` (sampled positions), and `clips.jsonl` (the clip rule applied to one player, with labels and watchability scores). The contract is documented in [data/synthetic/README.md](data/synthetic/README.md).
+
 ## Status
 
-Day 0. Project scaffolded; idea and criteria captured in `CLAUDE.md`.
+Day 1. The event-stream contract between the vision layer and the intelligence layer is defined, schema-validated, and exercised end to end by a synthetic match generator and the clip rule. Next: a visual renderer for the synthetic match, then the agents.
 
 ## Licence
 

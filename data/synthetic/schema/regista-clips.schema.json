@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/Qadzilla/Regista/data/synthetic/schema/regista-clips.schema.json",
+  "title": "Regista clip stream (intelligence layer output)",
+  "description": "Clips and labels derived from the event stream for one player. See data/synthetic/README.md for the clip rule.",
+  "oneOf": [
+    { "$ref": "#/$defs/clip" },
+    { "$ref": "#/$defs/label" }
+  ],
+  "$defs": {
+    "id": { "type": "string", "minLength": 1, "pattern": "^[a-z]{2}_[A-Za-z0-9_.:-]+$" },
+    "ref_id": { "type": "string", "minLength": 1 },
+    "seconds": { "type": "number", "minimum": 0 },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "tag": { "type": "string", "pattern": "^[a-z0-9_]+$" },
+    "envelope": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "$ref": "#/$defs/id" },
+        "match_id": { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$" },
+        "source": { "type": "string", "enum": ["derived", "human"] },
+        "confidence": { "$ref": "#/$defs/confidence" }
+      },
+      "required": ["type", "id", "match_id", "schema_version", "source", "confidence"]
+    },
+
+    "clip": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "clip" },
+        "player_id": { "type": "string", "minLength": 1 },
+        "t": { "$ref": "#/$defs/seconds" },
+        "t_end": { "$ref": "#/$defs/seconds" },
+        "segment_ids": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/ref_id" } },
+        "reason": { "type": "string", "enum": ["on_ball_main", "replay_appearance", "highlight_appearance", "closeup_appearance"] },
+        "event_ids": { "type": "array", "items": { "$ref": "#/$defs/ref_id" } },
+        "possession_ids": { "type": "array", "items": { "$ref": "#/$defs/ref_id" } },
+        "keyframe_t": { "$ref": "#/$defs/seconds" },
+        "pre_roll_s": { "$ref": "#/$defs/seconds" },
+        "post_roll_s": { "$ref": "#/$defs/seconds" }
+      },
+      "required": ["type", "player_id", "t", "t_end", "segment_ids", "reason", "event_ids", "keyframe_t"],
+      "unevaluatedProperties": false
+    },
+
+    "label": {
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "label" },
+        "clip_id": { "$ref": "#/$defs/ref_id" },
+        "player_id": { "type": "string", "minLength": 1 },
+        "tags": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/tag" } },
+        "title": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "summary": { "type": "string" },
+        "explanation": { "type": "string" },
+        "watchability": { "$ref": "#/$defs/confidence" },
+        "language": { "type": "string", "pattern": "^[a-z]{2}(-[A-Z]{2})?$" },
+        "model": { "type": "string" }
+      },
+      "required": ["type", "clip_id", "player_id", "tags", "title", "watchability", "language"],
+      "unevaluatedProperties": false
+    }
+  }
+}

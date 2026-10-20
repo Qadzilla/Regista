@@ -1,0 +1,25 @@
+[project]
+name = "regista"
+version = "0.1.0"
+description = "Regista directs every touch. Synthetic football event stream, clip rule, and labelling for the Inside the Game hackathon."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "jsonschema>=4.20",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

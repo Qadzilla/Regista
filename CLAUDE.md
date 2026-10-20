@@ -127,7 +127,28 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
-**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream (schema to be defined in `data/synthetic/`). A synthetic match renderer feeds the same contract for the public demo.
+**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `data/synthetic/schema/`** (schema version 0.1.0). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
+
+### 3.0 Code layout and how to run it
+
+```
+src/regista/schema.py        load + validate JSONL streams by record type
+src/regista/synth/           synthetic match generator (possessions, passes, shots, director cuts, replays)
+src/regista/clips.py         clip rule + first labeller (watchability, tags, explanation)
+src/regista/validate.py      CLI validator
+data/synthetic/README.md     the contract, record by record
+data/synthetic/schema/       regista-events.schema.json, regista-clips.schema.json
+data/synthetic/sample/       committed sample match (seed 109: home #10 scores, a nutmeg, replays)
+tests/test_synthetic.py      schema + generator + clip rule must agree
+```
+
+```bash
+python3 -m pytest -q
+python3 -m regista.synth --minutes 3 --seed 109 --track-hz 1 --player t_home_10 --out data/synthetic/sample
+python3 -m regista.validate data/synthetic/sample/syn_0109
+```
+
+Rule of thumb when extending: change the schema, the generator, the clip rule, and the tests together, then bump `schema_version`.
 
 | Pipeline stage | What Regista does | Hero technology (initial pick) |
 |---|---|---|
@@ -165,6 +186,6 @@ Orchestrated with Microsoft Agent Framework; tools exposed via MCP; failure reco
 
 - **Footage rights.** Does the broadcast-server access come with a written licence to use the footage for this, or is it access only? If a licence exists, the demo-video constraint relaxes; the public repo still holds no footage either way.
 - **Organiser answer.** Have we asked on the Innovation Studio platform whether licensed clips will be provided or Premier League footage may appear in demos?
-- **Demo footage pick.** Synthetic renderer, own recorded match, CC clips, pitch-diagram visualisation, or a mix? (See 1.5.)
+- **Demo footage pick.** Synthetic renderer, own recorded match, CC clips, pitch-diagram visualisation, or a mix? (See 1.5.) The event generator exists; a visual renderer of its output (2D pitch animation) is the natural next step.
 - Do we host the chatbot UI as a web app on Azure Container Apps, or keep it simpler for the demo?
 - Team: solo or up to 4?
