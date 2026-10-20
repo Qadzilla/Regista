@@ -4,19 +4,21 @@
 
 | Fix | Status |
 |---|---|
-| 1. Pipeline as an Agent Framework workflow | **Done.** `regista.agents.workflow`; diagram in `docs/workflow.md`; 10 tests |
+| 1. Pipeline as an Agent Framework workflow | **Done.** `regista.agents.workflow`; diagram in `docs/workflow.md`; 18 tests in `tests/test_workflow.py` |
 | 2. Human in the loop and learning from Zaid | **Done.** Review pause (`request_info`), viewer Keep/Drop, `--review` prompt, review API; verdicts in `data/feedback` and Cosmos DB; model retrains from them. Waiting on Zaid's real verdicts |
 | 3. Azure AI Search behind the Librarian | **Done.** Free service in South Central US, `indexer` role, `search_library` MCP tool |
-| 4. Azure MCP Server | **Done.** Attached to the Foundry Librarian (read-only Cosmos DB and Search tools); seen calling `cosmos_database_container_item_query` |
-| 5. Foundry tracing | **Done.** Application Insights connected to the project; full workflow, agent, model, and tool spans verified |
-| 6. Vision agents | **v0 done on rendered footage.** Shot, identity, possession agents as an Agent Framework workflow; reproduced end to end on held-out matches (clip recall 0.80 and 1.00, precision 1.00). Real broadcast footage, event spotting, and the Azure AI Vision OCR backend are next |
+| 4. Azure MCP Server | **Done.** Attached to the Foundry Librarian (read-only Cosmos DB and Search tools); seen calling `cosmos_database_container_item_query` from local CLI runs, not yet verified inside the container |
+| 5. Foundry tracing | **Done.** Application Insights connected to the project by hand (not by `infra/provision.sh`); full workflow, agent, model, and tool spans verified on local CLI runs |
+| 6. Vision agents | **v0 done on rendered footage.** Shot, identity, possession agents as an Agent Framework workflow; trained and measured only on Regista's rendered broadcast, end to end from video to clips, on a development set (the evaluation matches were used during development, so they are not a held-out test); numbers in `docs/vision.md`. Real broadcast footage, event spotting, and the Azure AI Vision OCR backend (a stub today) are next |
 
 
 Scored against the five equally weighted criteria in CLAUDE.md §1.1, the target category (Best Multi-Agent System), and the product plan in CLAUDE.md §2.3. Each gap names the fix and the hero technology it uses. "Running" means code calls it today.
 
-## Where we stand
+## Where we started (2026-10-20, before the fixes)
 
-| Area | Today | Gap |
+This table is the snapshot the fixes below were planned from. It is kept as written; the Progress table above says what changed.
+
+| Area | Starting point | Gap |
 |---|---|---|
 | Orchestration | Seven roles hand off through a hand-written Python orchestrator with retries, a trace, and dead letters | The category asks for Agent Framework / A2A orchestration. Ours is custom. |
 | Model-backed agents | Label and Librarian run on Microsoft Foundry (gpt-5-mini) through Agent Framework | Five of seven roles are deterministic; the pipeline never asks a human anything |

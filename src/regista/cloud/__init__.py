@@ -1,4 +1,5 @@
-"""Azure wiring for Regista: Microsoft Foundry behind the Label and Librarian agents, Cosmos DB behind Persist.
+"""Azure wiring for Regista: Microsoft Foundry behind the Label and Librarian agents, Cosmos DB behind
+Persist, Azure AI Search behind the indexer role, and Application Insights for tracing (``telemetry``).
 
 Nothing here is required to run Regista locally. Each piece reads its configuration from the
 environment (see ``regista.cloud.config`` and ``.env.example``) and is only selected when it is
@@ -27,7 +28,7 @@ def agents_for(config: CloudConfig | None = None, *, require: bool = False):
 
         agents = [CosmosPersistAgent(cloud=config) if a.role == "persist" else a for a in agents]
     if config.search_enabled:
-        from regista.cloud.search import ClipIndex, SearchIndexAgent
+        from regista.cloud.search import SearchIndexAgent
 
         pos = next(i for i, a in enumerate(agents) if a.role == "persist") + 1
         agents.insert(pos, SearchIndexAgent(clip_index=None))

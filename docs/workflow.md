@@ -32,4 +32,48 @@ flowchart TD
   label --> dead_letter;
   persist --> dead_letter;
   librarian --> dead_letter;
+  review --> dead_letter;
 ```
+
+The graph above is the default local pipeline. The `indexer` node (Azure AI Search) is added after `persist` only when
+`REGISTA_SEARCH_ENDPOINT` is set and the cloud agents are used (`--cloud` with the `.env` that `infra/provision.sh` writes, and uploads on the live app). With it, the graph is:
+
+```mermaid
+flowchart TD
+  ingest["ingest (Start)"];
+  validator["validator"];
+  possession["possession"];
+  clip["clip"];
+  label["label"];
+  review["review"];
+  persist["persist"];
+  indexer["indexer"];
+  librarian["librarian"];
+  finish["finish"];
+  dead_letter["dead_letter"];
+  fan_in__clip__c9c283db((fan-in))
+  possession --> fan_in__clip__c9c283db;
+  validator --> fan_in__clip__c9c283db;
+  fan_in__clip__c9c283db --> clip;
+  ingest --> validator;
+  ingest --> possession;
+  clip --> label;
+  label --> review;
+  review --> persist;
+  persist --> indexer;
+  indexer --> librarian;
+  librarian --> finish;
+  ingest --> dead_letter;
+  validator --> dead_letter;
+  possession --> dead_letter;
+  clip --> dead_letter;
+  label --> dead_letter;
+  persist --> dead_letter;
+  indexer --> dead_letter;
+  librarian --> dead_letter;
+  review --> dead_letter;
+```
+
+The second graph was generated from the same `WorkflowPipeline.mermaid()` with the agents from
+`regista.cloud.agents_for(CloudConfig(search_endpoint=...))`; building it contacts no Azure service.
+`--graph docs/workflow.md` rewrites this file with the first graph only.

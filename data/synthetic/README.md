@@ -37,7 +37,7 @@ python -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 |---|---|
 | Format | JSON Lines, one record per line, UTF-8. Streams cleanly into Azure Event Hubs, Fabric Eventstream, and Cosmos DB. |
 | Envelope | Every record has `type`, `id`, `match_id`, `schema_version`, `source`, and (except `match`) `confidence`. |
-| `id` | Unique within a match. Prefix by type: `ev_`, `po_`, `cs_`, `tr_`, `ap_`, `an_`, `cl_`, `lb_`. |
+| `id` | Unique within a match. Prefix by type: `ev_`, `po_`, `cs_`, `tr_`, `ap_`, `an_`, `cl_`, `lb_`. Since 0.1.1, clip and label ids include the player (`cl_t_home_09_000001`, `lb_t_home_09_000001`), because several players' clips share one `clips.jsonl` and one Cosmos DB partition. |
 | `match_id` | Partition key everywhere (Cosmos DB, Fabric). |
 | `source` | `vision` (from footage), `synthetic` (from the generator), `human` (a person's corrections), `derived` (intelligence layer). |
 | `confidence` | 0–1. Vision and derived records carry real model confidence; synthetic records jitter it so downstream code never assumes 1.0. |
@@ -45,7 +45,7 @@ python -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 | `clock` | Match clock on events: `{period, minute, second}`. Derived from `match.periods`. |
 | Pitch coordinates | Metres, absolute frame: `x` 0–105 along the length, `y` 0–68 along the width, origin at the corner to the main camera's left. Which team attacks toward `x = 105` is in `match.periods[].left_to_right_team_id`. Consumers flip when they need an attacking frame. |
 | Image coordinates | `bbox` is `{x, y, w, h}` normalised 0–1 of the frame, top-left origin. |
-| Versioning | `schema_version` is semver. Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. |
+| Versioning | `schema_version` is semver; the current version is **0.1.1** (`regista.schema.SCHEMA_VERSION`). Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. |
 
 ## Record types (vision layer → `regista-events.schema.json`)
 
@@ -91,7 +91,11 @@ The hackathon brief names passes, shots, tackles, possession changes, pressure e
 
 ### `annotation` — the human-in-the-loop record
 
-A person's feedback on any record: `target_id`, `target_type`, `verdict` (`confirm`, `reject`, `correct`), `correction` (partial fields to overwrite), `note`, `annotator`, `annotated_at`. Annotations are appended, never applied in place, so a training loop can replay them and the audit trail survives. Real ones have `source: human`. **The generator emits placeholders** with `source: synthetic` and `simulates: human` so consumers can see the shape; no person has reviewed synthetic data, and the review tool that would produce real annotations does not exist yet.
+A person's feedback on any record: `target_id`, `target_type`, `verdict` (`confirm`, `reject`, `correct`), `correction` (partial fields to overwrite), `note`, `annotator`, `annotated_at`, and, since 0.1.1, `context`. Annotations are appended, never applied in place, so a training loop can replay them and the audit trail survives.
+
+`context` (optional, added in 0.1.1) is a snapshot of what the reviewer saw: `match_id`, `clip_id`, `player_id`, `reason`, `duration_s`, `tags`, `title`, `model`, `watchability`, `prior_watchability`. It lets `regista.feedback` retrain the watchability model from verdicts alone, without regenerating the match.
+
+Real annotations have `source: human`. They are written by `regista.feedback.record_verdict` when someone answers a review: the viewer's Keep/Drop buttons, the `--review` terminal prompt of `python3 -m regista.agents`, or the API (`POST /api/matches/{id}/review`, `POST /api/matches/{id}/clips/{clip_id}/verdict`). A verdict on a clip targets its `label`; keep is `confirm`, drop is `reject`, and a corrected score or tags is `correct`, with `correction.keep` and any corrected `watchability` or `tags`. Real verdicts are stored in `data/feedback/annotations.jsonl` (or `$REGISTA_FEEDBACK_DIR`), and the API service also keeps them in Cosmos DB. **The generator emits placeholders** with `source: synthetic` and `simulates: human` so consumers can see the shape; no person has reviewed synthetic data, and placeholders are never used for training.
 
 ## Record types (intelligence layer → `regista-clips.schema.json`)
 
@@ -109,13 +113,20 @@ A time range for one player: `t`/`t_end`, `segment_ids`, `reason`, `event_ids`, 
 
 One per clip: `tags` (snake_case; event types and qualifiers plus the clip reason), `title`, `summary`, `explanation` (why it scored what it scored, in plain English), `watchability` (0–1), `language`, `model`. The chatbot searches over labels; the explanation is what makes a result defensible on air.
 
-## Azure mapping (planned, not implemented)
+Added in 0.1.1, both optional:
 
-Nothing below runs today; this is the intended landing zone once Azure resources exist.
+| Field | Meaning |
+|---|---|
+| `prior_watchability` | The `rules-v0` score. When another scorer set `watchability` (the watchability model learned from human verdicts, or a Foundry model), the rules score is kept here; when rules-v0 alone scored the clip, the two are equal. |
+| `review` | Why the Label agent wants a human to look at this clip, when it does: the prior and the model disagree by 0.30 or more, or `watchability` sits on the keep/drop boundary (0.40–0.60). Absent when the clip is not flagged. The workflow's review step pauses on these clips (`regista.feedback.needs_review`). |
 
-| Record | Where it lands |
+## Azure mapping
+
+What runs today (see `docs/architecture.md`): with `--cloud`, and on uploads to the live app, the Persist agent upserts `match`, `clip`, and `label` records into Cosmos DB (database `regista`, containers `matches`, `clips`, `labels`, partition `match_id`), and the indexer role writes every labelled clip into the Azure AI Search index `regista-clips`. The API service keeps human `annotation` records and the learned watchability model in the Cosmos DB container `annotations`. The rest of the event stream (`camera_segment`, `possession`, `event`, `appearance`, `track`) is not stored in Azure.
+
+Planned, not implemented:
+
+| Record | Where it would land |
 |---|---|
 | `camera_segment`, `possession`, `event`, `appearance`, `annotation` | Event Hubs → Fabric Eventstream → Lakehouse table per type; also Cosmos DB (partition `match_id`) for the chatbot's low-latency lookups |
 | `track` | Blob Storage as JSONL/Parquet, loaded to Fabric on demand |
-| `clip`, `label` | Cosmos DB + Azure AI Search index (labels are the searchable text) |
-| `match` | Cosmos DB document, one per match |

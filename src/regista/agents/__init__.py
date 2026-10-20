@@ -1,9 +1,14 @@
-"""Regista's multi-agent pipeline, local and deterministic (v0).
+"""Regista's multi-agent pipeline.
 
-Six roles with distinct inputs and outputs, a shared state they hand along, an orchestrator
-that retries, records a trace, and dead-letters what cannot be recovered. This is the shape
-the Microsoft Agent Framework version keeps: same roles, same state keys, same trace; the
-LLM-backed Label and Librarian agents replace the rule-based ones when Foundry is provisioned.
+The roles (``roles.py``: Ingest, Validator, Possession, Clip, Label, Persist, Librarian) have distinct
+inputs and outputs and hand a shared state along. ``workflow.py`` runs them as a Microsoft Agent Framework
+workflow, the default engine: validator and possession fan out from ingest and fan in at clip, a review
+step pauses for human verdicts (``request_info``, checkpointed), an indexer role is added after persist
+when Azure AI Search is configured, and every role routes failures to a dead-letter executor.
+``orchestrator.py`` is the original hand-written orchestrator, kept as a reference (``--engine orchestrator``)
+with the same trace format. Locally the Label and Librarian roles are rule-based (Label uses the
+watchability model learned from human verdicts when one exists); ``regista.cloud.agents_for`` swaps in
+the Foundry, Cosmos DB, and AI Search variants.
 
     python -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
 """

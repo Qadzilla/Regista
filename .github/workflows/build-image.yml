@@ -1,4 +1,5 @@
-# Build the Regista service image on GitHub's runners and push it to the Azure Container Registry.
+# Run the test suite, then build the Regista service image on GitHub's runners and push it to the Azure
+# Container Registry. A failing test stops the push.
 # Free-trial Azure subscriptions cannot run ACR Tasks (`az containerapp up --source` / `az acr build`),
 # so the image is built here and the container app is pointed at it (see infra/deploy-app.sh).
 #
@@ -9,11 +10,23 @@ name: build-image
 on:
   push:
     branches: [main]
-    paths: ["src/**", "data/synthetic/**", "Dockerfile", ".dockerignore", "pyproject.toml", "README.md", "LICENSE", ".github/workflows/build-image.yml"]
+    paths: ["src/**", "data/synthetic/**", "Dockerfile", ".dockerignore", "pyproject.toml", "tests/**", "README.md", "LICENSE", ".github/workflows/build-image.yml"]
   workflow_dispatch:
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev,vision,cloud]"
+      - run: python -m pytest -q
+
   build:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

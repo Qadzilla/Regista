@@ -74,7 +74,12 @@ if [[ -n "${REGISTA_SEARCH_ENDPOINT:-}" ]]; then
 fi
 if [[ -n "${REGISTA_COSMOS_ENDPOINT:-}" ]]; then
   COSMOS_NAME=$(echo "$REGISTA_COSMOS_ENDPOINT" | sed -E 's#https://([^.]+)\..*#\1#')
-  az cosmosdb sql role assignment create -a "$COSMOS_NAME" -g "$RG" --scope "/" --principal-id "$APP_OID" --role-definition-id "$COSMOS_DATA_CONTRIBUTOR" -o none 2>/dev/null || true
+  # The Cosmos data-plane API accepts duplicate assignments, so only create one when none exists.
+  HAS_COSMOS_ROLE=$(az cosmosdb sql role assignment list -a "$COSMOS_NAME" -g "$RG" \
+    --query "[?principalId=='$APP_OID' && ends_with(roleDefinitionId, '$COSMOS_DATA_CONTRIBUTOR')] | length(@)" -o tsv 2>/dev/null || echo 0)
+  if [[ "${HAS_COSMOS_ROLE:-0}" == "0" ]]; then
+    az cosmosdb sql role assignment create -a "$COSMOS_NAME" -g "$RG" --scope "/" --principal-id "$APP_OID" --role-definition-id "$COSMOS_DATA_CONTRIBUTOR" -o none 2>/dev/null || true
+  fi
 fi
 
 log "Waiting for the new revision to pass its health checks"

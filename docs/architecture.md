@@ -27,19 +27,25 @@ Not a pixel of footage crosses it. The synthetic generator produces the same str
 
 ## The agents
 
-Seven roles run today in `src/regista/agents/` as a deterministic v0. They are the roles from the product design (CLAUDE.md §3.1), minus Identity, which lives in the vision layer and is played by the generator for the demo.
+The pipeline is a Microsoft Agent Framework workflow (`src/regista/agents/workflow.py`), the default engine of `python3 -m regista.agents`. Ingest fans out to Validator and Possession, which fan back in at Clip; then Label, Review, Persist, Indexer (only when `REGISTA_SEARCH_ENDPOINT` is set), Librarian, and a finish step. Every role, and the review step, has an edge to a `dead_letter` executor. The graph is in `docs/workflow.md`. The original hand-written orchestrator is kept as a reference implementation (`--engine orchestrator`).
 
-| Role | Inputs → outputs | Today (rule-based) | With Microsoft Agent Framework + Foundry |
+These are the roles from the product design (CLAUDE.md §3.1). Identity is not among them: it belongs to the vision layer (`src/regista/vision`, see below), and for the public demo the generator plays it.
+
+| Role | Inputs → outputs | Local (default) | With `--cloud` (and on uploads to the live app) |
 |---|---|---|---|
-| **Ingest** | `match_dir` → `stream`, `index`, `match` | reads and indexes `events.jsonl` | same; fed by Event Hubs / Fabric Eventstream instead of a file |
-| **Validator** | `match_dir` → `validation` | JSON Schema validation, blocks on invalid events | same, as a tool the orchestrator calls first |
+| **Ingest** | `match_dir` → `stream`, `index`, `match` | reads and indexes `events.jsonl` | same |
+| **Validator** | `match_dir` → `validation` | JSON Schema validation, blocks on invalid events | same |
 | **Possession** | `index`, `player_ids` → `on_ball` | on-ball windows per player with their camera segment | same |
-| **Clip** | `index`, `player_ids`, `on_ball` → `clips` | the clip rule (`regista.clips.cut_clips`) | same rule; an LLM agent proposes extra cut points (pre-roll by context) |
-| **Label** | `index`, `clips` → `labels` | tags, titles, watchability table, explanation (`rules-v0`) | Foundry model (gpt-4o class) labels and explains; the table becomes a prior; human annotations feed evaluation in Foundry |
-| **Persist** | `match_dir`, `clips`, `labels` → `clips_path` | writes `clips.jsonl` | writes to Cosmos DB (partition `match_id`) and the AI Search index |
-| **Librarian** | `clips_path`, `queries` → `answers` | deterministic parser + ranking (`regista.librarian`) | Foundry agent that calls the `search_clips` MCP tool and talks to the user; multilingual via Azure AI Translator |
+| **Clip** | `index`, `player_ids`, `on_ball` → `clips` | the clip rule (`regista.clips`) | same |
+| **Label** | `index`, `clips` → `labels` | tags, titles, explanation, watchability: the model learned from human verdicts (`regista.feedback`) when one has been trained, else the `rules-v0` table; flags clips it is unsure about | `FoundryLabelAgent`: `gpt-5-mini` on Microsoft Foundry through Agent Framework, with the learned model or `rules-v0` as the prior and the fallback |
+| **Review** | `labels` → verdicts, `review_log` | with `--review` (or `review=true` on upload) the workflow pauses with `request_info` on flagged clips; verdicts are stored as human `annotation` records and retrain the watchability model; checkpointed, so a paused review resumes after a restart | same; in the API service, verdicts and the learned model are also kept in Cosmos DB `annotations` so they survive restarts |
+| **Persist** | `match_dir`, `clips`, `labels` → `clips_path` | writes `clips.jsonl` | `CosmosPersistAgent`: also upserts to Cosmos DB (`matches`, `clips`, `labels`, partition `match_id`) |
+| **Indexer** | `match`, `clips`, `labels` → `search_index` | not in the graph | `SearchIndexAgent`: every labelled clip into the Azure AI Search index `regista-clips` |
+| **Librarian** | `clips_path`, `queries` → `answers` | rule-based parser and ranking (`regista.librarian`) | `FoundryLibrarianAgent`: `gpt-5-mini` calling Regista's MCP server and, when `azmcp` is installed, Microsoft's Azure MCP Server; falls back to the rule-based answer on error |
 
-What the orchestrator guarantees, and the tests prove: distinct roles with declared handoffs (`missing inputs` is a recorded skip, not a crash), shared state passed along, retries on retryable errors, a per-attempt `trace.jsonl`, and a `dead_letter.jsonl` with the failing agent's inputs. The Agent Framework version keeps the same role names, state keys, and trace format so dashboards and tests carry over.
+What the workflow guarantees, and `tests/test_workflow.py` checks: typed handoffs (a failing role sends a `DeadLetter` message that only the `dead_letter` executor accepts), fan-out and fan-in, shared state under one key per value, retries on retryable errors, remaining roles recorded as skipped after a failure, the human-in-the-loop pause and resume, checkpointing, a per-attempt `trace.jsonl`, and a `dead_letter.jsonl` with the failing agent's inputs. The trace format is the same as the reference orchestrator's.
+
+On the live app, uploads pass no questions to the Librarian, so the Foundry Librarian and the Azure MCP Server are exercised from the CLI (`python3 -m regista.agents … --cloud --query …`). The open search box on the live app is the rule-based Librarian.
 
 ## MCP tools
 
@@ -47,13 +53,14 @@ What the orchestrator guarantees, and the tests prove: distinct roles with decla
 
 | Tool | What it does |
 |---|---|
-| `search_clips(match_dir, query, limit)` | the Librarian: parse, rank, explain |
+| `search_clips(match_dir, query, limit)` | the Librarian over one match's files: parse, rank, explain |
+| `search_library(query, top)` | search every indexed match at once through Azure AI Search (needs `REGISTA_SEARCH_ENDPOINT`) |
 | `derive_clips(match_dir, player_id)` | the clip rule and labeller for one player |
 | `validate_stream(path)` | schema validation of a match directory or one file |
 | `render_clip(match_dir, clip_id, out_dir)` | cut one clip to MP4 with its title card |
 | `list_matches(root)` | the matches available |
 
-Any MCP host can drive Regista with these: Copilot Agent Mode in VS Code, a Microsoft Agent Framework agent, or Claude. Azure MCP Server sits beside it for the Azure-side resources (Cosmos DB, Blob, Fabric) once they exist.
+Any MCP host can drive Regista with these. The Foundry Librarian attaches this server, and beside it Microsoft's Azure MCP Server (`azmcp`, from the `msmcp-azure` package), started read-only with only the Cosmos DB namespace, plus the Search namespace when Search is configured; the tools allowed are `cosmos_database_container_item_query`, `cosmos_list`, and `search_index_query` (`src/regista/cloud/foundry.py`). Calls to the Cosmos DB query tool have been seen from local CLI runs; it has not yet been verified inside the container.
 
 ## Services per pipeline stage
 
@@ -62,32 +69,40 @@ Any MCP host can drive Regista with these: Copilot Agent Mode in VS Code, a Micr
 | Stage | Running today | Planned next |
 |---|---|---|
 | Ingest | file read of `events.jsonl`; API upload on Container Apps (**running**) | Blob Storage for feeds; Functions + Event Grid triggers; AI Video Indexer for scene cuts |
-| Interpret | synthetic generator (local) | AI Vision (detection, kit-number OCR) and tracking models in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
-| Explain | `FoundryLabelAgent`: `gpt-5-mini` on **Microsoft Foundry** via **Agent Framework**, rules-v0 as prior and fallback (**running**) | Foundry evaluations against human annotations from the review tool |
+| Interpret | vision layer v0 (`regista.vision`, local): shot, identity, and possession agents as a second Agent Framework workflow, trained and measured only on Regista's own rendered broadcast (`docs/vision.md`); the synthetic generator for the public demo | Azure AI Vision kit-number OCR (a stub backend raises `NotImplementedError` today); models hosted in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
+| Explain | `FoundryLabelAgent`: `gpt-5-mini` on **Microsoft Foundry** via **Agent Framework**, the learned watchability model or rules-v0 as prior and fallback (**running**) | Foundry evaluations against human annotations from the review tool |
 | Render | `regista.render` inside the Container Apps service, on-demand with a local cache (**running**) | Container Apps jobs for batch renders; Blob + CDN for the cache |
 | Review | `ReviewExecutor`: the workflow pauses with `request_info` on clips the Label agent is unsure about; verdicts become human annotations and retrain the watchability model (**running**) | Foundry evaluations scoring each labeller against the human verdicts |
 | Persist | `CosmosPersistAgent`: **Cosmos DB** serverless, `matches` / `clips` / `labels` / `annotations` (**running**) | |
 | Index | `SearchIndexAgent` (role `indexer`): every labelled clip into **Azure AI Search** `regista-clips` (**running**) | Vector search over clip summaries |
-| Personalize | `FoundryLibrarianAgent` on Foundry calling two MCP servers: Regista's (search_clips, search_library) and Microsoft's **Azure MCP Server** (Cosmos DB and Search queries); viewer and API on **Container Apps** (**running**) | AI Translator and Speech for languages |
-| Observe | Agent Framework OpenTelemetry → **Application Insights** → Foundry **Tracing** (**running**) | Alerts on dead letters |
+| Personalize | `FoundryLibrarianAgent` on Foundry calling two MCP servers: Regista's (search_clips, search_library) and Microsoft's **Azure MCP Server** (read-only Cosmos DB and Search queries), from the CLI with `--cloud --query` (**running**); viewer and API on **Container Apps**, where the open search box is the rule-based Librarian (**running**) | AI Translator and Speech for languages; questions to the Foundry Librarian from the viewer |
+| Observe | Agent Framework OpenTelemetry → **Application Insights** → Foundry **Tracing** (**running**; every traced run so far is a local CLI run) | Alerts on dead letters |
 
 ## Deployment on Azure Container Apps (running)
 
 ```
-resource group regista-rg (East US; Cosmos DB in East US 2, where capacity was available)
+resource group regista-rg (East US unless noted)
 ├── regista-foundry-<id>   Microsoft Foundry resource, project "regista", deployment gpt-5-mini (GlobalStandard)
-├── regista-cosmos-<id>    Cosmos DB serverless, database "regista", containers matches/clips/labels (/match_id)
+├── regista-cosmos-<id>    Cosmos DB serverless (East US 2, where capacity was available), database "regista",
+│                          containers matches / clips / labels / annotations (partition /match_id)
+├── regista-search-<id>    Azure AI Search, free tier (South Central US: free tier is not offered in East US), index regista-clips
+├── regista-appi           Application Insights on the Log Analytics workspace, connected to the Foundry project for tracing
 ├── <registry>acr          Container Registry (Basic); images pushed by GitHub Actions build-image.yml
 ├── regista-env            Container Apps environment + Log Analytics workspace
-└── regista-api            Container App: uvicorn regista.api:app on :8000, 1-2 replicas, external ingress,
-                           system-assigned identity with Foundry User (project) and Cosmos data-contributor roles,
-                           env FOUNDRY_PROJECT_ENDPOINT, FOUNDRY_MODEL, REGISTA_COSMOS_ENDPOINT, REGISTA_CLOUD=1
+└── regista-api            Container App: uvicorn regista.api:app on :8000, one replica (min = max = 1), external ingress,
+                           system-assigned identity with Foundry User (project), Cosmos DB data-contributor, and Search roles,
+                           env FOUNDRY_PROJECT_ENDPOINT, FOUNDRY_MODEL, REGISTA_COSMOS_ENDPOINT, REGISTA_SEARCH_ENDPOINT, REGISTA_CLOUD=1,
+                           secrets admin-token (REGISTA_ADMIN_TOKEN) and appi-connection (APPLICATIONINSIGHTS_CONNECTION_STRING)
 ```
 
-Provision with `infra/provision.sh` (idempotent; writes `.env`), build the image by pushing to `main`, deploy with `infra/deploy-app.sh`. Free-trial subscriptions cannot run ACR Tasks, which is why the image builds on GitHub Actions rather than with `az containerapp up --source`.
+Provision with `infra/provision.sh` (idempotent; creates the Foundry resource, project and deployment, Cosmos DB and its containers, AI Search, and the Container Apps environment and registry, and writes `.env`). It does not create Application Insights or connect it to the Foundry project; that was done by hand in the portal. Build the image by pushing to `main`, deploy with `infra/deploy-app.sh`. Free-trial subscriptions cannot run ACR Tasks, which is why the image builds on GitHub Actions rather than with `az containerapp up --source`.
+
+**Auth.** The app and the CLI reach Foundry, Cosmos DB, and AI Search with Microsoft Entra ID (`DefaultAzureCredential`: `az login` on a laptop, the managed identity in Container Apps) through role assignments; the code uses no keys for them. Keys still exist elsewhere: the Container App pulls its image with the registry's admin credential, stored as a Container Apps secret; GitHub Actions pushes with the same admin login; and key-based local auth is still enabled on the Cosmos DB and AI Search accounts, though nothing uses it. Writes on the live app (uploads, verdicts, reviews, retraining) need the `X-Regista-Token` header, checked against a Container Apps secret. `.env` holds the endpoints plus `REGISTA_ADMIN_TOKEN` and `APPLICATIONINSIGHTS_CONNECTION_STRING`; it is git-ignored and docker-ignored.
+
+**What the live app serves.** Only the committed sample match (`syn_0294`). Uploaded matches are written to the container's local disk and do not survive a restart or a new revision, although their Cosmos DB documents and Search entries remain.
 
 ## What is deliberately not here
 
-- No real footage, anywhere. The vision layer is designed and its output contract is enforced, but no model has been trained; the generator stands in for it.
-- Only Foundry, Agent Framework, Cosmos DB, Container Apps, and Container Registry are running. Every other service above is planned until code runs against it.
+- No real footage, anywhere. The vision layer v0 is trained and measured only on Regista's own rendered broadcast; its evaluation matches were used during development, so they are a development set, not a held-out test. `docs/vision.md` has the numbers and what changes for real footage.
+- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry. Microsoft Fabric, Azure AI Vision, Video Indexer, Speech, Translator, Blob Storage, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.

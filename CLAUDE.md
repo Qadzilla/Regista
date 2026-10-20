@@ -127,7 +127,7 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
-**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.1.0). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
+**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.1.1: adds `annotation.context`, `label.prior_watchability`, `label.review`). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
 
 ### 3.0 Code layout and how to run it
 
@@ -137,16 +137,18 @@ src/regista/synth/           synthetic match generator (possessions, passes, sho
 src/regista/clips.py         clip rule + first labeller (watchability, tags, explanation)
 src/regista/validate.py      CLI validator
 src/regista/librarian.py     the Librarian: plain-English clip search (player, tags, minutes, replays), no cloud
-src/regista/mcp_server.py    MCP server exposing search_clips, derive_clips, validate_stream, render_clip, list_matches
+src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
 src/regista/api.py           FastAPI service: viewer at /, matches, clips with filters, search, on-demand MP4, upload → pipeline
 src/regista/static/viewer.html the clip viewer (player header, tag chips, watchability-sorted grid, search box)
-Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (not built here: no docker)
-docs/architecture.md         two layers, the seven roles mapped to Agent Framework, MCP tools, Azure per stage (planned)
+Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (built by GitHub Actions; no docker here)
+docs/architecture.md         two layers, the workflow roles local vs cloud, MCP tools, Azure per stage (running vs planned), auth
 docs/demo-storyboard.md      shot-by-shot plan for the sub-2-minute video, voiceover, what is named on screen
 src/regista/cloud/           Azure wiring: config (.env), FoundryLabelAgent + FoundryLibrarianAgent (Agent Framework,
                              Regista MCP server as the Librarian's tool), CosmosPersistAgent; agents_for() swaps them in
-infra/provision.sh           az CLI provisioning: Foundry resource + project + model, Cosmos DB serverless, Container Apps
+infra/provision.sh           az CLI provisioning: Foundry resource + project + model, Cosmos DB serverless, AI Search, Container Apps
+                             env + registry; writes .env (Application Insights was created and connected by hand)
+infra/deploy-app.sh          deploy a pinned image to Container Apps, secrets, managed-identity roles; waits for a ready revision
 src/regista/agents/          the roles (roles.py), the Microsoft Agent Framework workflow that runs them (workflow.py: fan-out/
                              fan-in, typed handoffs, dead-letter routing, retries, request_info review, checkpoints), the original
                              orchestrator kept as a reference (orchestrator.py), CLI (python -m regista.agents, --review, --graph)
@@ -171,6 +173,7 @@ tests/test_synthetic.py      schema + generator + clip rule must agree
 ```
 
 ```bash
+pip install -e ".[dev,vision]"     # full local suite and pipeline; ".[dev,vision,cloud]" for Azure
 python3 -m pytest -q
 python3 -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 --out data/synthetic/sample
 python3 -m regista.synth --seed 77 --minutes 45 --periods 2 --profile realistic --home "Eastbury Rovers,EAS,#00A650" --away "Westfield Town,WES,#6A0DAD" --out docs/demo/seeds --report
@@ -214,7 +217,7 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 
 **Vision (2026-10-20):** the Identity role now exists as a vision agent (`regista.vision`), alongside Shot and Possession agents, wired as a second Agent Framework workflow whose output directory is the intelligence workflow's input. Trained and measured only on rendered footage so far; real broadcast footage is next (see docs/vision.md, last section).
 
-**Status (2026-10-20, later):** the pipeline runs as a Microsoft Agent Framework workflow (`regista.agents.workflow`) with a human-in-the-loop review step, an optional Azure AI Search indexer role, and the Foundry Librarian calling two MCP servers (Regista's and Microsoft's Azure MCP Server). See docs/gap-analysis.md. Earlier: the Label and Librarian roles run on Microsoft Foundry (`gpt-5-mini`) through Microsoft Agent Framework, the Librarian calling Regista's MCP server as its tool, and the Persist role writes to Cosmos DB; `python3 -m regista.agents … --cloud` and uploads on the live app use them. Previously: a local, rule-based v0 of this pipeline exists in `src/regista/agents/` (roles Ingest, Validator, Possession, Clip, Label, Persist, Librarian; the Identity role belongs to the private vision layer and is played by the generator for the demo). It has distinct roles with declared inputs and outputs, shared state handed along, retries, a per-attempt trace, and a dead-letter file; downstream agents are skipped, not crashed, when an upstream one fails. The Microsoft Agent Framework version keeps the same roles, state keys, and trace, swapping the rule-based Label and Librarian agents for Foundry-backed ones once Azure exists. Tools are exposed today through `regista.mcp_server` (local MCP, stdio).
+**Status (2026-10-20, later):** the pipeline runs as a Microsoft Agent Framework workflow (`regista.agents.workflow`) with a human-in-the-loop review step, an optional Azure AI Search indexer role, and the Foundry Librarian calling two MCP servers (Regista's and Microsoft's Azure MCP Server). See docs/gap-analysis.md. Earlier: the Label and Librarian roles run on Microsoft Foundry (`gpt-5-mini`) through Microsoft Agent Framework, the Librarian calling Regista's MCP server as its tool, and the Persist role writes to Cosmos DB; `python3 -m regista.agents … --cloud` uses them, and uploads on the live app use the Foundry Label agent (uploads pass no questions, so the Foundry Librarian and Azure MCP run only from the CLI with `--query`). Previously: a local, rule-based v0 of this pipeline exists in `src/regista/agents/` (roles Ingest, Validator, Possession, Clip, Label, Persist, Librarian; the Identity role belongs to the private vision layer and is played by the generator for the demo). It has distinct roles with declared inputs and outputs, shared state handed along, retries, a per-attempt trace, and a dead-letter file; downstream agents are skipped, not crashed, when an upstream one fails. The Microsoft Agent Framework version keeps the same roles, state keys, and trace, swapping the rule-based Label and Librarian agents for Foundry-backed ones once Azure exists. Tools are exposed today through `regista.mcp_server` (local MCP, stdio).
 
 ---
 
@@ -232,14 +235,15 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - Subscription: Azure free trial on Zaid's account ($200 credit, 30 days, ends about **2026-11-19**). The rules require the demo to stay reachable free of charge until judging ends **2026-11-10**, so the trial covers judging with about a week to spare. Do not upgrade to pay-as-you-go without asking Zaid.
 - Resource group `regista-rg`, East US: Foundry resource + project `regista` + `gpt-5-mini` deployment; Container Apps env `regista-env` + app `regista-api`; Container Registry (Basic). **Cosmos DB is in East US 2** because East US had no capacity.
 - The free trial blocks ACR Tasks, so `az containerapp up --source` and `az acr build` fail. The image builds on GitHub Actions (`.github/workflows/build-image.yml`, secrets ACR_LOGIN_SERVER/USERNAME/PASSWORD) and deploys with `infra/deploy-app.sh` (pin `IMAGE=...:<sha>`).
-- Auth is keyless everywhere (Entra ID roles). `.env` holds endpoints only and is git-ignored.
+- Auth: the app and the CLI reach Foundry, Cosmos DB and AI Search with Entra ID (`DefaultAzureCredential` / managed identity, role assignments); the code uses no keys. Not keyless everywhere: the Container App pulls its image with the registry admin credential (a Container Apps secret), GitHub Actions pushes with the admin login, and key-based local auth is still enabled on Cosmos DB and AI Search (unused). Say this honestly in docs; never write "keyless everywhere".
+- `.env` holds the endpoints plus `REGISTA_ADMIN_TOKEN` and `APPLICATIONINSIGHTS_CONNECTION_STRING`; it is git-ignored and docker-ignored.
 - Also in `regista-rg`: Azure AI Search `regista-search-a7fbe6` (**free tier, South Central US**: free tier is not offered in East US); Application Insights `regista-appi` on the existing Log Analytics workspace (daily cap 0.1 GB), connected to the Foundry project for tracing; Cosmos DB container `annotations` for human verdicts and the learned model.
 - Tests never load `.env` (`REGISTA_DOTENV=""` in tests/conftest.py) and never reach Azure; a guard test enforces it. Each test gets its own feedback folder.
 - **Writes on the live app need a token.** Uploads, verdicts, reviews and retraining require the `X-Regista-Token` header matching `REGISTA_ADMIN_TOKEN` (in `.env`, deployed as a Container Apps secret). The viewer asks for it once. Reads stay open for judges. `REGISTA_READONLY=1` switches writes off entirely.
 - **Never send a request that writes to the live app as a test.** Probe with requests that cannot write (no token, or an invalid body) and check Cosmos afterwards. On 2026-10-20 two test verdicts reached Cosmos while an old revision was still serving; they were identified by timestamp and deleted.
 - **A deploy is done only when the new revision is the latest ready one.** `deploy-app.sh` waits for that and prints logs on failure. Traffic weight alone is not proof.
-- The image workflow rebuilds on changes to `src/`, `data/synthetic/`, `Dockerfile`, `.dockerignore`, `pyproject.toml`; `tests/test_packaging.py` guards `.dockerignore` against dropping package files.
-- Cosmos DB still holds the sample match's clip and label documents from before ids became player-scoped (cl_000001 style). They are stale duplicates; delete them only with Zaid's go-ahead.
+- The image workflow runs the full test suite first (a failure stops the push), and rebuilds on changes to `src/`, `tests/`, `data/synthetic/`, `Dockerfile`, `.dockerignore`, `pyproject.toml`; `tests/test_packaging.py` guards `.dockerignore` against dropping package files. `infra/provision.sh` can be re-run: it keeps the existing write token and App Insights connection string in `.env` and reuses the resource group's registry; `deploy-app.sh` no longer duplicates the Cosmos role assignment (the app identity has 7 duplicates from earlier deploys, harmless).
+- Cosmos DB still holds 16 clip and 16 label documents from before ids became player-scoped (`cl_000001` / `lb_000001` style): 11 of each for `syn_0294` and 5 of each for `syn_0141`. They are stale duplicates; delete them only with Zaid's go-ahead.
 - Tear down after judging: `./infra/provision.sh --destroy`.
 
 ## 5. Open questions
@@ -248,5 +252,5 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - **Footage rights.** Does the broadcast-server access come with a written licence to use the footage for this, or is it access only? If a licence exists, the demo-video constraint relaxes; the public repo still holds no footage either way.
 - **Organiser answer.** Have we asked on the Innovation Studio platform whether licensed clips will be provided or Premier League footage may appear in demos?
 - **Demo footage pick.** The 2D renderer now produces broadcast-style video from the synthetic stream (`python -m regista.render`), which is footage we own outright. Still open: whether to add our own recorded match or CC clips on top for realism.
-- Hosting: the FastAPI service + viewer is container-ready (Dockerfile); deploying it to Azure Container Apps is the first Azure step once resources exist.
+- **Resolved 2026-10-20: hosting.** The FastAPI service + viewer is live on Azure Container Apps (`regista-api`, one replica), see §4.1. It serves only the committed sample match; uploads live on local disk and do not survive a restart.
 - Team: solo or up to 4?

@@ -1,15 +1,22 @@
 """Cloud configuration from the environment (and a local ``.env`` if present).
 
-Variables
----------
+Variables read by ``CloudConfig.from_env``
+------------------------------------------
 FOUNDRY_PROJECT_ENDPOINT   https://<resource>.services.ai.azure.com/api/projects/<project>   (Agent Framework's own name)
 FOUNDRY_MODEL              the model deployment name, e.g. gpt-5-mini
 REGISTA_COSMOS_ENDPOINT    https://<account>.documents.azure.com:443/
 REGISTA_COSMOS_DATABASE    database name (default: regista)
 REGISTA_COSMOS_KEY         optional account key; without it DefaultAzureCredential (az login, managed identity) is used
+REGISTA_SEARCH_ENDPOINT    https://<service>.search.windows.net; turns on the indexer role and search_library
+REGISTA_DOTENV             which .env file to load first (default: .env; empty disables loading, as the tests do)
 
-Authentication is keyless by default: ``DefaultAzureCredential`` picks up ``az login`` on a laptop
-and the managed identity inside Azure Container Apps.
+Read elsewhere: APPLICATIONINSIGHTS_CONNECTION_STRING and REGISTA_TRACE_CONTENT (``regista.cloud.telemetry``),
+REGISTA_CLOUD, REGISTA_ADMIN_TOKEN, REGISTA_READONLY, REGISTA_DATA, REGISTA_CACHE (``regista.api``), and
+REGISTA_FEEDBACK_DIR (``regista.feedback``). ``.env`` is git-ignored and docker-ignored.
+
+The code authenticates to Foundry, Cosmos DB, and AI Search with ``DefaultAzureCredential``, which picks up
+``az login`` on a laptop and the managed identity inside Azure Container Apps; no key is needed unless
+REGISTA_COSMOS_KEY is set.
 """
 
 from __future__ import annotations

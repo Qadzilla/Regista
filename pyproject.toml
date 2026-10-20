@@ -14,11 +14,11 @@ dependencies = [
   "fastapi>=0.110,<1",
   "uvicorn>=0.29,<1",
   "python-multipart>=0.0.9",
+  "agent-framework>=1.22,<2",  # the default pipeline engine is an Agent Framework workflow
 ]
 
 [project.optional-dependencies]
 cloud = [
-  "agent-framework>=1.22,<2",
   "agent-framework-foundry>=1.0,<2",
   "azure-identity>=1.20,<2",
   "azure-cosmos>=4.9,<5",

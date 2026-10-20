@@ -70,3 +70,6 @@ build/
 # Workflow checkpoints and paused reviews (run state, not source)
 **/agents/checkpoints/
 **/agents/pending_review*.json
+
+# Human verdicts and the model learned from them: real people's judgements, kept out of git
+data/feedback/
