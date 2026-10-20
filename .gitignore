@@ -1,0 +1,54 @@
+# Secrets and local config
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+local.settings.json
+
+# Video, audio, and raw footage — never commit broadcast material
+*.mp4
+*.mkv
+*.mov
+*.avi
+*.ts
+*.m2ts
+*.wav
+*.mp3
+data/raw/
+data/clips/
+footage/
+
+# Model weights and large artifacts
+*.pt
+*.pth
+*.onnx
+*.safetensors
+*.ckpt
+*.h5
+models/weights/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+.next/
+.cache/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Claude local settings
+.claude/settings.local.json
