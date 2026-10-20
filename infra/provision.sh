@@ -87,7 +87,7 @@ if ! az cosmosdb show -n "$COSMOS" -g "$RG" -o none 2>/dev/null; then
 fi
 COSMOS_ENDPOINT=$(az cosmosdb show -n "$COSMOS" -g "$RG" --query documentEndpoint -o tsv)
 az cosmosdb sql database create -a "$COSMOS" -g "$RG" -n "$COSMOS_DB" -o none 2>/dev/null || true
-for c in matches clips labels; do
+for c in matches clips labels annotations; do
   az cosmosdb sql container create -a "$COSMOS" -g "$RG" -d "$COSMOS_DB" -n "$c" --partition-key-path /match_id -o none 2>/dev/null || true
 done
 log "Cosmos data-plane role for $ME_UPN"

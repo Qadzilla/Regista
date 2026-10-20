@@ -46,7 +46,10 @@ class CloudConfig:
     cosmos_key: str | None = None
 
     @classmethod
-    def from_env(cls, dotenv: Path | str | None = ".env") -> CloudConfig:
+    def from_env(cls, dotenv: Path | str | None = None) -> CloudConfig:
+        """Read the environment, after loading ``dotenv`` (default: $REGISTA_DOTENV, else ``.env``; empty disables it)."""
+        if dotenv is None:
+            dotenv = os.environ.get("REGISTA_DOTENV", ".env")
         if dotenv:
             load_dotenv(dotenv)
         return cls(

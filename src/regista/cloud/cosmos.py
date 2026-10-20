@@ -26,8 +26,8 @@ class ContainerLike(Protocol):  # the slice of azure.cosmos ContainerProxy we us
 class ClipStore:
     """Thin wrapper over the three containers."""
 
-    def __init__(self, matches: ContainerLike, clips: ContainerLike, labels: ContainerLike):
-        self.matches, self.clips, self.labels = matches, clips, labels
+    def __init__(self, matches: ContainerLike, clips: ContainerLike, labels: ContainerLike, annotations: ContainerLike | None = None):
+        self.matches, self.clips, self.labels, self.annotations = matches, clips, labels, annotations
 
     @classmethod
     def connect(cls, config: CloudConfig) -> ClipStore:
@@ -42,7 +42,8 @@ class ClipStore:
 
             client = CosmosClient(config.cosmos_endpoint, credential=DefaultAzureCredential())
         db = client.get_database_client(config.cosmos_database)
-        return cls(db.get_container_client("matches"), db.get_container_client("clips"), db.get_container_client("labels"))
+        return cls(db.get_container_client("matches"), db.get_container_client("clips"), db.get_container_client("labels"),
+                   db.get_container_client("annotations"))
 
     @staticmethod
     def _doc(record: Record) -> Record:
@@ -60,6 +61,42 @@ class ClipStore:
             self.labels.upsert_item(self._doc(lb))
             n += 1
         return n
+
+    # -- human feedback: verdicts and the learned model survive container restarts here
+    MODEL_ID = "watchability-model"
+    MODEL_PARTITION = "_feedback"
+
+    def write_annotation(self, annotation: Record) -> None:
+        if self.annotations is None:
+            raise AgentError("no annotations container configured", retryable=False)
+        # Annotation ids restart per local file, so the document id adds the match and timestamp to stay unique.
+        doc = {**annotation, "annotation_id": annotation["id"],
+               "id": f"{annotation['match_id']}-{annotation['id']}-{annotation['annotated_at']}".replace(":", "-")}
+        self.annotations.upsert_item(doc)
+
+    def all_annotations(self) -> list[Record]:
+        if self.annotations is None:
+            return []
+        rows = self.annotations.query_items("SELECT * FROM c WHERE c.type = 'annotation'", enable_cross_partition_query=True)
+        out = []
+        for r in rows:
+            clean = {k: v for k, v in r.items() if not k.startswith("_")}
+            clean["id"] = clean.pop("annotation_id", clean["id"])
+            out.append(clean)
+        return sorted(out, key=lambda a: a.get("annotated_at", ""))
+
+    def save_model(self, model_json: Record) -> None:
+        if self.annotations is not None:
+            self.annotations.upsert_item({**model_json, "id": self.MODEL_ID, "match_id": self.MODEL_PARTITION, "type": "model"})
+
+    def load_model(self) -> Record | None:
+        if self.annotations is None:
+            return None
+        rows = list(self.annotations.query_items("SELECT * FROM c WHERE c.id = @id",
+                                                 parameters=[{"name": "@id", "value": self.MODEL_ID}], enable_cross_partition_query=True))
+        if not rows:
+            return None
+        return {k: v for k, v in rows[0].items() if not k.startswith("_") and k not in ("id", "match_id", "type")}
 
     def clips_for(self, match_id: str, player_id: str | None = None) -> tuple[list[Record], dict[str, Record]]:
         q = "SELECT * FROM c WHERE c.match_id = @m" + (" AND c.player_id = @p" if player_id else "")

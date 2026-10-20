@@ -106,3 +106,52 @@ def test_upload_runs_the_pipeline(client):
     assert client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")}).status_code == 409
     bad = client.post("/api/matches", files={"events": ("events.jsonl", '{"type":"match"}\n', "application/x-ndjson")})
     assert bad.status_code == 422 and "problems" in json.dumps(bad.json())
+
+
+def test_verdicts_feedback_and_retrain_through_the_api(client, tmp_path, monkeypatch):
+    """The viewer's Keep/Drop buttons and Retrain button, end to end. Verdicts come from a test annotator."""
+    clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()
+    assert any(c["review"] for c in clips), "the sample has clips the Label agent is unsure about"
+    assert all("verdict" in c for c in clips)
+    first = clips[0]
+    r = client.post(f"/api/matches/{client.match_id}/clips/{first['id']}/verdict", json={"verdict": "drop", "annotator": "test-reviewer"})
+    assert r.status_code == 200 and r.json()["annotation"]["source"] == "human"
+    after = {c["id"]: c for c in client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()}
+    assert after[first["id"]]["verdict"]["keep"] is False and after[first["id"]]["review"] is None
+    assert client.post(f"/api/matches/{client.match_id}/clips/{first['id']}/verdict", json={"verdict": "maybe"}).status_code == 422
+    status = client.get("/api/feedback").json()
+    assert status["verdicts"] >= 1 and "test-reviewer" in status["annotators"]
+    # Too few verdicts: retraining refuses with a clear reason.
+    assert client.post("/api/feedback/train").status_code == 422
+    for c in clips[1:]:
+        keep = c["label"]["watchability"] >= 0.5
+        client.post(f"/api/matches/{client.match_id}/clips/{c['id']}/verdict", json={"verdict": "keep" if keep else "drop", "annotator": "test-reviewer"})
+    trained = client.post("/api/feedback/train")
+    if trained.status_code == 200:
+        assert trained.json()["model_name"].startswith("learned-v")
+    else:
+        assert "both" in trained.json()["detail"] or "at least" in trained.json()["detail"]
+
+
+def test_upload_with_review_pauses_and_resumes(client):
+    r = generate(seed=294, minutes=3.0, track_hz=1.0)
+    stream = [dict(x) for x in r.stream]
+    stream[0] = {**stream[0], "match_id": "syn_0294_review"}
+    for x in stream[1:]:
+        x["match_id"] = "syn_0294_review"
+    events = "\n".join(json.dumps(x) for x in stream) + "\n"
+    up = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")},
+                     params={"player": PLAYER, "review": "true", "annotator": "test-reviewer"})
+    assert up.status_code == 201, up.text
+    body = up.json()
+    assert body["paused"] is True and body["review"][0]["items"]
+    pending = client.get("/api/matches/syn_0294_review/review").json()["pending"]
+    assert pending and pending[0]["request_id"] == body["review"][0]["request_id"]
+    items = body["review"][0]["items"]
+    done = client.post("/api/matches/syn_0294_review/review", json={
+        "request_id": pending[0]["request_id"], "annotator": "test-reviewer",
+        "verdicts": [{"clip_id": i["clip_id"], "verdict": "keep"} for i in items]})
+    assert done.status_code == 200, done.text
+    out = done.json()
+    assert out["pipeline_ok"] is True and out["review_log"]["applied"]
+    assert client.get("/api/matches/syn_0294_review/review").json()["pending"] == []

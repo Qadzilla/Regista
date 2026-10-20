@@ -41,9 +41,11 @@ class FakeContainer:
 
 
 def test_config_from_env_and_dotenv(tmp_path, monkeypatch):
-    monkeypatch.delenv("FOUNDRY_PROJECT_ENDPOINT", raising=False)
-    monkeypatch.delenv("FOUNDRY_MODEL", raising=False)
-    monkeypatch.delenv("REGISTA_COSMOS_ENDPOINT", raising=False)
+    # load_dotenv writes os.environ directly; register every key with monkeypatch so teardown removes them
+    # (otherwise these values leak into later tests and switch the cloud paths on).
+    for k in ("FOUNDRY_PROJECT_ENDPOINT", "FOUNDRY_MODEL", "REGISTA_COSMOS_ENDPOINT"):
+        monkeypatch.setenv(k, "")
+        monkeypatch.delenv(k)
     env = tmp_path / ".env"
     env.write_text('FOUNDRY_PROJECT_ENDPOINT="https://x.services.ai.azure.com/api/projects/p"\nFOUNDRY_MODEL=gpt-5-mini\n# comment\nREGISTA_COSMOS_ENDPOINT=https://c.documents.azure.com:443/\n')
     cfg = CloudConfig.from_env(env)
@@ -215,3 +217,9 @@ def test_api_upload_reports_dead_letters(tmp_path, monkeypatch):
     body = resp.json()
     assert resp.status_code == 201 and body["pipeline_ok"] is False
     assert body["dead_letters"] == [{"agent": "label", "error": "AgentError: endpoint unreachable"}]
+
+
+def test_tests_never_see_real_cloud_configuration():
+    """Guard: the project's .env must not leak into tests, or API tests would write to real Cosmos DB."""
+    cfg = CloudConfig.from_env()
+    assert not cfg.foundry_enabled and not cfg.cosmos_enabled

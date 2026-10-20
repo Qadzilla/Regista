@@ -39,6 +39,17 @@
   .reason.replay { color: var(--replay); }
   .empty { color: var(--muted); padding: 40px 0; text-align: center; }
   footer { color: var(--muted); font-size: 12px; text-align: center; padding: 24px; }
+  .learn { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 4px 0 12px; font-size: 13px; color: var(--muted); }
+  .learn b { color: var(--text); font-weight: 600; }
+  .learn .stat { white-space: nowrap; }
+  .learn button { padding: 5px 10px; font-size: 13px; }
+  .review { font-size: 12px; color: #111; background: var(--accent); border-radius: 4px; padding: 2px 7px; align-self: flex-start; }
+  .done { font-size: 12px; color: var(--muted); }
+  .done.keep b { color: #4ade80; } .done.drop b { color: #f87171; }
+  .vbtns { display: flex; gap: 8px; margin-top: 4px; }
+  .vbtn { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-weight: 600; cursor: pointer; }
+  .vbtn.keep:hover { border-color: #4ade80; color: #4ade80; } .vbtn.drop:hover { border-color: #f87171; color: #f87171; }
+  .chip.rev { border-color: var(--accent); color: var(--accent); }
 </style>
 </head>
 <body>
@@ -50,6 +61,7 @@
   <button id="go">Search</button>
 </header>
 <main>
+  <div class="learn" id="learn">Loading what Regista has learned…</div>
   <div class="player" id="playerHead"></div>
   <div class="chips" id="chips"></div>
   <p class="understood" id="understood"></p>
@@ -96,7 +108,37 @@ async function loadClips() {
   state.clips = await api(url);
   renderHead();
   renderChips();
-  renderGrid(state.clips.map(c => ({ ...c, ...c.label, clip_id: c.id })));
+  const rows = state.clips.map(c => ({ ...c, ...c.label, clip_id: c.id, review: c.review, verdict: c.verdict }));
+  renderGrid(state.reviewOnly ? rows.filter(r => r.review) : rows);
+}
+
+async function loadLearn() {
+  try {
+    const f = await api('/api/feedback');
+    const ev = f.evaluation || {};
+    const pct = (x) => x ? `${Math.round(x.agreement * 100)}%` : '–';
+    const learned = f.model_name && ev[f.model_name];
+    $('learn').innerHTML = `<span class="stat">Learning from people: <b>${f.verdicts}</b> verdict${f.verdicts === 1 ? '' : 's'} on <b>${f.clips_reviewed}</b> clip${f.clips_reviewed === 1 ? '' : 's'}</span>`
+      + `<span class="stat">model <b>${f.model_name || 'not trained yet'}</b></span>`
+      + (ev.n ? `<span class="stat">agreement with reviewers: rules <b>${pct(ev.rules_prior)}</b>${learned ? ` · learned <b>${pct(learned)}</b>` : ''}</span>` : '')
+      + `<button id="retrain">Retrain</button><span class="stat" id="trainMsg"></span>`;
+    $('retrain').onclick = retrain;
+  } catch (e) { $('learn').textContent = 'Feedback unavailable: ' + e.message; }
+}
+
+async function retrain() {
+  $('trainMsg').textContent = 'training…';
+  const r = await fetch('/api/feedback/train', { method: 'POST' });
+  const body = await r.json();
+  $('trainMsg').textContent = r.ok ? `trained ${body.model_name}` : (body.detail || 'not trained');
+  if (r.ok) { await loadLearn(); await loadClips(); }
+}
+
+async function sendVerdict(clipId, verdict) {
+  const r = await fetch(`/api/matches/${state.match}/clips/${encodeURIComponent(clipId)}/verdict`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ verdict }) });
+  if (!r.ok) { alert('Could not save verdict: ' + (await r.text())); return; }
+  await loadClips(); await loadLearn();
 }
 
 function renderHead() {
@@ -110,8 +152,12 @@ function renderChips() {
   const counts = {};
   for (const c of state.clips) for (const t of c.label.tags) if (!/_appearance$|^on_ball_main$|^touch$/.test(t)) counts[t] = (counts[t] || 0) + 1;
   const tags = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  $('chips').innerHTML = `<span class="chip ${state.tag ? '' : 'on'}" data-tag="">all (${state.clips.length})</span>` + tags.map(([t, n]) => `<span class="chip ${state.tag === t ? 'on' : ''}" data-tag="${t}">${t.replace(/_/g, ' ')} (${n})</span>`).join('');
-  for (const el of $('chips').querySelectorAll('.chip')) el.onclick = () => { state.tag = el.dataset.tag || null; loadClips(); };
+  const nrev = state.clips.filter(c => c.review).length;
+  $('chips').innerHTML = `<span class="chip ${state.tag || state.reviewOnly ? '' : 'on'}" data-tag="">all (${state.clips.length})</span>`
+    + (nrev ? `<span class="chip rev ${state.reviewOnly ? 'on' : ''}" data-review="1">needs your review (${nrev})</span>` : '')
+    + tags.map(([t, n]) => `<span class="chip ${state.tag === t ? 'on' : ''}" data-tag="${t}">${t.replace(/_/g, ' ')} (${n})</span>`).join('');
+  for (const el of $('chips').querySelectorAll('.chip')) el.onclick = () => {
+    state.reviewOnly = !!el.dataset.review; state.tag = el.dataset.review ? null : (el.dataset.tag || null); loadClips(); };
 }
 
 function fmt(t) { return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; }
@@ -128,8 +174,12 @@ function renderGrid(rows) {
         <div class="bar"><i style="width:${Math.round(r.watchability * 100)}%"></i></div>
         <div class="tags">${r.tags.filter(t => !/_appearance$|^on_ball_main$/.test(t)).map(t => `<span>${t.replace(/_/g, ' ')}</span>`).join('')}</div>
         <div class="why">${r.explanation || ''}</div>
+        ${r.review ? `<span class="review">Regista is unsure: ${r.review}</span>` : ''}
+        ${r.verdict ? `<span class="done ${r.verdict.keep ? 'keep' : 'drop'}"><b>${r.verdict.keep ? 'Kept' : 'Dropped'}</b> by ${r.verdict.annotator}</span>` : ''}
+        <div class="vbtns"><button class="vbtn keep" data-clip="${r.clip_id}" data-v="keep">Keep</button><button class="vbtn drop" data-clip="${r.clip_id}" data-v="drop">Drop</button></div>
       </div>
     </div>`).join('');
+  for (const b of $('grid').querySelectorAll('.vbtn')) b.onclick = () => sendVerdict(b.dataset.clip, b.dataset.v);
 }
 
 async function search() {
@@ -145,7 +195,7 @@ async function search() {
   renderGrid(out.results);
 }
 
-init().catch(e => { $('understood').textContent = 'Could not load: ' + e.message; });
+init().then(loadLearn).catch(e => { $('understood').textContent = 'Could not load: ' + e.message; });
 </script>
 </body>
 </html>
