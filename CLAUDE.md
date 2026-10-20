@@ -83,6 +83,8 @@ Turn **synthetic, football-realistic** event data (passes, shots, tackles, posse
 4. **Pitch-diagram visualisation.** Render tracking output as dots on a pitch, Opta style, with no original pixels. Derived from footage so not zero risk, but far safer than frames, and it demos the intelligence layer well.
 5. **Ask the organisers.** Post on the Innovation Studio platform asking whether licensed clips will be provided or whether Premier League footage may appear in demos. Costs nothing; the answer settles this.
 
+**Decided 2026-10-20: we record our own match.** Professional broadcast footage cannot reasonably or legally be obtained, so the real footage is a game between Zaid and friends, filmed by us, with every player's written consent covering recording, training models on it, and showing it publicly (demo video, judges, live app). Anyone who does not consent stays off the pitch. The raw video stays local and out of the repo; clips may appear in the demo because we own them and the players agreed. Identity stays kit-number-first: numbered bibs, two clearly different team colours.
+
 **Avoid:** football video-game footage (publisher copyright) and research datasets such as SoccerNet as demo material (research-only licences; a cash-prize hackathon likely falls outside them).
 
 #### Decision: identification is kit-number-first, not face-first
@@ -250,7 +252,7 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 ## 5. Open questions
 
 - **Decided 2026-10-19 (unsupervised run):** the renderer uses the ffmpeg bundled in the `imageio-ffmpeg` wheel (pip, no system install); the featured sample player is the home 9 (seed 294) because a goal by the 10 is a one-in-eighty event in the simulator; the generator keeps a `demo` profile for dense 3-minute samples and a `realistic` profile for statistics; placeholder annotations are `source: synthetic` + `simulates: human`, never claimed as real review; the FastAPI service is the deployable unit and the Dockerfile is unbuilt on this machine (no docker).
-- **Footage rights.** Does the broadcast-server access come with a written licence to use the footage for this, or is it access only? If a licence exists, the demo-video constraint relaxes; the public repo still holds no footage either way.
+- **Resolved 2026-10-20: footage rights.** No professional footage; we record our own consenting match (see §1.5). Still open: when it is recorded, where it lives locally, and its format.
 - **Organiser answer.** Have we asked on the Innovation Studio platform whether licensed clips will be provided or Premier League footage may appear in demos?
 - **Demo footage pick.** The 2D renderer now produces broadcast-style video from the synthetic stream (`python -m regista.render`), which is footage we own outright. Still open: whether to add our own recorded match or CC clips on top for realism.
 - **Resolved 2026-10-20: hosting.** The FastAPI service + viewer is live on Azure Container Apps (`regista-api`, one replica), see §4.1. It serves only the committed sample match; uploads live on local disk and do not survive a restart.
