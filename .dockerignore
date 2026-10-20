@@ -4,7 +4,7 @@
 .github
 **/__pycache__
 **/*.pyc
-**/agents/
+data/**/agents/
 data/clips/
 data/feedback/
 docs/demo/

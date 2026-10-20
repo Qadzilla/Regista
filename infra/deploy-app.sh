@@ -77,6 +77,20 @@ if [[ -n "${REGISTA_COSMOS_ENDPOINT:-}" ]]; then
   az cosmosdb sql role assignment create -a "$COSMOS_NAME" -g "$RG" --scope "/" --principal-id "$APP_OID" --role-definition-id "$COSMOS_DATA_CONTRIBUTOR" -o none 2>/dev/null || true
 fi
 
+log "Waiting for the new revision to pass its health checks"
+LATEST=$(az containerapp show -n "$ACA_APP" -g "$RG" --query properties.latestRevisionName -o tsv)
+for i in $(seq 1 60); do
+  READY=$(az containerapp show -n "$ACA_APP" -g "$RG" --query properties.latestReadyRevisionName -o tsv)
+  STATE=$(az containerapp revision show -n "$ACA_APP" -g "$RG" --revision "$LATEST" --query properties.runningState -o tsv 2>/dev/null)
+  [[ "$READY" == "$LATEST" ]] && { echo "revision $LATEST is ready"; break; }
+  if [[ "$STATE" == "Failed" || "$STATE" == "Degraded" || ( $i -eq 60 ) ]]; then
+    echo "revision $LATEST did not become ready (state: $STATE); traffic stays on $READY. Recent logs:" >&2
+    az containerapp logs show -n "$ACA_APP" -g "$RG" --revision "$LATEST" --tail 30 --format text 2>/dev/null | tail -30 >&2
+    exit 1
+  fi
+  sleep 10
+done
+
 APP_URL="https://$(az containerapp show -n "$ACA_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 grep -q '^REGISTA_APP_URL=' .env 2>/dev/null && sed -i '' "s#^REGISTA_APP_URL=.*#REGISTA_APP_URL=$APP_URL#" .env || echo "REGISTA_APP_URL=$APP_URL" >> .env
 log "Done: $APP_URL   (health: $APP_URL/api/health)"
