@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# Deploy (or update) the Regista service on Azure Container Apps from a prebuilt image.
+# Deploy (or update) the Regista service on Azure Container Apps from a prebuilt image, as a person: the first
+# deploy, and whenever secrets, settings or roles change. Image-only updates are done by GitHub Actions after every
+# push to main (infra/ci-deploy.sh).
 #
-#   ./infra/deploy-app.sh                       # image: $ACR_LOGIN_SERVER/regista:latest (built by GitHub Actions)
-#   IMAGE=myregistry.azurecr.io/regista:abc123 ./infra/deploy-app.sh
+#   IMAGE=<registry>.azurecr.io/regista:<commit sha> ./infra/deploy-app.sh
+#   ./infra/deploy-app.sh                       # image: $ACR_LOGIN_SERVER/regista:latest
 #
-# Reads FOUNDRY_PROJECT_ENDPOINT, FOUNDRY_MODEL, REGISTA_COSMOS_ENDPOINT, REGISTA_COSMOS_DATABASE and
-# ACR_LOGIN_SERVER from .env (written by infra/provision.sh). Gives the app a system-assigned identity
-# with the Foundry User role on the project and the Cosmos DB data-contributor role, so no keys are
-# stored in the container.
+# Reads .env (written by infra/provision.sh). The app gets a system-assigned identity with: AcrPull on the registry
+# (it pulls its image with that identity: there is no registry password), the Foundry User role on the project, the
+# Cosmos DB data-contributor role, and the Search roles. The write token and the tracing connection string are
+# Container Apps secrets.
 set -euo pipefail
 . "$(dirname "$0")/lib/dotenv.sh"
+. "$(dirname "$0")/lib/aca.sh"
 load_dotenv .env   # parsed, never executed: values may contain ';'
 
 : "${RG:=${REGISTA_RESOURCE_GROUP:-regista-rg}}"
@@ -23,6 +26,7 @@ load_dotenv .env   # parsed, never executed: values may contain ';'
 FOUNDRY_USER_ROLE="53ca6127-db72-4b80-b1b0-d745d6d5456d"
 COSMOS_DATA_CONTRIBUTOR="00000000-0000-0000-0000-000000000002"
 ACR_NAME="${ACR_LOGIN_SERVER%%.*}"
+PLACEHOLDER="mcr.microsoft.com/k8se/quickstart:latest"   # public: a new app starts on it until its identity may pull ours
 
 log() { printf '\n\033[1;33m== %s\033[0m\n' "$*"; }
 
@@ -41,29 +45,18 @@ if [[ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]]; then
   ENV_VARS+=("APPLICATIONINSIGHTS_CONNECTION_STRING=secretref:appi-connection")
 fi
 
-log "Registry credentials for $ACR_NAME"
-ACR_USER=$(az acr credential show -n "$ACR_NAME" --query username -o tsv)
-ACR_PASS=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
-
-if az containerapp show -n "$ACA_APP" -g "$RG" -o none 2>/dev/null; then
-  log "Updating $ACA_APP to $IMAGE"
-  az containerapp registry set -n "$ACA_APP" -g "$RG" --server "$ACR_LOGIN_SERVER" --username "$ACR_USER" --password "$ACR_PASS" -o none
-  [[ ${#SECRETS[@]} -gt 0 ]] && az containerapp secret set -n "$ACA_APP" -g "$RG" --secrets "${SECRETS[@]}" -o none
-  # One replica: uploaded matches and paused reviews live on the replica's disk.
-  # A fresh revision on every deploy: secrets are read when a revision starts, so a secret change on an otherwise
-  # unchanged template would leave the running revision on the old value.
-  az containerapp update -n "$ACA_APP" -g "$RG" --image "$IMAGE" --set-env-vars "${ENV_VARS[@]}" --min-replicas 1 --max-replicas 1 \
-    --revision-suffix "d$(date -u +%m%d%H%M%S)" -o none
-else
-  log "Creating $ACA_APP from $IMAGE"
-  az containerapp create -n "$ACA_APP" -g "$RG" --environment "$ACA_ENV" --image "$IMAGE" \
-    --registry-server "$ACR_LOGIN_SERVER" --registry-username "$ACR_USER" --registry-password "$ACR_PASS" \
-    --ingress external --target-port 8000 --cpu 1.0 --memory 2.0Gi --min-replicas 1 --max-replicas 1 \
-    ${SECRETS[@]:+--secrets "${SECRETS[@]}"} --env-vars "${ENV_VARS[@]}" -o none
+CREATED=""
+if ! az containerapp show -n "$ACA_APP" -g "$RG" -o none 2>/dev/null; then
+  CREATED=1
+  log "Creating $ACA_APP on a public placeholder image, with its own identity"
+  az containerapp create -n "$ACA_APP" -g "$RG" --environment "$ACA_ENV" --image "$PLACEHOLDER" --system-assigned \
+    --ingress external --target-port 8000 --cpu 1.0 --memory 2.0Gi --min-replicas 1 --max-replicas 1 -o none
 fi
 
 log "Managed identity and roles"
 APP_OID=$(az containerapp identity assign -n "$ACA_APP" -g "$RG" --system-assigned --query principalId -o tsv)
+ACR_ID=$(az acr show -n "$ACR_NAME" --query id -o tsv)
+az role assignment create --role AcrPull --assignee-object-id "$APP_OID" --assignee-principal-type ServicePrincipal --scope "$ACR_ID" -o none 2>/dev/null || true
 if [[ -n "${FOUNDRY_PROJECT_ENDPOINT:-}" ]]; then
   FOUNDRY_NAME=$(echo "$FOUNDRY_PROJECT_ENDPOINT" | sed -E 's#https://([^.]+)\..*#\1#')
   PROJECT_ID=$(az cognitiveservices account project show -n "$FOUNDRY_NAME" -g "$RG" --project-name "$PROJECT" --query id -o tsv)
@@ -86,19 +79,20 @@ if [[ -n "${REGISTA_COSMOS_ENDPOINT:-}" ]]; then
   fi
 fi
 
+if [[ -n "$CREATED" ]]; then
+  log "Waiting a minute for the new identity's roles to take effect (role assignments are not instant)"
+  sleep 60
+fi
+
+log "Updating $ACA_APP to $IMAGE (pulled with the app's identity), with its settings and secrets"
+az containerapp registry set -n "$ACA_APP" -g "$RG" --server "$ACR_LOGIN_SERVER" --identity system -o none
+[[ ${#SECRETS[@]} -gt 0 ]] && az containerapp secret set -n "$ACA_APP" -g "$RG" --secrets "${SECRETS[@]}" -o none
+# One replica: uploaded matches and paused reviews live on the replica's disk.
+az containerapp update -n "$ACA_APP" -g "$RG" --image "$IMAGE" --set-env-vars "${ENV_VARS[@]}" --min-replicas 1 --max-replicas 1 \
+  --revision-suffix "$(revision_suffix)" -o none
+
 log "Waiting for the new revision to pass its health checks"
-LATEST=$(az containerapp show -n "$ACA_APP" -g "$RG" --query properties.latestRevisionName -o tsv)
-for i in $(seq 1 60); do
-  READY=$(az containerapp show -n "$ACA_APP" -g "$RG" --query properties.latestReadyRevisionName -o tsv)
-  STATE=$(az containerapp revision show -n "$ACA_APP" -g "$RG" --revision "$LATEST" --query properties.runningState -o tsv 2>/dev/null)
-  [[ "$READY" == "$LATEST" ]] && { echo "revision $LATEST is ready"; break; }
-  if [[ "$STATE" == "Failed" || "$STATE" == "Degraded" || ( $i -eq 60 ) ]]; then
-    echo "revision $LATEST did not become ready (state: $STATE); traffic stays on $READY. Recent logs:" >&2
-    az containerapp logs show -n "$ACA_APP" -g "$RG" --revision "$LATEST" --tail 30 --format text 2>/dev/null | tail -30 >&2
-    exit 1
-  fi
-  sleep 10
-done
+wait_ready "$ACA_APP" "$RG" || exit 1
 
 APP_URL="https://$(az containerapp show -n "$ACA_APP" -g "$RG" --query properties.configuration.ingress.fqdn -o tsv)"
 grep -q '^REGISTA_APP_URL=' .env 2>/dev/null && sed -i '' "s#^REGISTA_APP_URL=.*#REGISTA_APP_URL=$APP_URL#" .env || echo "REGISTA_APP_URL=$APP_URL" >> .env

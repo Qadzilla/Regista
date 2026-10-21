@@ -44,3 +44,66 @@ def test_deploy_script_uses_the_safe_reader():
     text = (ROOT / "infra/deploy-app.sh").read_text()
     assert "load_dotenv .env" in text and "source .env" not in text
     assert "--revision-suffix" in text  # every deploy starts a revision that reads current secrets
+
+
+# ---------------------------------------------------------------------------- provisioning and deploys (no Azure: what the scripts must and must never do)
+
+def _text(rel):
+    return (ROOT / rel).read_text()
+
+
+def test_provision_checks_sign_in_and_quota_before_creating_anything():
+    s = _text("infra/provision.sh")
+    first_create = s.index("az group create")
+    for check in ('*"#EXT#"*)', "az account get-access-token --scope", "az cognitiveservices usage list"):
+        assert s.index(check) < first_create, check
+    assert "--disable-local-auth" in s and "--admin-enabled false" in s and "--admin-enabled true" not in s
+    # Everything once done by hand is scripted: tracing connected to Foundry, the log cap, the CI identity, a budget.
+    for step in ("az monitor app-insights component create", "project connection create", "workspace update", "--quota",
+                 "federated-credential create", "Microsoft.Consumption/budgets", "gh variable set"):
+        assert step in s, step
+    assert "source .env" not in s and "Convert to internal" not in s
+
+
+def test_deploys_never_use_a_registry_password():
+    for rel in ("infra/deploy-app.sh", "infra/ci-deploy.sh", ".github/workflows/build-image.yml"):
+        s = _text(rel)
+        assert "acr credential" not in s and "ACR_PASSWORD" not in s and "ACR_USERNAME" not in s, rel
+    assert "--identity system" in _text("infra/deploy-app.sh")
+    assert "secret set" not in _text("infra/ci-deploy.sh")  # CI changes the image only
+
+
+def test_the_workflow_deploys_only_from_main_with_a_federated_identity():
+    import yaml
+
+    wf = yaml.safe_load(_text(".github/workflows/build-image.yml"))
+    assert wf["permissions"]["id-token"] == "write"
+    deploy = wf["jobs"]["deploy"]
+    assert deploy["needs"] == "build" and "pull_request" in deploy["if"] and "vars.AZURE_CLIENT_ID" in deploy["if"]
+    assert wf["jobs"]["build"]["needs"] == "test"
+    assert "secrets." not in _text(".github/workflows/build-image.yml")
+
+
+def _fake_az(tmp_path, latest, ready, state):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    script = bin_dir / "az"
+    script.write_text(f"""#!/bin/sh
+case "$*" in
+  *latestRevisionName*) echo {latest} ;;
+  *latestReadyRevisionName*) echo {ready} ;;
+  *runningState*) echo {state} ;;
+  *logs*) echo "fake log line" ;;
+esac
+""")
+    script.chmod(0o755)
+    return str(bin_dir)
+
+
+@pytest.mark.parametrize("latest,ready,state,ok", [("app--d2", "app--d2", "Running", True), ("app--d2", "app--d1", "Failed", False)])
+def test_wait_ready_needs_the_newest_revision_to_be_the_ready_one(tmp_path, latest, ready, state, ok):
+    env = {"PATH": _fake_az(tmp_path, latest, ready, state) + ":/usr/bin:/bin"}
+    run = subprocess.run(["bash", "-c", f'. "{ROOT}/infra/lib/aca.sh"; wait_ready app rg'], capture_output=True, text=True, env=env)
+    assert (run.returncode == 0) == ok, run
+    if not ok:
+        assert "did not become ready" in run.stderr and "traffic stays on app--d1" in run.stderr and "fake log line" in run.stderr
