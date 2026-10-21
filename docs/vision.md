@@ -132,6 +132,36 @@ The default model directory is `models/vision/`. Trained models are build artefa
 - **What inference is given.** Besides the team sheet and kit colours, the vision run receives the match header's period start and end times and attacking directions. On a real broadcast those come from the broadcast log or the on-screen clock, which v0 does not read. Inference also knows the renderer's camera model and its grass, shadow, and line colours; the 0.05 m pan and 0.20 m position errors depend on that prior.
 - **Kit colours.** The detector takes its colours from the roster, so unseen colours mainly test the colour clustering and the number reader's normalisation; the fresh matches cover that.
 
+## A full 90-minute match
+
+Everything above was measured on 5-minute matches. The product is meant for a full broadcast, so two full matches were generated (2 x 45 minutes, realistic profile, new clubs, no captions) and run end to end: render, shots, identity, possession, events, clips, Librarian.
+
+**First full match (seed 901), as a probe.** It exposed what 5-minute demo-profile matches had hidden: v1 interception precision of 0.11 (realistic play wins loose balls back as "recoveries", which v1 called interceptions), goals and shots timed up to two seconds early, and a renderer that held every position record in memory (4.6 GB). All three were fixed (spotter v2 above; the renderer now streams tracks, 225 MB). Because it was looked at, this match is a development match from here on.
+
+**Second full match (seed 902), scored once with frozen models** (file fingerprints checked before and after):
+
+| Measure (90.7 minutes of video) | Result |
+|---|---|
+| Whole vision pipeline | 30.6 minutes (0.34x real time; 21.6 minutes, 0.24x, on the first match, which ran without other load). Identity is 80-86% of it; shots 3 minutes; possession and events under a second each |
+| Peak memory / identity result on disk | 2.4 GB / 211 MB |
+| Records | 152 shots, 1,096 possessions, 1,650 events, 3,986 appearances; 12 identity questions prepared |
+| Goals | **5 of 5**, at the right time, by the right player |
+| Pass (768 true) | precision 0.97, recall 0.90 |
+| Shot (27) | 0.91 / 0.78 |
+| Save (8) | 1.00 / 0.63 |
+| Tackle (33) | 0.88 / 0.85 |
+| Ball won after a pass (192) | 0.98 / 0.61 |
+| Take-on (25) | 0.70 / 0.64 |
+| Cross (37) | 0.74 / 0.54 |
+| Carry (467) | 0.71 / 0.90 |
+| Nutmeg (1) | missed |
+| **Clips for all 22 starters** (1,182 true clips) | **recall 0.86, precision 0.94** |
+| Librarian and conversation on the full match | under 0.1 s per question |
+
+Clip quality at full length is better than on the 5-minute matches (0.76 / 0.94), mainly because realistic play has fewer, longer possessions. Nutmegs stay the weak spot: rare at full length (one in this match) and still missed.
+
+**Speed and memory fixes from these runs.** Probing a video reads the container's metadata instead of decoding it (a full pass per probe before; a run probes several times). Sampling happens inside ffmpeg: whole-number ratios (25 -> 5, 30 -> 5, 10 -> 5) keep exactly every k-th frame, pixel for pixel the same as before but without decoding and copying the rest into Python; other ratios and variable-frame-rate phone recordings are spaced evenly by timestamp. Neither shows on our 640x360 renders, where identity dominates; both matter for a 1080p phone recording. The renderer streams tracks into its timelines instead of holding a million records.
+
 ## Who's who: a person corrects identity (plan step 3)
 
 The identity agent names tracks by kit-number vote and decides who appears in each replay. Where it is unsure, `regista.vision.review` turns that into a short list of questions, ranked by how much a wrong call costs (seconds of footage, how close the vote was):
@@ -164,7 +194,15 @@ Through to the product, for all 22 starters on the six matches (470 true clips):
 
 **Data.** Footage rendered without captions, positions recorded at 10 Hz. Training: vision output of 40 rendered matches (the 10 training matches plus 30 more with the same clubs and colours), plus 60 matches that are only generated, sampled at the vision layer's 5 frames a second with its measured noise (about 0.2 m) and run through the same possession agent. Vision examples weigh three times a generated one: the generated data supplies volume for rare events (53 nutmegs, 274 take-ons in training), the vision data supplies how events measure through the camera (it reads a ball crossing a defender as about 1 m from him where generated positions say 0.4 m). Development: seeds 201-206. Fresh: seeds 301-303, scored once with frozen models (file fingerprints checked before and after).
 
-**Fresh matches, scored once, end to end** (shot model v3 finds the segments, then identity, possession and events; a prediction matches a true event of the same type within 1 s; only events in main-camera footage count):
+The tables below are spotter v1, the first version. A full 90-minute match (next section) exposed two weaknesses, and spotter v2 fixes what can be fixed:
+
+- **Timing.** A possession often ends a beat before the kick, so v1 timed passes and shots up to two seconds early and missed a goal it had found. v2 times passes, crosses and shots at the first moment the ball moves at kicking speed, and goals when the ball first reaches the goal mouth; training labels are matched there too.
+- **Interception or recovery cannot be seen.** After a misplaced pass the generator calls the opponent's win an interception or a ball recovery at random, with identical movement; the dense demo profile says interception, the realistic profile mostly says recovery. v1 called every one an interception, which looked fine on demo-profile matches (0.96 precision) and fell to 0.11 on a realistic 90-minute match. v2 spots what footage shows, the opponent winning the ball after a pass, and it is scored against interceptions and recoveries together (`ball_won`). Telling them apart would need the generator to make them look different, as it now does for nutmegs. Clearances are not spotted: the clearing player never holds the ball long enough to count as a possession.
+- **Both profiles in training.** The 60 generated training matches alternate the demo and realistic profiles.
+
+Spotter v2, scored once on the fresh 5-minute matches (identity on true segments): pass 0.99 / 0.81, shot **0.93 / 0.93**, save 4 of 4, ball won 0.96 / 0.68, tackle 1.00 / 0.56, take-on 0.89 / 0.44, nutmeg 0.50 / 0.33, carry 0.86 / 0.83 (precision / recall). Development matches: pass 0.96 / 0.78, shot 0.85 / 0.65, goal 2 of 2, nutmeg 0.83 / 0.46, tackle 1.00 / 0.69 (the broader ball-won class absorbs a few tackles: v1 had 0.72).
+
+**Spotter v1. Fresh matches, scored once, end to end** (shot model v3 finds the segments, then identity, possession and events; a prediction matches a true event of the same type within 1 s; only events in main-camera footage count):
 
 | Event | True | Precision | Recall | Right player |
 |---|---|---|---|---|

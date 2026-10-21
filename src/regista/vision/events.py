@@ -38,7 +38,11 @@ from regista.schema import SCHEMA_VERSION
 Record = dict[str, Any]
 PITCH_L, PITCH_W = 105.0, 68.0
 GOAL_HALF_WIDTH = 3.66
+# "interception" here means the opponent won the ball after a misplaced pass. The generator calls that an
+# interception or a ball recovery at random, with identical movement, so footage cannot tell them apart; both are
+# spotted as one event and scored together ("ball_won").
 BOUNDARY_CLASSES = ["none", "pass", "cross", "shot", "tackle", "interception"]
+KICK_SPEED = 8.0  # m/s: the ball has left the foot (a carry runs at 3-7 m/s)
 DUEL_CLASSES = ["none", "take_on", "nutmeg"]
 MODEL_FILE = "event_spotter.joblib"
 CARRY_MIN_M = 3.0
@@ -184,7 +188,15 @@ def boundary_candidates(poss: list[Record], pos: Positions, signs, gk_ids: set[s
         travel = sum(math.dist(path[k][1], path[k + 1][1]) for k in range(len(path) - 1)) if len(path) > 1 else 0.0
         speeds = [math.dist(path[k][1], path[k + 1][1]) / max(0.05, path[k + 1][0] - path[k][0]) for k in range(len(path) - 1)]
         min_goal = min((math.dist(b, goal) for _t, b in path), default=_d(b0, goal))
-        closest = min(path, key=lambda tb_: math.dist(tb_[1], goal))[1] if path else b0
+        closest_tb = min(path, key=lambda tb_: math.dist(tb_[1], goal)) if path else (ta, b0)
+        closest = closest_tb[1]
+        # When the ball actually left: the first step at kicking speed (a possession often ends a beat before the
+        # kick, when the carrier's last frame near the ball is counted). Events are timed there, goals on arrival.
+        kick_t = next((path[k][0] for k in range(len(path) - 1)
+                       if path[k + 1][0] > ta - 0.4 and speeds[k] >= KICK_SPEED), ta)
+        # The first frame the ball is at the goal mouth (it can rest there for a while after a goal).
+        arrive_t = next((t for t, b in path if t >= kick_t and abs(b[0] - goal[0]) <= 1.5
+                         and abs(b[1] - PITCH_W / 2) <= GOAL_HALF_WIDTH + 0.5), closest_tb[0])
         pa = pos.player(p["player_id"], ta)
         q_at_a = pos.player(q["player_id"], ta) if q else None
         q_at_b = pos.player(q["player_id"], tb) if q else None
@@ -211,9 +223,11 @@ def boundary_candidates(poss: list[Record], pos: Positions, signs, gk_ids: set[s
             "p_len": float(p["t_end"]) - float(p["t"]),
             "q_len": (float(q["t_end"]) - float(q["t"])) if q else 0.0,
             "segment_change": float(q is not None and pos.segment(ta) != pos.segment(tb)),
+            "kick_delay": min(max(kick_t - ta, -1.0), 3.0),
         }
         out.append(Candidate("boundary", ta, p["player_id"], p["team_id"], q["player_id"] if q else None, f,
-                             {"p": p, "q": q, "b0": b0, "b1": b1, "closest": closest, "sign": s}))
+                             {"p": p, "q": q, "b0": b0, "b1": b1, "closest": closest, "sign": s, "kick_t": kick_t,
+                              "arrive_t": arrive_t}))
     return out
 
 
@@ -318,14 +332,16 @@ def pseudo_identity_frames(stream: list[Record], tracks: list[Record], *, fps: f
     return [frames[t] for t in sorted(frames)]
 
 
-def generated_example_set(seeds: list[int], minutes: float = 5.0, fps: float = 5.0) -> tuple[list, list]:
-    """Labelled candidates from freshly generated matches, run through the same possession agent as vision output."""
+def generated_example_set(seeds: list[int], minutes: float = 5.0, fps: float = 5.0, profiles: tuple[str, ...] = ("demo",)) -> tuple[list, list]:
+    """Labelled candidates from freshly generated matches, run through the same possession agent as vision output.
+    ``profiles`` alternate across seeds: the dense demo profile supplies rare events, the realistic profile the
+    texture of real play (misplaced passes are mostly won back as loose balls, not intercepted)."""
     from regista.synth import generate
     from regista.vision.possession import infer_possessions
 
     B, D = [], []
-    for seed in seeds:
-        r = generate(seed=seed, minutes=minutes, track_hz=fps * 2)
+    for n, seed in enumerate(seeds):
+        r = generate(seed=seed, minutes=minutes, track_hz=fps * 2, profile=profiles[n % len(profiles)])
         segs = [x for x in r.stream if x["type"] == "camera_segment"]
         frames = pseudo_identity_frames(r.stream, r.tracks, fps=fps, seed=seed)
         poss = infer_possessions(frames, r.match, r.match["match_id"], fps=fps, segment_end={x["id"]: x["t_end"] for x in segs})
@@ -354,18 +370,24 @@ def _near(evs: list[Record], t: float, tol: float, player: str | None = None, re
 
 
 def label_boundary(c: Candidate, truth: dict[str, list[Record]], tol: float = 1.2) -> str:
+    """The true event behind a hand-over, looked for at the possession's end and at the kick."""
     q = c.related_id
-    if _near(truth["shot"], c.t, tol, c.player_id):
+    times = (c.t, c.context.get("kick_t", c.t))
+
+    def near(kind: str, who: str | None, extra: float = 0.0, outcome: str | None = None) -> bool:
+        return any(_near(truth[kind], t, tol + extra, who, outcome=outcome) for t in times)
+
+    if near("shot", c.player_id):
         return "shot"
     if q and c.features["same_team"]:
-        if _near(truth["cross"], c.t, tol, c.player_id, outcome="success"):
+        if near("cross", c.player_id, outcome="success"):
             return "cross"
-        if _near(truth["pass"], c.t, tol, c.player_id, outcome="success"):
+        if near("pass", c.player_id, outcome="success"):
             return "pass"
     if q and c.features["opp_team"]:
-        if _near(truth["tackle"], c.t, tol, q):
+        if near("tackle", q):
             return "tackle"
-        if _near(truth["interception"], c.t, tol + 1.0, q):
+        if near("interception", q, 1.0) or near("recovery", q, 1.0):
             return "interception"
     return "none"
 
@@ -483,8 +505,9 @@ def spot_events(pos: Positions, possessions: list[Record], match: Record, spotte
         if label == "none":
             continue
         p, q, f = c.context["p"], c.context["q"], c.features
+        kick_t = c.context.get("kick_t", c.t)
         if label in ("pass", "cross"):
-            add(label, c.t, c.player_id, c.team_id, conf, related=c.related_id, possession_id=p["id"], pitch=_pt(c.context["b0"]),
+            add(label, kick_t, c.player_id, c.team_id, conf, related=c.related_id, possession_id=p["id"], pitch=_pt(c.context["b0"]),
                 pitch_end=_pt(pos.player(q["player_id"], float(q["t"])) if q else c.context["b1"]),
                 metrics={"pass_distance_m": round(min(f["pass_dist"], 120.0), 2)} if f["pass_dist"] < 99 else None)
         elif label == "interception":
@@ -500,7 +523,7 @@ def spot_events(pos: Positions, possessions: list[Record], match: Record, spotte
                 _d(pos.player(q["player_id"], float(q["t"])), (PITCH_L / 2, PITCH_W / 2)) <= 6.0
             saved = bool(f["q_is_opp_gk"]) and f["gap_s"] <= 3.0
             scored = in_mouth and not saved and (q is None or restart_from_centre)
-            add("shot", c.t, c.player_id, c.team_id, conf, possession_id=p["id"], pitch=_pt(c.context["b0"]),
+            add("shot", kick_t, c.player_id, c.team_id, conf, possession_id=p["id"], pitch=_pt(c.context["b0"]),
                 pitch_end=_pt(c.context["closest"]), outcome="success" if scored else "fail",
                 qualifiers=["goal" if scored else "saved" if saved else "off_target" if not in_mouth else "unknown"],
                 metrics={"shot_distance_m": round(f["start_goal_dist"], 2)} if f["start_goal_dist"] < 99 else None)
@@ -508,7 +531,8 @@ def spot_events(pos: Positions, possessions: list[Record], match: Record, spotte
                 add("save", float(q["t"]), q["player_id"], q["team_id"], conf, related=c.player_id, possession_id=q["id"],
                     pitch=_pt(pos.player(q["player_id"], float(q["t"]))))
             if scored:
-                add("goal", c.t + 0.5, c.player_id, c.team_id, conf, pitch=_pt(c.context["b0"]), pitch_end=_pt(c.context["closest"]))
+                add("goal", max(kick_t, c.context.get("arrive_t", kick_t)), c.player_id, c.team_id, conf, pitch=_pt(c.context["b0"]),
+                    pitch_end=_pt(c.context["closest"]))
     out.sort(key=lambda r: (r["t"], r["id"]))
     for i, r in enumerate(out, start=1):
         r["id"] = f"ev_v{i:06d}"
@@ -535,7 +559,7 @@ def examples(pos: Positions, possessions: list[Record], match: Record, truth_eve
     return b, d
 
 
-SCORED_TYPES = ["pass", "cross", "shot", "goal", "save", "tackle", "interception", "take_on", "nutmeg", "carry"]
+SCORED_TYPES = ["pass", "cross", "shot", "goal", "save", "tackle", "ball_won", "take_on", "nutmeg", "carry"]
 
 
 def evaluate_events(pred: list[Record], truth_events: list[Record], main_segments: list[Record],
@@ -549,7 +573,8 @@ def evaluate_events(pred: list[Record], truth_events: list[Record], main_segment
         return any(s["t"] <= t < s["t_end"] for s in main_segments)
 
     def truth_of(kind: str) -> list[Record]:
-        evs = [e for e in truth_events if e.get("type") == "event" and e["event_type"] == kind and in_main(float(e["t"]))]
+        kinds = {"ball_won": ("interception", "recovery")}.get(kind, (kind,))
+        evs = [e for e in truth_events if e.get("type") == "event" and e["event_type"] in kinds and in_main(float(e["t"]))]
         if kind in ("pass", "cross", "take_on"):
             evs = [e for e in evs if e.get("outcome") == "success"]
         return evs
@@ -557,7 +582,8 @@ def evaluate_events(pred: list[Record], truth_events: list[Record], main_segment
     report: dict[str, dict[str, Any]] = {}
     for kind in SCORED_TYPES:
         tr = truth_of(kind)
-        pr = [e for e in pred if e["event_type"] == kind and (kind not in ("pass", "cross") or e.get("outcome") == "success")]
+        pred_kind = "interception" if kind == "ball_won" else kind
+        pr = [e for e in pred if e["event_type"] == pred_kind and (kind not in ("pass", "cross") or e.get("outcome") == "success")]
         used = [False] * len(tr)
         hit, player_ok = 0, 0
         for e in sorted(pr, key=lambda r: -r["confidence"]):
@@ -649,7 +675,7 @@ def train_event_spotter(train_items: list[dict[str, Any]], models_dir: Path | st
     Generated matches supply volume (rare events such as nutmegs); vision output supplies how events really measure
     through the camera (the vision layer reads a ball crossing a defender as further from him than it is), so its
     examples weigh more."""
-    B, D = generated_example_set(generated_seeds)
+    B, D = generated_example_set(generated_seeds, profiles=("demo", "realistic"))
     n_gen = (len(B), len(D))
     for it in train_items:
         pos, poss, header, stream, _main = _vision_inputs(it)

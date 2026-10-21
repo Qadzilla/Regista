@@ -11,7 +11,7 @@ from __future__ import annotations
 import bisect
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 from regista.schema import iter_jsonl
 
@@ -113,11 +113,13 @@ class Scene:
         match_dir = Path(match_dir)
         stream = list(iter_jsonl(match_dir / "events.jsonl"))
         tracks_path = match_dir / "tracks.jsonl"
-        tracks = list(iter_jsonl(tracks_path)) if tracks_path.exists() else []
+        # Streamed straight into the timelines: a 90-minute match at 10 Hz is a million track records, and holding
+        # them as dicts first took 4.6 GB.
+        tracks = iter_jsonl(tracks_path) if tracks_path.exists() else iter(())
         return cls.from_records(stream, tracks)
 
     @classmethod
-    def from_records(cls, stream: list[Record], tracks: list[Record]) -> Scene:
+    def from_records(cls, stream: list[Record], tracks: Iterable[Record]) -> Scene:
         match = next(r for r in stream if r["type"] == "match")
         segments = sorted((r for r in stream if r["type"] == "camera_segment"), key=lambda s: s["t"])
         events = sorted((r for r in stream if r["type"] == "event"), key=lambda e: e["t"])

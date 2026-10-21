@@ -78,11 +78,19 @@ def test_frames_iterator_samples_and_downscales(clips):
     info = probe(clips["test"]["video"])
     assert info.fps == FPS and (info.width, info.height) == SIZE
     frames = list(iter_frames(clips["test"]["video"], sample_fps=2.0, size=(128, 72), end_s=5.0))
-    # Sampling keeps real frames, so a rate that does not divide the source rate gives uneven gaps. The shot model
-    # was trained at the renders' own rate and is not robust to this (docs/vision.md, "Limits").
-    assert [round(t, 2) for _i, t, _f in frames] == [0.0, 0.6, 1.0, 1.6, 2.0, 2.6, 3.0, 3.6, 4.0, 4.6]
+    # ffmpeg samples by timestamp, so a rate that does not divide the source rate is still evenly spaced; each frame
+    # is the source frame nearest its time.
+    assert [round(t, 2) for _i, t, _f in frames] == [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5]
     i, t, f = frames[3]
-    assert f.shape == (72, 128, 3) and f.dtype == np.uint8 and abs(t - i / FPS) < 1e-9
+    assert f.shape == (72, 128, 3) and f.dtype == np.uint8 and abs(t - i / FPS) <= 0.5 / FPS + 1e-9
+    # A rate that divides evenly keeps exactly every k-th source frame, pixel for pixel.
+    every = {i: f for i, _t, f in iter_frames(clips["test"]["video"], size=(128, 72), end_s=4.0)}
+    halves = list(iter_frames(clips["test"]["video"], sample_fps=FPS / 2, size=(128, 72), end_s=4.0))
+    assert [i for i, _t, _f in halves] == list(range(0, len(every), 2))
+    assert all(np.array_equal(f, every[i]) for i, _t, f in halves)
+    # Seeking starts at the asked time without decoding what comes before.
+    window = list(iter_frames(clips["test"]["video"], sample_fps=FPS, start_s=2.0, end_s=3.0))
+    assert [round(t, 2) for _i, t, _f in window] == [round(2.0 + k / FPS, 2) for k in range(int(FPS))]
 
 
 def test_ground_truth_discs_sit_on_kit_coloured_pixels(clips):
