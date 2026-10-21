@@ -1016,4 +1016,4 @@ from fastapi.staticfiles import StaticFiles  # noqa: E402
 from regista.studio_api import router as _studio_router  # noqa: E402
 
 app.include_router(_studio_router)
-app.mount("/static/shared", StaticFiles(directory=STATIC / "shared"), name="shared")
+app.mount("/static", StaticFiles(directory=STATIC), name="static")  # product/, studio/, shared/: public files, no data

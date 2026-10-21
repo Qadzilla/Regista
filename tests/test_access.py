@@ -93,6 +93,7 @@ def test_the_product_stays_open_with_keys_configured(keyed):
     assert keyed.get("/").status_code == 200 and keyed.get("/studio").status_code == 200
     assert keyed.get("/api/health").json()["writes"] == "token"
     assert keyed.get("/static/shared/regista.js").status_code == 200
+    assert keyed.get("/static/studio/index.html").status_code == 200 and keyed.get("/static/../access.py").status_code == 404
 
 
 def test_no_keys_means_everything_open(monkeypatch):
