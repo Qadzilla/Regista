@@ -1,0 +1,68 @@
+{
+  "match_id": "vis_0201",
+  "source": "vision",
+  "note": "Cut from video by Regista's vision layer, run offline on Regista's own rendered broadcast of development match syn_0201 (seed 201, 640x360, 10 fps, no captions). Possessions, events, appearances and player identity come from the video, not from the generator; the score counts goals the vision layer spotted. The Who's who questions are unanswered. Tracks are downsampled to 1 Hz for size.",
+  "rendering": {
+    "generator_seed": 201,
+    "match_spec": "regista.vision.dataset.TEST_SPECS[0]",
+    "size": [
+      640,
+      360
+    ],
+    "fps": 10,
+    "captions": false,
+    "models": "shot model v3, kit-number reader and identity configuration v2, event spotter v1"
+  },
+  "score": {
+    "t_home": 0,
+    "t_away": 0
+  },
+  "video": {
+    "video_id": "syn_0201_640x360_10fps_nocap",
+    "fps": 10.0,
+    "width": 640,
+    "height": 360,
+    "duration_s": 327.1
+  },
+  "files": {
+    "events.jsonl": 339,
+    "tracks.jsonl": 4606,
+    "clips.jsonl": 16
+  },
+  "tracks_trimmed": {
+    "from": 9353,
+    "to": 4606,
+    "track_hz": 1.0,
+    "how": "regista.vision.package: downsample_tracks, then trim_tracks (what the renderer reads)"
+  },
+  "record_counts": {
+    "match": 1,
+    "camera_segment": 8,
+    "possession": 52,
+    "event": 80,
+    "appearance": 198
+  },
+  "event_type_counts": {
+    "carry": 26,
+    "interception": 9,
+    "pass": 35,
+    "shot": 2,
+    "tackle": 5,
+    "take_on": 3
+  },
+  "clips_for": "t_home_09",
+  "clip_reasons": {
+    "on_ball_main": 7,
+    "closeup_appearance": 1
+  },
+  "review": {
+    "questions": 11,
+    "kinds": {
+      "track": 8,
+      "cutaway": 3
+    },
+    "crops": 11,
+    "answers": 0,
+    "answered_by": []
+  }
+}

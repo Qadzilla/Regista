@@ -152,6 +152,16 @@ class Scene:
             elif tr["object"] == "player" and tr.get("player_id"):
                 players.setdefault(tr["player_id"], Timeline()).add(tr["t"], x, y)
 
+        # The vision layer reads a closeup directly and names its player in an appearance record, with no track; a
+        # cutaway without named tracks takes its players from appearances, most prominent first.
+        tracked = set(cutaway)
+        for a in sorted((r for r in stream if r["type"] == "appearance" and r["segment_id"] not in main_ids),
+                        key=lambda a: (-a.get("prominence", 0.0), a["t"])):
+            if a["segment_id"] not in tracked and a.get("player_id") in roster:
+                ids = cutaway.setdefault(a["segment_id"], [])
+                if a["player_id"] not in ids:
+                    ids.append(a["player_id"])
+
         # Pass and shot events are precise ball waypoints: start at t, end at t + distance/speed.
         for e in events:
             m = e.get("metrics", {})

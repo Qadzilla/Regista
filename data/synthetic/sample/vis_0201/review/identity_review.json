@@ -1,0 +1,449 @@
+{
+ "items": [
+  {
+   "item_id": "tr_238",
+   "kind": "track",
+   "track_index": 238,
+   "team_id": "t_home",
+   "is_gk": false,
+   "segment_id": "cs_v00003",
+   "t0": 207.0,
+   "t1": 237.6,
+   "t": 226.6,
+   "u": 179.0,
+   "v": 177.97155748300963,
+   "r": 5.971557483009629,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_home_05",
+     "name": "Jamal Castellanos",
+     "kit_number": 5,
+     "team": "EAS",
+     "p": 1.0
+    },
+    {
+     "player_id": "t_home_09",
+     "name": "Mateo Okafor",
+     "kit_number": 9,
+     "team": "EAS",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_home_03",
+     "name": "Haruki Toure",
+     "kit_number": 3,
+     "team": "EAS",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is this EAS player?",
+   "image": "tr_238.jpg"
+  },
+  {
+   "item_id": "cw_cs_v00007",
+   "kind": "cutaway",
+   "segment_id": "cs_v00007",
+   "segment_kind": "highlight",
+   "t": 315.95,
+   "t0": 307.7,
+   "t1": 324.2,
+   "current": [],
+   "candidates": [
+    {
+     "player_id": "t_away_09",
+     "name": "Amari Brennan",
+     "kit_number": 9,
+     "team": "WES",
+     "p": 0.118
+    },
+    {
+     "player_id": "t_away_13",
+     "name": "Sami Gallagher",
+     "kit_number": 13,
+     "team": "WES",
+     "p": 0.118
+    },
+    {
+     "player_id": "t_away_10",
+     "name": "Femi Quinn",
+     "kit_number": 10,
+     "team": "WES",
+     "p": 0.051
+    },
+    {
+     "player_id": "t_home_11",
+     "name": "Yusuf Novak",
+     "kit_number": 11,
+     "team": "EAS",
+     "p": 0.051
+    },
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 0.034
+    }
+   ],
+   "question": "Who is in this highlight?",
+   "image": "cw_cs_v00007.jpg"
+  },
+  {
+   "item_id": "cw_cs_v00002",
+   "kind": "cutaway",
+   "segment_id": "cs_v00002",
+   "segment_kind": "replay",
+   "t": 202.9,
+   "t0": 198.9,
+   "t1": 206.9,
+   "current": [
+    "t_away_10"
+   ],
+   "candidates": [
+    {
+     "player_id": "t_away_10",
+     "name": "Femi Quinn",
+     "kit_number": 10,
+     "team": "WES",
+     "p": 0.521
+    },
+    {
+     "player_id": "t_home_10",
+     "name": "Dani Zidane",
+     "kit_number": 10,
+     "team": "EAS",
+     "p": 0.139
+    },
+    {
+     "player_id": "t_away_13",
+     "name": "Sami Gallagher",
+     "kit_number": 13,
+     "team": "WES",
+     "p": 0.035
+    },
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 0.035
+    },
+    {
+     "player_id": "t_home_01",
+     "name": "Emeka Fontaine",
+     "kit_number": 1,
+     "team": "EAS",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is in this replay?",
+   "image": "cw_cs_v00002.jpg"
+  },
+  {
+   "item_id": "tr_26",
+   "kind": "track",
+   "track_index": 26,
+   "team_id": "t_away",
+   "is_gk": true,
+   "segment_id": "cs_v00001",
+   "t0": 27.0,
+   "t1": 32.8,
+   "t": 32.8,
+   "u": 623.5,
+   "v": 169.0,
+   "r": 5.909507994459053,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 1.0
+    },
+    {
+     "player_id": "t_away_13",
+     "name": "Sami Gallagher",
+     "kit_number": 13,
+     "team": "WES",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is this WES goalkeeper?",
+   "image": "tr_26.jpg"
+  },
+  {
+   "item_id": "tr_21",
+   "kind": "track",
+   "track_index": 21,
+   "team_id": "t_away",
+   "is_gk": true,
+   "segment_id": "cs_v00001",
+   "t0": 27.0,
+   "t1": 31.4,
+   "t": 28.2,
+   "u": 443.53729248046875,
+   "v": 141.6119384765625,
+   "r": 5.689901655204846,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 1.0
+    },
+    {
+     "player_id": "t_away_13",
+     "name": "Sami Gallagher",
+     "kit_number": 13,
+     "team": "WES",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is this WES goalkeeper?",
+   "image": "tr_21.jpg"
+  },
+  {
+   "item_id": "tr_23",
+   "kind": "track",
+   "track_index": 23,
+   "team_id": "t_away",
+   "is_gk": true,
+   "segment_id": "cs_v00001",
+   "t0": 27.0,
+   "t1": 31.4,
+   "t": 29.8,
+   "u": 340.7391357421875,
+   "v": 146.79710388183594,
+   "r": 5.731477989189098,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 0.95
+    },
+    {
+     "player_id": "t_away_13",
+     "name": "Sami Gallagher",
+     "kit_number": 13,
+     "team": "WES",
+     "p": 0.05
+    }
+   ],
+   "question": "Who is this WES goalkeeper?",
+   "image": "tr_23.jpg"
+  },
+  {
+   "item_id": "tr_22",
+   "kind": "track",
+   "track_index": 22,
+   "team_id": "t_away",
+   "is_gk": true,
+   "segment_id": "cs_v00001",
+   "t0": 27.0,
+   "t1": 31.4,
+   "t": 30.0,
+   "u": 329.46875,
+   "v": 137.3229217529297,
+   "r": 5.6555109313169565,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_away_13",
+     "name": "Sami Gallagher",
+     "kit_number": 13,
+     "team": "WES",
+     "p": 1.0
+    },
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is this WES goalkeeper?",
+   "image": "tr_22.jpg"
+  },
+  {
+   "item_id": "tr_103",
+   "kind": "track",
+   "track_index": 103,
+   "team_id": "t_away",
+   "is_gk": false,
+   "segment_id": "cs_v00001",
+   "t0": 100.2,
+   "t1": 102.0,
+   "t": 100.4,
+   "u": 623.5,
+   "v": 207.5,
+   "r": 6.218213451909983,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_away_04",
+     "name": "Dario Vargas",
+     "kit_number": 4,
+     "team": "WES",
+     "p": 1.0
+    },
+    {
+     "player_id": "t_away_08",
+     "name": "Femi Castellanos",
+     "kit_number": 8,
+     "team": "WES",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_away_06",
+     "name": "Amari Vargas",
+     "kit_number": 6,
+     "team": "WES",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is this WES player?",
+   "image": "tr_103.jpg"
+  },
+  {
+   "item_id": "cw_cs_v00006",
+   "kind": "cutaway",
+   "segment_id": "cs_v00006",
+   "segment_kind": "highlight",
+   "t": 305.95,
+   "t0": 304.2,
+   "t1": 307.7,
+   "current": [
+    "t_away_06",
+    "t_home_07"
+   ],
+   "candidates": [
+    {
+     "player_id": "t_home_07",
+     "name": "Owen Weber",
+     "kit_number": 7,
+     "team": "EAS",
+     "p": 1.0
+    },
+    {
+     "player_id": "t_away_06",
+     "name": "Amari Vargas",
+     "kit_number": 6,
+     "team": "WES",
+     "p": 0.317
+    },
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_away_07",
+     "name": "Pavel Valente",
+     "kit_number": 7,
+     "team": "WES",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_away_02",
+     "name": "Benji Bakker",
+     "kit_number": 2,
+     "team": "WES",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is in this highlight?",
+   "image": "cw_cs_v00006.jpg"
+  },
+  {
+   "item_id": "tr_242",
+   "kind": "track",
+   "track_index": 242,
+   "team_id": "t_away",
+   "is_gk": true,
+   "segment_id": "cs_v00003",
+   "t0": 240.0,
+   "t1": 241.0,
+   "t": 240.2,
+   "u": 329.1182861328125,
+   "v": 143.21505737304688,
+   "r": 5.702755981238286,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_away_13",
+     "name": "Sami Gallagher",
+     "kit_number": 13,
+     "team": "WES",
+     "p": 0.954
+    },
+    {
+     "player_id": "t_away_01",
+     "name": "Yusuf Zidane",
+     "kit_number": 1,
+     "team": "WES",
+     "p": 0.046
+    }
+   ],
+   "question": "Who is this WES goalkeeper?",
+   "image": "tr_242.jpg"
+  },
+  {
+   "item_id": "tr_250",
+   "kind": "track",
+   "track_index": 250,
+   "team_id": "t_home",
+   "is_gk": false,
+   "segment_id": "cs_v00003",
+   "t0": 244.2,
+   "t1": 247.8,
+   "t": 247.8,
+   "u": 423.0,
+   "v": 173.939484188729,
+   "r": 5.939484188729014,
+   "current": "t_home_06",
+   "confidence": 0.741,
+   "candidates": [
+    {
+     "player_id": "t_home_06",
+     "name": "Idris Toure",
+     "kit_number": 6,
+     "team": "EAS",
+     "p": 0.741
+    },
+    {
+     "player_id": "t_home_09",
+     "name": "Mateo Okafor",
+     "kit_number": 9,
+     "team": "EAS",
+     "p": 0.083
+    },
+    {
+     "player_id": "t_home_05",
+     "name": "Jamal Castellanos",
+     "kit_number": 5,
+     "team": "EAS",
+     "p": 0.081
+    }
+   ],
+   "question": "Who is this EAS player?",
+   "image": "tr_250.jpg"
+  }
+ ]
+}
