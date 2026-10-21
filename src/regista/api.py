@@ -6,7 +6,8 @@
 Two pages: the Product at ``/`` (open) and the Studio at ``/studio`` (regista.studio_api). Product reads are open.
 Studio reads (reviewers' data, marked [studio]) need the ``X-Regista-Token`` header with the Studio view key or the
 admin key; writes (marked [write]) need the admin key. REGISTA_READONLY=1 switches writes off entirely. With no key
-configured (local development) everything is open. The rules live in regista.access.
+configured, a plain local run (development) is open; with REGISTA_READONLY or REGISTA_CLOUD set it fails closed. The rules
+live in regista.access.
 
 Endpoints
 ---------
@@ -23,7 +24,7 @@ GET  /api/matches/{match_id}/search?q=          the Librarian (rule-based, insta
 POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools; with its trace
 POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited);
                                                 with its trace
-GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE
+GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE (sizes, queue, budget: below)
 GET  /api/matches/{match_id}/video.mp4          the whole broadcast, rendered on demand, cached
 GET  /api/matches/{match_id}/report             synthetic realism report (markdown)
 GET  /api/matches/{match_id}/review             the workflow's open review request                                           [studio]
@@ -49,6 +50,7 @@ import tempfile
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -57,6 +59,7 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Reques
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field, StrictFloat, StrictInt, StringConstraints, model_validator
+from starlette.background import BackgroundTask
 
 from regista import __version__
 from regista.access import StudioReader, Writer, require_studio_reader, require_writer, role_of, write_mode  # noqa: F401
@@ -69,7 +72,7 @@ CACHE_ROOT = Path(os.environ.get("REGISTA_CACHE", "data/clips"))
 STATIC = Path(__file__).resolve().parent / "static"  # product/, studio/, shared/
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SYNC_TTL_S = 30.0
-ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,120}$")
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,119}$")  # starts alphanumeric: never ".", ".hidden" or "-x"
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -89,6 +92,43 @@ app = FastAPI(title="Regista", version=__version__, description="Every touch. Ev
 
 
 # Access control (write_mode, require_writer, require_studio_reader) lives in regista.access.
+
+# Defence in depth for the key the Studio keeps in sessionStorage: scripts only from this server (both pages load
+# external files and run no inline script), no framing, no plugins. Styles stay inline-able: the pages set style
+# attributes and the timeline injects its own <style>. /docs and /redoc (Swagger UI from a CDN) are left alone.
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+       "media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+SECURITY_HEADERS = [(b"content-security-policy", CSP.encode()), (b"x-content-type-options", b"nosniff"),
+                    (b"x-frame-options", b"DENY"), (b"referrer-policy", b"same-origin")]
+
+
+class _Hardening:
+    """Pure ASGI middleware: security headers on every response, and HEAD answered as GET without the body (uptime
+    checkers use HEAD; FastAPI routes are GET-only and would say 405)."""
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        path = scope.get("path", "")
+        head = scope["method"] == "HEAD" and not path.startswith("/static/")  # StaticFiles answers HEAD itself
+        if head:
+            scope = {**scope, "method": "GET"}
+        headers = not (path.startswith("/docs") or path.startswith("/redoc"))
+
+        async def wrapped(message: dict) -> None:
+            if message["type"] == "http.response.start" and headers:
+                message = {**message, "headers": [*message.get("headers", []), *SECURITY_HEADERS]}
+            elif message["type"] == "http.response.body" and head:
+                message = {**message, "body": b""}
+            await send(message)
+
+        await self.app(scope, receive, wrapped)
+
+
+app.add_middleware(_Hardening)
 
 
 # ---------------------------------------------------------------------------- request bodies
@@ -332,10 +372,55 @@ def _player_of(clip_id: str) -> str | None:
 # starved its one CPU, and answered 503 (seen on the live app on 2026-10-21). Now each file is rendered once (later
 # requests wait for it), into a temporary name that is renamed into place (a half-written file is never served), and at
 # most REGISTA_RENDER_CONCURRENCY renders run at a time.
+#
+# The render endpoints are public, so anyone can ask for a render. Three more rules keep that from stalling the app or
+# filling its disk (audit J2, 2026-10-21: 46 parallel requests at odd sizes kept /api/health from answering for a minute):
+# - only the sizes the pages use are accepted (RENDER_WIDTHS x RENDER_FPS; anything else is 400), so the cache holds at
+#   most a few files per clip;
+# - renders run on their own small thread pool, so requests waiting for one hold no thread of the pool every other
+#   endpoint runs on, and at most REGISTA_RENDER_QUEUE of them wait at once (more get 503 with Retry-After);
+# - the cache keeps at most REGISTA_CACHE_MAX_MB (default 1024 MB): after each render the least recently served files go
+#   first, never one that is being rendered or served right now.
 RENDER_CONCURRENCY = max(1, int(os.environ.get("REGISTA_RENDER_CONCURRENCY", "1")))
+RENDER_WIDTHS = {640, 1280}       # 1280 is what both pages ask for (the default); 640 a lighter size for slow links
+RENDER_FPS = {25}
+RENDER_QUEUE_MAX = max(1, int(os.environ.get("REGISTA_RENDER_QUEUE", "24")))
+CACHE_MAX_BYTES = max(1, int(os.environ.get("REGISTA_CACHE_MAX_MB", "1024"))) * 1024 * 1024
 _render_slots = threading.BoundedSemaphore(RENDER_CONCURRENCY)
 _render_locks: dict[Path, threading.Lock] = {}
 _render_locks_guard = threading.Lock()
+_render_pool = ThreadPoolExecutor(max_workers=RENDER_CONCURRENCY + 2, thread_name_prefix="regista-render")
+_render_waiting = {"n": 0}        # requests waiting for a render; touched only on the event loop
+_serving: dict[Path, int] = {}    # cached files a response is sending right now, never evicted
+_serving_guard = threading.Lock()
+
+
+def _check_size(fps: float, width: int) -> None:
+    if fps not in RENDER_FPS or width not in RENDER_WIDTHS:
+        raise HTTPException(400, f"videos come at fps {sorted(RENDER_FPS)} and width {sorted(RENDER_WIDTHS)}")
+
+
+def _evict_cache(keep: Path) -> None:
+    """Delete the least recently served videos until the cache fits CACHE_MAX_BYTES. Files being rendered (temporary
+    names start with ".") or served, and ``keep``, stay."""
+    if not CACHE_ROOT.exists():
+        return
+    files = []
+    for f in CACHE_ROOT.glob("*/*.mp4"):
+        try:
+            st = f.stat()
+        except FileNotFoundError:
+            continue
+        files.append((st.st_mtime, st.st_size, f))
+    total = sum(size for _t, size, _f in files)
+    for _t, size, f in sorted(files, key=lambda x: x[0]):
+        if total <= CACHE_MAX_BYTES:
+            break
+        with _serving_guard:
+            if f.name.startswith(".") or f == keep or _serving.get(f) or _render_locks.get(f):
+                continue
+            f.unlink(missing_ok=True)
+        total -= size
 
 
 def _render_once(out: Path, render: Any) -> Path:
@@ -359,6 +444,7 @@ def _render_once(out: Path, render: Any) -> Path:
             finally:
                 for leftover in (tmp, tmp.with_suffix(".gif")):
                     leftover.unlink(missing_ok=True)
+            _evict_cache(keep=out)
     finally:
         with _render_locks_guard:
             if _render_locks.get(out) is lock and not lock.locked():
@@ -366,17 +452,37 @@ def _render_once(out: Path, render: Any) -> Path:
     return out
 
 
+async def _video(out: Path, render: Any, filename: str | None = None) -> FileResponse:
+    """Serve ``out``, rendering it first on the render pool if it is not cached. Marked as served until sent."""
+    if not out.exists():
+        if _render_waiting["n"] >= RENDER_QUEUE_MAX:
+            raise HTTPException(503, "too many videos are rendering right now; try again shortly", headers={"Retry-After": "10"})
+        _render_waiting["n"] += 1
+        try:
+            await asyncio.get_running_loop().run_in_executor(_render_pool, _render_once, out, render)
+        finally:
+            _render_waiting["n"] -= 1
+    with _serving_guard:
+        if not out.exists():  # evicted between the render and now: render it again on the next request
+            raise HTTPException(503, "the video was just evicted from the cache; try again", headers={"Retry-After": "1"})
+        _serving[out] = _serving.get(out, 0) + 1
+        os.utime(out)  # recently served: evicted last
+
+    def done() -> None:
+        with _serving_guard:
+            _serving[out] -= 1
+            if not _serving[out]:
+                del _serving[out]
+
+    return FileResponse(out, media_type="video/mp4", filename=filename or out.name, background=BackgroundTask(done))
+
+
 def _clip_cache_path(match_id: str, clip_id: str, fps: float, width: int) -> Path:
     return CACHE_ROOT / match_id / f"{clip_id}_{int(fps)}fps_{width}.mp4"
 
 
 def _render_clip_cached(d: Path, clip: dict, label: dict | None, fps: float, width: int) -> Path:
-    from regista.render.clips import render_clip
-    from regista.render.draw import Style
-    from regista.render.scene import Scene
-
-    return _render_once(_clip_cache_path(d.name, clip["id"], fps, width),
-                        lambda tmp: render_clip(Scene.load(d), clip, label, tmp, fps, Style(width, round(width * 9 / 16))))
+    return _render_once(*_render_clip_job(d, clip, label, fps, width))
 
 
 PRERENDER_PROGRESS: dict[str, Any] = {"running": False, "total": 0, "rendered": 0, "failed": 0, "started_at": None, "finished_at": None}
@@ -550,8 +656,16 @@ def search(match_id: str, q: str = Query(..., min_length=1, max_length=300), lim
     return out
 
 
-@app.get("/api/matches/{match_id}/clips/{clip_id}.mp4")
-def clip_video(match_id: str, clip_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+def _render_clip_job(d: Path, clip: dict, label: dict | None, fps: float, width: int) -> tuple[Path, Any]:
+    from regista.render.clips import render_clip
+    from regista.render.draw import Style
+    from regista.render.scene import Scene
+
+    return (_clip_cache_path(d.name, clip["id"], fps, width),
+            lambda tmp: render_clip(Scene.load(d), clip, label, tmp, fps, Style(width, round(width * 9 / 16))))
+
+
+def _find_clip(match_id: str, clip_id: str) -> tuple[Path, dict, dict | None]:
     d = _match_dir(match_id)
     if not ID_RE.match(clip_id):
         raise HTTPException(400, "bad clip id")
@@ -559,20 +673,26 @@ def clip_video(match_id: str, clip_id: str, fps: float = Query(25.0, gt=0, le=60
     clip = next((c for c in clips if c["id"] == clip_id), None)
     if clip is None:
         raise HTTPException(404, f"no clip {clip_id}")
-    out = _render_clip_cached(d, clip, labels.get(clip_id), fps, width)
-    return FileResponse(out, media_type="video/mp4", filename=out.name)
+    return d, clip, labels.get(clip_id)
+
+
+@app.get("/api/matches/{match_id}/clips/{clip_id}.mp4")
+async def clip_video(match_id: str, clip_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+    _check_size(fps, width)
+    d, clip, label = await run_in_threadpool(_find_clip, match_id, clip_id)
+    return await _video(*_render_clip_job(d, clip, label, fps, width))
 
 
 @app.get("/api/matches/{match_id}/video.mp4")
-def match_video(match_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
-    d = _match_dir(match_id)
+async def match_video(match_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+    _check_size(fps, width)
+    d = await run_in_threadpool(_match_dir, match_id)
     from regista.render.draw import Style
     from regista.render.scene import Scene
     from regista.render.video import render_video
 
-    out = _render_once(CACHE_ROOT / match_id / f"broadcast_{int(fps)}fps_{width}.mp4",
-                       lambda tmp: render_video(Scene.load(d), tmp, fps=fps, style=Style(width, round(width * 9 / 16)), end_card_s=3.0))
-    return FileResponse(out, media_type="video/mp4", filename=out.name)
+    return await _video(CACHE_ROOT / match_id / f"broadcast_{int(fps)}fps_{width}.mp4",
+                        lambda tmp: render_video(Scene.load(d), tmp, fps=fps, style=Style(width, round(width * 9 / 16)), end_card_s=3.0))
 
 
 # ---------------------------------------------------------------------------- take-aways: a reel to download, moments to export
@@ -615,8 +735,8 @@ def _clips_by_id(match_id: str, ids: list[str]) -> tuple[list[dict], dict[str, d
 
 
 @app.get("/api/matches/{match_id}/reel.mp4")
-def reel_video(match_id: str, clips: str = Query(..., min_length=1, max_length=2000), fps: float = Query(25.0, gt=0, le=60),
-               width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+async def reel_video(match_id: str, clips: str = Query(..., min_length=1, max_length=2000), fps: float = Query(25.0, gt=0, le=60),
+                     width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
     """The clips back to back in the order given, each with its title card. Rendered once and cached by its content."""
     import hashlib
 
@@ -624,13 +744,18 @@ def reel_video(match_id: str, clips: str = Query(..., min_length=1, max_length=2
     from regista.render.draw import Style
     from regista.render.scene import Scene
 
-    d = _match_dir(match_id)
-    ids = _clip_ids(clips, MAX_REEL_CLIPS)
-    chosen, labels = _clips_by_id(match_id, ids)
+    _check_size(fps, width)
+
+    def find() -> tuple[Path, list[str], list[dict], dict[str, dict]]:
+        d = _match_dir(match_id)
+        ids = _clip_ids(clips, MAX_REEL_CLIPS)
+        return (d, ids, *_clips_by_id(match_id, ids))
+
+    d, ids, chosen, labels = await run_in_threadpool(find)
     key = hashlib.sha256(json.dumps([ids, fps, width]).encode()).hexdigest()[:20]
-    out = _render_once(CACHE_ROOT / match_id / f"reel_{key}.mp4",
-                       lambda tmp: render_reel(Scene.load(d), chosen, labels, tmp, fps, Style(width, round(width * 9 / 16)), keep_order=True))
-    return FileResponse(out, media_type="video/mp4", filename=f"regista_{match_id}_reel.mp4")
+    return await _video(CACHE_ROOT / match_id / f"reel_{key}.mp4",
+                        lambda tmp: render_reel(Scene.load(d), chosen, labels, tmp, fps, Style(width, round(width * 9 / 16)), keep_order=True),
+                        filename=f"regista_{match_id}_reel.mp4")
 
 
 def _csv_cell(v: Any) -> Any:

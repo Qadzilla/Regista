@@ -28,7 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,120}$")
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,119}$")  # starts alphanumeric: never ".", ".hidden" or "-x"
 JOB_ID_RE = re.compile(r"^[0-9]{8}-[0-9]{6}-[a-z\-]{1,24}-[0-9a-f]{6}$")
 VIDEO_SUFFIXES = {".mp4", ".mov", ".mkv", ".avi", ".m4v"}
 LOG_CHUNK = 64 * 1024

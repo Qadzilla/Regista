@@ -83,6 +83,10 @@ def test_a_cosmos_only_match_returns_its_header_and_no_moments(client, monkeypat
 # ---------------------------------------------------------------------------- the reel
 
 def test_reel_keeps_the_order_given_and_renders_once(client, monkeypatch):
+    from regista import api
+
+    monkeypatch.setattr(api, "RENDER_FPS", {5})
+    monkeypatch.setattr(api, "RENDER_WIDTHS", {320})  # small and quick
     import regista.render.clips as render_clips
 
     calls = []
@@ -100,8 +104,6 @@ def test_reel_keeps_the_order_given_and_renders_once(client, monkeypatch):
     r = client.get(url, params={"clips": ",".join(ids), "fps": 5, "width": 320})
     assert r.status_code == 200 and r.headers["content-type"] == "video/mp4" and len(r.content) > 1000
     assert calls == [ids]
-    from regista import api
-
     reels = list((api.CACHE_ROOT / client.match_id).glob("reel_*.mp4"))
     assert len(reels) == 1 and count_frames(reels[0]) == sum(len(frame_times(c["t"], c["t_end"], 5.0)) for c in worst_first)
     assert client.get(url, params={"clips": ",".join(ids), "fps": 5, "width": 320}).content == r.content and len(calls) == 1
@@ -142,7 +144,7 @@ def test_reel_accepts_clips_derived_on_the_fly(client, monkeypatch):
 
     monkeypatch.setattr(render_clips, "render_reel", fake)
     ids = [derived[0]["id"], client.clips[0]["id"]]
-    assert client.get(f"/api/matches/{client.match_id}/reel.mp4", params={"clips": ",".join(ids), "fps": 7}).status_code == 200
+    assert client.get(f"/api/matches/{client.match_id}/reel.mp4", params={"clips": ",".join(ids)}).status_code == 200
 
 
 # ---------------------------------------------------------------------------- the scout's CSV
