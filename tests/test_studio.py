@@ -7,7 +7,9 @@ and jobs run a harmless script in place of ``python3 -m regista.vision``.
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,6 +20,8 @@ from regista import api, studio_api
 from regista.feedback import WatchabilityModel, save_annotations
 from regista.studio import __main__ as cli
 from regista.studio import facts
+from regista.studio import jobs as jobs_mod
+from regista.studio import progress
 from regista.studio.jobs import JobError, JobRunner, build_argv
 
 SAMPLE = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "sample" / "syn_0294"
@@ -155,6 +159,26 @@ def test_a_match_with_no_run_is_empty_not_an_error(studio):
     assert run["has_run"] is False and run["status"] == "none" and run["rows"] == [] and run["agents"] == [] and run["source"] == "local"
     assert run["label_models"] == {"rules-v0": 11}
     assert _get(studio, "/api/studio/runs")[0]["status"] == "none"
+
+
+def test_vision_matches_say_whether_who_s_who_can_be_answered_here(studio):
+    """The Studio shows Who's who read-only up front when the identity result an answer rewrites is not on this server."""
+    run = _get(studio, "/api/studio/runs/syn_0294")
+    assert run["kind"] == "intelligence" and run["identity_result"] is None and run["clips"] == 11
+    (studio.match / "review").mkdir()
+    assert _get(studio, "/api/studio/runs/syn_0294")["identity_result"] is False  # a copy without it, like the live app
+    (studio.match / ".vision_work").mkdir()
+    (studio.match / ".vision_work" / "identity.joblib").write_bytes(b"")
+    assert _get(studio, "/api/studio/runs")[0]["identity_result"] is True
+
+
+def test_todo_words_are_singular_or_plural(studio):
+    clip = next(json.loads(line) for line in (studio.match / "clips.jsonl").read_text().splitlines() if '"type":"clip"' in line)
+    (studio.match / "review").mkdir()
+    (studio.match / "review" / "identity_review.json").write_text(json.dumps({"items": [{"item_id": "tr_1"}]}))
+    whos = next(t for t in _get(studio, "/api/studio/overview")["todo"] if t["kind"] == "whos_who")
+    assert whos["detail"] == "1 identity call the vision layer is unsure of"
+    assert all("(s)" not in t["detail"] for t in _get(studio, "/api/studio/overview")["todo"]), clip["id"]
 
 
 def test_run_detail_summarises_each_agent_and_keeps_every_row(studio):
@@ -334,6 +358,18 @@ def test_allow_list_builds_only_known_shapes(studio):
     assert _argv("learn-from-reviews", {"match_ids": ["syn_0294"]}, studio) == ["learn-from-reviews", str(studio.match.resolve()), "--models", models]
 
 
+def test_cut_clips_picks_the_featured_player_and_keeps_players_who_have_clips(studio):
+    d = str(studio.match.resolve())
+    assert _argv("cut-clips", {"match": "syn_0294"}, studio) == [d, "--player", "t_home_09"]  # manifest clips_for, already cut
+    assert _argv("cut-clips", {"match": "syn_0294", "player": "t_home_10"}, studio) == [d, "--player", "t_home_09", "--player", "t_home_10"]
+    manifest = json.loads((studio.match / "manifest.json").read_text())
+    (studio.match / "manifest.json").write_text(json.dumps({**manifest, "clips_for": None}))
+    (studio.match / "clips.jsonl").unlink()
+    assert _argv("cut-clips", {"match": "syn_0294"}, studio) == [d, "--player", "t_home_06"]  # most possessions and events
+    (studio.match / "manifest.json").unlink()
+    assert _argv("cut-clips", {"match": "syn_0294", "player": ""}, studio) == [d, "--player", "t_home_06"]
+
+
 @pytest.mark.parametrize("kind, args, why", [
     ("shell", {}, "unknown job kind"),
     ("train-events", {"models": "/tmp/x"}, "does not take"),
@@ -353,6 +389,13 @@ def test_allow_list_builds_only_known_shapes(studio):
     ("learn-from-reviews", {"match_ids": []}, "1 to 20"),
     ("learn-from-reviews", {"match_ids": "syn_0294"}, "1 to 20"),
     ("learn-from-reviews", {"match_ids": ["syn_0294"]}, "no who's who reviews"),
+    ("cut-clips", {}, "needs match"),
+    ("cut-clips", {"match": "../syn_0294"}, "match id"),
+    ("cut-clips", {"match": "nope"}, "no match"),
+    ("cut-clips", {"match": "syn_0294", "player": "t_away_99"}, "team sheet"),
+    ("cut-clips", {"match": "syn_0294", "player": "--cloud"}, "team sheet"),
+    ("cut-clips", {"match": "syn_0294", "player": ["t_home_09"]}, "team sheet"),
+    ("cut-clips", {"match": "syn_0294", "query": "x"}, "does not take"),
 ])
 def test_allow_list_refuses_everything_else(studio, kind, args, why):
     (studio.root / "match.mp4").write_bytes(b"\x00")
@@ -434,6 +477,40 @@ def test_one_job_at_a_time_and_failures_are_recorded(jobs_on, monkeypatch):
     assert done["status"] == "failed" and done["returncode"] == 3
     assert _post(jobs_on, {"kind": "train-events"}).status_code == 201
     runner.wait(_get(jobs_on, "/api/studio/jobs")["jobs"][0]["id"])
+
+
+def test_jobs_run_their_module_under_the_progress_wrapper(jobs_on, monkeypatch):
+    runner = JobRunner(jobs_on.root / "jobs")
+    monkeypatch.setattr(studio_api, "JOBS", runner)
+    seen = []
+    monkeypatch.setattr(jobs_mod.subprocess, "Popen", lambda cmd, **kw: seen.append(cmd) or (_ for _ in ()).throw(OSError("not here")))
+    job = _post(jobs_on, {"kind": "cut-clips", "args": {"match": "syn_0294"}}).json()
+    assert job["argv"][:3] == ["python3", "-m", "regista.agents"] and job["status"] == "failed"
+    assert seen[0][1:5] == ["-u", "-m", "regista.studio.progress", "regista.agents"]
+    _post(jobs_on, {"kind": "train-events"})
+    assert seen[1][1:5] == ["-u", "-m", "regista.studio.progress", "regista.vision"]
+
+
+def test_the_progress_wrapper_prints_each_agent_as_it_runs(tmp_path):
+    """A real cut-clips run: the log has a line per agent before the CLI's own summary, and the clips are written."""
+    match = tmp_path / "syn_0294"
+    shutil.copytree(SAMPLE, match, ignore=shutil.ignore_patterns("agents", "clips.jsonl"))
+    env = {**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "src"), "REGISTA_DOTENV": "",
+           "REGISTA_FEEDBACK_DIR": str(tmp_path / "feedback")}
+    out = subprocess.run([sys.executable, "-u", "-m", "regista.studio.progress", "regista.agents", str(match), "--player", "t_home_09"],
+                         capture_output=True, text=True, env=env, timeout=300)
+    assert out.returncode == 0, out.stdout + out.stderr
+    lines = out.stdout.splitlines()
+    assert lines[0].startswith("[studio ") and "started: python3 -m regista.agents" in lines[0]
+    started = [i for i, line in enumerate(lines) if line.endswith("ingest: started")]
+    done = [i for i, line in enumerate(lines) if "persist: done in" in line]
+    summary = next(i for i, line in enumerate(lines) if line.startswith("engine: Microsoft Agent Framework workflow"))
+    assert started and done and started[0] < done[0] < summary and lines[-1].endswith("finished with exit code 0")
+    assert sum(1 for line in (match / "clips.jsonl").read_text().splitlines() if '"type": "clip"' in line or '"type":"clip"' in line) == 11
+
+
+def test_the_progress_wrapper_runs_only_regista_commands(capsys):
+    assert progress.main(["os", "-c", "x"]) == 2 and "usage" in capsys.readouterr().err
 
 
 def test_a_job_left_running_by_an_earlier_process_is_lost(jobs_on):

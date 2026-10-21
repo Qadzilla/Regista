@@ -38,6 +38,11 @@ def _jsonl(path: Path) -> list[dict[str, Any]]:
     return out
 
 
+def _n(n: int, word: str) -> str:
+    """``1 clip``, ``3 clips``."""
+    return f"{n} {word}{'' if n == 1 else 's'}"
+
+
 def _json(path: Path, default: Any) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8")) if path.exists() else default
@@ -81,8 +86,12 @@ def run_of(d: Path, match_id: str | None = None, *, rows: bool = True) -> dict[s
     for r in _jsonl(d / "clips.jsonl"):
         if r.get("type") == "label":
             label_models[str(r.get("model") or "unknown")] = label_models.get(str(r.get("model") or "unknown"), 0) + 1
+    vision = (d / ".vision_work").exists() or (d / "review").exists()
     out = {"match_id": match_id or d.name, "has_run": status != "none", "status": status,
-           "kind": "vision" if (d / ".vision_work").exists() or (d / "review").exists() else "intelligence",
+           "kind": "vision" if vision else "intelligence",
+           # Who's who answers rewrite the vision layer's identity result; a copy without it (the live app) is read-only
+           "identity_result": (d / ".vision_work" / "identity.joblib").exists() if vision else None,
+           "clips": sum(1 for r in _jsonl(d / "clips.jsonl") if r.get("type") == "clip"),
            "finished_at": trace[-1].get("at") if trace else None, "agents": list(agents.values()),
            "dead_letters": [{"agent": x.get("agent"), "error": x.get("error"), "attempts": x.get("attempts"), "at": x.get("at")} for x in dead],
            "label_models": label_models,
@@ -94,7 +103,8 @@ def run_of(d: Path, match_id: str | None = None, *, rows: bool = True) -> dict[s
 
 
 def empty_run(match_id: str, source: str) -> dict[str, Any]:
-    return {"match_id": match_id, "has_run": False, "status": "none", "kind": None, "finished_at": None, "agents": [], "dead_letters": [],
+    return {"match_id": match_id, "has_run": False, "status": "none", "kind": None, "identity_result": None, "clips": None,
+            "finished_at": None, "agents": [], "dead_letters": [],
             "label_models": {}, "review": {"pending_requests": 0, "pending_items": 0, "log": None}, "rows": [], "source": source}
 
 
@@ -135,12 +145,12 @@ def todo() -> list[dict[str, Any]]:
                                 f"/studio#runs/{mid}", f"/api/studio/runs/{mid}"))
         if run["review"]["pending_items"] or run["review"]["pending_requests"]:
             n = run["review"]["pending_items"]
-            reviews.append(_todo("workflow_review", mid, n, f"the workflow paused for a verdict on {n} clip(s)",
+            reviews.append(_todo("workflow_review", mid, n, f"the workflow paused for a verdict on {_n(n, 'clip')}",
                                  f"/studio#review/{mid}", f"/api/matches/{mid}/review"))
         queue = _json(d / "review" / "identity_review.json", {})
         items = queue.get("items", []) if isinstance(queue, dict) else []
         if items:
-            whos.append(_todo("whos_who", mid, len(items), f"{len(items)} identity call(s) the vision layer is unsure of",
+            whos.append(_todo("whos_who", mid, len(items), f"{_n(len(items), 'identity call')} the vision layer is unsure of",
                               f"/studio#whos-who/{mid}", f"/api/matches/{mid}/identity-review"))
         try:
             clips, labels = api._clips(d)
@@ -155,7 +165,7 @@ def todo() -> list[dict[str, Any]]:
             if lb.get("review") or needs_review(float(lb.get("watchability", 0.0)), lb.get("prior_watchability")):
                 n += 1
         if n:
-            unsure.append(_todo("unsure_clips", mid, n, f"{n} clip(s) flagged unsure have no verdict yet", f"/studio#review/{mid}",
+            unsure.append(_todo("unsure_clips", mid, n, f"{_n(n, 'clip')} flagged unsure {'has' if n == 1 else 'have'} no verdict yet", f"/studio#review/{mid}",
                                 f"/api/matches/{mid}/clips"))
     return failed + reviews + whos + unsure + model_todo()
 
@@ -177,7 +187,7 @@ def model_todo() -> list[dict[str, Any]]:
     newer = [a for a in anns if a.get("annotated_at", "") > model.trained_at]
     if not newer:
         return []
-    return [_todo("stale_model", None, len(newer), f"{len(newer)} verdict(s) since {model.name} was trained at {model.trained_at}",
+    return [_todo("stale_model", None, len(newer), f"{_n(len(newer), 'verdict')} since {model.name} was trained at {model.trained_at}",
                   "/studio#training", "/api/feedback")]
 
 

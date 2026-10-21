@@ -1,10 +1,12 @@
 """Vision jobs started from the Studio: local only, one at a time, from an allow-list.
 
-Each job is ``python3 -m regista.vision <kind> …`` as a subprocess, with no shell and no free-form arguments: the Studio
-sends a kind and a few typed fields, and ``build_argv`` turns them into an argument list or refuses. Paths are resolved
-here (match ids under REGISTA_DATA, the models directory from REGISTA_MODELS), so nothing the caller sends can become
-an option. Each job keeps ``job.json`` and ``log.txt`` in its own folder under REGISTA_STUDIO_JOBS (default
-``data/studio/jobs``, git-ignored); ``evaluate`` also keeps its JSON report there as ``result.json``.
+Each job is ``python3 -m regista.vision <kind> …`` (``cut-clips``: ``python3 -m regista.agents <match> --player …``) as a
+subprocess, with no shell and no free-form arguments: the Studio sends a kind and a few typed fields, and ``build_argv``
+turns them into an argument list or refuses. Paths are resolved here (match ids under REGISTA_DATA, the models directory
+from REGISTA_MODELS), so nothing the caller sends can become an option. Each job keeps ``job.json`` and ``log.txt`` in its
+own folder under REGISTA_STUDIO_JOBS (default ``data/studio/jobs``, git-ignored); ``evaluate`` also keeps its JSON report
+there as ``result.json``. The command runs under ``regista.studio.progress``, which prints a line as each agent starts
+and finishes (and a heartbeat), so the log streams while the job runs instead of arriving at the end.
 
 Kinds and their fields
 ----------------------
@@ -12,6 +14,8 @@ vision-run          video (path to a video file), roster (match id: the team she
 evaluate            set ("dev" or "fresh", default "dev"), e2e_seed (int, optional)
 train-events        (none)
 learn-from-reviews  match_ids (1-20 match ids with answered who's who reviews)
+cut-clips           match (match id), player (player id, optional: the manifest's featured player, else the most active one);
+                    players who already have clips keep them (the Persist agent rewrites clips.jsonl for every player it is given)
 """
 
 from __future__ import annotations
@@ -43,7 +47,15 @@ KINDS: dict[str, dict[str, Any]] = {
     "train-events": {"help": "render event-spotting data and train the event spotter", "args": {}},
     "learn-from-reviews": {"help": "fine-tune the kit-number reader on answered who's who reviews",
                            "args": {"match_ids": "list of 1-20 match ids with answered reviews"}},
+    "cut-clips": {"help": "run the intelligence workflow on a match: cut, label and store a player's clips so the Product can show them",
+                  "args": {"match": "match id to cut clips in", "player": "player id, optional (default: the featured or most active player)"}},
 }
+MODULES = {"cut-clips": "regista.agents"}  # every other kind is a regista.vision command
+PLAYER_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,64}$")
+
+
+def module_of(kind: str) -> str:
+    return MODULES.get(kind, "regista.vision")
 
 
 class JobError(ValueError):
@@ -69,6 +81,41 @@ def _existing_match(data_root: Path, value: Any, field: str) -> Path:
     if not (d / "events.jsonl").exists():
         raise JobError(f"{field}: no match {value!r} under {data_root}")
     return d.resolve()
+
+
+def _rows(path: Path) -> list[dict[str, Any]]:
+    out = []
+    if path.exists():
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            if isinstance(row, dict):
+                out.append(row)
+    return out
+
+
+def featured_player(d: Path, header: dict[str, Any] | None = None, rows: list[dict[str, Any]] | None = None) -> str | None:
+    """Whose clips a match is about: the manifest's ``clips_for``, else the player with the most possessions and events,
+    else the first starter. None for a match with no players."""
+    rows = _rows(d / "events.jsonl") if rows is None else rows
+    header = header or next((r for r in rows if r.get("type") == "match"), {})
+    ids = [p.get("player_id") for p in header.get("players") or [] if p.get("player_id")]
+    try:
+        featured = json.loads((d / "manifest.json").read_text(encoding="utf-8")).get("clips_for")
+    except (OSError, ValueError, AttributeError):
+        featured = None
+    if featured in ids:
+        return featured
+    counts: dict[str, int] = {}
+    for r in rows:
+        if r.get("type") in ("possession", "event") and r.get("player_id") in ids:
+            counts[r["player_id"]] = counts.get(r["player_id"], 0) + 1
+    if counts:
+        return max(ids, key=lambda pid: counts.get(pid, 0))  # ties go to the team sheet's order
+    starters = [p["player_id"] for p in header.get("players") or [] if p.get("starter") and p.get("player_id")]
+    return (starters or ids or [None])[0]
 
 
 def build_argv(kind: str, args: dict[str, Any] | None, *, data_root: Path, models_dir: Path, job_dir: Path) -> list[str]:
@@ -111,6 +158,23 @@ def build_argv(kind: str, args: dict[str, Any] | None, *, data_root: Path, model
         return argv
     if kind == "train-events":
         return ["train-events", *models]
+    if kind == "cut-clips":
+        if "match" not in args:
+            raise JobError("cut-clips needs match")
+        d = _existing_match(data_root, args["match"], "match")
+        rows = _rows(d / "events.jsonl")
+        header = next((r for r in rows if r.get("type") == "match"), {})
+        ids = {p.get("player_id") for p in header.get("players") or []}
+        player = args.get("player")
+        if player in (None, ""):
+            player = featured_player(d, header, rows)
+            if player is None:
+                raise JobError(f"match: {args['match']!r} has no players on its team sheet")
+        elif not isinstance(player, str) or not PLAYER_RE.match(player) or player not in ids:
+            raise JobError(f"player must be a player id on {args['match']!r}'s team sheet")
+        keep = [r["player_id"] for r in _rows(d / "clips.jsonl") if r.get("type") == "clip" and r.get("player_id") in ids]
+        players = list(dict.fromkeys([*keep, player]))
+        return [str(d), *[x for pid in players for x in ("--player", pid)]]
     ids = args.get("match_ids")
     if not isinstance(ids, list) or not 1 <= len(ids) <= 20:
         raise JobError("match_ids must be a list of 1 to 20 match ids")
@@ -124,11 +188,12 @@ def build_argv(kind: str, args: dict[str, Any] | None, *, data_root: Path, model
 
 
 class JobRunner:
-    """One job at a time. ``prefix`` is the command before the job's arguments (tests swap in a harmless script)."""
+    """One job at a time. ``prefix`` is the command before the job's arguments (tests swap in a harmless script); by
+    default it is the job's module run under ``regista.studio.progress`` with unbuffered output."""
 
     def __init__(self, root: Path | str, prefix: list[str] | None = None):
         self.root = Path(root)
-        self.prefix = prefix or [sys.executable, "-m", "regista.vision"]
+        self.prefix = prefix
         self._lock = threading.Lock()
         self._proc: subprocess.Popen | None = None
         self._current: str | None = None
@@ -183,13 +248,15 @@ class JobRunner:
             src = str(Path(__file__).resolve().parents[2])  # the folder holding the regista package
             env["PYTHONPATH"] = os.pathsep.join(p for p in (src, env.get("PYTHONPATH", "")) if p)
             env["PYTHONUNBUFFERED"] = "1"
-            job = {"id": job_id, "kind": kind, "args": args or {}, "argv": ["python3", "-m", "regista.vision", *argv], "status": "running",
+            module = module_of(kind)
+            command = self.prefix or [sys.executable, "-u", "-m", "regista.studio.progress", module]
+            job = {"id": job_id, "kind": kind, "args": args or {}, "argv": ["python3", "-m", module, *argv], "status": "running",
                    "started_at": _now(), "ended_at": None, "returncode": None, "result": None}
             self._current = job_id  # before job.json says running, so a reader never sees it as lost
             (job_dir / "job.json").write_text(json.dumps(job, indent=2), encoding="utf-8")
             log = (job_dir / "log.txt").open("wb")
             try:
-                proc = subprocess.Popen([*self.prefix, *argv], stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env,
+                proc = subprocess.Popen([*command, *argv], stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL, env=env,
                                         start_new_session=True)
             except OSError as exc:
                 log.close()

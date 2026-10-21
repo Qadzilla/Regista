@@ -116,3 +116,7 @@ pre.log { background: #07080c; border: 1px solid var(--line); border-radius: 8px
 pre.json { max-height: 640px; }
 details summary { cursor: pointer; color: var(--muted); font-size: 12px; margin: 6px 0; }
 h3 .small, h3 .mono { text-transform: none; letter-spacing: 0; }
+table.grid td.args { max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt:disabled { opacity: .45; cursor: not-allowed; }
+.opt:disabled.on { opacity: .7; }
+.newMatch { display: grid; gap: 8px; margin-top: 10px; }

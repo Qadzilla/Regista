@@ -19,6 +19,7 @@
   <h2>Studio key</h2>
   <p class="muted">The view key shows everything and changes nothing; the admin key can also review, upload, retrain and
     start jobs. The key stays in this tab only (sessionStorage) and travels only in a request header.</p>
+  <p class="muted">Judges: Zaid shares the view key with judges in the submission. The admin key stays with Zaid.</p>
   <input id="keyIn" type="password" autocomplete="off" placeholder="Paste a Studio key" aria-label="Studio key">
   <button>Open the Studio</button>
   <p class="muted" id="gateMsg"></p>
@@ -66,14 +67,16 @@
       <div class="bar">
         <h2>Review queue</h2>
         <label class="small">Match <select id="rvMatch"></select></label>
+        <label class="small">Show <select id="rvView"><option value="flagged">Flagged unsure</option><option value="all">All clips</option></select></label>
         <label class="small">Reviewer <input id="rvAnnotator" value="zaid" maxlength="40" size="10" pattern="[A-Za-z0-9_ .\-]{1,40}"></label>
         <label class="small"><input type="checkbox" id="rvDecided"> show decided</label>
         <button class="alt small" id="rvRefresh" type="button">Refresh</button>
       </div>
       <div id="rvPaused"></div>
-      <h3>Clips flagged unsure</h3>
+      <h3 id="rvHeading">Clips flagged unsure</h3>
       <p class="muted small">Score is the Label agent's watchability; prior is what the rules (or the learned model) said before it.
-        Keep and Drop are human verdicts: they teach the watchability model on the next retrain.</p>
+        Keep and Drop are human verdicts on any clip, flagged or not: they teach the watchability model on the next retrain.</p>
+      <p class="small" id="rvProgress"></p>
       <div id="rvClips"></div>
     </section>
 

@@ -159,7 +159,7 @@ def cache() -> dict[str, Any]:
 # ---------------------------------------------------------------------------- vision jobs (local only)
 
 class JobIn(BaseModel):
-    kind: Literal["vision-run", "evaluate", "train-events", "learn-from-reviews"]
+    kind: Literal["vision-run", "evaluate", "train-events", "learn-from-reviews", "cut-clips"]
     args: dict[str, Any] = Field(default_factory=dict)
 
     @model_validator(mode="after")
