@@ -85,6 +85,10 @@ A contiguous run of visibility for one player in one segment, with `on_ball` (an
 
 `event_type` values: `touch`, `pass`, `cross`, `carry`, `dribble`, `take_on`, `nutmeg`, `skill_move`, `shot`, `goal`, `assist`, `save`, `block`, `header`, `tackle`, `interception`, `clearance`, `recovery`, `pressure`, `foul`, `foul_won`, `offside`, `card_yellow`, `card_red`, `substitution`, `kick_off`, `throw_in`, `corner`, `free_kick`, `goal_kick`, `penalty`, `possession_change`, `period_start`, `period_end`, `injury_stoppage`, `var_review`.
 
+**From footage (`source: vision`).** The vision layer's `events_vision` agent (`regista.vision.events`) writes a subset: `pass` and `cross` (success, or fail with an `interception` by the opponent), `shot` (with `qualifiers` `goal`, `saved`, `off_target` or `unknown`), `save`, `goal`, `tackle`, `carry` (with `t_end` and `metrics.carry_distance_m`), and `take_on` (a `nutmeg` record beside it, and the `nutmeg` qualifier on the take-on, when the ball went through the defender). `confidence` is the classifier's probability. Clocks are omitted; `pitch` is the ball or player position the vision layer measured. A nutmeg in footage is defined by geometry: the ball passes through the defender's position while the carrier goes round him.
+
+**How the generator stages one-on-ones.** The generator records each take-on the way a camera would see it: the defender stands goal-side in the carrier's path; for a nutmeg the ball goes straight through him while the carrier goes round; for a plain take-on carrier and ball go round together; a failed take-on has him step across 1 m in front. This changes only the recorded `track` positions around those moments, never the events, possessions, or any random draw (a test pins the committed sample).
+
 `metrics` keys: `pass_distance_m`, `pass_difficulty` (0–1), `shot_distance_m`, `shot_speed_kmh`, `ball_speed_kmh`, `xg`, `sprint_speed_kmh`, `carry_distance_m`.
 
 The hackathon brief names passes, shots, tackles, possession changes, pressure events, and match metadata. All are first-class here.

@@ -11,6 +11,7 @@ Deterministic for a given seed. Tunable with ``minutes`` and ``track_hz``.
 from __future__ import annotations
 
 import math
+from collections import defaultdict
 import random
 from dataclasses import dataclass, field
 from typing import Any
@@ -188,6 +189,8 @@ class MatchSim:
         self.segments: list[Segment] = []
         self.pending_replays: list[Record] = []
         self.score = {"t_home": 0, "t_away": 0}
+        # Take-on choreography for the recorded tracks (see _choreograph); never read by the simulation itself.
+        self.duels: list[dict[str, Any]] = []
 
         self.ball: list[float] = [PITCH_L / 2, PITCH_W / 2]
         self.ball_speed = 0.0  # m/s
@@ -320,9 +323,10 @@ class MatchSim:
         self._open_main()
         return seg
 
-    def _project(self, px: float, py: float) -> dict[str, float] | None:
-        """Main-camera bbox (normalised) using the shared camera model; None when out of frame."""
-        cx = camera_centre(self.ball[0], MAIN_WINDOW_M)
+    def _project(self, px: float, py: float, ball_x: float | None = None) -> dict[str, float] | None:
+        """Main-camera bbox (normalised) using the shared camera model; None when out of frame. The camera follows the
+        ball: ``ball_x`` (default: the ball now) sets where it points."""
+        cx = camera_centre(self.ball[0] if ball_x is None else ball_x, MAIN_WINDOW_M)
         xn = screen_x(px, py, cx, MAIN_WINDOW_M, MAIN_K)
         depth = py / PITCH_W
         yc = 0.86 - 0.72 * depth
@@ -331,6 +335,78 @@ class MatchSim:
         if xn < -w or xn > 1 + w:
             return None
         return {"x": round(clamp(xn - w / 2, 0, 1), 4), "y": round(clamp(yc - h, 0, 1), 4), "w": round(w, 4), "h": round(h, 4)}
+
+    # ------------------------------------------------------------------ take-on choreography (recorded tracks only)
+    DUEL_LEAD_S = 0.5    # the defender steps into the carrier's path this long before the duel
+    DUEL_TRAIL_S = 0.6   # and drifts back to his own position this long after
+    DUEL_SWERVE_M = 1.4  # how far the carrier (and, for a plain take-on, the ball) goes round the defender
+
+    def _duel(self, kind: str, attacker: Player, defender: Player, start: Point, past: Point, t0: float, t1: float) -> None:
+        """Remember a one-on-one so the recorded tracks show it the way a camera would see it on a real pitch.
+
+        The simulation moves the carrier and the ball in a straight line and leaves the defender wherever team shape
+        put him, so a beaten defender, a nutmeg and a plain take-on all looked alike in the footage. Here the defender
+        stands goal-side in the carrier's path, 2 m ahead. ``beat``: carrier and ball swerve round him. ``nutmeg``:
+        the ball goes straight through him (between the legs) while the carrier goes round. ``blocked``: he steps
+        across 1 m in front and wins the ball or the foul. Only ``_apply_duels`` reads this, after the match is over;
+        the match itself, its events and every random draw are unchanged."""
+        dx, dy = past[0] - start[0], past[1] - start[1]
+        n = math.hypot(dx, dy) or 1.0
+        u = (dx / n, dy / n)
+        normal = (-u[1], u[0])
+        # Go round on the side facing the middle of the pitch, so nobody is pushed off it; deterministic, no random draw.
+        side = 1.0 if (PITCH_W / 2 - start[1]) * normal[1] >= 0 else -1.0
+        reach = 1.0 if kind == "blocked" else n / 2  # mid-run, so a run cut short by the goal line still goes round him
+        spot = (start[0] + u[0] * reach, start[1] + u[1] * reach)
+        self.duels.append({"kind": kind, "attacker": attacker.player_id, "defender": defender.player_id, "t0": t0, "t1": t1,
+                           "spot": spot, "offset": (normal[0] * side * self.DUEL_SWERVE_M, normal[1] * side * self.DUEL_SWERVE_M)})
+
+    def _apply_duels(self) -> None:
+        """Rewrite the recorded main-camera positions around each one-on-one (see ``_duel``), after the match is over.
+
+        A take-on is decided at the moment it happens, so only afterwards can the defender be shown stepping into the
+        carrier's path over the half-second before it. Positions are blended from where the simulation had each player
+        (smoothstep in and out), and every changed record's bbox is projected again with the camera where it pointed
+        then (it follows the world ball, which is recorded)."""
+        if not self.duels:
+            return
+        main = {sg.id for sg in self.segments if sg.in_frame is None}
+        at: dict[float, dict[str, Record]] = defaultdict(dict)
+        for tr in self.tracks:
+            if tr["segment_id"] in main and tr.get("pitch"):
+                at[tr["t"]]["ball" if tr["object"] == "ball" else tr["player_id"]] = tr
+        world = {t: {k: (r["pitch"]["x"], r["pitch"]["y"]) for k, r in recs.items()} for t, recs in at.items()}
+        for d in self.duels:
+            for t in sorted(at):
+                if not (d["t0"] - self.DUEL_LEAD_S <= t <= d["t1"] + self.DUEL_TRAIL_S):
+                    continue
+                recs, w0 = at[t], world[t]
+                if t < d["t0"]:
+                    w = (t - (d["t0"] - self.DUEL_LEAD_S)) / self.DUEL_LEAD_S
+                elif t > d["t1"]:
+                    w = 1.0 - (t - d["t1"]) / self.DUEL_TRAIL_S
+                else:
+                    w = 1.0
+                w = w * w * (3 - 2 * w)  # smoothstep
+                moved: dict[str, Point] = {}
+                if d["defender"] in w0:
+                    dx, dy = w0[d["defender"]]
+                    moved[d["defender"]] = (dx + (d["spot"][0] - dx) * w, dy + (d["spot"][1] - dy) * w)
+                if d["kind"] in ("beat", "nutmeg") and d["t0"] <= t <= d["t1"]:
+                    bump = math.sin(math.pi * (t - d["t0"]) / max(1e-6, d["t1"] - d["t0"]))
+                    ox, oy = d["offset"][0] * bump, d["offset"][1] * bump
+                    if d["attacker"] in w0:
+                        moved[d["attacker"]] = (w0[d["attacker"]][0] + ox, w0[d["attacker"]][1] + oy)
+                    if d["kind"] == "beat" and "ball" in w0:
+                        moved["ball"] = (w0["ball"][0] + ox, w0["ball"][1] + oy)
+                ball_x = w0["ball"][0] if "ball" in w0 else None
+                for key, (x, y) in moved.items():
+                    x, y = clamp(x, 0.0, PITCH_L), clamp(y, 0.0, PITCH_W)
+                    rec = recs[key]
+                    rec["pitch"] = pt(x, y)
+                    if key != "ball" and ball_x is not None:
+                        rec["bbox"] = self._project(x, y, ball_x) or rec["bbox"]
+                world[t].update({k: (recs[k]["pitch"]["x"], recs[k]["pitch"]["y"]) for k in moved})
 
     def _sample_tracks(self) -> None:
         seg = self.segments[-1]
@@ -349,23 +425,25 @@ class MatchSim:
         if seg.in_frame is None:
             for team in (self.home, self.away):
                 for p in team.starters:
-                    bbox = self._project(p.x, p.y)
+                    px, py = p.x, p.y
+                    bbox = self._project(px, py)
                     if bbox is None:
                         continue
                     rec = base("player", f"{seg.id}:{p.player_id}")
                     sees_number = trng.random() < 0.72
                     rec.update(
-                        player_id=p.player_id, team_id=team.team_id, pitch=pt(p.x, p.y), bbox=bbox,
+                        player_id=p.player_id, team_id=team.team_id, pitch=pt(px, py), bbox=bbox,
                         identity={
                             "confidence": round(trng.uniform(0.86, 0.99), 3) if sees_number else round(trng.uniform(0.6, 0.85), 3),
                             "evidence": ["kit_number", "team_colour", "continuity"] if sees_number else ["team_colour", "continuity"],
                         },
                     )
                     self.tracks.append(rec)
-            bbox = self._project(self.ball[0], self.ball[1])
+            bx, by = self.ball[0], self.ball[1]
+            bbox = self._project(bx, by)
             if bbox is not None:
                 rec = base("ball", f"{seg.id}:ball")
-                rec.update(player_id=None, team_id=None, pitch=pt(self.ball[0], self.ball[1]), speed_kmh=round(self.ball_speed * 3.6, 1),
+                rec.update(player_id=None, team_id=None, pitch=pt(bx, by), speed_kmh=round(self.ball_speed * 3.6, 1),
                            bbox={"x": bbox["x"], "y": round(clamp(bbox["y"] + bbox["h"] - 0.02, 0, 1), 4), "w": 0.012, "h": 0.02})
                 self.tracks.append(rec)
             return
@@ -494,6 +572,7 @@ class MatchSim:
         self.advance(1.0, mode="dead")
         self._highlight_package()
         self._close_main()
+        self._apply_duels()
 
         duration = round(self.segments[-1].t_end, 2)
         match = self._match_record(duration)
@@ -685,7 +764,8 @@ class MatchSim:
         if rng.random() < 0.5:
             ev = self._event("take_on", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True)
             flourish = rng.random()
-            if flourish < self.tune["nutmeg"]:
+            nutmeg = flourish < self.tune["nutmeg"]
+            if nutmeg:
                 nut = self._event("nutmeg", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True, qualifiers=["nutmeg"])
                 ev["qualifiers"] = ["nutmeg"]
                 self._queue_replay(nut)
@@ -695,14 +775,18 @@ class MatchSim:
                 if rng.random() < 0.5:
                     self._queue_replay(sm)
             past = (clamp(p.x + sign * 4.0, 1.0, PITCH_L - 1.0), clamp(p.y + rng.gauss(0, 1.5), 1.0, PITCH_W - 1.0))
+            self._duel("nutmeg" if nutmeg else "beat", p, defender, p.pos, past, self.t, self.t + 0.8)
             self.ball_speed = 5.0
             self.advance(0.8, ball_to=past)
             self.ball_speed = 0.0
             return
+        ahead = (clamp(p.x + sign * 4.0, 1.0, PITCH_L - 1.0), p.y)
         if rng.random() < self.tune["foul_on_take_on"]:
+            self._duel("blocked", p, defender, p.pos, ahead, self.t - 0.6, self.t)
             self._event("take_on", p, related=defender, pitch=p.pos, outcome="fail", under_pressure=True)
             self._foul(defender, p)
             return
+        self._duel("blocked", p, defender, p.pos, ahead, self.t - 0.6, self.t)
         self._event("take_on", p, related=defender, pitch=p.pos, outcome="fail", under_pressure=True)
         self._event("tackle", defender, related=p, pitch=defender.pos, outcome="success")
         self._end_possession("tackled")

@@ -2,9 +2,9 @@
 
 Roles (``regista.agents.base.Agent`` subclasses, same contract as ``regista.agents.roles``):
 
-    shots ─▶ identity ─▶ possession_vision ─▶ vision_writer
-      │         │              │                   │
-      └─────────┴──────────────┴─── DeadLetter ────┴─▶ dead_letter
+    shots ─▶ identity ─▶ possession_vision ─▶ events_vision ─▶ vision_writer
+      │         │              │                   │                │
+      └─────────┴──────────────┴──────── DeadLetter ────────────────┴─▶ dead_letter
 
 - ``shots``: video -> ``camera_segment`` records (trained shot model).
 - ``identity``: video + roster + segments -> named player and ball positions per main frame, and
@@ -12,6 +12,8 @@ Roles (``regista.agents.base.Agent`` subclasses, same contract as ``regista.agen
   carries its path and a summary (the same reason the main workflow keeps the stream index out of
   workflow state).
 - ``possession_vision``: identity -> ``possession`` records.
+- ``events_vision``: identity + possessions -> ``event`` records (passes, crosses, shots, saves, goals, tackles,
+  interceptions, carries, take-ons, nutmegs; ``regista.vision.events``).
 - ``vision_writer``: everything -> a validated match directory (``match_dir``) that the
   intelligence-layer workflow (``regista.agents.workflow``) takes as its input.
 
@@ -39,7 +41,7 @@ from regista.vision.shots import DEFAULT_MODELS_DIR
 
 Record = dict[str, Any]
 VISION_WORKFLOW_NAME = "regista-vision"
-VISION_ROLE_ORDER = ["shots", "identity", "possession_vision", "vision_writer"]
+VISION_ROLE_ORDER = ["shots", "identity", "possession_vision", "events_vision", "vision_writer"]
 
 _MODEL_CACHE: dict[tuple[str, str], Any] = {}
 
@@ -51,6 +53,10 @@ def _cached(kind: str, models_dir: str):
             from regista.vision.shots import ShotModel
 
             _MODEL_CACHE[key] = ShotModel.load(models_dir)
+        elif kind == "events":
+            from regista.vision.events import EventSpotter
+
+            _MODEL_CACHE[key] = EventSpotter.load(models_dir)
         else:
             from regista.vision.kitnumber import DigitClassifierReader
 
@@ -152,9 +158,33 @@ class PossessionVisionAgent(Agent):
 
 
 @dataclass
+class EventsVisionAgent(Agent):
+    role: str = "events_vision"
+    inputs: tuple[str, ...] = ("identity_path", "roster", "possessions")
+    outputs: tuple[str, ...] = ("vision_events",)
+    description: str = ("Spots passes, crosses, shots, saves, goals, tackles, interceptions, carries, take-ons and nutmegs from "
+                        "player and ball positions and possessions (trained classifiers on geometric candidates).")
+
+    @_not_retryable
+    def handle(self, state: State) -> State:
+        import joblib
+
+        from regista.vision.events import Positions, spot_events
+
+        if self.config.get("events") is False:  # an explicit opt-out; the stream then has no event records
+            state["vision_events"] = []
+            return state
+        spotter = self.config.get("event_spotter") or _cached("events", self.config.get("models_dir", str(DEFAULT_MODELS_DIR)))
+        result = joblib.load(state["identity_path"])
+        state["vision_events"] = spot_events(Positions.from_identity(result), state["possessions"], state["roster"], spotter,
+                                             _match_id(state))
+        return state
+
+
+@dataclass
 class VisionWriterAgent(Agent):
     role: str = "vision_writer"
-    inputs: tuple[str, ...] = ("video_path", "roster", "out_dir", "camera_segments", "identity_path", "possessions")
+    inputs: tuple[str, ...] = ("video_path", "roster", "out_dir", "camera_segments", "identity_path", "possessions", "vision_events")
     outputs: tuple[str, ...] = ("match_dir", "vision_summary")
     description: str = "Writes events.jsonl + tracks.jsonl + manifest.json and validates them against the event contract."
 
@@ -167,7 +197,8 @@ class VisionWriterAgent(Agent):
 
         result = joblib.load(state["identity_path"])
         summary = write_match_dir(state["out_dir"], state["roster"], probe(state["video_path"]), _match_id(state),
-                                  state["camera_segments"], result, state["possessions"], self.config.get("track_hz", 2.0))
+                                  state["camera_segments"], result, state["possessions"], self.config.get("track_hz", 2.0),
+                                  events=state["vision_events"])
         bad = {k: v for k, v in summary["validation"].items() if v}
         if bad:
             raise AgentError(f"vision output failed schema validation: {bad}", retryable=False)
@@ -177,9 +208,10 @@ class VisionWriterAgent(Agent):
 
 
 def vision_agents(config: dict[str, Any] | None = None) -> list[Agent]:
-    """The four vision roles sharing one config (``models_dir``, or preloaded ``shot_model`` / ``reader``)."""
+    """The five vision roles sharing one config (``models_dir``, or preloaded ``shot_model`` / ``reader`` / ``event_spotter``)."""
     cfg = dict(config or {})
-    return [ShotsAgent(config=cfg), IdentityAgent(config=cfg), PossessionVisionAgent(config=cfg), VisionWriterAgent(config=cfg)]
+    return [ShotsAgent(config=cfg), IdentityAgent(config=cfg), PossessionVisionAgent(config=cfg), EventsVisionAgent(config=cfg),
+            VisionWriterAgent(config=cfg)]
 
 
 # ---------------------------------------------------------------------------- Agent Framework workflow

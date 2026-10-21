@@ -76,8 +76,11 @@ def load_models(models_dir: Path | str = DEFAULT_MODELS_DIR) -> tuple[ShotModel,
 def run_vision(video: Path | str, roster: Record, out_dir: Path | str, *, models_dir: Path | str = DEFAULT_MODELS_DIR,
                shot_model: ShotModel | None = None, reader: KitNumberReader | None = None, match_id: str | None = None,
                identity_cfg: IdentityConfig | None = None, possession_cfg: PossessionConfig | None = None,
-               track_hz: float = 2.0, segments: list[Record] | None = None) -> dict[str, Any]:
-    """Run shots -> identity -> possession on ``video`` and write a validated match directory.
+               track_hz: float = 2.0, segments: list[Record] | None = None, event_spotter: Any = None) -> dict[str, Any]:
+    """Run shots -> identity -> possession -> events on ``video`` and write a validated match directory.
+
+    Events need a trained event model (``event_spotter``, or ``models_dir/event_spotter.joblib``); without one the
+    stream has no event records and the summary's ``events`` says why.
 
     ``segments`` overrides the shot agent (for example ground-truth segments, to measure the later
     stages in isolation). Returns a summary with record counts, timings, and validation problems."""
@@ -104,17 +107,28 @@ def run_vision(video: Path | str, roster: Record, out_dir: Path | str, *, models
                                     segment_end={r["id"]: r["t_end"] for r in seg_recs})
     timings["possession_s"] = round(time.perf_counter() - t0, 2)
 
-    return write_match_dir(out_dir, roster, info, match_id, seg_recs, ident, possessions, track_hz, timings)
+    t0 = time.perf_counter()
+    from regista.vision.events import MODEL_FILE, EventSpotter, Positions, spot_events
+
+    if event_spotter is None and (Path(models_dir) / MODEL_FILE).exists():
+        event_spotter = EventSpotter.load(models_dir)
+    events = spot_events(Positions.from_identity(ident), possessions, roster, event_spotter, match_id) if event_spotter else []
+    timings["events_s"] = round(time.perf_counter() - t0, 2)
+
+    summary = write_match_dir(out_dir, roster, info, match_id, seg_recs, ident, possessions, track_hz, timings, events=events)
+    summary["events"] = "spotted" if event_spotter else f"skipped: no event model in {models_dir}"
+    return summary
 
 
 def write_match_dir(out_dir: Path | str, roster: Record, info: VideoInfo, match_id: str, seg_recs: list[Record], ident: IdentityResult,
-                    possessions: list[Record], track_hz: float = 2.0, timings: dict[str, float] | None = None) -> dict[str, Any]:
+                    possessions: list[Record], track_hz: float = 2.0, timings: dict[str, float] | None = None,
+                    events: list[Record] | None = None) -> dict[str, Any]:
     out_dir = Path(out_dir)
     appearances = appearance_records(ident, possessions, match_id, segment_end={r["id"]: r["t_end"] for r in seg_recs})
     tracks = track_records(ident, match_id, info.fps, track_hz)
     header = vision_match_header(roster, info, match_id, ident)
-    order = {"camera_segment": 0, "possession": 1, "appearance": 2}
-    body = sorted(seg_recs + possessions + appearances, key=lambda r: (r["t"], order[r["type"]], r["id"]))
+    order = {"camera_segment": 0, "possession": 1, "event": 2, "appearance": 3}
+    body = sorted(seg_recs + possessions + list(events or []) + appearances, key=lambda r: (r["t"], order[r["type"]], r["id"]))
     out_dir.mkdir(parents=True, exist_ok=True)
     n_events = write_jsonl(out_dir / "events.jsonl", [header] + body)
     n_tracks = write_jsonl(out_dir / "tracks.jsonl", sorted(tracks, key=lambda r: (r["t"], r["id"])))
@@ -125,7 +139,7 @@ def write_match_dir(out_dir: Path | str, roster: Record, info: VideoInfo, match_
     summary = {"match_id": match_id, "video": info.__dict__, "out_dir": str(out_dir), "files": {"events.jsonl": n_events, "tracks.jsonl": n_tracks},
                "record_counts": dict(counts), "segments": {k: sum(1 for s in seg_recs if s["kind"] == k) for k in {s["kind"] for s in seg_recs}},
                "identity": ident.info, "timings": timings or {}, "validation": {k: len(v) for k, v in problems.items()},
-               "source": "vision", "pipeline": "regista.vision v0 (synthetic-renderer models)"}
+               "source": "vision", "pipeline": "regista.vision v0 (synthetic-renderer models)", "event_records": len(events or [])}
     (out_dir / "manifest.json").write_text(json.dumps(summary, indent=2, default=str) + "\n", encoding="utf-8")
     return summary
 

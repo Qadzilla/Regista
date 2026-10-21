@@ -13,16 +13,31 @@ Code: `src/regista/vision/`. Tests: `tests/test_vision.py`.
 | **shots** | video → `camera_segment` | Per-frame features at 128x72 that do not depend on one broadcaster: grass fraction, an 8x6 colour grid, texture, edges, motion, and motion averaged over a second (slow motion shows up there). A cut classifier works on frame pairs: colour-histogram change first, plus grey-level difference, edge change ratio, and a motion-compensated foreground jump that catches cuts between two wide shots of different moments. Two scikit-learn gradient-boosting classifiers (shot kind, and cut) are **trained on rendered frames labelled from `camera_segment` ground truth**. Shots between cuts take the class with the highest mean probability; a sustained class change splits a shot; adjacent main shots merge; very short shots fold into a neighbour. |
 | **identity** | video + roster + segments → `track`, `appearance` | Per main-camera frame: (1) **calibration**: find the camera pan by rectifying the pitch and matching line, mown-stripe, and off-pitch profiles against a 105x68 pitch model; (2) **detection**: nearest-colour labelling against the roster's kit colours and the scene's neutrals (grass, shadows, lines, greys), filled and split into discs; the ball is a distance-transform peak in the white mask; (3) **team**: the kit cluster a disc belongs to; the palette is re-estimated from the footage first; (4) **kit number**: a **digit classifier (two scikit-learn MLP heads, tens and units) trained on crops cut from rendered frames** at detected positions, labelled from the roster, plus discs drawn with the renderer's font for every number 1-99; (5) **tracking**: Hungarian assignment on pitch distance, gated by team and goalkeeper kit; (6) **naming**: each track takes the team-sheet player with the highest summed number log-probability, with starters favoured over substitutes, and one player per moment. For replays and highlights: discs are tracked in image space and named the same way. A player "appears" when on the ball or near it for long enough; the thresholds are tuned on training matches. Closeups are read directly. |
 | **possession_vision** | identity → `possession` | Nearest named player within 1.3 m of the ball. The frame sequence is mode-filtered, gaps are bridged, and short runs are dropped. `gained_by` / `lost_by` say `pass_received` / `pass` when the neighbouring possession is a team-mate's, else `unknown`. `touches` is estimated from duration. |
-| **vision_writer** | everything → match directory | `events.jsonl` (match header, then `camera_segment`, `possession`, `appearance`), `tracks.jsonl`, `manifest.json`, validated against the schemas. |
+| **events_vision** | identity + possessions → `event` | Passes, crosses, shots, saves, goals, tackles, interceptions, carries, take-ons, nutmegs. Geometric candidates (every hand-over between possessions; every moment the carrier passes a goal-side opponent; every stretch the carrier moves the ball 3 m), decided by two scikit-learn gradient-boosting classifiers; saves and goals follow from a spotted shot by broadcast logic. See "Event spotting" below. |
+| **vision_writer** | everything → match directory | `events.jsonl` (match header, then `camera_segment`, `possession`, `event`, `appearance`), `tracks.jsonl`, `manifest.json`, validated against the schemas. |
 
-`build_vision_workflow()` (`regista.vision.agents`) wires the four roles as a Microsoft Agent Framework workflow. It reuses `RoleExecutor`, `FinishExecutor`, and `DeadLetterExecutor` from `regista.agents.workflow`, so retries, dead letters, typed handoffs, and the trace format match the intelligence pipeline. Its output directory is the intelligence workflow's input.
+`build_vision_workflow()` (`regista.vision.agents`) wires the five roles as a Microsoft Agent Framework workflow. It reuses `RoleExecutor`, `FinishExecutor`, and `DeadLetterExecutor` from `regista.agents.workflow`, so retries, dead letters, typed handoffs, and the trace format match the intelligence pipeline. Its output directory is the intelligence workflow's input.
 
 ```
-vision_start ─▶ shots ─▶ identity ─▶ possession_vision ─▶ vision_writer ─▶ finish
-                  └─────────┴──────────────┴─────────────────┴── DeadLetter ─▶ dead_letter
+vision_start ─▶ shots ─▶ identity ─▶ possession_vision ─▶ events_vision ─▶ vision_writer ─▶ finish
+                  └─────────┴──────────────┴─────────────────┴────────────────┴── DeadLetter ─▶ dead_letter
 ```
 
-The vision layer emits no `event` records yet (passes, shots, tackles, nutmegs). Clips derived from vision output are therefore cut correctly but labelled only with their reason (`on_ball_main`, `replay_appearance`, …) until an event-spotting model exists.
+Clips derived from vision output now carry event tags (nutmeg, shot, take-on, pass, …), so the Librarian can answer "find me X doing a nutmeg" from footage. How well each event is found is measured below.
+
+**Models in use (2026-10-20):** shot model v3 (trained on footage without captions, see "Captions" below), kit-number reader and identity configuration v2, event spotter v1. `models/vision_v2/` keeps the v2 shot model.
+
+## Captions: a leak the first audit missed
+
+The renderer burns broadcast captions into the picture: "REPLAY · goal by …", "NUTMEG! … through the legs of …". The v2 models were trained and measured on footage with captions. Rendering the development matches without them showed the v2 shot model had been leaning on the caption strip for replays:
+
+| Shot model, development matches without captions | v2 (trained with captions) | v3 (trained without) |
+|---|---|---|
+| Replay frames recognised | 0% | 92.3% |
+| Frame accuracy | 94.4% | 99.6% |
+| Cut boundaries F1 (within 0.5 s) | 0.75 | 0.92 |
+
+With captions, v2 had scored 100% on replays and 0.93 on boundaries; those figures (in the v2 tables below) overstate what it does without them. Real footage carries no such captions, so all vision footage is now rendered without them (`make_match(..., captions=False)` is the default) and the shot model was retrained (v3). The event spotter never sees captions in training or testing.
 
 ## Measured numbers
 
@@ -32,29 +47,33 @@ Data: 10 training matches, 6 development matches (seeds 201-206), and 3 fresh ma
 
 **Fresh matches.** Seeds 301-303 were created after the audit, with new clubs and primary and goalkeeper colours at least 20 ΔE from every training kit and from the development kits (and well away from the grass and neutrals). They were scored once with the frozen v2 models; nothing was changed after seeing the result. These are the numbers to quote.
 
+**Current models on footage without captions** (shot model v3, reader v2; scored once more after the captions finding, models frozen and fingerprinted):
+
 | Stage | Metric (3 fresh matches, seeds 301-303) | Measured |
 |---|---|---|
-| Shots | frame accuracy after segmentation (9,872 frames) | **99.7%** (main, replay, highlight, crowd 100%; closeup 88.9%; graphic 99.3%) |
-| Shots | segment-boundary precision / recall / F1, within 0.5 s (45 true boundaries) | 0.955 / 0.933 / **0.944** |
+| Shots | frame accuracy after segmentation | **99.7%** (main, replay, highlight, crowd 100%; closeup 88.9%; graphic 99.3%) |
+| Shots | segment-boundary precision / recall / F1, within 0.5 s (45 true boundaries) | 0.975 / 0.867 / **0.918** |
 | Camera calibration | mean error of the recovered pan | 0.05 m |
-| Detection | player precision / recall (4,175 frames at 5 fps) | **0.966 / 0.987** (precision 0.915 on syn_0302, the one real drop on unseen colours) |
-| Detection | ball precision / recall; mean ball position error | 0.996 / 0.995; 0.15 m |
+| Detection | player precision / recall | **0.966 / 0.986** (precision 0.916 on syn_0302, the one real drop on unseen colours) |
+| Detection | ball precision / recall; mean ball position error | 0.996 / 0.996; 0.15 m |
 | Team | team accuracy over matched detections | **99.99%** |
-| Kit number | per-crop reading, number visible (33,671 crops: main / replay / highlight / closeup) | **99.3%** (99.5 / 95.6 / 98.7 / 100) |
-| Identity | detections whose track is named, and named correctly | 97.8% named; **99.8%** of those correct (97.5% of all matched detections) |
+| Kit number | per-crop reading, number visible (33,570 crops: main / replay / highlight / closeup) | **99.3%** (99.5 / 95.5 / 98.9 / 100) |
+| Identity | detections whose track is named, and named correctly | 98.2% named; **99.2%** of those correct (97.5% of all matched detections) |
 | Position | mean / 95th-percentile pitch error of player ground points | **0.18 m** / 0.43 m |
-| Cutaway appearances | replay, highlight, and closeup players vs generator appearances (36 true) | precision 0.69, recall **0.56** |
-| Possession | frame accuracy / holder precision / holder recall | 0.82 / 0.92 / **0.72** |
-| Possession | true possessions found (IoU ≥ 0.5) / predicted ones that match / player right when overlapping (209 true) | 0.75 / 0.85 / **0.98** |
-| End to end (each match, every stage from video, all 22 starters) | clip recall / precision at IoU ≥ 0.5; true clip-seconds covered | syn_0301: 0.62 / 0.90; 57%. syn_0302: 0.79 / 0.96; 80%. syn_0303: 0.87 / 0.96; 84% |
+| Cutaway appearances | replay, highlight, and closeup players vs generator appearances (36 true) | precision 0.60, recall **0.50** |
+| Possession | frame accuracy / holder precision / holder recall | 0.82 / 0.89 / **0.76** |
+| Possession | true possessions found (IoU ≥ 0.5) / predicted ones that match / player right when overlapping (209 true) | 0.77 / 0.89 / **0.97** |
+| End to end (each match, every stage from video, all 22 starters) | clip recall / precision at IoU ≥ 0.5; true clip-seconds covered | syn_0301: 0.63 / 0.90; 60%. syn_0302: 0.78 / 0.94; 80%. syn_0303: 0.86 / 0.97; 84% |
 | End to end (all three, 234 true clips) | clip recall / precision at IoU ≥ 0.5 | **0.76 / 0.94** |
-| End to end, t_home_09 only | clip recall / precision at IoU ≥ 0.5 | 0.78 / 1.00, 0.86 / 1.00, 1.00 / 1.00 (9, 7, 4 true clips) |
+| End to end, t_home_09 only | clip recall / precision at IoU ≥ 0.5 | 0.67 / 1.00, 0.71 / 0.83, 1.00 / 1.00 (9, 7, 4 true clips) |
+
+The first scoring of these matches, with the v2 models on footage with captions, gave nearly the same end-to-end figures (0.76 / 0.94), but its 100% replay recognition depended on the captions (see "Captions" above).
 
 The fresh numbers sit close to the development numbers: identity, kit numbers, and shots carry over to unseen colours; player-detection precision is the one stage that drops, and end-to-end recall varies by match (0.62 to 0.87) with possession recall. Reproduce: `python3 -m regista.vision evaluate --set fresh --models models/vision` (the end-to-end row runs on the set's first match unless `--e2e-seed` is given). These runs include two fixes made after the audit: appearance and possession records no longer run past the end of their shot, and vision roles no longer retry deterministic failures.
 
 ### Development set (seeds 201-206)
 
-Re-scored with the same frozen models and today's code, after the two fixes above; no figure moved by more than 0.02.
+v2 models on footage with captions (the shot rows overstate replay recognition; see "Captions"). Re-scored with the same frozen models and today's code, after the two fixes above; no figure moved by more than 0.02.
 
 | Stage | Metric (6 development matches unless noted) | Measured |
 |---|---|---|
@@ -113,6 +132,35 @@ The default model directory is `models/vision/`. Trained models are build artefa
 - **What inference is given.** Besides the team sheet and kit colours, the vision run receives the match header's period start and end times and attacking directions. On a real broadcast those come from the broadcast log or the on-screen clock, which v0 does not read. Inference also knows the renderer's camera model and its grass, shadow, and line colours; the 0.05 m pan and 0.20 m position errors depend on that prior.
 - **Kit colours.** The detector takes its colours from the roster, so unseen colours mainly test the colour clustering and the number reader's normalisation; the fresh matches cover that.
 
+## Event spotting
+
+**What makes events visible.** In the generator's first version a nutmeg moved the ball and the players exactly like any take-on, so no camera could have told them apart. The generator now records each one-on-one as a camera would see it: the defender steps into the carrier's path, goal-side; for a nutmeg the ball goes straight through him while the carrier goes round; for a plain take-on carrier and ball go round together; a failed take-on has him step across in front. Only the recorded positions around those moments change, applied after the match is simulated so the defender steps in smoothly; the events, possessions and every random draw are unchanged (a test pins the committed sample).
+
+**Data.** Footage rendered without captions, positions recorded at 10 Hz. Training: vision output of 40 rendered matches (the 10 training matches plus 30 more with the same clubs and colours), plus 60 matches that are only generated, sampled at the vision layer's 5 frames a second with its measured noise (about 0.2 m) and run through the same possession agent. Vision examples weigh three times a generated one: the generated data supplies volume for rare events (53 nutmegs, 274 take-ons in training), the vision data supplies how events measure through the camera (it reads a ball crossing a defender as about 1 m from him where generated positions say 0.4 m). Development: seeds 201-206. Fresh: seeds 301-303, scored once with frozen models (file fingerprints checked before and after).
+
+**Fresh matches, scored once, end to end** (shot model v3 finds the segments, then identity, possession and events; a prediction matches a true event of the same type within 1 s; only events in main-camera footage count):
+
+| Event | True | Precision | Recall | Right player |
+|---|---|---|---|---|
+| Pass (completed) | 129 | 0.98 | 0.80 | 97% |
+| Shot | 15 | 0.87 | 0.87 | 100% |
+| Goal | 1 | 1 of 1 | 1 of 1 | 100% |
+| Save | 4 | 1.00 | 1.00 | 100% |
+| Interception | 35 | 0.96 | 0.71 | 100% |
+| Tackle | 18 | 1.00 | 0.56 | 100% |
+| Carry | 117 | 0.86 | 0.85 | 91% |
+| Take-on (successful) | 18 | 0.89 | 0.44 | 100% |
+| **Nutmeg** | 6 | **0.50** | **0.33** | 100% |
+| Cross | 1 | 0.50 | 1.00 | 100% |
+
+Through the clip rule: of the 6 true nutmegs, 2 can be found as a nutmeg-tagged clip of the right player; of the 4 nutmeg-tagged clips, 2 are real.
+
+**Development matches, end to end:** pass 0.95 / 0.74, shot 0.89 / 0.65, goal 2 of 2, save 1.00 / 0.50, interception 1.00 / 0.64, tackle 0.96 / 0.72, carry 0.80 / 0.81, take-on 0.93 / 0.58, nutmeg 0.80 / 0.36 (11 true), cross 0.46 / 0.50 (precision / recall).
+
+**Why recall is lower than precision.** Most missed events are missed upstream: the possession agent finds about 72% of possession frames, so a hand-over it never sees cannot be classified, and a duel needs both players named in the frames around it. When a candidate exists, the decision is usually right. Nutmegs fail in all three places (no possession, players unnamed, or a measured ball path that looks like a plain take-on) and are rare (6 in the fresh matches), so their numbers are both weak and noisy. Crosses are capped by the generator itself: it calls only 70% of wide final-third balls crosses, at random, so no position-based model can separate them fully.
+
+Reproduce: `python3 -m regista.vision train-events` (renders the event footage under `/tmp/regista_events`, runs identity on it, trains, writes `models/vision/event_spotter.joblib`), then `python3 -m regista.vision evaluate-events --set dev` (event spotting alone, identity on true segments). The end-to-end figures run the full `run_vision` on each video.
+
 ## What changes for real broadcast footage
 
 Every stage keeps its interface. The things that change are listed here plainly. None of them is done yet.
@@ -122,4 +170,5 @@ Every stage keeps its interface. The things that change are listed here plainly.
 - **OCR backend.** `AzureVisionOCRReader` is the slot for Azure AI Vision Read (OCR) on torso crops. It is deliberately not implemented and makes no calls. Numbers on real shirts are visible in a minority of frames (back turned, side-on, small), so the track vote that already absorbs hidden numbers matters more. Faces are never used (§1.5).
 - **Homography.** The synthetic calibrator solves one unknown (the pan). A real camera pans, tilts, and zooms through a distorting lens, so calibration becomes a per-frame homography from pitch-line and keypoint detection with RANSAC, tracked over time. `HomographyMapping` already implements the mapping interface.
 - **Replay cues and mapping.** Replays should be mapped back to live time (`replays_window`) by matching player layouts, so replay appearances can use the live identities. Today they are named independently.
+- **Events.** The event spotter's features are pitch geometry (who had the ball, where it went, who was passed), so they carry over from rendered discs to tracked people once identity and homography do. What has to be relearned is how events measure through a real camera, from Zaid's labels on his recorded match. A nutmeg on real footage is still the same geometric fact (the ball crosses the defender's ground position while the carrier goes round), but it needs the ball tracked through a crowd of legs, which the disc renderer never tests.
 - **Labels.** Human labels replace `regista.vision.truth`: shot kinds marked in a review tool, player boxes and numbers on sampled frames, possessions on short windows. They are stored as `annotation` records with `source: human`.

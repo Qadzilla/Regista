@@ -56,6 +56,14 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("truth_dir", type=Path)
     c.add_argument("--player", action="append", default=None)
 
+    te = sub.add_parser("train-events", help="render event-spotting data (no captions) and train the event spotter")
+    te.add_argument("--root", type=Path, default=None)
+    te.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
+    ee = sub.add_parser("evaluate-events", help="score the event spotter per event type on the development set or the fresh matches")
+    ee.add_argument("--set", choices=["dev", "fresh"], default="dev", dest="match_set")
+    ee.add_argument("--root", type=Path, default=None)
+    ee.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
+    ee.add_argument("--out", type=Path, default=None)
     sub.add_parser("mermaid", help="print the vision workflow graph")
     args = ap.parse_args(argv)
 
@@ -82,6 +90,26 @@ def main(argv: list[str] | None = None) -> int:
             args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
             print(f"report: {args.out}")
+        return 0
+
+    if args.cmd in ("train-events", "evaluate-events"):
+        from regista.vision.events import EVENTS_ROOT, EventSpotter, event_dataset, score_event_spotter, train_event_spotter
+
+        root = args.root or EVENTS_ROOT
+        if args.cmd == "train-events":
+            from regista.vision.dataset import EVENT_TRAIN_SPECS
+
+            spotter = train_event_spotter(event_dataset(EVENT_TRAIN_SPECS, root, args.models), args.models)
+            print(json.dumps(spotter.info, indent=2))
+            return 0
+        report = score_event_spotter(event_dataset(FRESH_SPECS if args.match_set == "fresh" else TEST_SPECS, root, args.models),
+                                     EventSpotter.load(args.models))
+        for kind, v in report["all"].items():
+            print(f"{kind:13s} true {v['true']:4d}  predicted {v['predicted']:4d}  precision {v['precision']}  recall {v['recall']}  "
+                  f"player right {v['player_ok']}")
+        if args.out:
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         return 0
 
     if args.cmd == "run":

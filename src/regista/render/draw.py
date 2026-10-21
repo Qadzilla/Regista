@@ -70,6 +70,9 @@ class Style:
     hud: RGB = (12, 14, 20)
     hud_alpha: int = 215
     caption_alpha: int = 205
+    # Broadcast captions ("NUTMEG! ... through the legs of ...", "REPLAY · goal by ...") name the event on screen.
+    # Footage used to train or test the vision layer is rendered without them: real footage carries no such labels.
+    captions: bool = True
 
     def __post_init__(self) -> None:
         # libx264 with yuv420p needs even dimensions; round down rather than fail in the encoder.
@@ -431,7 +434,7 @@ def draw_hud(img: Image.Image, scene: Scene, t: float, style: Style, info: dict[
         if sub:
             d.text((bx1 - w / 2, by0 + h / 2 + 16 * s), sub, font=f_sub, fill=fg, anchor="mm")
 
-    text = info.get("caption")
+    text = info.get("caption") if style.captions else None
     if text:
         cy0, cy1 = style.height - 92 * s, style.height - 44 * s
         accent = COLOUR_REPLAY if info.get("kind") == "replay" else COLOUR_HIGHLIGHT

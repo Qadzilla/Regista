@@ -54,7 +54,11 @@ def models(clips):
     d = clips["root"] / "models"
     shot.save(d)
     reader.save(d)
-    return {"dir": d, "shot": shot, "reader": reader}
+    from regista.vision.events import EventSpotter, generated_example_set
+
+    spotter = EventSpotter().fit(*generated_example_set([401, 402, 403, 404], minutes=3.0))  # positions only: no rendering
+    spotter.save(d)
+    return {"dir": d, "shot": shot, "reader": reader, "events": spotter}
 
 
 @pytest.fixture(scope="module")
@@ -190,13 +194,14 @@ def test_vision_workflow_writes_a_valid_match_the_intelligence_layer_can_use(cli
     from regista.vision.pipeline import compare_clips
 
     run, out = vision_run["run"], vision_run["out"]
-    assert [r["agent"] for r in run.trace if r["status"] == "ok"] == ["shots", "identity", "possession_vision", "vision_writer"]
+    assert [r["agent"] for r in run.trace if r["status"] == "ok"] == ["shots", "identity", "possession_vision", "events_vision", "vision_writer"]
     assert run.state["match_dir"] == str(out)
     assert all(not v for v in validate_match_dir(out).values())
     stream = list(iter_jsonl(out / "events.jsonl"))
     assert stream[0]["type"] == "match" and stream[0]["source"] == "vision"
     kinds = {r["type"] for r in stream}
-    assert {"camera_segment", "possession", "appearance"} <= kinds
+    assert {"camera_segment", "possession", "appearance", "event"} <= kinds
+    assert {"pass", "carry"} <= {r["event_type"] for r in stream if r["type"] == "event"}
     assert all(r["source"] == "vision" for r in stream)
     assert (out / "tracks.jsonl").stat().st_size > 0
     assert json.loads((out / "manifest.json").read_text())["validation"] == {"events.jsonl": 0, "tracks.jsonl": 0}
@@ -243,11 +248,11 @@ def test_vision_roles_declare_their_contract():
     from regista.vision.agents import VISION_ROLE_ORDER, build_vision_workflow, vision_agents
 
     agents = vision_agents({"models_dir": "unused"})
-    assert [a.role for a in agents] == VISION_ROLE_ORDER == ["shots", "identity", "possession_vision", "vision_writer"]
+    assert [a.role for a in agents] == VISION_ROLE_ORDER == ["shots", "identity", "possession_vision", "events_vision", "vision_writer"]
     assert all(isinstance(a, Agent) and a.inputs and a.outputs for a in agents)
     assert agents[0].inputs == ("video_path",) and "roster" in agents[1].inputs
     workflow, keys = build_vision_workflow(agents)
-    assert {"video_path", "roster", "camera_segments", "possessions", "match_dir"} <= set(keys)
+    assert {"video_path", "roster", "camera_segments", "possessions", "vision_events", "match_dir"} <= set(keys)
 
 
 def test_vision_cli_commands_reach_their_work(monkeypatch, tmp_path):
