@@ -14,6 +14,10 @@ set -euo pipefail
 . "$(dirname "$0")/lib/dotenv.sh"
 . "$(dirname "$0")/lib/aca.sh"
 load_dotenv .env   # parsed, never executed: values may contain ';'
+# Deploy into the subscription provision.sh wrote .env for, never the CLI's current default.
+if [[ -n "${REGISTA_SUBSCRIPTION_ID:-}" ]]; then
+  az account set --subscription "$REGISTA_SUBSCRIPTION_ID" || { echo "cannot use subscription $REGISTA_SUBSCRIPTION_ID from .env" >&2; exit 1; }
+fi
 
 : "${RG:=${REGISTA_RESOURCE_GROUP:-regista-rg}}"
 : "${ACA_ENV:=regista-env}"

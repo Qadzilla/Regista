@@ -107,3 +107,18 @@ def test_wait_ready_needs_the_newest_revision_to_be_the_ready_one(tmp_path, late
     assert (run.returncode == 0) == ok, run
     if not ok:
         assert "did not become ready" in run.stderr and "traffic stays on app--d1" in run.stderr and "fake log line" in run.stderr
+
+
+def test_provision_is_safe_in_a_shared_directory():
+    s = _text("infra/provision.sh")
+    first_create = s.index("az group create")
+    # The subscription is named, never the CLI's default, and every resource command carries it.
+    assert s.index('"${SUBSCRIPTION:-}"') < s.index("SUB_ID=$(az account show") < first_create
+    assert 'command az "$@" --subscription "$SUB_ID"' in s
+    # The deploy identity is looked up, reused and deleted only among apps the signed-in person owns.
+    assert "--show-mine" in s and 'ad app list --display-name' not in s
+    # A .env from another environment (its token and app URL) is never carried over.
+    assert s.index('for subscription $SUB_ID') < first_create and "REGISTA_SUBSCRIPTION_ID=$SUB_ID" in s
+    # Offers without budgets (Azure for Students) do not stop the run.
+    assert 'budget not created' in s
+    assert 'REGISTA_SUBSCRIPTION_ID' in _text("infra/deploy-app.sh")

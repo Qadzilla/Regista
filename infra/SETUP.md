@@ -50,7 +50,24 @@ account. Keep the old `.env` outside the repository (it belongs to the old envir
 ## 3. Provision (about 20 minutes)
 
 ```bash
-BUDGET_EMAIL=<your email> ./infra/provision.sh
+SUBSCRIPTION="<name or id>" LOCATION=<region> BUDGET_EMAIL=<your email> ./infra/provision.sh
+```
+
+`SUBSCRIPTION` is required: the script never uses the CLI's default, because a directory can hold subscriptions
+that are not yours (a university's, for one). `LOCATION` is used for every resource unless `COSMOS_LOCATION` or
+`SEARCH_LOCATION` is set. The script refuses a `.env` written for another subscription, and finds the GitHub
+deploy identity only among app registrations you own, so it is safe in a shared directory.
+
+**Azure for Students (Northeastern, 2026-10-21).** The subscription sits in the university's directory, where the
+student account is an ordinary member with two-step verification (so the command line works) and Owner of the
+subscription. A policy allows only `francecentral`, `germanywestcentral`, `canadacentral`, `denmarkeast` and
+`belgiumcentral`; `gpt-5-mini` (GlobalStandard) is offered in France Central and Germany West Central. Students may
+register apps, so the federated deploy identity works. Budgets may not be supported on the offer; it stops at its
+credit limit instead, and the script warns and goes on. Step 1 (new accounts and admins) does not apply: the
+directory belongs to the university.
+
+```bash
+SUBSCRIPTION="Azure for Students" LOCATION=francecentral BUDGET_EMAIL=<your email> ./infra/provision.sh
 ```
 
 One run creates, in order: sign-in and quota checks (nothing is created if the model has no quota); Foundry with the

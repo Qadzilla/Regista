@@ -3,7 +3,7 @@
 #
 #   az login --tenant <tenant id> --use-device-code   # as an in-directory admin (user@<dir>.onmicrosoft.com), not an
 #                                                     # external personal account: security defaults block those
-#   BUDGET_EMAIL=you@outlook.com ./infra/provision.sh
+#   SUBSCRIPTION="Azure for Students" LOCATION=francecentral BUDGET_EMAIL=you@outlook.com ./infra/provision.sh
 #   SKIP_ACA=1 ./infra/provision.sh                   # Foundry, Cosmos DB and Search only (run the service locally)
 #   ./infra/provision.sh --destroy                    # delete the whole resource group (after judging)
 #
@@ -15,12 +15,23 @@
 #   the workflow reads; a monthly budget with email alerts; Entra ID role assignments for you.
 # Data-plane auth is Entra ID only: key login is switched off on Cosmos DB and AI Search (the code never uses keys).
 #
+# SUBSCRIPTION (name or id) is required: in a directory with several subscriptions, a wrong default would create
+# everything in someone else's. Regions: LOCATION is used for everything unless COSMOS_LOCATION or SEARCH_LOCATION
+# is set (a subscription may allow only a few regions: Azure for Students at Northeastern allows francecentral,
+# germanywestcentral, canadacentral, denmarkeast, belgiumcentral).
+#
 # Names are suffixed with 6 characters of the subscription id so the globally unique ones do not clash.
 # Costs (approximate): Foundry has no base charge (gpt-5-mini bills per token, cents per match); Cosmos DB serverless
 # is pennies for this data; Search free tier is free; the registry is ~$5/month; the always-on container app is
 # most of the bill (about $1-3/day). Delete everything after judging: ./infra/provision.sh --destroy
 set -euo pipefail
 
+log() { printf '\n\033[1;33m== %s\033[0m\n' "$*"; }
+die() { printf '\n\033[1;31m%s\033[0m\n' "$*" >&2; exit 1; }
+
+[[ -n "${SUBSCRIPTION:-}" ]] || die "Set SUBSCRIPTION to the subscription's name or id (az account list -o table shows them).
+It is required so a wrong default subscription never gets these resources."
+az account set --subscription "$SUBSCRIPTION" || die "Cannot use subscription '$SUBSCRIPTION'. az account list -o table shows yours."
 SUB_ID=$(az account show --query id -o tsv)
 TENANT_ID=$(az account show --query tenantId -o tsv)
 SUFFIX=$(echo "$SUB_ID" | tr -d '-' | cut -c1-6)
@@ -33,10 +44,10 @@ SUFFIX=$(echo "$SUB_ID" | tr -d '-' | cut -c1-6)
 : "${MODEL_SKU:=GlobalStandard}"
 : "${MODEL_CAPACITY:=10}"
 : "${COSMOS:=regista-cosmos-$SUFFIX}"
-: "${COSMOS_LOCATION:=eastus2}"          # East US had no Cosmos DB capacity in October 2026
+: "${COSMOS_LOCATION:=$LOCATION}"         # the first environment needed eastus2: East US had no Cosmos DB capacity
 : "${COSMOS_DB:=regista}"
 : "${SEARCH:=regista-search-$SUFFIX}"
-: "${SEARCH_LOCATION:=southcentralus}"   # the free tier is not offered in East US
+: "${SEARCH_LOCATION:=$LOCATION}"         # the first environment needed southcentralus: no free tier in East US
 : "${ACA_ENV:=regista-env}"
 : "${ACA_APP:=regista-api}"
 : "${ACR_NAME:=registaacr$SUFFIX}"
@@ -48,21 +59,34 @@ SUFFIX=$(echo "$SUB_ID" | tr -d '-' | cut -c1-6)
 : "${GITHUB_REPO:=}"                     # owner/name; default: the repository gh sees from here
 : "${DEPLOY_IDENTITY:=regista-github-deploy}"
 : "${ENV_FILE:=.env}"
+: "${RG_TAGS:=}"   # tags for the resource group, "Key=value;Key=value" (some directories require them; resources inherit)
+TAG_ARGS=()
+[[ -z "$RG_TAGS" ]] || IFS=';' read -r -a TAG_ARGS <<<"$RG_TAGS"
 NO_KEYS=$([[ "$DISABLE_LOCAL_AUTH" == "1" ]] && echo true || echo false)
 FOUNDRY_USER_ROLE="53ca6127-db72-4b80-b1b0-d745d6d5456d"      # "Foundry User" (formerly Azure AI User)
 COSMOS_DATA_CONTRIBUTOR="00000000-0000-0000-0000-000000000002" # Cosmos DB Built-in Data Contributor
 SEARCH_ROLES=("7ca78c08-252a-4471-8644-bb5ff32d4ba0" "8ebe5a00-799e-43f5-93ac-243d3dce84a7")  # Service Contributor, Index Data Contributor
 
-log() { printf '\n\033[1;33m== %s\033[0m\n' "$*"; }
-die() { printf '\n\033[1;31m%s\033[0m\n' "$*" >&2; exit 1; }
+# Pass a subscription id to every command too: a sign-in elsewhere can change the CLI's default mid-run.
+az() { case "$1 ${2:-}" in "ad "*|"rest "*|"account "*|"config "*|"provider "*) command az "$@" ;; *) command az "$@" --subscription "$SUB_ID" ;; esac; }
+
+# The deploy identity is an app registration in the directory. A directory can be shared (a university's), so only
+# ever look up, reuse or delete an app you own: another person's app of the same name is never touched.
+my_app_id() { command az ad app list --show-mine --query "[?displayName=='$DEPLOY_IDENTITY'] | [0].appId" -o tsv 2>/dev/null || true; }
 
 if [[ "${1:-}" == "--destroy" ]]; then
   log "Deleting resource group $RG (everything in it)"
   az group delete --name "$RG" --yes --no-wait
-  APP_ID=$(az ad app list --display-name "$DEPLOY_IDENTITY" --query "[0].appId" -o tsv 2>/dev/null || true)
+  APP_ID=$(my_app_id)
   [[ -z "$APP_ID" ]] || { az ad app delete --id "$APP_ID" && echo "deleted the GitHub deploy identity $DEPLOY_IDENTITY"; }
   echo "Deletion started. Remove $ENV_FILE by hand if you no longer want it."
   exit 0
+fi
+
+# A .env from another environment would carry its write token and app URL into this one (and a restore would then
+# write to the old app). Reuse only a .env this script wrote for this subscription.
+if [[ -f "$ENV_FILE" ]] && ! head -1 "$ENV_FILE" | grep -q "for subscription $SUB_ID"; then
+  die "$ENV_FILE belongs to another environment. Move it out of the repository first (for example: mv $ENV_FILE ~/.regista-old.env)."
 fi
 
 # ---------------------------------------------------------------------------- 1. sign-in checks, before anything is created
@@ -95,8 +119,8 @@ QUOTA=$(az cognitiveservices usage list --location "$LOCATION" \
   --query "[?name.value=='OpenAI.$MODEL_SKU.$MODEL'] | [0].[limit, currentValue]" -o tsv 2>/dev/null || true)
 if [[ -n "$QUOTA" ]]; then
   read -r Q_LIMIT Q_USED <<<"$QUOTA"
-  Q_FREE=$(python3 -c "print(int(float('$Q_LIMIT') - float('$Q_USED')))")
-  echo "quota: $Q_USED of $Q_LIMIT used; need $MODEL_CAPACITY"
+  Q_FREE=$(python3 -c "print(int(float('$Q_LIMIT' or 0) - float('${Q_USED:-0}' or 0)))")   # 'used' is blank before first use
+  echo "quota: ${Q_USED:-0} of $Q_LIMIT used; need $MODEL_CAPACITY"
   if (( Q_FREE < MODEL_CAPACITY )); then
     die "Not enough $MODEL quota in $LOCATION ($Q_FREE free, need $MODEL_CAPACITY). Request more in the Foundry portal
 (Management center > Quota), try another LOCATION, or lower MODEL_CAPACITY (min 1)."
@@ -107,7 +131,7 @@ fi
 
 # ---------------------------------------------------------------------------- 3. Foundry, Cosmos DB, AI Search
 log "Resource group $RG"
-az group create --name "$RG" --location "$LOCATION" -o none
+az group create --name "$RG" --location "$LOCATION" ${TAG_ARGS[@]+--tags "${TAG_ARGS[@]}"} -o none
 
 log "Foundry resource $FOUNDRY, project $PROJECT, deployment $MODEL $MODEL_VERSION"
 if ! az cognitiveservices account show -n "$FOUNDRY" -g "$RG" -o none 2>/dev/null; then
@@ -128,10 +152,12 @@ az role assignment create --role "$FOUNDRY_USER_ROLE" --assignee-object-id "$ME_
 
 log "Cosmos DB $COSMOS (serverless) in $COSMOS_LOCATION"
 if ! az cosmosdb show -n "$COSMOS" -g "$RG" -o none 2>/dev/null; then
-  az cosmosdb create -n "$COSMOS" -g "$RG" --locations regionName="$COSMOS_LOCATION" --capabilities EnableServerless \
+  az cosmosdb create -n "$COSMOS" -g "$RG" --locations regionName="$COSMOS_LOCATION" --capacity-mode Serverless \
     --default-consistency-level Session --disable-local-auth "$NO_KEYS" -o none
 else
-  az cosmosdb update -n "$COSMOS" -g "$RG" --disable-local-auth "$NO_KEYS" -o none   # key login off: Entra ID only
+  # key login off: Entra ID only (a generic update: the cosmosdb-preview extension drops --disable-local-auth from update)
+  az resource update -g "$RG" -n "$COSMOS" --resource-type Microsoft.DocumentDB/databaseAccounts \
+    --set properties.disableLocalAuth="$NO_KEYS" -o none
 fi
 COSMOS_ENDPOINT=$(az cosmosdb show -n "$COSMOS" -g "$RG" --query documentEndpoint -o tsv)
 az cosmosdb sql database create -a "$COSMOS" -g "$RG" -n "$COSMOS_DB" -o none 2>/dev/null || true
@@ -205,7 +231,7 @@ PY
     log "GitHub Actions deploy identity $DEPLOY_IDENTITY (federated credential: no secret is stored anywhere)"
     [[ -n "$GITHUB_REPO" ]] || GITHUB_REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)
     [[ -n "$GITHUB_REPO" ]] || die "Set GITHUB_REPO=owner/name (gh could not tell from here), or SKIP_GITHUB=1."
-    APP_ID=$(az ad app list --display-name "$DEPLOY_IDENTITY" --query "[0].appId" -o tsv)
+    APP_ID=$(my_app_id)
     [[ -n "$APP_ID" ]] || APP_ID=$(az ad app create --display-name "$DEPLOY_IDENTITY" --query appId -o tsv)
     SP_OID=$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || az ad sp create --id "$APP_ID" --query id -o tsv)
     SUBJECT="repo:$GITHUB_REPO:ref:refs/heads/main"
@@ -239,8 +265,9 @@ print(json.dumps({"properties": {"category": "Cost", "amount": float(amount), "t
                                  "notifications": {"actual50": note(50), "actual80": note(80), "actual100": note(100)}}}))
 PY
 )
+  # Some offers (Azure for Students) do not support budgets; they stop at their credit limit instead. Warn, go on.
   az rest --method put --url "https://management.azure.com/subscriptions/$SUB_ID/providers/Microsoft.Consumption/budgets/regista-budget?api-version=2023-05-01" \
-    --body "$BODY" -o none
+    --body "$BODY" -o none || echo "budget not created (this subscription's offer may not support budgets); continuing"
 else
   log "Budget skipped: set BUDGET_EMAIL=you@example.com to get alerts at 50%, 80% and 100% of \$$BUDGET_AMOUNT a month"
 fi
@@ -249,13 +276,14 @@ fi
 log "Writing $ENV_FILE"
 # The write token survives a re-run (rotating it would lock the deployed app's operator out); everything else is
 # read back from Azure.
-prior() { [[ -f "$ENV_FILE" ]] && sed -n "s/^$1=//p" "$ENV_FILE" | tail -1; }
+prior() { [[ -f "$ENV_FILE" ]] || return 0; sed -n "s/^$1=//p" "$ENV_FILE" | tail -1; }   # no .env yet: nothing to keep
 ADMIN_TOKEN=$(prior REGISTA_ADMIN_TOKEN)
 [[ -n "$ADMIN_TOKEN" ]] || ADMIN_TOKEN=$(python3 -c "import secrets; print(secrets.token_urlsafe(24))")
 APP_URL=$(prior REGISTA_APP_URL)
 cat > "$ENV_FILE" <<EOF
 # Generated by infra/provision.sh on $(date -u +%Y-%m-%dT%H:%M:%SZ) for subscription $SUB_ID. Data-plane auth is Entra ID.
 AZURE_TENANT_ID=$TENANT_ID
+REGISTA_SUBSCRIPTION_ID=$SUB_ID
 FOUNDRY_PROJECT_ENDPOINT=$PROJECT_ENDPOINT
 FOUNDRY_MODEL=$MODEL
 REGISTA_COSMOS_ENDPOINT=$COSMOS_ENDPOINT
