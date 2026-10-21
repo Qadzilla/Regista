@@ -300,7 +300,7 @@
     return div;
   }
 
-  async function send(message = $('q').value.trim(), { quiet = false } = {}) {
+  async function send(message = $('q').value.trim(), { quiet = false, withState = null } = {}) {
     if (!message || chat.busy || !state.match) return null;
     chat.busy = true; $('go').disabled = true; $('q').value = '';
     $('landing').hidden = true;
@@ -308,14 +308,16 @@
     const eng = engine();
     const wait = addMsg('bot wait', eng === 'foundry' ? 'Searching, then asking Microsoft Foundry to write the reply…' : 'Searching…');
     let out = null;
+    const prevOrder = (withState || chat.state)?.order;
     try {
-      out = await R.api(matchUrl('/chat'), { method: 'POST', body: { message, state: chat.state, history: chat.history, engine: eng } });
+      out = await R.api(matchUrl('/chat'), { method: 'POST', body: { message, state: withState || chat.state, history: chat.history, engine: eng } });
       wait.remove();
       chat.state = out.state; chat.history = out.history;
       remember(out.results);
       const msg = addMsg('bot', `${esc(out.reply)}${fallbackLine(out, eng)}${howAnswered(out, eng)}`);
-      if (/match order|in order|chronolog/i.test(message)) setSort('time');
-      else if (/\bbest\b|\btop\b/i.test(message)) setSort('best');
+      // The server keeps the order asked for in state.order ("time" after "in match order"); older servers did not.
+      if (out.state?.order === 'time' || (out.state?.order === undefined && /match order|in order|chronolog/i.test(message))) setSort('time');
+      else if ((prevOrder === 'time' && out.state?.order === null) || /\bbest\b|\btop\b/i.test(message)) setSort('best');
       applyReply(out, message);
       offerWayOut(msg, out);
       if (state.sort === 'time' && out.intent === 'search') await fillMatchOrder();
@@ -338,7 +340,8 @@
   }
 
   // When the reply found nothing because filters from earlier questions still apply, a button sends the follow-up that
-  // clears them: the server's suggestion when it has one, else "start over" and the player's name.
+  // clears them: the server's suggestion when it has one ({label, message, state}: the message, sent with the cleared
+  // state), else "start over" and the player's name.
   function offerWayOut(msg, out) {
     if (out.intent === 'reset' || (out.results || []).length || out.total) return;
     const st = out.state || {};
@@ -347,7 +350,7 @@
     let label, go;
     if (s && s.message) {
       label = s.label || s.message.charAt(0).toUpperCase() + s.message.slice(1);
-      go = () => send(s.message);
+      go = () => send(s.message, { withState: s.state || null });
     } else if (carried && (st.player_ids || []).length === 1 && player(st.player_ids[0])) {
       const pl = player(st.player_ids[0]);
       label = `Show all of ${pl.name}'s moments`;  // set as textContent

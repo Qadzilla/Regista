@@ -65,7 +65,7 @@ def test_how_regista_answered_is_plain_words_first_with_the_exact_steps_one_clic
 
 def test_any_player_can_be_picked_and_dead_ends_offer_a_way_out(script):
     assert "/clips?player=${enc(pid)}" in script and "moment_counts" in script and "Players with moments" in script
-    assert "out.suggest" in script and "send(s.message)" in script  # the server's clearing follow-up, when it has one
+    assert "out.suggest" in script and "send(s.message, { withState: s.state" in script  # the server's clearing follow-up, when it has one
     assert "send('start over'" in script and "Show all of ${pl.name}'s moments" in script  # else the fallback
     assert "Can\\'t reach Regista right now." in script and "Retry" in script
 
