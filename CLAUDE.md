@@ -301,6 +301,8 @@ for the record:
 
 ## 4.2 Where we are and what's next (update at the end of every work session)
 
+**Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
+
 **As of 2026-10-21 (evening).** `main` is at the latest pushed commit; CI (tests, image build, smoke test, push, deploy) is green; the live app is the new Azure for Students environment (§4.1), deployed by CI on every push to main. 212 tests pass.
 
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.76, precision 0.94; docs/vision.md).

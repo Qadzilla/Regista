@@ -17,6 +17,7 @@ local.settings.json
 *.mp3
 data/raw/
 data/clips/
+data/studio/
 footage/
 
 # Model weights and large artifacts
