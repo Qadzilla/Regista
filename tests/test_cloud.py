@@ -10,7 +10,8 @@ from regista.agents import AgentError, Orchestrator
 from regista.agents.roles import ClipAgent, IngestAgent, PossessionAgent, ValidatorAgent
 from regista.cloud.config import CloudConfig, load_dotenv
 from regista.cloud.cosmos import ClipStore, CosmosPersistAgent
-from regista.cloud.foundry import ALLOWED_TAGS, FoundryLabelAgent, FoundryLibrarianAgent, LabelOut, validate_label
+from regista.cloud.foundry import (ALLOWED_TAGS, CHAT_INSTRUCTIONS, LABEL_INSTRUCTIONS, FoundryLabelAgent, FoundryLibrarianAgent, LabelOut,
+                                   validate_label)
 from regista.synth import generate
 from fakes import FakeContainer  # noqa: E402
 
@@ -102,6 +103,13 @@ def test_clip_prompt_mentions_json_for_json_mode(match_dir):
     prompt = clip_prompt(index, clips[0], label_clips(index, clips[:1])[0])
     assert "json" in prompt.lower()
     json.loads(prompt.split("\n\n")[0])  # the structured part is still valid JSON
+
+
+def test_label_prompt_asks_for_plain_football_words():
+    """Audit J3 S7: Foundry wrote "Scored 0.56 because ... low xG" because the prompt asked for a sentence starting with
+    "Scored". Fans read the explanation: no score, no numbers but the minute, no jargon."""
+    assert "Scored" not in LABEL_INSTRUCTIONS and "no jargon such as xG" in LABEL_INSTRUCTIONS
+    assert "never the watchability" in LABEL_INSTRUCTIONS and 'never "clips"' in CHAT_INSTRUCTIONS
 
 
 def test_validate_label_keeps_reason_and_vocabulary():

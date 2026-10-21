@@ -61,6 +61,7 @@ from pydantic import BaseModel, Field, StrictFloat, StrictInt, StringConstraints
 from regista import __version__
 from regista.access import StudioReader, Writer, require_studio_reader, require_writer, role_of, write_mode  # noqa: F401
 from regista.agents.roles import default_agents
+from regista.clips import title_word
 from regista.librarian import search_clips
 from regista.schema import iter_jsonl, validate_jsonl
 
@@ -669,7 +670,7 @@ def moments_csv(match_id: str, player: Annotated[str | None, Query(pattern=r"^[A
     w.writerow(["time", "end", "kind", "tags", "title", "watchability", "time_s", "end_s", "clip_id"])
     for c in chosen:
         lb = labels.get(c["id"]) or {}
-        tags = "; ".join(t.replace("_", " ") for t in lb.get("tags", []) if t not in READABLE_REASONS)
+        tags = "; ".join(dict.fromkeys(title_word(t) for t in lb.get("tags", []) if t not in READABLE_REASONS))  # "take-on", "assist"
         w.writerow([mmss(c["t"]), mmss(c["t_end"]), READABLE_REASONS.get(c["reason"], c["reason"].replace("_", " ")), _csv_cell(tags),
                     _csv_cell(lb.get("title", "")), "" if lb.get("watchability") is None else round(lb["watchability"], 2),
                     round(c["t"], 2), round(c["t_end"], 2), c["id"]])
