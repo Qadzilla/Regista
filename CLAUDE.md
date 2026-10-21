@@ -139,6 +139,7 @@ src/regista/synth/           synthetic match generator (possessions, passes, sho
 src/regista/clips.py         clip rule + first labeller (watchability, tags, explanation)
 src/regista/validate.py      CLI validator
 src/regista/librarian.py     the Librarian: plain-English clip search (player, tags, minutes, replays), no cloud
+src/regista/conversation.py  the conversational Librarian (plan step 7): follow-ups merge into the query so far; chat_turn; /chat
 src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
 src/regista/api.py           FastAPI service: viewer at /, matches, clips with filters, search, on-demand MP4, upload → pipeline
@@ -260,7 +261,7 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 
 ## 4.2 Where we are and what's next (update at the end of every work session)
 
-**As of 2026-10-21.** `main` is at the latest pushed commit; CI (tests, image build, smoke test in the image) is green; the live app runs image 229f71f on revision `regista-api--d1020232137` (vision changes since do not reach it). 192 tests pass.
+**As of 2026-10-21.** `main` is at the latest pushed commit; CI (tests, image build, smoke test in the image) is green; the live app runs image 229f71f on revision `regista-api--d1020232137` (changes since are not deployed). 203 tests pass.
 
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.76, precision 0.94; docs/vision.md).
 
@@ -276,7 +277,8 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 1. ~~Make the hero tech visible on the live app~~ **Done and live 2026-10-20** (PR #1, image 229f71f, revision `regista-api--d1020232137`): Ask Foundry with public read-only tools, matches read back from Cosmos DB, health/footer naming the stack. Verified from the container: Foundry answered, `search_index_query` ran through the Azure MCP Server, spans reached App Insights. Container tracing had never worked before: deploy-app.sh cut the connection string at ';' (fixed in infra/lib/dotenv.sh).
 2. ~~Event spotting in the vision layer~~ **Done 2026-10-20** (docs/vision.md "Event spotting"). Weak spots: nutmeg and take-on recall (limited by possession recall ~0.76 and naming), tackles recall 0.56.
 3. ~~Identity corrections from Zaid (plan step 3)~~ **Done 2026-10-21** (docs/vision.md "Who's who"): questions + crops, workflow pause, viewer panel, terminal; answers fix the match (12 simulated answers per dev match: clips 0.76/0.92 -> 0.83/0.95) and fine-tune the reader (neutral-positive on rendered footage). Found: name_tracks leaves correct tracks unnamed when time spans merely overlap (same flaw fixed in review); worth fixing in naming itself, measured on dev only.
-4. Next: a conversational Librarian (plan step 7), then a 90-minute run.
+4. ~~A conversational Librarian (plan step 7)~~ **Done 2026-10-21**: `regista.conversation` + `POST /api/matches/{id}/chat` + the viewer's Chat panel with play-as-reel; rules engine checked in the browser. The Foundry engine is tested with a stand-in model only: the local Azure CLI token is blocked by security defaults (AADSTS530035) until Zaid runs `az login` again; verify it then, or on the live app after a deploy he approves.
+5. Next: a 90-minute run.
 3. Vision for real footage: frame sampling inside ffmpeg with gap-normalised motion features, a person detector instead of discs, a real homography; designed now, trained when the footage arrives.
 4. Demo video (docs/demo-storyboard.md needs a rewrite around the real match), pitch text, make the repo public before 2026-10-27.
 

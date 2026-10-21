@@ -56,6 +56,15 @@
   .answer .text { font-size: 15px; margin-bottom: 8px; }
   .answer .by { color: var(--muted); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .answer .tool { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--text); }
+  .chat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; }
+  .chat .log { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-bottom: 10px; }
+  .chat .me { align-self: flex-end; background: #2a2f3d; border-radius: 10px 10px 2px 10px; padding: 6px 10px; max-width: 80%; }
+  .chat .bot { align-self: flex-start; border-left: 3px solid var(--accent); padding: 4px 10px; max-width: 90%; }
+  .chat .bot .how { color: var(--muted); font-size: 12px; margin-top: 3px; }
+  .chat .row { display: flex; gap: 8px; flex-wrap: wrap; } .chat .row input { flex: 1; min-width: 220px; }
+  .chat .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
+  .reel video { width: 100%; max-width: 720px; border-radius: 8px; background: #000; margin-top: 8px; display: block; }
+  .reel video[hidden] { display: none; }
   .whos { background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; }
   .whos h3 { margin: 0 0 4px; font-size: 16px; } .whos .sub { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
   .qgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
@@ -76,8 +85,19 @@
   <input id="q" type="search" placeholder='Ask: "find me Castellanos doing a nutmeg", "replays of the home striker&#39;s goal", "top 3 moments"'>
   <button id="go">Search</button>
   <button id="ask" class="alt" title="Microsoft Foundry model, calling Regista's MCP server and the Azure MCP Server">Ask Foundry</button>
+  <button id="chatToggle" class="alt" title="A conversation: follow-ups refine the search">Chat</button>
 </header>
 <main>
+  <div class="chat" id="chat" hidden>
+    <div class="log" id="chatLog"></div>
+    <div class="row">
+      <input id="chatIn" type="search" placeholder='Talk to the Librarian: "find me Castellanos doing a nutmeg", then "now the replays", "what about Ibarra?", "make that a reel"'>
+      <select id="chatEngine" title="Who writes the reply"><option value="rules">Rules (instant)</option><option value="foundry">Microsoft Foundry</option></select>
+      <button id="chatGo">Send</button>
+    </div>
+    <p class="hint">Follow-ups build on what you asked before. "Start over" clears it.</p>
+    <div class="reel" id="reel"></div>
+  </div>
   <div class="whos" id="whos" hidden></div>
   <div class="learn" id="learn">Loading what Regista has learned…</div>
   <div class="player" id="playerHead"></div>
@@ -102,6 +122,9 @@ async function init() {
   const matches = await api('/api/matches');
   $('match').innerHTML = matches.map(m => `<option value="${esc(m.match_id)}">${esc(m.match_id)} · ${esc(m.teams[0].short_name)} ${m.score ? esc(m.score[m.teams[0].team_id]) : ''} - ${m.score ? esc(m.score[m.teams[1].team_id]) : ''} ${esc(m.teams[1].short_name)}${m.source === 'cosmos' ? ' · from Cosmos DB' : ''}</option>`).join('');
   $('ask').onclick = ask;
+  $('chatToggle').onclick = () => { $('chat').hidden = !$('chat').hidden; if (!$('chat').hidden) $('chatIn').focus(); };
+  $('chatGo').onclick = sendChat;
+  $('chatIn').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
   $('match').onchange = () => loadMatch($('match').value);
   $('player').onchange = () => { state.player = $('player').value; state.tag = null; loadClips(); };
   $('go').onclick = search;
@@ -110,6 +133,7 @@ async function init() {
 }
 
 async function loadMatch(id) {
+  if (state.match !== id) resetChat();
   state.match = id;
   const info = await api(`/api/matches/${encodeURIComponent(id)}`);
   state.matchInfo = info;
@@ -326,6 +350,43 @@ async function loadWhos() {
     await loadMatch(state.match);
     $('understood').textContent = done;  // after the reload, which clears the panel and this line
   };
+}
+
+// The conversation: the server merges each message into the query so far and returns it; the page sends it back
+// with the next message (the server keeps nothing between turns).
+const chat = { state: null, history: [], busy: false };
+function resetChat() { chat.state = null; chat.history = []; if ($('chatLog')) { $('chatLog').innerHTML = ''; $('reel').innerHTML = ''; } }
+function addMsg(cls, html) { const div = document.createElement('div'); div.className = cls; div.innerHTML = html; $('chatLog').appendChild(div); $('chatLog').scrollTop = $('chatLog').scrollHeight; }
+
+async function sendChat() {
+  const message = $('chatIn').value.trim();
+  if (!message || chat.busy) return;
+  chat.busy = true; $('chatGo').disabled = true; $('chatIn').value = '';
+  addMsg('me', esc(message));
+  try {
+    const r = await fetch(`/api/matches/${encodeURIComponent(state.match)}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, state: chat.state, history: chat.history, engine: $('chatEngine').value }) });
+    const out = await r.json();
+    if (!r.ok) { addMsg('bot', esc(typeof out.detail === 'string' ? out.detail : 'The Librarian could not answer.')); return; }
+    chat.state = out.state; chat.history = out.history;
+    const tools = (out.tools_used || []).map(t => `<span class="tool">${esc(t)}</span>`).join(' ');
+    addMsg('bot', `${esc(out.reply)}<div class="how">understood: ${esc(out.understood)} · ${esc(out.answered_by)}${tools ? ' · ' + tools : ''}</div>`);
+    if (out.results && out.results.length) { state.tag = null; $('chips').innerHTML = ''; renderGrid(out.results); }
+    $('reel').innerHTML = '';
+    if (out.reel && out.reel.length) {
+      $('reel').innerHTML = `<button id="playReel">Play reel (${out.reel.length} clips)</button><video id="reelVideo" controls hidden></video>`;
+      $('playReel').onclick = () => playReel(out.reel.map(c => c.video_url));
+    }
+  } catch (e) { addMsg('bot', esc(e.message)); }
+  finally { chat.busy = false; $('chatGo').disabled = false; $('chatIn').focus(); }
+}
+
+function playReel(urls) {
+  const v = $('reelVideo'); let i = 0;
+  v.hidden = false;
+  const next = () => { if (i < urls.length) { v.src = urls[i++]; v.play().catch(() => {}); } };
+  v.onended = next;
+  next();
 }
 
 async function loadStack() {

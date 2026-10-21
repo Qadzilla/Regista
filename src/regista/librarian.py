@@ -254,9 +254,15 @@ def search_clips(match_dir: str | Path, query: str, limit: int = 10) -> dict[str
     Returns ``{"parsed": {...}, "results": [...], "relaxed": bool, "message": str}``. Each result has
     clip_id, title, t, t_end, minute, reason, tags, watchability, explanation, summary, player.
     """
+    match, _stream, _, _ = _load(str(match_dir))
+    return search_parsed(match_dir, parse_query(query, match), limit)
+
+
+def search_parsed(match_dir: str | Path, parsed: dict[str, Any], limit: int = 10, offset: int = 0) -> dict[str, Any]:
+    """The search itself, for a query already understood (``parse_query``'s output, or a conversation's merged
+    state from ``regista.conversation``). ``offset`` skips that many of the best results ("show me more")."""
     match_dir = str(match_dir)
     match, stream, _, _ = _load(match_dir)
-    parsed = parse_query(query, match)
     if parsed["player_ids"]:
         player_ids = parsed["player_ids"]
     elif parsed["team_id"]:
@@ -297,7 +303,8 @@ def search_clips(match_dir: str | Path, query: str, limit: int = 10) -> dict[str
         relaxed = bool(results)
     results.sort(key=lambda r: (-(len(want & set(r["tags"])) if want else 0), -r["watchability"], r["t"]))
     n = parsed["limit"] or limit
-    results = results[:n]
+    total = len(results)
+    results = results[offset: offset + n]
 
     if results:
         message = f"{len(results)} clip(s)" + (" (relaxed: no clip has every requested tag, showing partial matches)" if relaxed else "")
@@ -305,7 +312,7 @@ def search_clips(match_dir: str | Path, query: str, limit: int = 10) -> dict[str
         message = f"No player recognised in {parsed['unparsed']!r} and no clips matched."
     else:
         message = "No clips match. " + (f"{parsed['player']} has clips tagged: " + ", ".join(sorted({t for r in rows for t in r['tags']})) if rows else "That player has no clips in this match.")
-    return {"parsed": parsed, "results": results, "relaxed": relaxed, "message": message}
+    return {"parsed": parsed, "results": results, "relaxed": relaxed, "message": message, "total": total, "offset": offset}
 
 
 # ---------------------------------------------------------------------------- CLI

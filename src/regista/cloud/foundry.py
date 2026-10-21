@@ -328,39 +328,79 @@ class FoundryLibrarianAgent(LibrarianAgent):
             if isinstance(out, tuple):
                 out, self.last_tools_used = out[0], list(out[1])
             return out
-        from agent_framework import Agent, MCPStdioTool
+        from contextlib import AsyncExitStack
+
+        from agent_framework import Agent
         from agent_framework.foundry import FoundryChatClient
         from azure.identity.aio import DefaultAzureCredential
 
-        from contextlib import AsyncExitStack
-
         async with DefaultAzureCredential() as credential, AsyncExitStack() as stack:
             client = FoundryChatClient(project_endpoint=cloud.foundry_project_endpoint, model=cloud.foundry_model, credential=credential)
-            # config["regista_tools"] / config["azure_namespaces"] narrow the tools for public use (see regista.api /ask).
-            regista_mcp = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"], env=child_env(),
-                                       allowed_tools=self.config.get("regista_tools"))
-            tools = [await stack.enter_async_context(regista_mcp)]
-            azure = (azure_mcp_tool(cloud, self.config.get("azure_namespaces"))
-                     if (cloud.cosmos_enabled or cloud.search_enabled) and self.config.get("azure_mcp", True) else None)
-            context = [f"match_dir: {match_dir}"]
-            if azure is not None:
-                try:
-                    tools.append(await stack.enter_async_context(azure))
-                except Exception:  # noqa: BLE001 - the Librarian still answers with Regista's own tools
-                    azure = None
-            if azure is not None:
-                _args, allowed = azure_mcp_args(cloud, self.config.get("azure_namespaces"))
-                if cloud.cosmos_enabled and "cosmos_list" in allowed:
-                    context.append(f"cosmos account: {cosmos_account_name(cloud)}, database: {cloud.cosmos_database}")
-                if cloud.search_enabled and "search_index_query" in allowed:
-                    context.append(f"search service: {search_service_name(cloud)}, index: regista-clips")
-            # Name the tools it actually holds, so it never offers one this deployment withheld (the public endpoint has no Cosmos DB tool).
-            held = list(self.config.get("regista_tools") or ["search_clips", "search_library", "derive_clips", "validate_stream",
-                                                               "render_clip", "list_matches"])
-            if azure is not None:
-                held += azure_mcp_args(cloud, self.config.get("azure_namespaces"))[1]
-            context.append("tools you hold (offer nothing else): " + ", ".join(held))
+            tools, context = await open_librarian_tools(stack, cloud, self.config)
+            context.insert(0, f"match_dir: {match_dir}")
             agent = await stack.enter_async_context(Agent(client=client, name="regista-librarian", instructions=LIBRARIAN_INSTRUCTIONS))
             result = await agent.run("\n".join(context) + f"\nquery: {query}", tools=tools)
             self.last_tools_used = tools_used(result)
             return getattr(result, "text", None) or str(result)
+
+
+async def open_librarian_tools(stack: Any, cloud: CloudConfig, config: dict[str, Any]) -> tuple[list[Any], list[str]]:
+    """Regista's MCP server and, when configured, Microsoft's Azure MCP Server, entered on ``stack``. ``config`` may
+    narrow them (``regista_tools``, ``azure_namespaces``; the public endpoints do). Returns the tools and the context
+    lines that tell the model what it holds, so it never offers a tool this deployment withheld."""
+    from agent_framework import MCPStdioTool
+
+    regista_mcp = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"], env=child_env(),
+                               allowed_tools=config.get("regista_tools"))
+    tools = [await stack.enter_async_context(regista_mcp)]
+    azure = (azure_mcp_tool(cloud, config.get("azure_namespaces"))
+             if (cloud.cosmos_enabled or cloud.search_enabled) and config.get("azure_mcp", True) else None)
+    context: list[str] = []
+    if azure is not None:
+        try:
+            tools.append(await stack.enter_async_context(azure))
+        except Exception:  # noqa: BLE001 - the Librarian still answers with Regista's own tools
+            azure = None
+    if azure is not None:
+        _args, allowed = azure_mcp_args(cloud, config.get("azure_namespaces"))
+        if cloud.cosmos_enabled and "cosmos_list" in allowed:
+            context.append(f"cosmos account: {cosmos_account_name(cloud)}, database: {cloud.cosmos_database}")
+        if cloud.search_enabled and "search_index_query" in allowed:
+            context.append(f"search service: {search_service_name(cloud)}, index: regista-clips")
+    held = list(config.get("regista_tools") or ["search_clips", "search_library", "derive_clips", "validate_stream", "render_clip", "list_matches"])
+    if azure is not None:
+        held += azure_mcp_args(cloud, config.get("azure_namespaces"))[1]
+    context.append("tools you hold (offer nothing else): " + ", ".join(held))
+    return tools, context
+
+
+CHAT_INSTRUCTIONS = """You are Regista's Librarian in a conversation with a football producer who is building clips and reels.
+Each user turn arrives with two notes from Regista: how it understood the whole conversation so far (player, moments,
+angles, minutes), and the clips its search found for that, best first, with titles and minutes. Reply in at most two
+sentences: say how many clips there are and name the best one or two by title and minute; if the search found nothing,
+say what is available instead (the note lists it). Follow the conversation: "he", "his", "those" refer to what was
+discussed. You may call your tools for detail the note lacks (search_library for other matches). Never invent clips,
+players or moments that the notes or your tools did not give you. Never mention the notes themselves."""
+
+
+async def foundry_chat_reply(cloud: CloudConfig, match_dir: str, history: list[dict[str, str]], message: str, understood: str,
+                             results: list[Record], fallback: str, config: dict[str, Any] | None = None) -> tuple[str, list[str]]:
+    """The conversational Librarian's reply from a Foundry model (Agent Framework), given the conversation so far,
+    Regista's understanding of it, and the clips its search found. Returns (reply, tools called)."""
+    from contextlib import AsyncExitStack
+
+    from agent_framework import Agent, Message
+    from agent_framework.foundry import FoundryChatClient
+    from azure.identity.aio import DefaultAzureCredential
+
+    found = "; ".join(f"{r['title']} ({r['minute']}')" for r in results[:6]) or "none"
+    note = (f"[Regista understood the conversation as: {understood}. Search results ({len(results)} shown): {found}. "
+            f"If none: {fallback}. match_dir: {match_dir}]")
+    async with DefaultAzureCredential() as credential, AsyncExitStack() as stack:
+        client = FoundryChatClient(project_endpoint=cloud.foundry_project_endpoint, model=cloud.foundry_model, credential=credential)
+        tools, context = await open_librarian_tools(stack, cloud, config or {})
+        agent = await stack.enter_async_context(Agent(client=client, name="regista-librarian-chat", instructions=CHAT_INSTRUCTIONS))
+        turns = [Message(t["role"], [t["text"]]) for t in history[-6:] if t.get("role") in ("user", "assistant") and t.get("text")]
+        turns.append(Message("user", [f"{message}\n\n{note}\n" + "\n".join(context)]))
+        result = await agent.run(turns, tools=tools)
+        return getattr(result, "text", None) or str(result), tools_used(result)

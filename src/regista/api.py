@@ -17,6 +17,7 @@ GET  /api/matches/{match_id}                    manifest, roster, score
 GET  /api/matches/{match_id}/clips?player=&tag=&min_watchability=&reason=
 GET  /api/matches/{match_id}/search?q=          the Librarian (rule-based, instant)
 POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools
+POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited)
 GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE
 GET  /api/matches/{match_id}/video.mp4          the whole broadcast, rendered on demand, cached
 GET  /api/matches/{match_id}/report             synthetic realism report (markdown)
@@ -708,6 +709,83 @@ async def ask(match_id: str, body: AskIn, request: Request) -> dict[str, Any]:
     for r in out.get("results", []):
         r["video_url"] = f"/api/matches/{match_id}/clips/{r['clip_id']}.mp4"
     return out
+
+
+# ---------------------------------------------------------------------------- a conversation with the Librarian
+
+class ChatTurnIn(BaseModel):
+    role: Literal["user", "assistant"]
+    text: Annotated[str, StringConstraints(max_length=600)]
+
+
+class ChatIn(BaseModel):
+    message: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=ASK_MAX_CHARS)]
+    state: dict[str, Any] | None = None   # the query so far, as the last reply returned it (checked again here)
+    history: list[ChatTurnIn] = Field(default_factory=list, max_length=12)
+    engine: Literal["rules", "foundry"] = "rules"
+
+    @model_validator(mode="after")
+    def _small_state(self) -> ChatIn:
+        if self.state is not None and len(json.dumps(self.state, default=str)) > 2000:
+            raise ValueError("state is too large")
+        return self
+
+
+def _chat_reply_foundry(d: Path, body: ChatIn, out: dict[str, Any]) -> tuple[str, list[str], str]:
+    """The Foundry Librarian's reply for one turn (tests replace this). Returns (reply, tools called, answered by)."""
+    from regista.cloud import CloudConfig
+    from regista.cloud.foundry import foundry_chat_reply
+
+    cfg = CloudConfig.from_env()
+    if not cfg.foundry_enabled:
+        return out["reply"], [], "rules (Foundry is not configured on this deployment)"
+    from regista.aio import run_sync
+
+    text, tools = run_sync(foundry_chat_reply(cfg, str(d), [t.model_dump() for t in body.history], body.message, out["understood"],
+                                              out["results"], out["reply"],
+                                              {"regista_tools": PUBLIC_REGISTA_TOOLS, "azure_namespaces": PUBLIC_AZURE_NAMESPACES}))
+    return text, tools, f"foundry:{cfg.foundry_model}"
+
+
+@app.post("/api/matches/{match_id}/chat")
+async def chat(match_id: str, body: ChatIn, request: Request) -> dict[str, Any]:
+    """One turn of a conversation. The search and the merged query are deterministic (``regista.conversation``):
+    "his", "now the replays", "second half", "what about Ibarra?", "more", "make that a reel". With
+    ``engine=foundry`` a Foundry model writes the reply from the conversation and the results, with the same public
+    tools and limits as /ask; without Foundry, or if it fails, the rule-based reply stands and ``answered_by`` says so."""
+    from fastapi.responses import JSONResponse
+
+    from regista.conversation import chat_turn
+
+    d = _match_dir(match_id)
+    out = await run_in_threadpool(chat_turn, d, body.message, body.state)
+    answered_by, tools = "rules", []
+    if body.engine == "foundry" and out["intent"] != "reset":
+        ok, wait, which = _ask_limiter.acquire(_visitor(request))
+        if not ok:
+            return JSONResponse({"detail": f"Too many questions right now ({which}); try again in {wait:.0f}s."}, status_code=429,
+                                headers={"Retry-After": str(max(1, int(wait)))})
+
+        def run() -> tuple[str, list[str], str]:
+            try:
+                return _chat_reply_foundry(d, body, out)
+            finally:
+                _ask_limiter.release()
+
+        try:
+            from regista.cloud.telemetry import configure_tracing
+
+            configure_tracing()
+            out["reply"], tools, answered_by = await asyncio.wait_for(run_in_threadpool(run), ASK_TIMEOUT_S)
+        except asyncio.TimeoutError:
+            answered_by = "rules (Foundry took too long)"
+        except Exception as exc:  # noqa: BLE001 - the deterministic reply stands
+            answered_by = f"rules (foundry fallback: {type(exc).__name__})"
+    for r in out["results"]:
+        r["video_url"] = f"/api/matches/{match_id}/clips/{r['clip_id']}.mp4"
+    history = [t.model_dump() for t in body.history] + [{"role": "user", "text": body.message}, {"role": "assistant", "text": out["reply"][:600]}]
+    return {**out, "reel": [{"clip_id": c, "video_url": f"/api/matches/{match_id}/clips/{c}.mp4"} for c in out["reel"]],
+            "answered_by": answered_by, "tools_used": tools, "history": history[-12:]}
 
 
 # ---------------------------------------------------------------------------- uploads
