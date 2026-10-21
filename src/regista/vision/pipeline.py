@@ -101,9 +101,24 @@ def run_vision(video: Path | str, roster: Record, out_dir: Path | str, *, models
     identity_cfg = identity_cfg or IdentityConfig.load(models_dir)
     ident = run_identity(video, roster, segs, reader, identity_cfg)
     timings["identity_s"] = round(time.perf_counter() - t0, 2)
+    # Kept so a person can correct identity later (regista.vision.review) and everything downstream is recomputed.
+    import joblib
 
+    (out_dir / ".vision_work").mkdir(parents=True, exist_ok=True)
+    joblib.dump(ident, out_dir / ".vision_work" / "identity.joblib")
+
+    return refresh_from_identity(out_dir, roster, info, match_id, seg_recs, ident, models_dir=models_dir, track_hz=track_hz,
+                                 possession_cfg=possession_cfg, event_spotter=event_spotter, timings=timings)
+
+
+def refresh_from_identity(out_dir: Path | str, roster: Record, info: VideoInfo, match_id: str, seg_recs: list[Record], ident: IdentityResult,
+                          *, models_dir: Path | str = DEFAULT_MODELS_DIR, track_hz: float = 2.0, possession_cfg: PossessionConfig | None = None,
+                          event_spotter: Any = None, timings: dict[str, float] | None = None) -> dict[str, Any]:
+    """Everything after identity: possession, events, then the validated match directory. Run once by ``run_vision``,
+    and again after a person corrects identity (``regista.vision.review``), so the fix reaches clips and events."""
+    timings = dict(timings or {})
     t0 = time.perf_counter()
-    possessions = infer_possessions(ident.frames, roster, match_id, possession_cfg, fps=identity_cfg.sample_fps,
+    possessions = infer_possessions(ident.frames, roster, match_id, possession_cfg, fps=float(ident.info.get("sample_fps", 5.0)),
                                     segment_end={r["id"]: r["t_end"] for r in seg_recs})
     timings["possession_s"] = round(time.perf_counter() - t0, 2)
 
@@ -117,6 +132,12 @@ def run_vision(video: Path | str, roster: Record, out_dir: Path | str, *, models
 
     summary = write_match_dir(out_dir, roster, info, match_id, seg_recs, ident, possessions, track_hz, timings, events=events)
     summary["events"] = "spotted" if event_spotter else f"skipped: no event model in {models_dir}"
+    try:
+        from regista.vision.review import prepare_review
+
+        summary["review_questions"] = len(prepare_review(out_dir, info.path, ident, roster))
+    except Exception as exc:  # noqa: BLE001 - the match is written either way; the questions can be prepared later
+        summary["review_questions"] = f"not prepared: {type(exc).__name__}: {exc}"
     return summary
 
 

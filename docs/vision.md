@@ -19,8 +19,8 @@ Code: `src/regista/vision/`. Tests: `tests/test_vision.py`.
 `build_vision_workflow()` (`regista.vision.agents`) wires the five roles as a Microsoft Agent Framework workflow. It reuses `RoleExecutor`, `FinishExecutor`, and `DeadLetterExecutor` from `regista.agents.workflow`, so retries, dead letters, typed handoffs, and the trace format match the intelligence pipeline. Its output directory is the intelligence workflow's input.
 
 ```
-vision_start ─▶ shots ─▶ identity ─▶ possession_vision ─▶ events_vision ─▶ vision_writer ─▶ finish
-                  └─────────┴──────────────┴─────────────────┴────────────────┴── DeadLetter ─▶ dead_letter
+vision_start ─▶ shots ─▶ identity ─▶ identity_review ─▶ possession_vision ─▶ events_vision ─▶ vision_writer ─▶ finish
+                  └─────────┴──────────────┴───────────────────┴─────────────────┴────────────────┴── DeadLetter ─▶ dead_letter
 ```
 
 Clips derived from vision output now carry event tags (nutmeg, shot, take-on, pass, …), so the Librarian can answer "find me X doing a nutmeg" from footage. How well each event is found is measured below.
@@ -131,6 +131,32 @@ The default model directory is `models/vision/`. Trained models are build artefa
 - **One format.** Every training and test video is 640x360 at 10 fps. At 1280x720 the shot model classed every replay frame as a highlight (replay accuracy 0%). At 25 fps replay accuracy fell to 76% and boundaries were found later, because sampling 10 of 25 frames gives uneven gaps and the motion features (slow motion is the replay cue) were learned at even 0.1 s gaps. Identity held at about 99.7% in both. Real footage needs the shot model retrained on its own format, with features normalised by the frame gap.
 - **What inference is given.** Besides the team sheet and kit colours, the vision run receives the match header's period start and end times and attacking directions. On a real broadcast those come from the broadcast log or the on-screen clock, which v0 does not read. Inference also knows the renderer's camera model and its grass, shadow, and line colours; the 0.05 m pan and 0.20 m position errors depend on that prior.
 - **Kit colours.** The detector takes its colours from the roster, so unseen colours mainly test the colour clustering and the number reader's normalisation; the fresh matches cover that.
+
+## Who's who: a person corrects identity (plan step 3)
+
+The identity agent names tracks by kit-number vote and decides who appears in each replay. Where it is unsure, `regista.vision.review` turns that into a short list of questions, ranked by how much a wrong call costs (seconds of footage, how close the vote was):
+
+- **"Who is this player?"** for a track whose top two candidates are close, or that has no name: a ringed crop of the player and the top candidates.
+- **"Who is in this replay?"** for a replay, highlight or closeup whose involvement scores sit near the decision line, or that has nobody in it (the clip rule then cuts it for no one).
+
+**Three ways to answer.** In the vision workflow (`python3 -m regista.vision run VIDEO --roster ... --out ... --workflow --review`), an `identity_review` step after identity pauses the Agent Framework run with a request for answers (`request_info`), and the run resumes with them applied before possession, events and clips run. Every vision run also leaves the questions and crops in `OUT/review/`, so they can be answered later in the viewer's **Who's who?** panel (`GET`/`POST /api/matches/{id}/identity-review`; writes need the token) or at the terminal.
+
+**What an answer does.** The track is renamed, and a track holding that name *in the same frames* loses it there, and only there. The tracker sometimes doubles a player for a few frames or splits one player into touching tracks, so unnaming the whole other track would undo frames that were right; the first version did that and made identity worse. Replays get the players named. Possession, events, appearances and clips are recomputed. Answers become `annotation` records (`target_type` `track` or `appearance`, `source: human`) in `OUT/review/identity_answers.jsonl` and the feedback folder. Reviewed calls are never asked again; the next most uncertain ones are prepared.
+
+**Measured on the development matches with simulated answers.** Answers here are read from the generator's ground truth, standing in for a careful person; they say so (`source: synthetic`, `simulates: human`) and are never presented as a person's review. Identity on true camera segments, 12 questions per match:
+
+| Development match | Identity (named correctly, of matched detections) | Replay appearances precision / recall |
+|---|---|---|
+| syn_0201 | 99.31% → 99.88% | 0.60 / 0.33 → 1.00 / 1.00 |
+| syn_0202 | 99.06% → 99.90% | 0.71 / 0.56 → 1.00 / 0.89 |
+| syn_0203 | 95.91% → 97.59% | 0.73 / 0.57 → 1.00 / 0.93 |
+| syn_0204 | 98.28% → 98.98% | 0.69 / 0.64 → 0.91 / 0.71 |
+| syn_0205 | 93.19% → 97.74% | 0.78 / 0.64 → 0.78 / 0.64 |
+| syn_0206 | 98.27% → 98.90% | 0.60 / 0.33 → 1.00 / 1.00 |
+
+Through to the product, for all 22 starters on the six matches (470 true clips): clip recall 0.764 → **0.830**, precision 0.918 → **0.954**; pass recall 0.746 → 0.777, take-on recall 0.583 → 0.667.
+
+**Learning from the answers (plan step 6).** `python3 -m regista.vision learn-from-reviews MATCH_DIR ...` turns every answered track into labelled kit-number crops and fine-tunes the reader (`DigitClassifierReader.fine_tune`), keeping the previous reader beside it. The first version made the reader worse on matches nobody reviewed (per-crop accuracy 99.6% → 96.1-99.2%): a track that swaps players gets one name for all its frames, and rehearsing only synthetic discs pulled the reader away from rendered shirts. Now frames the reader confidently reads as another number are left out, and fine-tuning rehearses 17,070 real crops from training matches beside synthetic discs. Corrections from dev matches 201-203, then identity on 204-206 (unreviewed): reader errors per crop 0.36% → 0.30%, 0.37% → 0.33%, 0.42% → 0.32%; identity unchanged within ±0.15%. On rendered footage the reader is near its ceiling, so the immediate fix is where review pays; on real footage, where the reader starts weaker, the learning half matters more, and that is unmeasured until Zaid's match.
 
 ## Event spotting
 

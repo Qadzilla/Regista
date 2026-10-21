@@ -7,6 +7,7 @@ held-out matches are in docs/vision.md."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -194,7 +195,9 @@ def test_vision_workflow_writes_a_valid_match_the_intelligence_layer_can_use(cli
     from regista.vision.pipeline import compare_clips
 
     run, out = vision_run["run"], vision_run["out"]
-    assert [r["agent"] for r in run.trace if r["status"] == "ok"] == ["shots", "identity", "possession_vision", "events_vision", "vision_writer"]
+    assert [r["agent"] for r in run.trace if r["status"] == "ok"] == ["shots", "identity", "identity_review", "possession_vision",
+                                                                      "events_vision", "vision_writer"]
+    assert next(r for r in run.trace if r["agent"] == "identity_review")["note"] == "review off"
     assert run.state["match_dir"] == str(out)
     assert all(not v for v in validate_match_dir(out).values())
     stream = list(iter_jsonl(out / "events.jsonl"))
@@ -270,3 +273,105 @@ def test_vision_cli_commands_reach_their_work(monkeypatch, tmp_path):
     assert cli.main(["evaluate", "--set", "fresh", "--root", str(tmp_path)]) == 0
     assert cli.main(["evaluate", "--root", str(tmp_path)]) == 0
     assert calls == [[301, 302, 303], [201, 202, 203, 204, 205, 206]]
+
+
+
+def test_identity_review_pauses_the_workflow_asks_and_applies_answers(clips, models, tmp_path):
+    """With review on, the workflow stops after identity with questions and crops, a reviewer answers, and the run
+    resumes with the answers applied and recorded."""
+    from regista.vision.agents import IdentityAnswers, run_vision_workflow
+    from regista.vision.review import simulated_answers
+
+    truth, _segs = _segments(clips["test"])
+    roster = load_match_header(clips["test"]["match_dir"])
+    asked = []
+
+    def reviewer(request):
+        import joblib
+
+        asked.append(request)
+        assert request.items and all((Path(request.review_dir) / "crops" / it["image"]).exists() for it in request.items)
+        result = joblib.load(out / ".vision_work" / "identity.joblib")
+        return IdentityAnswers(answers=simulated_answers(request.items, result, truth, roster), annotator="test reviewer")
+
+    out = tmp_path / "reviewed"
+    run = run_vision_workflow({"video_path": clips["test"]["video"], "roster": roster, "out_dir": str(out), "review": True},
+                              config={"models_dir": str(models["dir"]), "review_questions": 4, "feedback_dir": str(tmp_path / "fb")},
+                              reviewer=reviewer)
+    assert run.ok, (run.failed_role, run.dead_letters)
+    assert len(asked) == 1 and 1 <= len(asked[0].items) <= 4
+    statuses = [(r["agent"], r["status"]) for r in run.trace if r["agent"] == "identity_review"]
+    assert statuses == [("identity_review", "waiting"), ("identity_review", "ok")]
+    assert run.state["identity_review"]["answers"] == len(asked[0].items)
+    recs = [json.loads(line) for line in (out / "review" / "identity_answers.jsonl").read_text().splitlines()]
+    assert len(recs) == len(asked[0].items) and all(r["annotator"] == "test reviewer" and r["source"] == "human" for r in recs)
+    assert (tmp_path / "fb" / "identity_annotations.jsonl").exists()
+    assert all(not v for v in validate_match_dir(out).values())
+
+
+def test_identity_review_rejects_bad_answers_without_applying_any(clips, models, tmp_path):
+    from regista.vision.agents import IdentityAnswers, run_vision_workflow
+
+    roster = load_match_header(clips["test"]["match_dir"])
+    out = tmp_path / "bad"
+    run = run_vision_workflow({"video_path": clips["test"]["video"], "roster": roster, "out_dir": str(out), "review": True},
+                              config={"models_dir": str(models["dir"]), "review_questions": 3, "feedback_dir": str(tmp_path / "fb")},
+                              reviewer=lambda req: IdentityAnswers(answers=[{"item_id": it["item_id"], "player_id": "nobody", "players": ["nobody"]}
+                                                                             for it in req.items]))
+    assert not run.ok and run.failed_role == "identity_review"
+    assert "team sheet" in run.dead_letters[0]["error"] or "team-sheet" in run.dead_letters[0]["error"]
+    assert not (out / "review" / "identity_answers.jsonl").exists() and not (tmp_path / "fb").exists()
+
+
+def test_identity_review_through_the_api(clips, models, tmp_path, monkeypatch):
+    """A vision match keeps its questions; answering them over HTTP corrects identity and recomputes the match."""
+    from fastapi.testclient import TestClient
+
+    from regista import api
+    from regista.vision.pipeline import run_vision
+    from regista.vision.review import simulated_answers
+
+    roster = load_match_header(clips["test"]["match_dir"])
+    out = tmp_path / "data" / "vis_api"
+    summary = run_vision(clips["test"]["video"], roster, out, models_dir=models["dir"], match_id="vis_api")
+    assert isinstance(summary["review_questions"], int) and summary["review_questions"] > 0
+    monkeypatch.setattr(api, "DATA_ROOT", tmp_path / "data")
+    monkeypatch.setattr(api, "CACHE_ROOT", tmp_path / "cache")
+    monkeypatch.setattr(api, "MODELS_DIR", models["dir"])
+    monkeypatch.setenv("REGISTA_FEEDBACK_DIR", str(tmp_path / "fb"))
+    c = TestClient(api.app)
+    got = c.get("/api/matches/vis_api/identity-review").json()
+    assert got["items"] and set(got["teams"]) == {t["team_id"] for t in roster["teams"]}
+    first = got["items"][0]
+    img = c.get(first["image_url"])
+    assert img.status_code == 200 and img.headers["content-type"] == "image/jpeg"
+    assert c.get("/api/matches/vis_api/identity-review/crops/..%2Fmanifest.json").status_code in (400, 404)
+
+    before = (out / "events.jsonl").read_text()
+    bad = {"answers": [{"item_id": first["item_id"], "player_id": "nobody", "players": ["nobody"]}]}
+    assert c.post("/api/matches/vis_api/identity-review", json=bad).status_code == 422
+    assert (out / "events.jsonl").read_text() == before and c.get("/api/matches/vis_api/identity-review").json()["items"]
+
+    import joblib
+
+    truth, _ = _segments(clips["test"])
+    answers = simulated_answers(got["items"], joblib.load(out / ".vision_work" / "identity.joblib"), truth, roster)
+    r = c.post("/api/matches/vis_api/identity-review", json={"answers": answers, "annotator": "zaid"})
+    assert r.status_code == 200, r.text
+    assert r.json()["answers"] == len(answers)
+    assert all(not v for v in validate_match_dir(out).values())
+    assert len((out / "review" / "identity_answers.jsonl").read_text().splitlines()) == len(answers)
+    assert (tmp_path / "fb" / "identity_annotations.jsonl").exists()
+    assert list((out / "review").glob("identity_review.*.answered.json"))
+    # Asked items are never asked again; a repeat answer to the closed questions is refused.
+    again = c.get("/api/matches/vis_api/identity-review").json()["items"]
+    assert not {it["item_id"] for it in again} & {a["item_id"] for a in answers if "player_id" in a and a["player_id"] != "unknown"}
+
+    # Plan step 6: answered reviews feed the reader. Track corrections give crops; replay answers alone give none.
+    from regista.vision.review import learn_from_reviews
+
+    learned = learn_from_reviews([out], models["dir"], save=False)
+    if learned["fine_tuned"]:
+        assert learned["crops"] > 0 and learned["matches"][0]["match"] == "vis_api"
+    else:
+        assert learned["reason"] == "no answered track corrections with usable crops"

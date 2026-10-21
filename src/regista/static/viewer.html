@@ -56,6 +56,15 @@
   .answer .text { font-size: 15px; margin-bottom: 8px; }
   .answer .by { color: var(--muted); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
   .answer .tool { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--text); }
+  .whos { background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; }
+  .whos h3 { margin: 0 0 4px; font-size: 16px; } .whos .sub { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .qgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
+  .q { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
+  .q img { width: 100%; border-radius: 6px; background: #000; }
+  .q .opts { display: flex; flex-wrap: wrap; gap: 6px; }
+  .q .opt { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+  .q .opt.on { border-color: var(--accent); color: var(--accent); }
+  .q select { font-size: 12.5px; padding: 4px 6px; }
   .novideo { aspect-ratio: 16 / 9; background: #000; display: grid; place-items: center; color: var(--muted); font-size: 12.5px; padding: 0 18px; text-align: center; }
 </style>
 </head>
@@ -69,6 +78,7 @@
   <button id="ask" class="alt" title="Microsoft Foundry model, calling Regista's MCP server and the Azure MCP Server">Ask Foundry</button>
 </header>
 <main>
+  <div class="whos" id="whos" hidden></div>
   <div class="learn" id="learn">Loading what Regista has learned…</div>
   <div class="player" id="playerHead"></div>
   <div class="chips" id="chips"></div>
@@ -110,6 +120,7 @@ async function loadMatch(id) {
   $('player').value = state.player;
   state.tag = null;
   await loadClips();
+  await loadWhos();
 }
 
 function teamShort(teamId) { return state.matchInfo.teams.find(t => t.team_id === teamId)?.short_name || teamId; }
@@ -256,6 +267,64 @@ async function ask() {
   } finally {
     $('ask').disabled = false; $('ask').textContent = 'Ask Foundry';
   }
+}
+
+// Who's who: for matches the vision layer wrote, the identity agent's least certain calls, as questions. Answers correct
+// identity and the match is recomputed (possession, events, clips).
+const whos = { items: [], teams: {}, answers: {} };
+async function loadWhos() {
+  let out;
+  try { out = await api(`/api/matches/${encodeURIComponent(state.match)}/identity-review`); } catch (e) { $('whos').hidden = true; return; }
+  whos.items = out.items || []; whos.teams = out.teams || {}; whos.answers = {};
+  if (!whos.items.length) { $('whos').hidden = true; return; }
+  $('whos').hidden = false;
+  // Plain text; every use below goes through esc().
+  const name = (pid) => { for (const ps of Object.values(whos.teams)) { const p = ps.find(x => x.player_id === pid); if (p) return p.name + ' (' + p.kit_number + ')'; } return pid; };
+  $('whos').innerHTML = `<h3>Who's who?</h3><div class="sub">${esc(out.question)} Your answers correct the match and teach the kit-number reader.</div><div class="qgrid">`
+    + whos.items.map((it, i) => {
+      const cands = it.candidates.map(c => `<button class="opt" data-i="${i}" data-pid="${esc(c.player_id)}">${esc(c.name)} (${esc(c.kit_number)}) · ${Math.round(c.p * 100)}%</button>`).join('');
+      const pool = it.kind === 'track' ? (whos.teams[it.team_id] || []) : Object.values(whos.teams).flat();
+      const other = `<select data-i="${i}"><option value="">${it.kind === 'track' ? 'Someone else…' : 'Add a player…'}</option>${pool.map(p => `<option value="${esc(p.player_id)}">${esc(p.name)} (${esc(p.kit_number)})</option>`).join('')}</select>`;
+      const extra = it.kind === 'track'
+        ? `<button class="opt" data-i="${i}" data-pid="not_a_player">Not a player</button><button class="opt" data-i="${i}" data-pid="unknown">Can't tell</button>`
+        : `<button class="opt" data-i="${i}" data-pid="__nobody">Nobody</button>`;
+      const now = it.kind === 'track' ? (it.current ? `now: ${esc(name(it.current))}` : 'now: unnamed') : `now: ${it.current.length ? esc(it.current.map(name).join(', ')) : 'nobody'}`;
+      return `<div class="q"><img alt="" src="${esc(it.image_url || '')}"><b>${esc(it.question)}</b><span class="sub">${now}</span><div class="opts">${cands}${extra}</div>${other}</div>`;
+    }).join('') + `</div><div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button id="whosGo">Save answers</button><span class="sub" id="whosMsg"></span></div>`;
+  const mark = (i) => {
+    const it = whos.items[i], a = whos.answers[it.item_id];
+    for (const b of $('whos').querySelectorAll(`.opt[data-i="${i}"]`)) {
+      const pid = b.dataset.pid;
+      b.classList.toggle('on', !!a && (it.kind === 'track' ? a.player_id === pid : (pid === '__nobody' ? a.players.length === 0 : a.players.includes(pid))));
+    }
+  };
+  for (const b of $('whos').querySelectorAll('.opt')) b.onclick = () => {
+    const i = +b.dataset.i, it = whos.items[i], pid = b.dataset.pid;
+    if (it.kind === 'track') whos.answers[it.item_id] = { item_id: it.item_id, player_id: pid };
+    else {
+      const a = whos.answers[it.item_id] || { item_id: it.item_id, players: [] };
+      a.players = pid === '__nobody' ? [] : (a.players.includes(pid) ? a.players.filter(x => x !== pid) : [...a.players, pid].slice(0, 6));
+      whos.answers[it.item_id] = a;
+    }
+    mark(i);
+  };
+  for (const sel of $('whos').querySelectorAll('select')) sel.onchange = () => {
+    const i = +sel.dataset.i, it = whos.items[i], pid = sel.value;
+    if (!pid) return;
+    if (it.kind === 'track') whos.answers[it.item_id] = { item_id: it.item_id, player_id: pid };
+    else { const a = whos.answers[it.item_id] || { item_id: it.item_id, players: [] }; if (!a.players.includes(pid)) a.players = [...a.players, pid].slice(0, 6); whos.answers[it.item_id] = a; }
+    mark(i);
+  };
+  $('whosGo').onclick = async () => {
+    const answers = Object.values(whos.answers);
+    if (!answers.length) { $('whosMsg').textContent = 'Pick at least one answer.'; return; }
+    $('whosMsg').textContent = 'Correcting identity and recomputing the match…';
+    const r = await post(`/api/matches/${encodeURIComponent(state.match)}/identity-review`, { answers });
+    const body = await r.json();
+    if (!r.ok) { $('whosMsg').textContent = typeof body.detail === 'string' ? body.detail : 'Could not save the answers.'; return; }
+    $('whosMsg').textContent = `Saved ${body.answers} answer(s): ${body.renamed.length} renamed, ${body.cutaways.length} replay(s) set.`;
+    await loadMatch(state.match);
+  };
 }
 
 async function loadStack() {

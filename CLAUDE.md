@@ -162,6 +162,8 @@ src/regista/cloud/smoke.py   container smoke test: Regista MCP and Azure MCP lis
 src/regista/vision/          the private vision layer v0: shots (camera_segment), identity (calibration, detection, team, kit
                              number, tracking → track/appearance), possession_vision, vision_writer; an Agent Framework vision
                              workflow; trained and measured on Regista's rendered broadcast (docs/vision.md has the numbers)
+src/regista/vision/review.py who's who (plan step 3): identity questions + crops, answers applied frame by frame, annotations,
+                             terminal reviewer, learn_from_reviews (reader fine-tune); identity_review step in the vision workflow
 src/regista/vision/events.py event spotting (events_vision role): pass, cross, shot, save, goal, tackle, interception, carry,
                              take-on, nutmeg from vision positions + possessions; geometric candidates + two trained classifiers
 docs/vision.md               what each vision agent does, measured accuracy, and what changes for real broadcast footage
@@ -196,6 +198,8 @@ python3 -m regista.vision data && python3 -m regista.vision train --models model
 python3 -m regista.vision run VIDEO --roster MATCH_DIR --out OUT --workflow                 # video in, event stream out
 python3 -m regista.vision evaluate --set fresh --models models/vision                    # score frozen models on fresh matches
 python3 -m regista.vision train-events && python3 -m regista.vision evaluate-events --set dev   # the event spotter
+python3 -m regista.vision run VIDEO --roster MATCH_DIR --out OUT --workflow --review   # asks who's who at the terminal
+python3 -m regista.vision learn-from-reviews OUT ...                         # fine-tune the reader on answered reviews
 docker build -t regista . && docker run -p 8000:8000 regista
 ```
 
@@ -256,7 +260,7 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 
 ## 4.2 Where we are and what's next (update at the end of every work session)
 
-**As of 2026-10-20, night.** `main` is at the latest pushed commit; CI (tests, image build, smoke test in the image) is green; the live app runs image 229f71f on revision `regista-api--d1020232137`. 177 tests pass.
+**As of 2026-10-21.** `main` is at the latest pushed commit; CI (tests, image build, smoke test in the image) is green; the live app runs image 229f71f on revision `regista-api--d1020232137` (vision changes since do not reach it). 192 tests pass.
 
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.76, precision 0.94; docs/vision.md).
 
@@ -270,7 +274,9 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 
 **Next build work, in order (not blocked on footage):**
 1. ~~Make the hero tech visible on the live app~~ **Done and live 2026-10-20** (PR #1, image 229f71f, revision `regista-api--d1020232137`): Ask Foundry with public read-only tools, matches read back from Cosmos DB, health/footer naming the stack. Verified from the container: Foundry answered, `search_index_query` ran through the Azure MCP Server, spans reached App Insights. Container tracing had never worked before: deploy-app.sh cut the connection string at ';' (fixed in infra/lib/dotenv.sh).
-2. ~~Event spotting in the vision layer~~ **Done 2026-10-20** (docs/vision.md "Event spotting"). Weak spots to improve: nutmeg and take-on recall (limited by possession recall ~0.76 and naming), tackles recall 0.56. Next: identity corrections from Zaid feeding retraining (plan step 3), a conversational Librarian (plan step 7), a 90-minute run.
+2. ~~Event spotting in the vision layer~~ **Done 2026-10-20** (docs/vision.md "Event spotting"). Weak spots: nutmeg and take-on recall (limited by possession recall ~0.76 and naming), tackles recall 0.56.
+3. ~~Identity corrections from Zaid (plan step 3)~~ **Done 2026-10-21** (docs/vision.md "Who's who"): questions + crops, workflow pause, viewer panel, terminal; answers fix the match (12 simulated answers per dev match: clips 0.76/0.92 -> 0.83/0.95) and fine-tune the reader (neutral-positive on rendered footage). Found: name_tracks leaves correct tracks unnamed when time spans merely overlap (same flaw fixed in review); worth fixing in naming itself, measured on dev only.
+4. Next: a conversational Librarian (plan step 7), then a 90-minute run.
 3. Vision for real footage: frame sampling inside ffmpeg with gap-normalised motion features, a person detector instead of discs, a real homography; designed now, trained when the footage arrives.
 4. Demo video (docs/demo-storyboard.md needs a rewrite around the real match), pitch text, make the repo public before 2026-10-27.
 

@@ -102,6 +102,19 @@ def iter_frames(path: Path | str, sample_fps: float | None = None, size: tuple[i
         gen.close()
 
 
+def frame_at(path: Path | str, t: float) -> np.ndarray:
+    """The frame shown at ``t`` seconds, decoded by seeking (for review crops; not for scanning a whole video)."""
+    ff = _ffmpeg()
+    gen = ff.read_frames(str(path), pix_fmt="rgb24", input_params=["-ss", f"{max(0.0, t):.3f}"])
+    try:
+        meta = next(gen)
+        w, h = (int(v) for v in meta["size"])
+        buf = next(gen)
+    finally:
+        gen.close()
+    return np.frombuffer(buf, dtype=np.uint8).reshape(h, w, 3).copy()
+
+
 def resize(rgb: np.ndarray, size: tuple[int, int]) -> np.ndarray:
     """Area-averaged downscale to ``(width, height)``."""
     import cv2

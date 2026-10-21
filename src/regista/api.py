@@ -23,6 +23,8 @@ GET  /api/matches/{match_id}/report             synthetic realism report (markdo
 GET  /api/matches/{match_id}/review             the workflow's open review request
 POST /api/matches/{match_id}/review             answer it; the workflow resumes from its checkpoint                          [write]
 POST /api/matches/{match_id}/clips/{clip_id}/verdict   one verdict from the viewer                                         [write]
+GET  /api/matches/{match_id}/identity-review    open "who's who" questions for a vision match (crops, candidates, team sheets)
+POST /api/matches/{match_id}/identity-review    answer them; identity is corrected and possession, events, clips recomputed   [write]
 GET  /api/feedback                              verdict counts, the learned model, agreement per scorer
 POST /api/feedback/train                        retrain the watchability model                                             [write]
 
@@ -476,6 +478,116 @@ def report(match_id: str) -> str:
 
     _, md = report_match_dir(_match_dir(match_id))
     return md
+
+
+# ---------------------------------------------------------------------------- who's who: identity review for vision matches
+
+# A match written by the vision layer keeps its identity result and a short list of questions (regista.vision.review).
+# A person answers them here; identity is corrected, and possession, events and clips are recomputed from it. Vision
+# matches live on a private, local deployment (the footage never reaches the public app).
+MODELS_DIR = Path(os.environ.get("REGISTA_MODELS", "models/vision"))
+CROP_RE = re.compile(r"^(tr|cw)_[A-Za-z0-9_.\-]{1,80}\.jpg$")
+ReviewItemId = Annotated[str, StringConstraints(pattern=r"^(tr|cw)_[A-Za-z0-9_.\-]{1,80}$")]
+PlayerRef = Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_]{1,40}$")]
+
+
+class IdentityAnswerIn(BaseModel):
+    item_id: ReviewItemId
+    player_id: PlayerRef | None = None              # for a track: a team-sheet id, "not_a_player" or "unknown"
+    players: list[PlayerRef] | None = Field(None, max_length=6)  # for a replay: who is in it
+
+
+class IdentityReviewIn(BaseModel):
+    answers: list[IdentityAnswerIn] = Field(min_length=1, max_length=50)
+    annotator: Annotator = "zaid"
+
+
+def _queue_path(d: Path) -> Path:
+    from regista.vision.review import QUEUE_FILE
+
+    return d / "review" / QUEUE_FILE
+
+
+@app.get("/api/matches/{match_id}/identity-review")
+def identity_review(match_id: str) -> dict[str, Any]:
+    d = _match_dir(match_id)
+    q = _queue_path(d)
+    if not q.exists():
+        return {"items": [], "message": "no open identity questions for this match"}
+    items = json.loads(q.read_text())["items"]
+    for it in items:
+        if it.get("image"):
+            it["image_url"] = f"/api/matches/{match_id}/identity-review/crops/{it['image']}"
+    header = _header(d)
+    teams = {t["team_id"]: [{"player_id": p["player_id"], "name": p["name"], "kit_number": p["kit_number"], "position": p.get("position")}
+                            for p in header["players"] if p["team_id"] == t["team_id"]] for t in header["teams"]}
+    return {"items": items, "teams": teams, "question": f"Who's who? {len(items)} call(s) the identity agent is unsure of."}
+
+
+@app.get("/api/matches/{match_id}/identity-review/crops/{name}", include_in_schema=False)
+def identity_review_crop(match_id: str, name: str) -> FileResponse:
+    d = _match_dir(match_id)
+    if not CROP_RE.match(name):
+        raise HTTPException(400, "bad crop name")
+    path = d / "review" / "crops" / name
+    if not path.exists():
+        raise HTTPException(404, "no such crop")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@app.post("/api/matches/{match_id}/identity-review", dependencies=[Writer])
+async def answer_identity_review(match_id: str, body: IdentityReviewIn) -> dict[str, Any]:
+    """Correct identity from a person's answers, then recompute possession, events and clips. The open questions are
+    claimed atomically (a second answer gets 409); answers that do not validate change nothing (422)."""
+    d = _match_dir(match_id)
+    q = _queue_path(d)
+    if not (d / ".vision_work" / "identity.joblib").exists():
+        raise HTTPException(409, "this match has no identity result to correct (it was not written by the vision layer)")
+    claimed = q.with_name(f"identity_review.claimed-{uuid.uuid4().hex[:8]}.json")
+    try:
+        os.rename(q, claimed)
+    except FileNotFoundError:
+        raise HTTPException(409, "no open identity questions (already answered, or none were asked)")
+    try:
+        out = await run_in_threadpool(_apply_identity_review, d, claimed, body)
+    except ValueError as exc:
+        os.rename(claimed, q)  # nothing was applied; the questions stay open
+        raise HTTPException(422, str(exc))
+    except Exception:
+        os.rename(claimed, q)
+        raise
+    return out
+
+
+def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn) -> dict[str, Any]:
+    import joblib
+
+    from regista.feedback import feedback_dir
+    from regista.librarian import _load as librarian_cache
+    from regista.vision.frames import probe
+    from regista.vision.pipeline import refresh_from_identity
+    from regista.vision.review import ANSWERED_SUFFIX, ANSWERS_FILE, annotation_records, apply_answers, validate_answers
+
+    items = json.loads(claimed.read_text())["items"]
+    header = _header(d)
+    answers = validate_answers(items, [a.model_dump(exclude_none=True) for a in body.answers], header)
+    records = annotation_records(items, answers, header["match_id"], body.annotator)
+    ident = joblib.load(d / ".vision_work" / "identity.joblib")
+    changed = apply_answers(ident, items, answers)  # in memory until the recompute has succeeded
+    manifest = json.loads((d / "manifest.json").read_text())
+    seg_recs = [r for r in iter_jsonl(d / "events.jsonl") if r["type"] == "camera_segment"]
+    summary = refresh_from_identity(d, header, probe(manifest["video"]["path"]), header["match_id"], seg_recs, ident, models_dir=MODELS_DIR)
+    joblib.dump(ident, d / ".vision_work" / "identity.joblib")
+    claimed.rename(claimed.with_name(claimed.name.replace(".claimed-", ".").replace(".json", ANSWERED_SUFFIX)))
+    (d / "clips.jsonl").unlink(missing_ok=True)  # clips are derived again from the corrected stream
+    shutil.rmtree(CACHE_ROOT / d.name, ignore_errors=True)  # rendered clips may show old names
+    librarian_cache.cache_clear()
+    for path in (d / "review" / ANSWERS_FILE, feedback_dir() / "identity_annotations.jsonl"):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write("".join(json.dumps(r) + "\n" for r in records))
+    return {"answers": len(answers), "annotator": body.annotator, **changed, "record_counts": summary["record_counts"],
+            "next_questions": summary.get("review_questions")}
 
 
 # ---------------------------------------------------------------------------- the Foundry Librarian, open to judges

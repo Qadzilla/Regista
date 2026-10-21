@@ -50,6 +50,10 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
     r.add_argument("--match-id", default=None)
     r.add_argument("--workflow", action="store_true", help="run as the Microsoft Agent Framework workflow (shots -> identity -> possession -> writer)")
+    r.add_argument("--review", action="store_true", help="with --workflow: pause after identity and ask who's who at the terminal")
+    lr = sub.add_parser("learn-from-reviews", help="fine-tune the kit-number reader on the answered identity reviews in these match directories")
+    lr.add_argument("match_dirs", type=Path, nargs="+")
+    lr.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
 
     c = sub.add_parser("compare", help="clips derived from a vision match directory vs from a ground-truth match directory")
     c.add_argument("vision_dir", type=Path)
@@ -112,6 +116,12 @@ def main(argv: list[str] | None = None) -> int:
             args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
         return 0
 
+    if args.cmd == "learn-from-reviews":
+        from regista.vision.review import learn_from_reviews
+
+        print(json.dumps(learn_from_reviews(args.match_dirs, args.models), indent=2))
+        return 0
+
     if args.cmd == "run":
         from regista.vision.truth import load_match_header
 
@@ -120,9 +130,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.workflow:
             from regista.vision.agents import run_vision_workflow
 
+            reviewer = None
+            if args.review:
+                from regista.vision.review import terminal_reviewer
+
+                def reviewer(request):
+                    return terminal_reviewer(request, roster)
             run = run_vision_workflow({"video_path": str(args.video), "roster": roster, "out_dir": str(args.out),
-                                       "match_id": args.match_id or ""}, config={"models_dir": str(args.models)},
-                                      state_dir=args.out / "agents")
+                                       "match_id": args.match_id or "", "review": bool(args.review)},
+                                      config={"models_dir": str(args.models)}, state_dir=args.out / "agents", reviewer=reviewer)
             for row in run.trace:
                 print(f"{row['agent']:<18} attempt {row['attempt']}  {row['status']:<8} {row.get('elapsed_ms') or 0:>10.1f} ms  {row.get('error') or ''}")
             print(json.dumps(run.state.get("vision_summary"), indent=2))

@@ -164,6 +164,57 @@ class DigitClassifierReader:
         self.metrics["train_crops"] = int(len(X))
         return self
 
+    def fine_tune(self, crops: np.ndarray, numbers: np.ndarray, *, epochs: int = 8, replay: int = 4000, learning_rate: float = 1e-4,
+                  seed: int = 0, replay_crops: np.ndarray | None = None, replay_numbers: np.ndarray | None = None) -> DigitClassifierReader:
+        """Keep learning from crops a person labelled (corrections), without starting over.
+
+        Each epoch mixes the corrections with replayed examples so the reader learns the new ones without forgetting the
+        rest: real crops from its training matches (``replay_crops``; see ``REPLAY_FILE``) when given, plus freshly drawn
+        synthetic discs for numbers 1-99. Synthetic discs alone pull it away from what real shirts look like."""
+        import warnings
+
+        from sklearn.exceptions import ConvergenceWarning
+        from threadpoolctl import threadpool_limits
+
+        if len(crops) == 0:
+            return self
+        X = np.asarray(crops, dtype=np.float32).reshape(len(crops), -1)
+        numbers = np.asarray(numbers, dtype=int)
+        rng = np.random.default_rng(seed)
+        # Early stopping holds out a validation split, which incremental updates cannot do; switched off while tuning.
+        for clf in (self.tens_clf, self.units_clf):
+            clf.set_params(early_stopping=False)
+            if getattr(clf, "best_loss_", None) is None:  # early-stopped models track validation score, not training loss
+                clf.best_loss_ = np.inf
+            # Small steps for a model that is already trained; the optimizer kept from training holds its own rate.
+            clf.set_params(learning_rate_init=learning_rate)
+            opt = getattr(clf, "_optimizer", None)
+            if opt is not None:
+                opt.learning_rate_init = opt.learning_rate = learning_rate
+        with warnings.catch_warnings(), threadpool_limits(2):
+            warnings.simplefilter("ignore", ConvergenceWarning)
+            real = None
+            if replay_crops is not None and len(replay_crops):
+                real = (np.asarray(replay_crops, dtype=np.float32).reshape(len(replay_crops), -1), np.asarray(replay_numbers, dtype=int))
+            for e in range(epochs):
+                n_synth = replay // 4 if real is not None else replay
+                sc, sn = synth_discs(n_synth, seed=seed + 1000 + e)
+                parts_x = [X, np.asarray(sc, dtype=np.float32).reshape(len(sc), -1)]
+                parts_n = [numbers, np.asarray(sn, dtype=int)]
+                if real is not None:
+                    pick = rng.choice(len(real[0]), size=min(len(real[0]), replay - n_synth), replace=False)
+                    parts_x.append(real[0][pick])
+                    parts_n.append(real[1][pick])
+                Xe, ne = np.concatenate(parts_x), np.concatenate(parts_n)
+                order = rng.permutation(len(Xe))
+                Xe, ne = Xe[order], ne[order]
+                self.tens_clf.partial_fit(Xe, ne // 10)
+                self.units_clf.partial_fit(Xe, ne % 10)
+        for clf in (self.tens_clf, self.units_clf):
+            clf.set_params(early_stopping=True)
+        self.metrics["fine_tuned_crops"] = int(self.metrics.get("fine_tuned_crops", 0)) + int(len(X))
+        return self
+
     def save(self, path: Path | str = DEFAULT_MODELS_DIR) -> Path:
         import joblib
 
@@ -185,6 +236,25 @@ class DigitClassifierReader:
         if not isinstance(obj, cls):
             raise TypeError(f"{path} does not hold a DigitClassifierReader")
         return obj
+
+
+REPLAY_FILE = "reader_replay.npz"
+
+
+def save_replay_set(crops: np.ndarray, numbers: np.ndarray, models_dir: Path | str = DEFAULT_MODELS_DIR) -> Path:
+    """Real crops from training matches, kept beside the reader so fine-tuning can rehearse them (git-ignored)."""
+    path = Path(models_dir) / REPLAY_FILE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, crops=np.asarray(crops, dtype=np.float16), numbers=np.asarray(numbers, dtype=np.int16))
+    return path
+
+
+def load_replay_set(models_dir: Path | str = DEFAULT_MODELS_DIR) -> tuple[np.ndarray, np.ndarray] | None:
+    path = Path(models_dir) / REPLAY_FILE
+    if not path.exists():
+        return None
+    data = np.load(path)
+    return data["crops"].astype(np.float32), data["numbers"].astype(int)
 
 
 def _full_proba(clf: Any, X: np.ndarray, n: int) -> np.ndarray:

@@ -25,16 +25,19 @@ the video path and roster into workflow state.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from agent_framework import Executor, WorkflowBuilder, WorkflowContext, WorkflowViz, handler, register_checkpoint_type
+from agent_framework import (Executor, WorkflowBuilder, WorkflowContext, WorkflowEvent, WorkflowViz, handler, register_checkpoint_type,
+                             response_handler)
 
 from regista.agents.base import Agent, AgentError, State
-from regista.agents.workflow import DEAD_EVENT, TRACE_EVENT, DeadLetterExecutor, FinishExecutor, Handoff, PipelineOutput, RoleExecutor
+from regista.agents.workflow import (DEAD_EVENT, TRACE_EVENT, DeadLetter, DeadLetterExecutor, FinishExecutor, Handoff, PipelineOutput,
+                                     RoleExecutor, _now, _read_state, _status_key)
 from regista.agents.workflow import state_key as _key
 from regista.aio import run_sync
 from regista.vision.shots import DEFAULT_MODELS_DIR
@@ -202,8 +205,16 @@ class VisionWriterAgent(Agent):
         bad = {k: v for k, v in summary["validation"].items() if v}
         if bad:
             raise AgentError(f"vision output failed schema validation: {bad}", retryable=False)
+        if self.config.get("review_queue", True):  # questions and crops for answering later in the viewer
+            try:
+                from regista.vision.review import prepare_review
+
+                summary["review_questions"] = len(prepare_review(state["out_dir"], state["video_path"], result, state["roster"]))
+            except Exception as exc:  # noqa: BLE001 - the match is written either way
+                summary["review_questions"] = f"not prepared: {type(exc).__name__}"
         state["match_dir"] = str(state["out_dir"])
-        state["vision_summary"] = {k: summary[k] for k in ("match_id", "record_counts", "segments", "validation")}
+        state["vision_summary"] = {k: summary[k] for k in ("match_id", "record_counts", "segments", "validation", "review_questions")
+                                   if k in summary}
         return state
 
 
@@ -224,6 +235,26 @@ class VisionRequest:
     work_dir: str = ""
     match_id: str = ""
     run_id: str = ""
+    review: bool = False   # pause after identity and ask a person about the uncertain calls
+    annotator: str = "zaid"
+
+
+@dataclass
+class IdentityReviewRequest:
+    """What the identity review asks: the identity agent's least certain calls, with crops in ``review_dir``."""
+
+    question: str
+    items: list[dict[str, Any]]
+    review_dir: str
+
+
+@dataclass
+class IdentityAnswers:
+    """One answer per question: {"item_id", "player_id"} for a track ("not_a_player" or "unknown" allowed), or
+    {"item_id", "players": [...]} for a replay."""
+
+    answers: list[dict[str, Any]]
+    annotator: str = "zaid"
 
 
 @dataclass
@@ -236,7 +267,7 @@ class VisionRun:
 
 
 def _state_keys(agents: list[Agent]) -> list[str]:
-    keys = {"video_path", "roster", "out_dir", "work_dir", "match_id", "run_id"}
+    keys = {"video_path", "roster", "out_dir", "work_dir", "match_id", "run_id", "review", "annotator", "identity_review"}
     for a in agents:
         keys.update(a.inputs)
         keys.update(a.outputs)
@@ -255,13 +286,111 @@ class VisionStartExecutor(Executor):
         values = {"video_path": request.video_path, "roster": request.roster, "out_dir": request.out_dir,
                   "work_dir": request.work_dir or str(Path(request.out_dir) / ".vision_work"),
                   "match_id": request.match_id or f"{request.roster.get('match_id', Path(request.video_path).stem)}_vision",
-                  "run_id": run_id}
+                  "run_id": run_id, "review": bool(request.review), "annotator": request.annotator}
         for k, v in values.items():
             ctx.set_state(_key(k), v)
         await ctx.send_message(Handoff(from_role="vision_start", run_id=run_id))
 
 
-register_checkpoint_type(VisionRequest)
+for _t in (VisionRequest, IdentityReviewRequest, IdentityAnswers):
+    register_checkpoint_type(_t)
+
+
+class IdentityReviewExecutor(Executor):
+    """Plan step 3 in the workflow: after identity, ask a person about the calls it is least sure of, apply the
+    answers to the identity result, and only then let possession, events and clips run on it.
+
+    With review off it passes straight through. Answers that do not validate dead-letter the run (nothing is
+    applied); the questions, crops and answers are kept in ``out_dir/review``."""
+
+    def __init__(self, keys: list[str], k: int = 12, feedback_dir: Path | str | None = None):
+        super().__init__(id="identity_review")
+        self.keys = keys
+        self.k = k
+        self.feedback_dir = feedback_dir
+
+    @handler
+    async def check(self, message: Handoff, ctx: WorkflowContext[Handoff | DeadLetter]) -> None:
+        state = _read_state(ctx, self.keys)
+        if not state.get("review"):
+            ctx.set_state(_status_key("identity_review"), "ok")
+            await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("ok", "review off", 0)))
+            await ctx.send_message(Handoff(from_role="identity_review", run_id=message.run_id))
+            return
+        try:
+            items, review_dir = await asyncio.to_thread(self._ask, state)
+        except Exception as exc:  # noqa: BLE001 - reported as a dead letter, never escapes the workflow
+            await self._dead(ctx, message.run_id, exc, 0)
+            return
+        if not items:
+            ctx.set_state(_status_key("identity_review"), "ok")
+            await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("ok", "nothing uncertain enough to ask", 0)))
+            await ctx.send_message(Handoff(from_role="identity_review", run_id=message.run_id))
+            return
+        ctx.set_state(_key("identity_review_run_id"), message.run_id)
+        ctx.set_state(_status_key("identity_review"), "waiting")
+        await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("waiting", f"asked a person about {len(items)} identity call(s)", len(items))))
+        await ctx.request_info(IdentityReviewRequest(question=f"Who are these {len(items)} players?", items=items, review_dir=review_dir),
+                               IdentityAnswers)
+
+    @response_handler
+    async def on_answers(self, request: IdentityReviewRequest, answer: IdentityAnswers, ctx: WorkflowContext[Handoff | DeadLetter]) -> None:
+        run_id = ctx.get_state(_key("identity_review_run_id"), "")
+        state = _read_state(ctx, self.keys)
+        try:
+            log = await asyncio.to_thread(self._apply, request, answer, state)
+        except Exception as exc:  # noqa: BLE001
+            await self._dead(ctx, run_id, exc, len(request.items))
+            return
+        ctx.set_state(_key("identity_review"), log)
+        ctx.set_state(_status_key("identity_review"), "ok")
+        await ctx.add_event(WorkflowEvent(TRACE_EVENT, data=self._row("ok", f"applied {log['answers']} answer(s): {len(log['renamed'])} renamed, "
+                                                                          f"{len(log['cutaways'])} replay(s) set", len(request.items))))
+        await ctx.send_message(Handoff(from_role="identity_review", run_id=run_id))
+
+    def _ask(self, state: dict[str, Any]) -> tuple[list[dict[str, Any]], str]:
+        import joblib
+
+        from regista.vision.review import identity_questions, save_queue, write_crops
+
+        result = joblib.load(state["identity_path"])
+        items = identity_questions(result, state["roster"], k=self.k)
+        review_dir = Path(state["out_dir"]) / "review"
+        if items:
+            write_crops(state["video_path"], items, review_dir / "crops")
+            save_queue(items, state["out_dir"])
+        return items, str(review_dir)
+
+    def _apply(self, request: IdentityReviewRequest, answer: IdentityAnswers, state: dict[str, Any]) -> dict[str, Any]:
+        import joblib
+
+        from regista.feedback import feedback_dir
+        from regista.vision.review import ANSWERS_FILE, annotation_records, apply_answers, validate_answers
+
+        answers = validate_answers(request.items, answer.answers, state["roster"])  # all-or-nothing
+        records = annotation_records(request.items, answers, state["match_id"], answer.annotator)
+        result = joblib.load(state["identity_path"])
+        changed = apply_answers(result, request.items, answers)
+        joblib.dump(result, state["identity_path"])
+        from regista.vision.review import close_queue
+
+        close_queue(state["out_dir"])
+        for path in (Path(request.review_dir) / ANSWERS_FILE, Path(self.feedback_dir or feedback_dir()) / "identity_annotations.jsonl"):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open("a", encoding="utf-8") as fh:
+                fh.write("".join(json.dumps(r) + "\n" for r in records))
+        return {"answers": len(answers), "annotator": answer.annotator, **changed}
+
+    async def _dead(self, ctx: WorkflowContext, run_id: str, exc: Exception, n: int) -> None:
+        ctx.set_state(_status_key("identity_review"), "failed")
+        await ctx.add_event(WorkflowEvent(TRACE_EVENT, data={**self._row("failed", "identity review failed", n), "error": f"{type(exc).__name__}: {exc}"}))
+        await ctx.send_message(DeadLetter(role="identity_review", error=f"{type(exc).__name__}: {exc}", retryable=False, attempts=1,
+                                          inputs={"questions": n}, run_id=run_id))
+
+    @staticmethod
+    def _row(status: str, note: str, n: int) -> dict[str, Any]:
+        return {"at": _now(), "agent": "identity_review", "attempt": 1, "status": status, "elapsed_ms": None,
+                "records_in": {"questions": n}, "records_out": None, "error": None, "state_keys": [], "note": note}
 
 
 def build_vision_workflow(agents: list[Agent] | None = None, *, max_retries: int = 1, config: dict[str, Any] | None = None):
@@ -277,28 +406,43 @@ def build_vision_workflow(agents: list[Agent] | None = None, *, max_retries: int
     keys = _state_keys(agents)
     start = VisionStartExecutor()
     roles = {r: RoleExecutor(by_role[r], keys, max_retries) for r in VISION_ROLE_ORDER}
+    review = IdentityReviewExecutor(keys, k=int((config or {}).get("review_questions", 12)), feedback_dir=(config or {}).get("feedback_dir"))
     finish = FinishExecutor(keys)
     dead = DeadLetterExecutor(keys, VISION_ROLE_ORDER)
     b = WorkflowBuilder(name=VISION_WORKFLOW_NAME, description="Regista vision layer: broadcast video in, event stream out.",
                         start_executor=start, output_from=[finish, dead])
-    b.add_chain([start] + [roles[r] for r in VISION_ROLE_ORDER] + [finish])
-    for ex in roles.values():
+    chain = [roles[r] for r in VISION_ROLE_ORDER]
+    chain.insert(VISION_ROLE_ORDER.index("identity") + 1, review)  # a person may correct identity before anything uses it
+    b.add_chain([start] + chain + [finish])
+    for ex in [*roles.values(), review]:
         b.add_edge(ex, dead)  # only DeadLetter messages reach it
     return b.build(), keys
 
 
 def run_vision_workflow(initial: dict[str, Any], *, agents: list[Agent] | None = None, config: dict[str, Any] | None = None,
-                        state_dir: Path | str | None = None, max_retries: int = 1) -> VisionRun:
-    """Run the vision workflow to completion. ``initial`` holds ``video_path``, ``roster`` (a match header) and ``out_dir``."""
+                        state_dir: Path | str | None = None, max_retries: int = 1,
+                        reviewer: Any = None) -> VisionRun:
+    """Run the vision workflow to completion. ``initial`` holds ``video_path``, ``roster`` (a match header) and ``out_dir``;
+    ``review=True`` in it pauses after identity, and ``reviewer`` (IdentityReviewRequest -> IdentityAnswers) answers."""
     workflow, _keys = build_vision_workflow(agents, max_retries=max_retries, config=config)
     req = VisionRequest(video_path=str(initial["video_path"]), roster=initial["roster"], out_dir=str(initial["out_dir"]),
                         work_dir=str(initial.get("work_dir", "")), match_id=str(initial.get("match_id", "")),
-                        run_id=str(initial.get("run_id", "")))
+                        run_id=str(initial.get("run_id", "")), review=bool(initial.get("review")),
+                        annotator=str(initial.get("annotator", "zaid")))
 
     async def go():
-        return await workflow.run(req)
+        events = list(await workflow.run(req))
+        answered: set[str] = set()
+        while reviewer is not None:
+            pending = [ev for ev in events if ev.type == "request_info" and isinstance(ev.data, IdentityReviewRequest)
+                       and ev.request_id not in answered]
+            if not pending:
+                break
+            answered.update(ev.request_id for ev in pending)
+            events += list(await workflow.run(responses={ev.request_id: reviewer(ev.data) for ev in pending}))
+        return events
 
-    events = run_sync(go())
+    events = _Events(run_sync(go()))
     trace = [ev.data for ev in events if ev.type == TRACE_EVENT]
     dead = [ev.data for ev in events if ev.type == DEAD_EVENT]
     outputs = [o for o in events.get_outputs() if isinstance(o, PipelineOutput)]
@@ -311,6 +455,13 @@ def run_vision_workflow(initial: dict[str, Any], *, agents: list[Agent] | None =
         (sd / "trace.jsonl").write_text("".join(json.dumps(r, default=str) + "\n" for r in trace), encoding="utf-8")
         (sd / "dead_letter.jsonl").write_text("".join(json.dumps(r, default=str) + "\n" for r in dead), encoding="utf-8")
     return run
+
+
+class _Events(list):
+    """Workflow events gathered across a run and its resumptions, with the outputs accessor the run result offers."""
+
+    def get_outputs(self) -> list[Any]:
+        return [ev.data for ev in self if getattr(ev, "type", None) == "output"]
 
 
 def mermaid(config: dict[str, Any] | None = None) -> str:
