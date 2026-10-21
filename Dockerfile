@@ -20,6 +20,7 @@ RUN pip install --no-cache-dir ".[cloud]"
 ENV REGISTA_DATA=/app/data/synthetic/sample \
     REGISTA_CACHE=/app/data/clips \
     REGISTA_FEEDBACK_DIR=/app/data/feedback \
+    REGISTA_PRERENDER=1 \
     AZURE_MCP_COLLECT_TELEMETRY=false \
     PYTHONUNBUFFERED=1
 EXPOSE 8000
