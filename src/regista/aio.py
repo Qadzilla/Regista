@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import contextvars
 from collections.abc import Awaitable
 from typing import Any
 
@@ -13,10 +14,11 @@ def run_sync(coro: Awaitable[Any]) -> Any:
 
     Agents are synchronous (the orchestrator calls ``handle``), but the API and the Agent Framework
     workflow call into them from a running loop, where ``asyncio.run`` refuses to start. In that
-    case the coroutine runs on a fresh loop in a worker thread."""
+    case the coroutine runs on a fresh loop in a worker thread, with the caller's context (so a request's tracing
+    span stays the parent of the spans inside)."""
     try:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(coro)
     with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-        return pool.submit(asyncio.run, coro).result()
+        return pool.submit(contextvars.copy_context().run, asyncio.run, coro).result()
