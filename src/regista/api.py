@@ -15,8 +15,10 @@ GET  /studio                                    the Studio (data behind the Stud
 GET  /api/health
 GET  /api/matches                               match directories under REGISTA_DATA
 POST /api/matches                               upload events.jsonl (+ tracks.jsonl); runs the Agent Framework workflow       [write]
-GET  /api/matches/{match_id}                    manifest, roster, score
+GET  /api/matches/{match_id}                    roster, score, periods, duration_s, origin, key_moments (goals, for the timeline)
 GET  /api/matches/{match_id}/clips?player=&tag=&min_watchability=&reason=
+GET  /api/matches/{match_id}/reel.mp4?clips=    1 to 12 clips back to back, in the order given; rendered once, cached
+GET  /api/matches/{match_id}/moments.csv?player=&clips=   the given clips in order, or a player's in match order (download)
 GET  /api/matches/{match_id}/search?q=          the Librarian (rule-based, instant)
 POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools; with its trace
 POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited);
@@ -451,15 +453,41 @@ def get_match(match_id: str) -> dict[str, Any]:
     h = _cosmos_match(match_id)
     if h is not None:
         clips, _labels = _feedback_store().clips_for(match_id)
-        source = "cosmos"
+        source, key_moments = "cosmos", []  # the library keeps the header, not the event stream
     else:
         d = _match_dir(match_id)
         h = _header(d)
         clips, _labels = _clips(d)
-        source = "local"
+        source, key_moments = "local", _key_moments(d, h)
     players_with_clips = sorted({c["player_id"] for c in clips})
     return {"match_id": match_id, "teams": h["teams"], "players": h["players"], "score": h.get("score"), "video": h["video"],
-            "periods": h["periods"], "players_with_clips": players_with_clips, "clip_count": len(clips), "source": source}
+            "periods": h["periods"], "players_with_clips": players_with_clips, "clip_count": len(clips), "source": source,
+            "duration_s": (h.get("video") or {}).get("duration_s"), "origin": h.get("source"),
+            "key_moments": key_moments}
+
+
+def _match_minute(t: float, r: dict[str, Any], h: dict[str, Any]) -> int:
+    """The minute a fan would say (0:13 is the 1st minute). Vision events carry no clock, so it comes from the periods."""
+    if r.get("clock"):
+        return r["clock"]["minute"] + 1
+    period = next((p for p in reversed(h.get("periods") or []) if p["t"] <= t), None)
+    if period is None:
+        return int(t // 60) + 1
+    return 45 * (period["period"] - 1) + int((t - period["t"]) // 60) + 1
+
+
+def _key_moments(d: Path, h: dict[str, Any]) -> list[dict[str, Any]]:
+    """Goals in match order, for the timeline: {t, kind, player_id, team_id, label}."""
+    players = {p["player_id"]: p for p in h["players"]}
+    out = []
+    for r in iter_jsonl(d / "events.jsonl"):
+        if r["type"] != "event" or r.get("event_type") != "goal":
+            continue
+        p = players.get(r.get("player_id"))
+        who = f"{p['name']} ({p['kit_number']})" if p else "unknown scorer"
+        out.append({"t": r["t"], "kind": "goal", "player_id": r.get("player_id"), "team_id": r.get("team_id"),
+                    "label": f"Goal: {who}, {_match_minute(r['t'], r, h)}'"})
+    return sorted(out, key=lambda m: m["t"])
 
 
 @app.get("/api/matches/{match_id}/clips")
@@ -529,6 +557,109 @@ def match_video(match_id: str, fps: float = Query(25.0, gt=0, le=60), width: int
     out = _render_once(CACHE_ROOT / match_id / f"broadcast_{int(fps)}fps_{width}.mp4",
                        lambda tmp: render_video(Scene.load(d), tmp, fps=fps, style=Style(width, round(width * 9 / 16)), end_card_s=3.0))
     return FileResponse(out, media_type="video/mp4", filename=out.name)
+
+
+# ---------------------------------------------------------------------------- take-aways: a reel to download, moments to export
+
+MAX_REEL_CLIPS = 12       # a reel renders on the replica's one CPU; twelve clips is about two minutes of video
+MAX_EXPORT_CLIPS = 500
+READABLE_REASONS = {"on_ball_main": "On the ball", "replay_appearance": "Replay", "highlight_appearance": "Highlight",
+                    "closeup_appearance": "Closeup"}
+
+
+def _clip_ids(raw: str, cap: int) -> list[str]:
+    """Comma-separated clip ids, order kept: each must look like an id, none repeated, 1 to ``cap`` of them."""
+    ids = [s.strip() for s in raw.split(",")]
+    if not ids or not all(ID_RE.match(i) for i in ids):
+        raise HTTPException(400, "clips must be comma-separated clip ids")
+    if len(ids) > cap:
+        raise HTTPException(400, f"at most {cap} clips at a time")
+    if len(set(ids)) != len(ids):
+        raise HTTPException(400, "a clip id is repeated")
+    return ids
+
+
+def _clips_by_id(match_id: str, ids: list[str]) -> tuple[list[dict], dict[str, dict]]:
+    """The clips named, in the order given, with their labels; 404 naming any that do not exist. Clips derived on the fly
+    (a player with none on disk) count, as they do for the clip endpoint. Cosmos-only matches read the library."""
+    if _cosmos_match(match_id) is not None:
+        clips, labels = _feedback_store().clips_for(match_id)
+    else:
+        d = _match_dir(match_id)
+        clips, labels = [], {}
+        for player in dict.fromkeys(_player_of(i) for i in ids):
+            more, more_labels = _clips(d, player)
+            clips += more
+            labels.update(more_labels)
+    by_id = {c["id"]: c for c in clips}
+    missing = [i for i in ids if i not in by_id]
+    if missing:
+        raise HTTPException(404, f"no clip(s) {', '.join(missing[:5])} in match {match_id}")
+    return [by_id[i] for i in ids], labels
+
+
+@app.get("/api/matches/{match_id}/reel.mp4")
+def reel_video(match_id: str, clips: str = Query(..., min_length=1, max_length=2000), fps: float = Query(25.0, gt=0, le=60),
+               width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+    """The clips back to back in the order given, each with its title card. Rendered once and cached by its content."""
+    import hashlib
+
+    from regista.render.clips import render_reel
+    from regista.render.draw import Style
+    from regista.render.scene import Scene
+
+    d = _match_dir(match_id)
+    ids = _clip_ids(clips, MAX_REEL_CLIPS)
+    chosen, labels = _clips_by_id(match_id, ids)
+    key = hashlib.sha256(json.dumps([ids, fps, width]).encode()).hexdigest()[:20]
+    out = _render_once(CACHE_ROOT / match_id / f"reel_{key}.mp4",
+                       lambda tmp: render_reel(Scene.load(d), chosen, labels, tmp, fps, Style(width, round(width * 9 / 16)), keep_order=True))
+    return FileResponse(out, media_type="video/mp4", filename=f"regista_{match_id}_reel.mp4")
+
+
+def _csv_cell(v: Any) -> Any:
+    """Text a spreadsheet would run as a formula (titles and tags can come from uploads or models) is quoted as text."""
+    return f"'{v}" if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
+
+@app.get("/api/matches/{match_id}/moments.csv", response_class=PlainTextResponse)
+def moments_csv(match_id: str, player: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9_]{1,40}$")] = None,
+                clips: Annotated[str | None, Query(min_length=1, max_length=20000)] = None) -> PlainTextResponse:
+    """A scout's list: the clips given, in that order, or every clip of ``player`` in match order. ``clips`` wins when
+    both are given. Columns: time, end (m:ss), kind, tags, title, watchability, then time_s, end_s and clip_id."""
+    import csv
+    import io
+
+    _check_id(match_id)
+    if clips:
+        chosen, labels = _clips_by_id(match_id, _clip_ids(clips, MAX_EXPORT_CLIPS))
+    elif player:
+        if _cosmos_match(match_id) is not None:
+            found, labels = _feedback_store().clips_for(match_id, player)
+        else:
+            d = _match_dir(match_id)
+            if player not in {p["player_id"] for p in _header(d)["players"]}:
+                raise HTTPException(404, f"no player {player!r} in match {match_id}")
+            found, labels = _clips(d, player)
+        chosen = sorted((c for c in found if c["player_id"] == player), key=lambda c: (c["t"], c["id"]))
+    else:
+        raise HTTPException(400, "give player= or clips=")
+
+    def mmss(t: float) -> str:
+        return f"{int(t // 60)}:{int(t % 60):02d}"
+
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\n")
+    w.writerow(["time", "end", "kind", "tags", "title", "watchability", "time_s", "end_s", "clip_id"])
+    for c in chosen:
+        lb = labels.get(c["id"]) or {}
+        tags = "; ".join(t.replace("_", " ") for t in lb.get("tags", []) if t not in READABLE_REASONS)
+        w.writerow([mmss(c["t"]), mmss(c["t_end"]), READABLE_REASONS.get(c["reason"], c["reason"].replace("_", " ")), _csv_cell(tags),
+                    _csv_cell(lb.get("title", "")), "" if lb.get("watchability") is None else round(lb["watchability"], 2),
+                    round(c["t"], 2), round(c["t_end"], 2), c["id"]])
+    name = f"regista_{match_id}_{player if player and not clips else 'selection'}_moments.csv"
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @app.get("/api/matches/{match_id}/report", response_class=PlainTextResponse)
