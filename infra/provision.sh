@@ -234,11 +234,19 @@ PY
     APP_ID=$(my_app_id)
     [[ -n "$APP_ID" ]] || APP_ID=$(az ad app create --display-name "$DEPLOY_IDENTITY" --query appId -o tsv)
     SP_OID=$(az ad sp show --id "$APP_ID" --query id -o tsv 2>/dev/null || az ad sp create --id "$APP_ID" --query id -o tsv)
-    SUBJECT="repo:$GITHUB_REPO:ref:refs/heads/main"
-    if [[ -z "$(az ad app federated-credential list --id "$APP_ID" --query "[?subject=='$SUBJECT'].name | [0]" -o tsv)" ]]; then
-      az ad app federated-credential create --id "$APP_ID" --parameters "{\"name\": \"github-main\", \"issuer\": \"https://token.actions.githubusercontent.com\",
-        \"subject\": \"$SUBJECT\", \"audiences\": [\"api://AzureADTokenExchange\"]}" -o none
-    fi
+    # GitHub signs the workflow's token with one of two subject formats: the classic repo:owner/name:ref:..., or
+    # (newer repositories) one that carries the owner and repository ids, repo:owner@<id>/name@<id>:ref:...
+    # Trust both, for main only.
+    IDS=$(gh api "repos/$GITHUB_REPO" --jq '"\(.owner.id) \(.id)"')
+    read -r OWNER_ID REPO_ID <<<"$IDS"
+    for entry in "github-main=repo:$GITHUB_REPO:ref:refs/heads/main" \
+                 "github-main-ids=repo:${GITHUB_REPO%%/*}@$OWNER_ID/${GITHUB_REPO#*/}@$REPO_ID:ref:refs/heads/main"; do
+      FIC_NAME=${entry%%=*}; SUBJECT=${entry#*=}
+      if [[ -z "$(az ad app federated-credential list --id "$APP_ID" --query "[?subject=='$SUBJECT'].name | [0]" -o tsv)" ]]; then
+        az ad app federated-credential create --id "$APP_ID" --parameters "{\"name\": \"$FIC_NAME\", \"issuer\": \"https://token.actions.githubusercontent.com\",
+          \"subject\": \"$SUBJECT\", \"audiences\": [\"api://AzureADTokenExchange\"]}" -o none
+      fi
+    done
     # Push images, and update the container app's image. Nothing else: secrets and roles stay with deploy-app.sh.
     az role assignment create --role AcrPush --assignee-object-id "$SP_OID" --assignee-principal-type ServicePrincipal --scope "$ACR_ID" -o none 2>/dev/null || true
     az role assignment create --role Contributor --assignee-object-id "$SP_OID" --assignee-principal-type ServicePrincipal \
