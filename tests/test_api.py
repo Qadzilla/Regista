@@ -63,6 +63,26 @@ def test_the_committed_sample_features_syn_0294(monkeypatch, tmp_path):
     assert all(m["clip_count"] > 0 and m["video"] for m in listed.values())
 
 
+def test_sample_matches_have_human_titles_and_every_player_with_moments_is_counted(monkeypatch, tmp_path):
+    """The Product names matches in words (manifest title and subtitle, never the id) and lists first the players who
+    have moments, with how many: the count GET /clips?player= returns, derived on the fly for players with none on disk."""
+    from regista import api
+
+    monkeypatch.setattr(api, "DATA_ROOT", Path(__file__).resolve().parents[1] / "data" / "synthetic" / "sample")
+    monkeypatch.setattr(api, "CACHE_ROOT", tmp_path)
+    c = TestClient(api.app)
+    listed = c.get("/api/matches").json()
+    titles = [m["title"] for m in listed]
+    assert all(titles) and len(set(titles)) == len(titles) and all(m["subtitle"] for m in listed)
+    assert not any(m["match_id"] in m["title"] + m["subtitle"] for m in listed)
+    info = c.get("/api/matches/syn_0294").json()
+    assert info["title"] == next(m["title"] for m in listed if m["match_id"] == "syn_0294")
+    counts = info["moment_counts"]
+    assert counts["t_home_09"] == 11 and len(counts) > 1 and all(n > 0 for n in counts.values())
+    for pid in ("t_home_10", sorted(counts)[0]):
+        assert counts[pid] == len(c.get("/api/matches/syn_0294/clips", params={"player": pid}).json()), pid
+
+
 def test_clip_filters(client):
     all_clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()
     assert all_clips and all(c["video_url"].endswith(".mp4") for c in all_clips)

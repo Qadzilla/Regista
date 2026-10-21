@@ -1,5 +1,7 @@
 {
   "match_id": "syn_0141",
+  "title": "Library match: Ibarra's header, labelled by Microsoft Foundry",
+  "subtitle": "Three generated minutes sent through the agent workflow; a Microsoft Foundry model wrote every label.",
   "generator": {
     "name": "regista-synth",
     "version": "0.1.0",

@@ -434,7 +434,8 @@ def health() -> dict[str, Any]:
 def list_matches() -> list[dict[str, Any]]:
     """Matches on this replica (``source: local``, full features) and matches only Cosmos DB still holds
     (``source: cosmos``: clips and labels, no video). ``in_cosmos`` marks local matches the library also holds;
-    ``featured`` (from manifest.json) marks the match the Product opens on; ``clip_count`` counts the clips on disk."""
+    ``featured`` (from manifest.json) marks the match the Product opens on; ``clip_count`` counts the clips on disk;
+    ``title`` and ``subtitle`` (manifest.json, may be None) name the match for people."""
     library = _library()
     out = []
     if DATA_ROOT.exists():
@@ -446,13 +447,13 @@ def list_matches() -> list[dict[str, Any]]:
                 out.append({"match_id": d.name, "score": m.get("score", h.get("score")), "clips_for": m.get("clips_for"),
                             "teams": _team_summary(h), "video_duration_s": h["video"]["duration_s"], "source": "local",
                             "video": True, "in_cosmos": d.name in library, "featured": bool(m.get("featured")),
-                            "clip_count": n_clips})
+                            "clip_count": n_clips, "title": m.get("title"), "subtitle": m.get("subtitle")})
     local = {m["match_id"] for m in out}
     for mid, h in sorted(library.items()):
         if mid not in local:
             out.append({"match_id": mid, "score": h.get("score"), "clips_for": None, "teams": _team_summary(h),
                         "video_duration_s": h.get("video", {}).get("duration_s"), "source": "cosmos", "video": False, "in_cosmos": True,
-                        "featured": False, "clip_count": None})
+                        "featured": False, "clip_count": None, "title": None, "subtitle": None})
     return out
 
 
@@ -469,17 +470,44 @@ def get_match(match_id: str) -> dict[str, Any]:
     h = _cosmos_match(match_id)
     if h is not None:
         clips, _labels = _feedback_store().clips_for(match_id)
-        source, key_moments = "cosmos", []  # the library keeps the header, not the event stream
+        source, key_moments, manifest = "cosmos", [], {}  # the library keeps the header, not the event stream
+        moments = {}
+        for c in clips:
+            moments[c["player_id"]] = moments.get(c["player_id"], 0) + 1
     else:
         d = _match_dir(match_id)
         h = _header(d)
         clips, _labels = _clips(d)
         source, key_moments = "local", _key_moments(d, h)
+        manifest = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
+        moments = _moment_counts(d, h, clips)
     players_with_clips = sorted({c["player_id"] for c in clips})
     return {"match_id": match_id, "teams": h["teams"], "players": h["players"], "score": h.get("score"), "video": h["video"],
             "periods": h["periods"], "players_with_clips": players_with_clips, "clip_count": len(clips), "source": source,
             "duration_s": (h.get("video") or {}).get("duration_s"), "origin": h.get("source"),
-            "key_moments": key_moments}
+            "key_moments": key_moments, "moment_counts": moments, "title": manifest.get("title"), "subtitle": manifest.get("subtitle")}
+
+
+def _moment_counts(d: Path, h: dict[str, Any], clips: list[dict]) -> dict[str, int]:
+    """How many moments each player has, as GET /clips?player= would return them: the persisted clips for players who
+    have them, else the clips derived on the fly. Players with none are left out."""
+    from regista.clips import derive_clips
+
+    counts: dict[str, int] = {}
+    for c in clips:
+        counts[c["player_id"]] = counts.get(c["player_id"], 0) + 1
+    stream = None
+    for p in h["players"]:
+        if p["player_id"] in counts:
+            continue
+        stream = stream if stream is not None else list(iter_jsonl(d / "events.jsonl"))
+        try:
+            n = len(derive_clips(stream, p["player_id"])[0])
+        except ValueError:
+            n = 0
+        if n:
+            counts[p["player_id"]] = n
+    return counts
 
 
 def _match_minute(t: float, r: dict[str, Any], h: dict[str, Any]) -> int:

@@ -11,6 +11,7 @@
 //   selected    optional clip id now on the stage, outlined
 //   onPick      called with a clip id on click, Enter or Space
 //
+// Its styles are in product.css, so the page works under a strict Content Security Policy (no injected <style>).
 // Call it again with the same element whenever anything changes: it replaces what it drew. It redraws itself when the
 // element is resized. Markers are one tab stop: Tab reaches the strip, the arrow keys (and Home, End) move between
 // clips in match order, and hover or focus shows the clip's title. Everything from the API is set as text, never markup.
@@ -30,44 +31,6 @@
   const KINDS = Object.fromEntries(LANES.map(l => [l.reason, l.label]));
 
   const GOAL_H = 20, LANE_H = 16, LANE_GAP = 4, AXIS_H = 20, HIT_MIN = 12, MARK_MIN = 3;
-
-  const CSS = `
-  .rtl { position: relative; user-select: none; -webkit-user-select: none; }
-  .rtl svg { display: block; width: 100%; overflow: visible; }
-  .rtl svg:focus { outline: none; }
-  .rtl .bg { fill: var(--panel, #161a24); }
-  .rtl .period { fill: var(--line, #262c3a); opacity: .55; }
-  .rtl .grid { stroke: var(--line, #262c3a); stroke-width: 1; }
-  .rtl .tick, .rtl .lane-name, .rtl .period-name { fill: var(--muted, #9aa3b5); font: 10px/1 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; }
-  .rtl .lane-name { font-size: 11px; }
-  .rtl .goal-line { stroke: var(--text, #f3f4f6); stroke-width: 1; stroke-dasharray: 2 3; opacity: .55; }
-  .rtl .goal { fill: var(--text, #f3f4f6); stroke: var(--bg, #0c0e14); stroke-width: 1.5; }
-  .rtl .k-on_ball_main { fill: var(--accent, #ffcd28); }
-  .rtl .k-replay_appearance { fill: var(--replay, #d62028); }
-  .rtl .k-highlight_appearance { fill: var(--highlight, #4aa8ff); }
-  .rtl .k-closeup_appearance { fill: var(--closeup, #c18cff); }
-  .rtl .k-other { fill: var(--muted, #9aa3b5); }
-  .rtl .clip { cursor: pointer; }
-  .rtl .clip .hit { fill: transparent; }
-  .rtl .clip.dim .mark { opacity: .22; }
-  .rtl .clip:hover .mark, .rtl .clip.dim:hover .mark { opacity: 1; }
-  .rtl .clip .ring { fill: none; stroke: var(--text, #f3f4f6); stroke-width: 2; display: none; }
-  .rtl .clip.sel .ring { display: block; stroke: var(--text, #f3f4f6); }
-  .rtl .clip:focus { outline: none; }
-  .rtl .clip:focus-visible .ring, .rtl svg:focus-visible .clip.cur .ring { display: block; stroke: var(--accent, #ffcd28); }
-  .rtl-tip { position: absolute; z-index: 3; pointer-events: none; transform: translateX(-50%); max-width: min(280px, 90%);
-             background: var(--bg, #0c0e14); color: var(--text, #f3f4f6); border: 1px solid var(--line, #262c3a); border-radius: 6px;
-             padding: 6px 9px; font-size: 12px; line-height: 1.35; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
-  .rtl-tip b { display: block; font-weight: 700; }
-  .rtl-tip span { color: var(--muted, #9aa3b5); }`;
-
-  function injectStyle() {
-    if (document.getElementById('regista-timeline-style')) return;
-    const s = document.createElement('style');
-    s.id = 'regista-timeline-style';
-    s.textContent = CSS;
-    document.head.appendChild(s);
-  }
 
   function node(name, attrs, parent) {
     const n = document.createElementNS(NS, name);
@@ -123,7 +86,7 @@
     wrap.className = 'rtl';
     el.appendChild(wrap);
     const shown = highlight ? clips.filter(c => highlight.has(c.id)).length : clips.length;
-    const svg = node('svg', { viewBox: `0 0 ${width} ${height}`, height, role: 'group',
+    const svg = node('svg', { viewBox: `0 0 ${width} ${height}`, height, role: 'group', focusable: 'false',
                               'aria-label': `Match timeline, ${fmt(duration)}: ${clips.length} clips, ${shown} in the current results. Arrow keys move between clips, Enter plays one.` }, wrap);
     const tip = document.createElement('div');
     tip.className = 'rtl-tip';
@@ -153,7 +116,8 @@
     });
 
     // Dimmed clips first, so the current results are drawn on top of them.
-    const layer = node('g', {}, svg);
+    // tabindex -1: Chrome makes an SVG group with focus listeners a tab stop of its own; the markers are the one stop.
+    const layer = node('g', { tabindex: '-1' }, svg);
     const order = clips.slice().sort((a, b) => (highlight ? highlight.has(a.id) - highlight.has(b.id) : 0) || a.t - b.t);
     const byId = {};
     for (const c of order) {
@@ -250,7 +214,6 @@
 
   function render(el, opts) {
     if (!el) return;
-    injectStyle();
     const st = el._regTimeline || (el._regTimeline = { width: 0, current: null });
     st.opts = opts || {};
     draw(el);
