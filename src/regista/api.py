@@ -521,7 +521,7 @@ def identity_review(match_id: str) -> dict[str, Any]:
     header = _header(d)
     teams = {t["team_id"]: [{"player_id": p["player_id"], "name": p["name"], "kit_number": p["kit_number"], "position": p.get("position")}
                             for p in header["players"] if p["team_id"] == t["team_id"]] for t in header["teams"]}
-    return {"items": items, "teams": teams, "question": f"Who's who? {len(items)} call(s) the identity agent is unsure of."}
+    return {"items": items, "teams": teams, "question": f"{len(items)} call(s) the identity agent is unsure of."}
 
 
 @app.get("/api/matches/{match_id}/identity-review/crops/{name}", include_in_schema=False)

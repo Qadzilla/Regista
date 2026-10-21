@@ -322,8 +322,9 @@ async function loadWhos() {
     const r = await post(`/api/matches/${encodeURIComponent(state.match)}/identity-review`, { answers });
     const body = await r.json();
     if (!r.ok) { $('whosMsg').textContent = typeof body.detail === 'string' ? body.detail : 'Could not save the answers.'; return; }
-    $('whosMsg').textContent = `Saved ${body.answers} answer(s): ${body.renamed.length} renamed, ${body.cutaways.length} replay(s) set.`;
+    const done = `Who's who: saved ${body.answers} answer(s), ${body.renamed.length} renamed, ${body.cutaways.length} replay(s) set; the match was recomputed.`;
     await loadMatch(state.match);
+    $('understood').textContent = done;  // after the reload, which clears the panel and this line
   };
 }
 
