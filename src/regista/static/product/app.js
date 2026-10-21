@@ -68,9 +68,18 @@
     $('match').innerHTML = state.matches.map(m => {
       const [a, b] = m.teams;
       const score = m.score ? ` ${esc(m.score[a.team_id])}–${esc(m.score[b.team_id])} ` : ' v ';
-      return `<option value="${esc(m.match_id)}">${esc(a.name)}${score}${esc(b.name)}${m.source === 'cosmos' ? ' (from Cosmos DB)' : ''}</option>`;
+      // Two library matches can share teams and score, so the id tells them apart.
+      return `<option value="${esc(m.match_id)}">${esc(a.name)}${score}${esc(b.name)} · ${esc(m.match_id)}${m.source === 'cosmos' ? ' (from Cosmos DB)' : ''}</option>`;
     }).join('');
-    await loadMatch(state.matches[0].match_id);
+    await loadMatch(featured().match_id);
+  }
+
+  // The match the page opens on: the one the server marks featured, else the one with video and the most clips.
+  function featured() {
+    const marked = state.matches.find(m => m.featured);
+    if (marked) return marked;
+    const withVideo = state.matches.filter(m => m.video);
+    return [...(withVideo.length ? withVideo : state.matches)].sort((a, b) => (b.clip_count || 0) - (a.clip_count || 0))[0];
   }
 
   function fatal(text) {
@@ -180,7 +189,8 @@
       addMsg('bot', `${esc(out.reply)}${howAnswered(out, eng)}`);
       if (/match order|in order|chronolog/i.test(message)) setSort('time');
       else if (/\bbest\b|\btop\b/i.test(message)) setSort('best');
-      applyReply(out);
+      applyReply(out, message);
+      if (state.sort === 'time' && out.intent === 'search') await fillMatchOrder();
     } catch (e) {
       wait.remove();
       const text = e.status === 429 ? detail(e) : e.status === 404 ? 'This match is not on this server any more. Pick another match.'
@@ -198,7 +208,7 @@
     const by = String(out.answered_by || 'rules');
     const instant = by.startsWith('rules');
     const SERVERS = { 'regista-mcp': 'Regista MCP server', 'azure-mcp': 'Azure MCP Server' };
-    const ms = (v) => v == null ? '–' : v >= 1000 ? `${(v / 1000).toFixed(1)} s` : `${Math.round(v)} ms`;
+    const ms = (v) => v == null ? '–' : v >= 1000 ? `${(v / 1000).toFixed(1)} s` : v < 1 ? '<1 ms' : `${Math.round(v)} ms`;
     let steps = '';
     if (Array.isArray(out.trace) && out.trace.length) {
       steps = `<ol class="steps">${out.trace.map(s => `<li><span class="kind">${esc(s.kind)}</span><code>${esc(s.name)}</code>`
@@ -216,7 +226,7 @@
       + `</dl></details>`;
   }
 
-  function applyReply(out) {
+  function applyReply(out, message = '') {
     if (out.intent === 'reset') { restartQuery(); return; }
     const rows = (out.results || []).map(row);
     state.fromQuestion = true;
@@ -229,7 +239,28 @@
     if (ids.length === 1 && ids[0] !== state.player && player(ids[0])) { state.player = ids[0]; $('player').value = ids[0]; renderExamples(); }
     $('resultsHead').innerHTML = `${esc(plural(state.total, 'moment'))} <span class="muted">· ${esc(out.understood || '')}</span>`;
     render(state.results.length ? '' : 'Nothing matched that question. Try a player\'s surname, a kit number, or an action like "nutmeg" or "shot".');
-    if (state.reel) playReel();
+    // "Make a reel of Castellanos's best moments" names a player, so the server treats it as a search, not a reel of the
+    // results so far: the page plays the reel of what it found either way.
+    if (state.reel || /\b(reel|montage|compilation)\b/i.test(message)) playReel();
+  }
+
+  // The server pages its answers best first. "In match order" means every moment from kick-off, not the best six put in
+  // order, so the page fetches the remaining pages itself (with the Instant engine: the same search, no model) and adds
+  // them to the set without adding lines to the conversation.
+  async function fillMatchOrder() {
+    let st = chat.state;
+    for (let i = 0; i < 10 && state.results.length < state.total; i++) {
+      let out;
+      try {
+        out = await R.api(matchUrl('/chat'), { method: 'POST', body: { message: 'more', state: st, history: [], engine: 'rules' } });
+      } catch (e) { break; }
+      const fresh = (out.results || []).map(row).filter(r => !state.results.some(x => x.id === r.id));
+      if (!fresh.length) break;
+      st = out.state;
+      state.results = [...state.results, ...fresh];
+    }
+    chat.state = st;
+    render('');
   }
 
   // "Start over" from the ask box: the log stays (it is the record of the conversation), the query and results reset.
@@ -389,6 +420,32 @@
     else ex.href = state.fromQuestion ? matchUrl(`/moments.csv?clips=${all.map(enc).join(',')}`) : matchUrl(`/moments.csv?player=${enc(state.player)}`);
   }
 
+  // The first download of a reel renders it, which takes a few seconds per clip, and a plain link shows nothing until
+  // the file starts. So the page fetches it itself and says what it is doing; without fetch the link works as is.
+  async function downloadReel(e) {
+    const a = $('downloadReel'), href = a.getAttribute('href');
+    if (!href || a.dataset.busy) { e.preventDefault(); return; }
+    if (!window.fetch || !window.URL?.createObjectURL) return;
+    e.preventDefault();
+    a.dataset.busy = '1'; a.setAttribute('aria-busy', 'true');
+    a.textContent = 'Preparing reel…';
+    let failed = false;
+    try {
+      const res = await fetch(href);
+      if (!res.ok) throw new Error(String(res.status));
+      const url = URL.createObjectURL(await res.blob());
+      const name = /filename="([^"]+)"/.exec(res.headers.get('content-disposition') || '')?.[1] || `regista_${state.match}_reel.mp4`;
+      const t = Object.assign(document.createElement('a'), { href: url, download: name });
+      document.body.appendChild(t); t.click(); t.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (err) {
+      failed = true;
+      a.textContent = 'The reel could not be made. Try again.';
+    } finally {
+      setTimeout(() => { a.textContent = 'Download reel'; delete a.dataset.busy; a.removeAttribute('aria-busy'); }, failed ? 3000 : 0);
+    }
+  }
+
   const reel = { ids: [], i: 0, on: false };
   function playReel() {
     reel.ids = reelIds(); reel.i = 0; reel.on = reel.ids.length > 0;
@@ -439,6 +496,7 @@
     $('more').onclick = () => send('more');
     $('playReel').onclick = () => { playReel(); $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
     $('stageVideo').addEventListener('ended', nextInReel);
+    $('downloadReel').addEventListener('click', downloadReel);
     wireStageVideo();
     $('howOpen').onclick = () => { const d = $('how'); d.showModal ? d.showModal() : d.setAttribute('open', ''); };
     $('howClose').onclick = () => { const d = $('how'); d.close ? d.close() : d.removeAttribute('open'); };

@@ -1,20 +1,44 @@
-"""Container smoke test: do the agent tools start inside the image? No Azure credentials and no network calls needed.
+"""Container smoke test: do the agent tools start inside the image, and did the image get the pages and the matches?
+No Azure credentials and no network calls needed.
 
     python -m regista.cloud.smoke          # exit 0 when every check passes; prints one JSON line per check
 
 CI runs this inside the freshly built image (.github/workflows/build-image.yml), because the Azure MCP Server is a
 .NET binary whose runtime needs (ICU, OpenSSL) differ between a laptop and the slim Linux image. Listing tools is an
-MCP handshake only: nothing is queried.
+MCP handshake only: nothing is queried. The file checks catch a build that forgot package data (the Product and Studio
+pages ship as ``regista/static``) or a ``.dockerignore`` that dropped a sample match.
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+import os
 import shutil
 import sys
+from pathlib import Path
 
 from regista.cloud.config import CloudConfig
+
+
+# What the two dashboards load, relative to regista/static, and the matches the image serves.
+STATIC_FILES = ("product/index.html", "product/app.js", "product/timeline.js", "studio/index.html", "shared/regista.js",
+                "shared/regista.css")
+SAMPLE_MATCHES = ("syn_0141", "syn_0142", "syn_0294", "vis_0201")
+MATCH_FILES = ("events.jsonl", "clips.jsonl", "manifest.json")
+
+
+def file_checks(static_root: Path | None = None, data_root: Path | None = None) -> list[dict]:
+    """The packaged static files and the sample matches are where the app reads them (``REGISTA_DATA`` in the image)."""
+    if static_root is None:
+        import regista
+
+        static_root = Path(regista.__file__).resolve().parent / "static"
+    data_root = data_root or Path(os.environ.get("REGISTA_DATA", "data/synthetic/sample"))
+    missing_static = [f for f in STATIC_FILES if not (static_root / f).is_file()]
+    missing_data = [f"{m}/{f}" for m in SAMPLE_MATCHES for f in MATCH_FILES if not (data_root / m / f).is_file()]
+    return [{"check": "static-files", "ok": not missing_static, "root": str(static_root), "missing": missing_static},
+            {"check": "sample-matches", "ok": not missing_data, "root": str(data_root), "missing": missing_data}]
 
 
 async def _list_tools(tool) -> list[str]:
@@ -47,7 +71,7 @@ async def checks() -> list[dict]:
 
 
 def main() -> int:
-    results = asyncio.run(checks())
+    results = file_checks() + asyncio.run(checks())
     for r in results:
         print(json.dumps(r))
     return 0 if all(r["ok"] for r in results) else 1

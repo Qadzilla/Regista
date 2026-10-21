@@ -142,13 +142,18 @@ src/regista/librarian.py     the Librarian: plain-English clip search (player, t
 src/regista/conversation.py  the conversational Librarian (plan step 7): follow-ups merge into the query so far; chat_turn; /chat
 src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
-src/regista/api.py           FastAPI service: viewer at /, matches, clips with filters, search, on-demand MP4, upload → pipeline
+src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
+                             /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline
 src/regista/access.py        who may do what: Product open, Studio behind the view or admin key, writes admin-only
 src/regista/studio_api.py    Regista Studio (/studio): the control room's router; /api/studio/* behind the Studio keys
-src/regista/static/          product/ (the Product at /), studio/ (the Studio), shared/ (regista.css tokens, regista.js helpers)
+src/regista/static/          product/ (the Product at /: index.html, app.js, product.css, timeline.js), studio/ (the Studio),
+                             shared/ (regista.css tokens, regista.js helpers)
+src/regista/studio/          the Studio's facts (runs, to-do, data, cache), the local vision jobs runner, and the status CLI
+                             (python3 -m regista.studio status [--url URL])
 Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (built by GitHub Actions; no docker here)
 docs/architecture.md         two layers, the workflow roles local vs cloud, MCP tools, Azure per stage (running vs planned), auth
 docs/demo-storyboard.md      shot-by-shot plan for the sub-2-minute video, voiceover, what is named on screen
+docs/plan-two-dashboards.md  the approved plan for the Product and the Studio, the access table, and the agents that built them
 src/regista/cloud/           Azure wiring: config (.env), FoundryLabelAgent + FoundryLibrarianAgent (Agent Framework,
                              Regista MCP server as the Librarian's tool), CosmosPersistAgent; agents_for() swaps them in
 infra/provision.sh           az CLI provisioning: Foundry resource + project + model, Cosmos DB serverless, AI Search, Container Apps
@@ -166,7 +171,8 @@ src/regista/feedback.py      learning from people: human verdicts as annotations
                              from verdicts (logistic regression, JSON), evaluate(); real verdicts live in data/feedback/
 src/regista/cloud/search.py  Azure AI Search index regista-clips; SearchIndexAgent ("indexer" role); search_library()
 src/regista/cloud/telemetry.py  Agent Framework OpenTelemetry → Application Insights → Foundry Tracing
-src/regista/cloud/smoke.py   container smoke test: Regista MCP and Azure MCP list their tools inside the image (CI)
+src/regista/cloud/smoke.py   container smoke test (CI, inside the image): Regista MCP and Azure MCP list their tools; the dashboards'
+                             static files and the four sample matches are packaged
 src/regista/vision/          the private vision layer v0: shots (camera_segment), identity (calibration, detection, team, kit
                              number, tracking → track/appearance), possession_vision, vision_writer; an Agent Framework vision
                              workflow; trained and measured on Regista's rendered broadcast (docs/vision.md has the numbers)
@@ -183,8 +189,10 @@ src/regista/render/          2D broadcast renderer: scene.py (interpolation, cap
                              (parallel MP4 parts + ffmpeg concat), clips.py (per-clip videos, best-first reel)
 data/synthetic/README.md     the contract, record by record
 src/regista/schemas/        regista-events.schema.json, regista-clips.schema.json (package data)
-data/synthetic/sample/       committed sample match (seed 294: home #9 scores, nutmegs a defender, replays, closeup, highlights),
-                             plus library matches syn_0141/syn_0142 (seeds 141/142, Foundry labels from Cosmos DB)
+data/synthetic/sample/       committed sample match syn_0294, "featured": true in its manifest, the Product opens on it (seed 294:
+                             home #9 scores, nutmegs a defender, replays, closeup, highlights); library matches syn_0141/syn_0142
+                             (seeds 141/142, Foundry labels from Cosmos DB); vis_0201, the vision layer's output on rendered dev
+                             match syn_0201 (run offline; Who's who questions and crops in review/)
 tests/test_synthetic.py      schema + generator + clip rule must agree
 ```
 
@@ -305,13 +313,25 @@ for the record:
 
 **As of 2026-10-21 (evening).** `main` is at the latest pushed commit; CI (tests, image build, smoke test, push, deploy) is green; the live app is the new Azure for Students environment (§4.1), deployed by CI on every push to main. 212 tests pass.
 
+**On the integration branch `ux/two-dashboards` (built, not live until merged to `main`; plan in docs/plan-two-dashboards.md):**
+the app splits into the Product at `/` and Regista Studio at `/studio`. Merged there: access.py (admin key + Studio view key,
+every route classified in tests/test_access.py), the Studio API and status CLI (H), the Product page (A) with the answer trace
+"How Regista answered" (B), the timeline, Download reel and Export moments (C), library matches with video (D), the demo vision
+match vis_0201 (E), plain-English explanations (F), and wiring and docs (I: opens on the featured match, visible picker labels,
+reel and match-order fixes, smoke test for static files and sample matches). Still open on the branch: the Studio page (G, seven
+tabs), then the audit (J1 parity, J2 security, J3 browser), then one merge to `main`, which deploys it. The Product was walked in the
+browser locally at 1280 and 375 px (agent I); nothing of it has run on the live app. 332 tests pass on the
+branch with agent I's work.
+
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.76, precision 0.94; docs/vision.md).
 
 **Audited 2026-10-20** by independent agents; every finding was fixed or is listed below. The full record is in commits 6d1a870 and d1de317.
 
 **Waiting on Zaid:**
 - Footage: our own consenting match (§1.5), ready **Saturday 2026-10-24** (Zaid, 2026-10-21). Bring: video files, the team sheet (name, number, team), notes of key moments. Then: label, retrain the shot model on that format, run vision end to end, cut the demo.
-- First real Keep/Drop verdicts in the viewer.
+- First real Keep/Drop verdicts (the Studio's review queue once `ux/two-dashboards` is merged).
+- Before the merge deploys: put `REGISTA_STUDIO_VIEW_TOKEN` in `.env` (provision.sh writes one) and run `infra/deploy-app.sh` once,
+  because CI deploys change only the image and the Studio needs the view-key secret. Give judges the view key in the submission.
 
 **Next build work, in order (not blocked on footage):**
 1. ~~Make the hero tech visible on the live app~~ **Done and live 2026-10-20** (PR #1, image 229f71f, revision `regista-api--d1020232137`): Ask Foundry with public read-only tools, matches read back from Cosmos DB, health/footer naming the stack. Verified from the container: Foundry answered, `search_index_query` ran through the Azure MCP Server, spans reached App Insights. Container tracing had never worked before: deploy-app.sh cut the connection string at ';' (fixed in infra/lib/dotenv.sh).

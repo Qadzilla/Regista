@@ -52,6 +52,17 @@ def test_list_and_get_match(client):
     assert client.get("/api/matches/..%2Fetc").status_code in (400, 404)
 
 
+def test_the_committed_sample_features_syn_0294(monkeypatch, tmp_path):
+    """The Product opens on the featured match: the flagship (Castellanos's nutmeg and goal), not the first by name."""
+    from regista import api
+
+    monkeypatch.setattr(api, "DATA_ROOT", Path(__file__).resolve().parents[1] / "data" / "synthetic" / "sample")
+    monkeypatch.setattr(api, "CACHE_ROOT", tmp_path)
+    listed = {m["match_id"]: m for m in TestClient(api.app).get("/api/matches").json()}
+    assert [mid for mid, m in listed.items() if m["featured"]] == ["syn_0294"]
+    assert all(m["clip_count"] > 0 and m["video"] for m in listed.values())
+
+
 def test_clip_filters(client):
     all_clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()
     assert all_clips and all(c["video_url"].endswith(".mp4") for c in all_clips)
