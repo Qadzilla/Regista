@@ -157,6 +157,7 @@ infra/deploy-app.sh          first deploy and secret/setting changes: app identi
                              for a ready revision (infra/lib/aca.sh)
 infra/ci-deploy.sh           GitHub Actions deploy (image only) after test, build and in-image smoke test; federated sign-in
 infra/restore-library.sh     regenerate the library matches from their seeds and upload them through the live workflow
+infra/export-library.py      read-only: library clips + Foundry labels from Cosmos DB into clips.jsonl, checked against the clip rule
 infra/SETUP.md               runbook for a new Azure environment (accounts, sign-in checks, provision, deploy, verify)
 src/regista/agents/          the roles (roles.py), the Microsoft Agent Framework workflow that runs them (workflow.py: fan-out/
                              fan-in, typed handoffs, dead-letter routing, retries, request_info review, checkpoints), the original
@@ -182,7 +183,8 @@ src/regista/render/          2D broadcast renderer: scene.py (interpolation, cap
                              (parallel MP4 parts + ffmpeg concat), clips.py (per-clip videos, best-first reel)
 data/synthetic/README.md     the contract, record by record
 src/regista/schemas/        regista-events.schema.json, regista-clips.schema.json (package data)
-data/synthetic/sample/       committed sample match (seed 294: home #9 scores, nutmegs a defender, replays, closeup, highlights)
+data/synthetic/sample/       committed sample match (seed 294: home #9 scores, nutmegs a defender, replays, closeup, highlights),
+                             plus library matches syn_0141/syn_0142 (seeds 141/142, Foundry labels from Cosmos DB)
 tests/test_synthetic.py      schema + generator + clip rule must agree
 ```
 

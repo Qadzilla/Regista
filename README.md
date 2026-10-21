@@ -36,7 +36,7 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 - **Ask Foundry**: the Foundry Librarian (`gpt-5-mini` through Agent Framework) calling Regista's MCP server and Microsoft's Azure MCP Server, showing every tool it called;
 - **Chat**: the conversational Librarian (follow-ups refine the search: "now the replays", "what about Ibarra?", "make that a reel"), with a rule-based or a Foundry engine;
 - **Who's who?**, the identity review panel (it has questions only for matches that came through the vision workflow with review on; the library matches are generated, so their panels are empty);
-- a library of three matches: the committed sample plus two uploaded through the token-gated cloud workflow, labelled by Foundry, stored in Cosmos DB and indexed in Azure AI Search; tracing to Application Insights.
+- a library of three matches, all with video: the committed sample plus two uploaded through the token-gated cloud workflow, labelled by Foundry, stored in Cosmos DB and indexed in Azure AI Search. Their event streams are regenerated from their seeds and ship in the image, with Foundry's labels exported read-only from Cosmos DB (`infra/export-library.py`, which checks every clip against the clip rule); tracing to Application Insights.
 
 **Run from this repository, not on the live app:** the vision layer (video in, event stream out, including event spotting and the full 90-minute run), because it needs footage and trained models that stay private. The demo video shows it running.
 
