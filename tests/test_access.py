@@ -22,6 +22,8 @@ ACCESS = {
     "GET /api/matches/{match_id}/search": "public",
     "GET /api/matches/{match_id}/clips/{clip_id}.mp4": "public",
     "GET /api/matches/{match_id}/video.mp4": "public",
+    "GET /api/matches/{match_id}/reel.mp4": "public",
+    "GET /api/matches/{match_id}/moments.csv": "public",
     "GET /api/matches/{match_id}/report": "public",
     "POST /api/matches/{match_id}/ask": "public",
     "POST /api/matches/{match_id}/chat": "public",

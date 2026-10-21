@@ -3,6 +3,7 @@
 :root {
   --bg: #0c0e14; --panel: #161a24; --line: #262c3a; --text: #f3f4f6; --muted: #9aa3b5;
   --accent: #ffcd28; --replay: #d62028; --ok: #3ccf7a; --warn: #ffb020; --bad: #ff5a5f;
+  --highlight: #4aa8ff; --closeup: #c18cff;  /* clip kinds beside --accent (on the ball) and --replay */
   --radius: 10px; --gap: 16px;
 }
 * { box-sizing: border-box; }

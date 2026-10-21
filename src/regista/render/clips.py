@@ -72,9 +72,10 @@ def render_clip(scene: Scene, clip: Record, label: Record | None, out: Path, fps
                 "reason": clip["reason"], "watchability": label["watchability"] if label else None, "title": card["title"]}
 
 
-def render_reel(scene: Scene, clips: list[Record], labels: dict[str, Record], out: Path, fps: float, style: Style) -> dict[str, Any]:
-    """All clips back to back, best first, each with its title card."""
-    ordered = sorted(clips, key=lambda c: (-(labels.get(c["id"], {}).get("watchability", 0.0)), c["t"]))
+def render_reel(scene: Scene, clips: list[Record], labels: dict[str, Record], out: Path, fps: float, style: Style,
+                keep_order: bool = False) -> dict[str, Any]:
+    """All clips back to back, each with its title card: best first, or in the order given with ``keep_order``."""
+    ordered = list(clips) if keep_order else sorted(clips, key=lambda c: (-(labels.get(c["id"], {}).get("watchability", 0.0)), c["t"]))
     with VideoWriter(out, fps) as w:
         for clip in ordered:
             times = frame_times(clip["t"], clip["t_end"], fps)
