@@ -88,6 +88,80 @@ def test_clip_render_on_demand_and_cache(client):
     assert client.get(f"/api/matches/{client.match_id}/clips/cl_t_home_09_999999.mp4").status_code == 404
 
 
+def test_render_once_under_concurrent_requests(tmp_path):
+    """A cold cache asked for the same video by many requests renders it once, never serves a half-written file, and
+    leaves no temporary files (the live app answered 503 on a cold start before this)."""
+    import threading
+    import time
+
+    from regista import api
+
+    calls, out = [], tmp_path / "m" / "clip_25fps_1280.mp4"
+
+    def render(tmp):
+        calls.append(tmp)
+        tmp.write_bytes(b"half")
+        time.sleep(0.2)
+        tmp.write_bytes(b"whole video")
+        return {"path": str(tmp)}
+
+    seen = []
+    threads = [threading.Thread(target=lambda: seen.append(api._render_once(out, render).read_bytes())) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(calls) == 1 and seen == [b"whole video"] * 8
+    assert sorted(p.name for p in out.parent.iterdir()) == [out.name] and not api._render_locks
+
+
+def test_render_failure_leaves_nothing_and_renders_are_capped(tmp_path, monkeypatch):
+    import threading
+    import time
+
+    from regista import api
+
+    def broken(tmp):
+        tmp.write_bytes(b"partial")
+        raise RuntimeError("renderer crashed")
+
+    out = tmp_path / "bad.mp4"
+    with pytest.raises(RuntimeError):
+        api._render_once(out, broken)
+    assert list(tmp_path.iterdir()) == [] and not api._render_locks
+
+    monkeypatch.setattr(api, "_render_slots", threading.BoundedSemaphore(2))
+    running, peak, guard = [0], [0], threading.Lock()
+
+    def slow(tmp):
+        with guard:
+            running[0] += 1
+            peak[0] = max(peak[0], running[0])
+        time.sleep(0.1)
+        with guard:
+            running[0] -= 1
+        tmp.write_bytes(b"v")
+        return {"path": str(tmp)}
+
+    threads = [threading.Thread(target=api._render_once, args=(tmp_path / f"c{i}.mp4", slow)) for i in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert peak[0] == 2 and len(list(tmp_path.glob("c*.mp4"))) == 6
+
+
+def test_prerender_fills_the_cache_the_endpoint_reads(client):
+    from regista import api
+
+    done = api._prerender(fps=4.0, width=160)
+    clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()
+    assert done and {p.name for p in done} == {f"{c['id']}_4fps_160.mp4" for c in clips}
+    first = done[0]
+    assert client.get(f"/api/matches/{client.match_id}/clips/{first.name.split('_4fps')[0]}.mp4",
+                      params={"fps": 4, "width": 160}).content == first.read_bytes()
+
+
 def test_report_endpoint(client):
     md = client.get(f"/api/matches/{client.match_id}/report").text
     assert "Synthetic realism report" in md and "shots_per90" in md

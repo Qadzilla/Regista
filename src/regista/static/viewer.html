@@ -233,7 +233,7 @@ function renderGrid(rows) {
   $('empty').hidden = rows.length > 0;
   $('grid').innerHTML = rows.map(r => `
     <div class="card">
-      ${r.video_url ? `<video controls preload="metadata" src="${esc(r.video_url)}"></video>` : `<div class="novideo">Read from Cosmos DB. This replica no longer has the match's event stream, so there is no video to render.</div>`}
+      ${r.video_url ? `<video controls preload="none" src="${esc(r.video_url)}"></video>` : `<div class="novideo">Read from Cosmos DB. This replica no longer has the match's event stream, so there is no video to render.</div>`}
       <div class="body">
         <div class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${nice(r.reason)}</div>
         <div class="title">${esc(r.title)}</div>
@@ -247,6 +247,16 @@ function renderGrid(rows) {
       </div>
     </div>`).join('');
   for (const b of $('grid').querySelectorAll('.vbtn')) b.onclick = () => sendVerdict(b.dataset.clip, b.dataset.v);
+  lazyPreview($('grid'));
+}
+
+// Clips render on first request, so the grid must not ask for every video at once: a card loads its first frame
+// only when it scrolls into view (or when someone presses play).
+const previewer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
+  for (const e of entries) if (e.isIntersecting) { e.target.preload = 'metadata'; e.target.load(); previewer.unobserve(e.target); }
+}, { rootMargin: '200px' }) : null;
+function lazyPreview(root) {
+  for (const v of root.querySelectorAll('video[preload="none"]')) previewer ? previewer.observe(v) : (v.preload = 'metadata');
 }
 
 async function search() {

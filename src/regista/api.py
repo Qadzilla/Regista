@@ -72,6 +72,8 @@ async def _lifespan(_app: FastAPI):
     from regista.cloud.telemetry import configure_tracing, flush_tracing
 
     configure_tracing("regista-api")
+    if os.environ.get("REGISTA_PRERENDER") == "1":
+        threading.Thread(target=_prerender, name="regista-prerender", daemon=True).start()
     yield
     flush_tracing()
 
@@ -336,6 +338,79 @@ def _player_of(clip_id: str) -> str | None:
     return m.group(1) if m else None
 
 
+# ---------------------------------------------------------------------------- on-demand rendering
+
+# Videos are rendered on first request and cached on the replica's disk, which a new revision starts empty. The grid
+# asks for every clip at once, so without these rules a cold replica rendered the same clip several times in parallel,
+# starved its one CPU, and answered 503 (seen on the live app on 2026-10-21). Now each file is rendered once (later
+# requests wait for it), into a temporary name that is renamed into place (a half-written file is never served), and at
+# most REGISTA_RENDER_CONCURRENCY renders run at a time.
+RENDER_CONCURRENCY = max(1, int(os.environ.get("REGISTA_RENDER_CONCURRENCY", "1")))
+_render_slots = threading.BoundedSemaphore(RENDER_CONCURRENCY)
+_render_locks: dict[Path, threading.Lock] = {}
+_render_locks_guard = threading.Lock()
+
+
+def _render_once(out: Path, render: Any) -> Path:
+    """``out``, rendering it with ``render(tmp_path) -> {"path": ...}`` if it is not cached yet."""
+    if out.exists():
+        return out
+    with _render_locks_guard:
+        lock = _render_locks.setdefault(out, threading.Lock())
+    try:
+        with lock:
+            if out.exists():  # another request rendered it while this one waited
+                return out
+            out.parent.mkdir(parents=True, exist_ok=True)
+            tmp = out.with_name(f".{out.stem}.{uuid.uuid4().hex[:8]}.part{out.suffix}")
+            try:
+                with _render_slots:
+                    written = Path(render(tmp)["path"])
+                if written.suffix != out.suffix:
+                    raise HTTPException(500, f"the renderer wrote {written.suffix}, not {out.suffix} (is ffmpeg missing?)")
+                os.replace(written, out)
+            finally:
+                for leftover in (tmp, tmp.with_suffix(".gif")):
+                    leftover.unlink(missing_ok=True)
+    finally:
+        with _render_locks_guard:
+            if _render_locks.get(out) is lock and not lock.locked():
+                del _render_locks[out]
+    return out
+
+
+def _clip_cache_path(match_id: str, clip_id: str, fps: float, width: int) -> Path:
+    return CACHE_ROOT / match_id / f"{clip_id}_{int(fps)}fps_{width}.mp4"
+
+
+def _render_clip_cached(d: Path, clip: dict, label: dict | None, fps: float, width: int) -> Path:
+    from regista.render.clips import render_clip
+    from regista.render.draw import Style
+    from regista.render.scene import Scene
+
+    return _render_once(_clip_cache_path(d.name, clip["id"], fps, width),
+                        lambda tmp: render_clip(Scene.load(d), clip, label, tmp, fps, Style(width, round(width * 9 / 16))))
+
+
+def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
+    """Render the featured player's clips for every local match, best first, so the first visitor after a deploy finds
+    them cached. Runs in a background thread at startup when REGISTA_PRERENDER=1 (set in the Dockerfile)."""
+    done = []
+    for d in sorted(DATA_ROOT.iterdir()) if DATA_ROOT.exists() else []:
+        manifest = d / "manifest.json"
+        player = json.loads(manifest.read_text()).get("clips_for") if manifest.exists() else None
+        if not player or not (d / "events.jsonl").exists():
+            continue
+        clips, labels = _clips(d, player)
+        for c in sorted((c for c in clips if c["player_id"] == player),
+                        key=lambda c: (-labels.get(c["id"], {}).get("watchability", 0.0), c["t"])):
+            try:
+                done.append(_render_clip_cached(d, c, labels.get(c["id"]), fps, width))
+            except Exception as exc:  # noqa: BLE001  (one bad clip must not stop the rest)
+                print(f"prerender: {d.name}/{c['id']} failed: {exc!r}", flush=True)
+    return done
+
+
 # ---------------------------------------------------------------------------- read endpoints
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -449,27 +524,19 @@ def clip_video(match_id: str, clip_id: str, fps: float = Query(25.0, gt=0, le=60
     clip = next((c for c in clips if c["id"] == clip_id), None)
     if clip is None:
         raise HTTPException(404, f"no clip {clip_id}")
-    out = CACHE_ROOT / match_id / f"{clip_id}_{int(fps)}fps_{width}.mp4"
-    if not out.exists():
-        from regista.render.clips import render_clip
-        from regista.render.draw import Style
-        from regista.render.scene import Scene
-
-        scene = Scene.load(d)
-        render_clip(scene, clip, labels.get(clip_id), out, fps, Style(width, round(width * 9 / 16)))
+    out = _render_clip_cached(d, clip, labels.get(clip_id), fps, width)
     return FileResponse(out, media_type="video/mp4", filename=out.name)
 
 
 @app.get("/api/matches/{match_id}/video.mp4")
 def match_video(match_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
     d = _match_dir(match_id)
-    out = CACHE_ROOT / match_id / f"broadcast_{int(fps)}fps_{width}.mp4"
-    if not out.exists():
-        from regista.render.draw import Style
-        from regista.render.scene import Scene
-        from regista.render.video import render_video
+    from regista.render.draw import Style
+    from regista.render.scene import Scene
+    from regista.render.video import render_video
 
-        render_video(Scene.load(d), out, fps=fps, style=Style(width, round(width * 9 / 16)), end_card_s=3.0)
+    out = _render_once(CACHE_ROOT / match_id / f"broadcast_{int(fps)}fps_{width}.mp4",
+                       lambda tmp: render_video(Scene.load(d), tmp, fps=fps, style=Style(width, round(width * 9 / 16)), end_card_s=3.0))
     return FileResponse(out, media_type="video/mp4", filename=out.name)
 
 
