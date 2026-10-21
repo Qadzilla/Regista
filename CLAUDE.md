@@ -320,7 +320,8 @@ every route classified in tests/test_access.py), the Studio API and status CLI (
 match vis_0201 (E), plain-English explanations (F), and wiring and docs (I: opens on the featured match, visible picker labels,
 reel and match-order fixes, smoke test for static files and sample matches). Still open on the branch: the Studio page (G, seven
 tabs), then the audit (J1 parity, J2 security, J3 browser), then one merge to `main`, which deploys it. The Product was walked in the
-browser locally at 1280 and 375 px (agent I); nothing of it has run on the live app.
+browser locally at 1280 and 375 px (agent I); nothing of it has run on the live app. 332 tests pass on the
+branch with agent I's work.
 
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.76, precision 0.94; docs/vision.md).
 
