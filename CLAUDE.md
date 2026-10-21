@@ -291,7 +291,7 @@ for the record:
 - **Never send a request that writes to the live app as a test.** Probe with requests that cannot write (no token, or an invalid body) and check Cosmos afterwards. On 2026-10-20 two test verdicts reached Cosmos while an old revision was still serving; they were identified by timestamp and deleted.
 - **A deploy is done only when the new revision is the latest ready one.** `deploy-app.sh` waits for that and prints logs on failure. Traffic weight alone is not proof. Every deploy creates a fresh revision (so changed secrets are read), and `.env` is parsed by `infra/lib/dotenv.sh`, never `source`d.
 - The image workflow runs the full test suite, builds the image, and runs `python -m regista.cloud.smoke` inside it (Regista MCP and Azure MCP must list their tools); any failure stops the push. Pull requests get the same checks and push nothing. It rebuilds on changes to `src/`, `tests/`, `data/synthetic/`, `Dockerfile`, `.dockerignore`, `pyproject.toml`; `tests/test_packaging.py` guards `.dockerignore` against dropping package files. `infra/provision.sh` can be re-run: it keeps the existing write token and App Insights connection string in `.env` and reuses the resource group's registry; `deploy-app.sh` no longer duplicates the Cosmos role assignment (the app identity has 7 duplicates from earlier deploys, harmless).
-- Cosmos DB still holds 16 clip and 16 label documents from before ids became player-scoped (`cl_000001` / `lb_000001` style): 11 of each for `syn_0294` and 5 of each for `syn_0141`. They are stale duplicates; delete them only with Zaid's go-ahead.
+- This environment's Cosmos DB still holds 16 clip and 16 label documents from before ids became player-scoped (`cl_000001` / `lb_000001` style). Zaid approved deleting them on 2026-10-21, but the directory is locked, so they stay until the trial ends. The new environment's Cosmos DB has none (checked 2026-10-21: 2 matches, 8 clips, 8 labels, 0 annotations, all player-scoped).
 - Tear down after judging: `./infra/provision.sh --destroy`.
 
 ## 4.2 Where we are and what's next (update at the end of every work session)
@@ -303,9 +303,7 @@ for the record:
 **Audited 2026-10-20** by independent agents; every finding was fixed or is listed below. The full record is in commits 6d1a870 and d1de317.
 
 **Waiting on Zaid:**
-- Footage: our own consenting match (§1.5), recording planned for about 2026-10-23. Bring: video files, the team sheet (name, number, team), notes of key moments. Then: label, retrain the shot model on that format, run vision end to end, cut the demo.
-- Go-ahead to delete 16 stale clip + 16 label docs in Cosmos (old-style ids).
-- Go-ahead to harden auth: registry pull by managed identity (AcrPull) and local auth off on Cosmos DB and AI Search.
+- Footage: our own consenting match (§1.5), ready **Saturday 2026-10-24** (Zaid, 2026-10-21). Bring: video files, the team sheet (name, number, team), notes of key moments. Then: label, retrain the shot model on that format, run vision end to end, cut the demo.
 - First real Keep/Drop verdicts in the viewer.
 
 **Next build work, in order (not blocked on footage):**
@@ -316,8 +314,8 @@ for the record:
 5. ~~A 90-minute run~~ **Done 2026-10-21** (docs/vision.md "A full 90-minute match"): fresh match scored once: 0.34x real time, goals 5/5, clips 0.86/0.94. It exposed and fixed: interception vs recovery is not observable (spotter v2 spots "ball won"), early event timing, renderer memory (4.6 GB -> 225 MB); probing and sampling no longer decode whole videos.
 6. ~~Azure~~ **Done 2026-10-21**: the first directory locked, a pay-as-you-go signup was refused, and the environment was
    rebuilt on Azure for Students (§4.1) with every feature live (Chat, Who's who, Ask Foundry, library) and CI deploys.
-   Remaining: demo video, Zaid's recorded match, make the repo public, submit by 2026-10-27; old GitHub secrets
-   ACR_LOGIN_SERVER/USERNAME/PASSWORD are unused and can be deleted (Zaid's go-ahead).
+   Remaining: demo video, Zaid's recorded match, make the repo public, submit by 2026-10-27. The unused GitHub secrets
+   ACR_LOGIN_SERVER/USERNAME/PASSWORD were deleted on 2026-10-21 (Zaid's go-ahead); the repo now has no Actions secrets.
 3. Vision for real footage: frame sampling inside ffmpeg with gap-normalised motion features, a person detector instead of discs, a real homography; designed now, trained when the footage arrives.
 4. Demo video (docs/demo-storyboard.md needs a rewrite around the real match), pitch text, make the repo public before 2026-10-27.
 
