@@ -51,7 +51,7 @@ Timings assume about 125 spoken words a minute, slower than conversational pace,
 | 8 | 1:34–1:46 (12 s) | Azure portal: `regista-rg` resource list, 4 s. Application Insights or Foundry Tracing: a workflow's spans, 3 s. GitHub Actions: the green run, steps test → build image → smoke test → push → deploy, with the `azure/login` step, 5 s. Lower third: "Every push to main: 209 tests, image build, in-image smoke test, deploy (OpenID Connect, no stored Azure credential)". | "Clips and labels live in Cosmos DB, every agent step is traced in Application Insights, and GitHub Actions tests and deploys every push, signing in through OpenID Connect." | Azure Cosmos DB, Application Insights, GitHub Actions with OpenID Connect |
 | 9 | 1:46–1:52 (6 s) | End card: "REGISTA · every touch · every replay · every player". Below: github.com/Qadzilla/Regista and the live app URL. | "Regista. Every touch, every replay, every player. Found instantly." | Regista |
 
-Before recording beat 8, check the test count in the run's log and change the caption if it is no longer 209. Before submitting, delete the unused GitHub secrets ACR_LOGIN_SERVER/USERNAME/PASSWORD so the "no stored Azure credential" caption is exactly true.
+Before recording beat 8, check the test count in the run's log and change the caption if it is no longer 209. The repository has no GitHub Actions secrets (the old ACR_* ones were deleted on 2026-10-21), so the "no stored Azure credential" caption is exactly true; check `gh secret list` is still empty before recording.
 
 ## Timing check
 
@@ -72,7 +72,7 @@ Calm narration runs about 2.5 words a second, so every beat has slack; beat 7 an
 
 ## Zaid's match
 
-**Lock date: 2026-10-25, evening.** Whatever runs on our footage by then decides version A, B or C of beat 3 (and whether beat 1 opens on our footage). After that, only editing.
+**Footage arrives Saturday 2026-10-24. Lock date: Sunday 2026-10-25, evening.** Whatever runs on our footage by then decides version A, B or C of beat 3 (and whether beat 1 opens on our footage). After that, only editing.
 
 - **A** needs the vision layer to cut clips from our footage, with a few numbers measured against Zaid's own labels of that match.
 - **B** needs at least one stage running on it (the shot model retrained on its format, or identity questions with real crops). Show only that stage.
@@ -80,7 +80,7 @@ Calm narration runs about 2.5 words a second, so every beat has slack; beat 7 an
 
 Never put our footage on screen with a caption that implies more ran on it than did.
 
-### What Zaid needs to record (around 2026-10-23)
+### What Zaid needs to record (footage ready Saturday 2026-10-24)
 
 1. **Consent first.** Written consent from every player before filming, covering recording, training models on the footage, and showing it publicly (demo video, judges, the live app). Anyone who does not consent stays off the pitch; keep bystanders out of frame.
 2. **Kits.** Numbered bibs with large numbers on the back and, if possible, the front; two clearly different team colours, neither green nor close to grass; goalkeepers in a third colour. A ball that stands out from the grass.
