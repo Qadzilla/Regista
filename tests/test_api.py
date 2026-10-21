@@ -39,7 +39,8 @@ def client(tmp_path_factory):
 def test_viewer_and_health(client):
     assert client.get("/api/health").json()["ok"] is True
     page = client.get("/")
-    assert page.status_code == 200 and "REGI" in page.text and "/api/matches" in page.text
+    assert page.status_code == 200 and "REGI" in page.text and "/static/product/app.js" in page.text
+    assert "/api/matches" in client.get("/static/product/app.js").text
 
 
 def test_list_and_get_match(client):
@@ -322,15 +323,16 @@ def test_a_review_can_only_be_answered_once(client):
 
 
 def test_viewer_escapes_everything_it_renders():
-    """Static check: no API value reaches innerHTML unescaped."""
-    import re
+    """Static check: no API value reaches innerHTML unescaped (the Product page and its script)."""
     from pathlib import Path
 
-    html = (Path(__file__).resolve().parents[1] / "src/regista/static/product/index.html").read_text()
+    product = Path(__file__).resolve().parents[1] / "src/regista/static/product"
+    html = (product / "index.html").read_text() + (product / "app.js").read_text()
     assert "const esc = " in html
-    for needle in ("${r.title}", "${r.explanation", "${r.verdict.annotator}", "${p.name}", "${team.name}", "${r.review}", "${t.replace(",
-                   "${out.answer}", "${out.answered_by}", "${out.detail}", "${t}</span>"):
+    for needle in ("${r.title}", "${r.explanation", "${p.name}", "${team.name}", "${out.reply}", "${out.understood", "${out.answered_by}",
+                   "${out.detail}", "${s.name}", "${s.kind}", "${t}</span>", "${message}"):
         assert needle not in html, needle
-    assert "esc(r.verdict.annotator)" in html and "esc(r.title)" in html
-    # The Foundry Librarian's answer is model output and the tool names come from MCP servers: both are escaped.
-    assert "esc(out.answer)" in html and "esc(out.answered_by)" in html and "esc(t)}</span>" in html
+    assert "esc(r.title)" in html and "esc(p.name)" in html and "esc(message)" in html
+    # Replies and the Foundry Librarian's words are model output; tool and step names come from MCP servers: all escaped.
+    assert "esc(out.reply)" in html and "esc(out.understood" in html and "esc(by)" in html
+    assert "esc(s.name)" in html and "esc(s.kind)" in html and "esc(t)}</span>" in html
