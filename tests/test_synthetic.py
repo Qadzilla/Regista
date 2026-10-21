@@ -244,6 +244,17 @@ def test_committed_sample_labels_are_what_the_labeller_writes():
     assert clips + labels == list(iter_jsonl(sample / "clips.jsonl"))
 
 
+def test_the_vision_demo_match_explains_in_the_labellers_words():
+    """vis_0201's clips came from the vision layer and stay as they are; their explanations are the rules labeller's
+    current sentences, so the Product reads the same football English on every match."""
+    sample = Path(__file__).resolve().parents[1] / "data/synthetic/sample/vis_0201"
+    rows = list(iter_jsonl(sample / "clips.jsonl"))
+    clips = [r for r in rows if r["type"] == "clip"]
+    index = StreamIndex.build(list(iter_jsonl(sample / "events.jsonl")))
+    want = {lb["clip_id"]: lb["explanation"] for lb in label_clips(index, clips)}
+    assert {r["clip_id"]: r["explanation"] for r in rows if r["type"] == "label"} == want
+
+
 # ----------------------------------------------------------------------------- determinism
 
 def test_same_seed_same_stream():

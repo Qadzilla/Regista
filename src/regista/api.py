@@ -433,7 +433,8 @@ def health() -> dict[str, Any]:
 @app.get("/api/matches")
 def list_matches() -> list[dict[str, Any]]:
     """Matches on this replica (``source: local``, full features) and matches only Cosmos DB still holds
-    (``source: cosmos``: clips and labels, no video). ``in_cosmos`` marks local matches the library also holds."""
+    (``source: cosmos``: clips and labels, no video). ``in_cosmos`` marks local matches the library also holds;
+    ``featured`` (from manifest.json) marks the match the Product opens on; ``clip_count`` counts the clips on disk."""
     library = _library()
     out = []
     if DATA_ROOT.exists():
@@ -441,14 +442,17 @@ def list_matches() -> list[dict[str, Any]]:
             if (d / "events.jsonl").exists():
                 m = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
                 h = _header(d)
+                n_clips = sum(r["type"] == "clip" for r in iter_jsonl(d / "clips.jsonl")) if (d / "clips.jsonl").exists() else 0
                 out.append({"match_id": d.name, "score": m.get("score", h.get("score")), "clips_for": m.get("clips_for"),
                             "teams": _team_summary(h), "video_duration_s": h["video"]["duration_s"], "source": "local",
-                            "video": True, "in_cosmos": d.name in library})
+                            "video": True, "in_cosmos": d.name in library, "featured": bool(m.get("featured")),
+                            "clip_count": n_clips})
     local = {m["match_id"] for m in out}
     for mid, h in sorted(library.items()):
         if mid not in local:
             out.append({"match_id": mid, "score": h.get("score"), "clips_for": None, "teams": _team_summary(h),
-                        "video_duration_s": h.get("video", {}).get("duration_s"), "source": "cosmos", "video": False, "in_cosmos": True})
+                        "video_duration_s": h.get("video", {}).get("duration_s"), "source": "cosmos", "video": False, "in_cosmos": True,
+                        "featured": False, "clip_count": None})
     return out
 
 
