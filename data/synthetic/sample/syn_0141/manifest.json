@@ -1,0 +1,59 @@
+{
+  "match_id": "syn_0141",
+  "generator": {
+    "name": "regista-synth",
+    "version": "0.1.0",
+    "seed": 141,
+    "params": {
+      "minutes": 3.0,
+      "periods": 1,
+      "track_hz": 1.0,
+      "fps": 25.0,
+      "profile": "demo"
+    }
+  },
+  "score": {
+    "t_home": 0,
+    "t_away": 0
+  },
+  "video_duration_s": 191.66,
+  "files": {
+    "events.jsonl": 328,
+    "tracks.jsonl": 3212,
+    "clips.jsonl": 10
+  },
+  "record_counts": {
+    "match": 1,
+    "camera_segment": 9,
+    "possession": 32,
+    "event": 158,
+    "appearance": 126,
+    "annotation": 2
+  },
+  "event_type_counts": {
+    "carry": 13,
+    "cross": 2,
+    "foul": 1,
+    "foul_won": 1,
+    "free_kick": 1,
+    "goal_kick": 2,
+    "interception": 4,
+    "kick_off": 1,
+    "pass": 21,
+    "period_end": 1,
+    "period_start": 1,
+    "possession_change": 11,
+    "pressure": 4,
+    "shot": 2,
+    "tackle": 2,
+    "take_on": 4,
+    "throw_in": 3,
+    "touch": 84
+  },
+  "clips_for": "t_home_09",
+  "clip_reasons": {
+    "on_ball_main": 3,
+    "closeup_appearance": 1,
+    "highlight_appearance": 1
+  }
+}
