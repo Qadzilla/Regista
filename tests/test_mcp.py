@@ -72,7 +72,7 @@ def test_search_clips_over_mcp(match_dir):
     out = _run(go)
     assert out["parsed"]["player_id"] == "t_home_09"
     assert out["results"] and all("nutmeg" in r["tags"] for r in out["results"])
-    assert all(r["explanation"].startswith("Scored") for r in out["results"])
+    assert all("Cut because" in r["explanation"] for r in out["results"])
 
 
 def test_derive_and_validate_over_mcp(match_dir):

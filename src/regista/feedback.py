@@ -35,6 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from regista.clips import and_list, tag_phrase
 from regista.schema import SCHEMA_VERSION, events_validator, iter_jsonl
 
 Record = dict[str, Any]
@@ -207,6 +208,24 @@ def features(tags: Iterable[str], reason: str, duration_s: float, prior: float |
     return f
 
 
+_REASON_WORDS = {"on_ball_main": "on-ball clips", "replay_appearance": "replays", "highlight_appearance": "highlights",
+                 "closeup_appearance": "closeups"}
+
+
+def _feature_words(name: str) -> str:
+    """A model feature as a reader would say it: ``tag:take_on`` -> "the take-on", ``duration_s`` -> "longer clips"."""
+    kind, _, value = name.partition(":")
+    if kind == "tag":
+        return tag_phrase(value, definite=True)
+    if kind == "reason":
+        return _REASON_WORDS.get(value, value.replace("_", " "))
+    if name == "duration_s":
+        return "longer clips"
+    if name == "rules_prior":
+        return "the rules score"
+    return name.replace("_", " ")
+
+
 @dataclass
 class WatchabilityModel:
     """Logistic regression from clip features to "a human would keep this". Readable and diffable as JSON."""
@@ -233,10 +252,17 @@ class WatchabilityModel:
         return round(1.0 / (1.0 + math.exp(-z)), 3)
 
     def explain(self, tags: Iterable[str], reason: str, duration_s: float, prior: float | None = None, top: int = 3) -> str:
+        """One sentence on what moved this clip's score, in words: what the verdicts taught the model to like and mark down."""
         f = features(tags, reason, duration_s, prior)
         contrib = sorted(((c * f.get(n, 0.0), n) for n, c in zip(self.feature_names, self.coef) if f.get(n)), key=lambda x: -abs(x[0]))
-        parts = [f"{n.split(':', 1)[-1].replace('_', ' ')} {'+' if v >= 0 else '-'}{abs(v):.2f}" for v, n in contrib[:top]]
-        return f"learned from {self.n_samples} verdicts: " + (", ".join(parts) if parts else "no known features")
+        likes = [_feature_words(n) for v, n in contrib[:top] if v >= 0]
+        marks = [_feature_words(n) for v, n in contrib[:top] if v < 0]
+        taught = f"Ranked by what {self.n_samples} verdicts taught Regista"
+        if likes and marks:
+            return f"{taught}, which favours {and_list(likes)} but marks down {and_list(marks)}."
+        if likes or marks:
+            return f"{taught}, which {'favours' if likes else 'marks down'} {and_list(likes or marks)}."
+        return f"{taught}."
 
     # -- persistence
     def to_json(self) -> Record:

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
+from pathlib import Path
 
 import pytest
 
-from regista.clips import derive_clips
-from regista.schema import SCHEMA_VERSION, clips_validator, events_validator
+from regista.clips import StreamIndex, and_list, cut_clips, derive_clips, label_clips, tag_phrase
+from regista.feedback import needs_review
+from regista.schema import SCHEMA_VERSION, clips_validator, events_validator, iter_jsonl
 from regista.synth import generate
 
 PLAYER = "t_home_09"
@@ -203,7 +206,42 @@ def test_labels_match_clips_and_explain_themselves(derived):
     for lb in labels:
         assert lb["clip_id"] in clip_ids
         assert lb["tags"] and 0 <= lb["watchability"] <= 1
-        assert "Scored" in lb["explanation"]
+        assert "Cut because" in lb["explanation"]
+
+
+def test_explanations_read_like_a_person_wrote_them():
+    """Plain football English: no snake_case, no "tag(s)", no score (the UI shows it), at most two sentences,
+    names from the roster and never a gendered pronoun."""
+    pronouns = re.compile(r"\b(he|him|his|she|her|hers)\b", re.I)
+    for seed, profile in ((294, "demo"), (5, "demo"), (77, "realistic")):
+        index = StreamIndex.build(generate(seed=seed, minutes=4.0, track_hz=1.0, profile=profile).stream)
+        for pid, player in index.roster.items():
+            for lb in label_clips(index, cut_clips(index, pid)):
+                ex = lb["explanation"]
+                assert not re.search(r"[a-z]_[a-z]", ex) and "tag(s)" not in ex and "Scored" not in ex, ex
+                assert not re.search(r"\d", ex), ex
+                assert not pronouns.search(ex), ex
+                assert ex.endswith(".") and len(re.findall(r"\.(?:\s|$)", ex)) <= 2, ex
+                assert player["name"] in ex, ex
+
+
+def test_explanation_words():
+    assert tag_phrase("take_on") == "a take-on" and tag_phrase("take_on", definite=True) == "the take-on"
+    assert tag_phrase("interception") == "an interception" and tag_phrase("nutmeg_against", definite=True) == "the nutmeg"
+    assert tag_phrase("offside") == "an offside" and tag_phrase("some_new_tag") == "a some new tag"
+    assert and_list(["a"]) == "a" and and_list(["a", "b"]) == "a and b" and and_list(["a", "b", "c"]) == "a, b and c"
+
+
+def test_committed_sample_labels_are_what_the_labeller_writes():
+    """data/synthetic/sample/syn_0294/clips.jsonl is the Label agent's output on the committed stream, flags included:
+    change the labeller, regenerate it (python -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09)."""
+    sample = Path(__file__).resolve().parents[1] / "data/synthetic/sample/syn_0294"
+    clips, labels = derive_clips(iter_jsonl(sample / "events.jsonl"), PLAYER)
+    for lb in labels:
+        why = needs_review(lb["watchability"], lb.get("prior_watchability"))
+        if why:
+            lb["review"] = why
+    assert clips + labels == list(iter_jsonl(sample / "clips.jsonl"))
 
 
 # ----------------------------------------------------------------------------- determinism

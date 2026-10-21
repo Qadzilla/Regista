@@ -123,7 +123,8 @@ def test_label_clips_uses_the_learned_model_as_prior(corpus, tmp_path):
     v = clips_validator()
     assert all(v.is_valid(lb) for lb in labels)
     assert all(lb["model"] == model.name for lb in labels)
-    assert all("learned from" in lb["explanation"] and "Rules alone gave" in lb["explanation"] for lb in labels)
+    assert all(f"Ranked by what {model.n_samples} verdicts taught Regista" in lb["explanation"] for lb in labels)
+    assert all("Cut because" in lb["explanation"] and "_" not in lb["explanation"] for lb in labels)
     assert all(0.0 <= lb["prior_watchability"] <= 1.0 for lb in labels)
 
 
