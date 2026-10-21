@@ -18,12 +18,17 @@ replay/highlight filters and minutes in the message replace the old ones unless 
 plain dict (``EMPTY`` shape), returned to the client and sent back with the next message, so the server keeps
 nothing between turns. ``describe`` says in words how the conversation is understood, so the answer is always
 checkable.
+
+Every turn also returns a ``trace``: the in-process steps it ran (merge the message, search the clips), each with its
+measured time in ms. The rule-based engine calls no model and no MCP server, and its trace says only what it did.
 """
 
 from __future__ import annotations
 
 import copy
 import re
+import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -47,6 +52,15 @@ ALL_ANGLES = re.compile(r"\b(all angles|every angle|any angle|including replays|
 LIVE_ONLY = re.compile(r"\b(live (?:only|action)|main (?:view|camera)|no replays|on the ball only|only on the ball)\b")
 WHOLE = re.compile(r"\b(whole (?:match|game)|all (?:match|game)|any ?time|full (?:match|game))\b")
 ALL_RESULTS = re.compile(r"\b(all of them|every one|all clips)\b")
+
+
+def timed_step(trace: list[Record], name: str, fn: Callable[..., Any], *args: Any) -> Any:
+    """Run one in-process step and append it to ``trace`` as {name, kind: "step", server: None, ms}."""
+    t0 = time.perf_counter()
+    try:
+        return fn(*args)
+    finally:
+        trace.append({"name": name, "kind": "step", "server": None, "ms": round((time.perf_counter() - t0) * 1000, 1)})
 
 
 def step(message: str, state: Record | None, match: Record) -> Record:
@@ -148,28 +162,29 @@ def describe(state: Record, match: Record) -> str:
 
 def chat_turn(match_dir: str | Path, message: str, state: Record | None) -> Record:
     """One rule-based turn: merge the message, search, and write the reply. Returns {"reply", "results",
-    "understood", "state", "intent", "reel", "total"}."""
-    match, _stream, _clips, _labels = _load(str(match_dir))
-    turn = step(message, state, match)
+    "understood", "state", "intent", "reel", "total", "trace"}."""
+    trace: list[Record] = []
+    match, _stream, _clips, _labels = timed_step(trace, "librarian.load_match", _load, str(match_dir))
+    turn = timed_step(trace, "conversation.step", step, message, state, match)
     st = turn["state"]
     if turn["intent"] == "reset":
         return {"reply": "Starting over. Who and what are you looking for?", "results": [], "understood": describe(st, match),
-                "state": st, "intent": "reset", "reel": [], "total": 0}
+                "state": st, "intent": "reset", "reel": [], "total": 0, "trace": trace}
     if turn["intent"] == "reel":
-        out = search_parsed(match_dir, {**as_query(st, match), "limit": REEL_MAX}, REEL_MAX, 0)
+        out = timed_step(trace, "librarian.search_clips", search_parsed, match_dir, {**as_query(st, match), "limit": REEL_MAX}, REEL_MAX, 0)
         reel = [r["clip_id"] for r in out["results"]]
         reply = (f"Here is a reel of {len(reel)} clip(s), best first: {describe(st, match)}." if reel
                  else "There is nothing to put in a reel yet. Ask for a player or a moment first.")
         return {"reply": reply, "results": out["results"], "understood": describe(st, match), "state": st, "intent": "reel",
-                "reel": reel, "total": out["total"]}
+                "reel": reel, "total": out["total"], "trace": trace}
     parsed = turn["parsed"]
     recognised = any(parsed[k] for k in ("player_ids", "team_id", "tags", "reasons", "minutes", "limit"))
     if turn["intent"] == "search" and not recognised and parsed["unparsed"] and not (st["player_ids"] or st["team_id"]):
         return {"reply": f"I didn't catch who you mean ({' '.join(parsed['unparsed'])}). Try a surname, a kit number, or a role like "
                          "'the home striker'.", "results": [], "understood": describe(st, match), "state": st, "intent": "search",
-                "reel": [], "total": 0}
+                "reel": [], "total": 0, "trace": trace}
     page = st["limit"] or PAGE
-    out = search_parsed(match_dir, as_query(st, match), page, st["offset"])
+    out = timed_step(trace, "librarian.search_clips", search_parsed, match_dir, as_query(st, match), page, st["offset"])
     results, total = out["results"], out["total"]
     if turn["intent"] == "more" and not results:
         reply = f"That's all of them: {total} clip(s) for {describe(st, match)}."
@@ -185,9 +200,10 @@ def chat_turn(match_dir: str | Path, message: str, state: Record | None) -> Reco
     else:
         reply = f"No clips for {describe(st, match)}."
         if st["tags"]:  # say what the same player(s) do have, in football words
-            loose = search_parsed(match_dir, {**as_query(st, match), "tags": [], "limit": 200}, 200, 0)
+            loose = timed_step(trace, "librarian.search_clips", search_parsed, match_dir, {**as_query(st, match), "tags": [], "limit": 200},
+                               200, 0)
             have = sorted({t for r in loose["results"] for t in r["tags"]} - INTERNAL_TAGS - set(st["tags"]))
             if have:
                 reply += " With the same filters there are: " + ", ".join(t.replace("_", " ") for t in have) + "."
     return {"reply": reply, "results": results, "understood": describe(st, match), "state": st, "intent": turn["intent"],
-            "reel": [], "total": total}
+            "reel": [], "total": total, "trace": trace}

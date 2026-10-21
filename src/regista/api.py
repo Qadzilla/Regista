@@ -18,8 +18,9 @@ POST /api/matches                               upload events.jsonl (+ tracks.js
 GET  /api/matches/{match_id}                    manifest, roster, score
 GET  /api/matches/{match_id}/clips?player=&tag=&min_watchability=&reason=
 GET  /api/matches/{match_id}/search?q=          the Librarian (rule-based, instant)
-POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools
-POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited)
+POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools; with its trace
+POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited);
+                                                with its trace
 GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE
 GET  /api/matches/{match_id}/video.mp4          the whole broadcast, rendered on demand, cached
 GET  /api/matches/{match_id}/report             synthetic realism report (markdown)
@@ -738,14 +739,19 @@ class AskIn(BaseModel):
 async def ask(match_id: str, body: AskIn, request: Request) -> dict[str, Any]:
     """Ask the Foundry Librarian (Microsoft Agent Framework + Foundry, calling Regista's MCP server and the Azure MCP
     Server). Returns its answer, the clips the search found, and the tools it called. Without Foundry, the rule-based
-    Librarian answers and ``answered_by`` says so."""
+    Librarian answers and ``answered_by`` says so. ``trace`` lists what ran, in order: [{name, kind: step|agent|model|
+    tool, server: regista-mcp|azure-mcp|null, ms}], from the Agent Framework spans of this request; ``trace_note`` says
+    when no spans were recorded and the trace is only the tools called, without timings."""
     from fastapi.responses import JSONResponse
+
+    from regista.conversation import timed_step
 
     d = _match_dir(match_id)
     agent = _librarian_agent()
     if agent is None:
-        out = search_clips(d, body.q, 10)
-        out.update(answer=out["message"], answered_by="rules (Foundry is not configured on this deployment)", tools_used=[])
+        trace: list[dict[str, Any]] = []
+        out = timed_step(trace, "librarian.search_clips", search_clips, d, body.q, 10)
+        out.update(answer=out["message"], answered_by="rules (Foundry is not configured on this deployment)", tools_used=[], trace=trace)
     else:
         ok, wait, which = _ask_limiter.acquire(_visitor(request))
         if not ok:
@@ -763,6 +769,7 @@ async def ask(match_id: str, body: AskIn, request: Request) -> dict[str, Any]:
             raise HTTPException(504, "the Librarian took too long; try a simpler question")
         out = state["answers"][0]
         out.setdefault("tools_used", [])
+        out.setdefault("trace", [])
     for r in out.get("results", []):
         r["video_url"] = f"/api/matches/{match_id}/clips/{r['clip_id']}.mp4"
     return out
@@ -809,7 +816,9 @@ async def chat(match_id: str, body: ChatIn, request: Request) -> dict[str, Any]:
     """One turn of a conversation. The search and the merged query are deterministic (``regista.conversation``):
     "his", "now the replays", "second half", "what about Ibarra?", "more", "make that a reel". With
     ``engine=foundry`` a Foundry model writes the reply from the conversation and the results, with the same public
-    tools and limits as /ask; without Foundry, or if it fails, the rule-based reply stands and ``answered_by`` says so."""
+    tools and limits as /ask; without Foundry, or if it fails, the rule-based reply stands and ``answered_by`` says so.
+    ``trace`` lists what ran, in order, as in /ask: the in-process steps of the search, then (Foundry) the agent, model
+    and tool spans of the reply; ``trace_note`` says when Foundry ran but no spans were recorded."""
     from fastapi.responses import JSONResponse
 
     from regista.conversation import chat_turn
@@ -823,17 +832,25 @@ async def chat(match_id: str, body: ChatIn, request: Request) -> dict[str, Any]:
             return JSONResponse({"detail": f"Too many questions right now ({which}); try again in {wait:.0f}s."}, status_code=429,
                                 headers={"Retry-After": str(max(1, int(wait)))})
 
-        def run() -> tuple[str, list[str], str]:
+        def run() -> tuple[tuple[str, list[str], str], list[Any]]:
+            from regista.cloud.telemetry import capture_spans
+
             try:
-                return _chat_reply_foundry(d, body, out)
+                with capture_spans("regista.chat") as cap:  # the Agent Framework spans of this reply, for its trace
+                    reply = _chat_reply_foundry(d, body, out)
+                return reply, cap.spans
             finally:
                 _ask_limiter.release()
 
         try:
-            from regista.cloud.telemetry import configure_tracing
+            (out["reply"], tools, answered_by), spans = await asyncio.wait_for(run_in_threadpool(run), ASK_TIMEOUT_S)
+            if answered_by.startswith("foundry"):
+                from regista.cloud.foundry import foundry_trace
 
-            configure_tracing()
-            out["reply"], tools, answered_by = await asyncio.wait_for(run_in_threadpool(run), ASK_TIMEOUT_S)
+                steps, note = foundry_trace(spans, tools)
+                out["trace"] = out["trace"] + steps
+                if note:
+                    out["trace_note"] = note
         except asyncio.TimeoutError:
             answered_by = "rules (Foundry took too long)"
         except Exception as exc:  # noqa: BLE001 - the deterministic reply stands
