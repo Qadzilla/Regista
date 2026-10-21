@@ -3,13 +3,15 @@
     uvicorn regista.api:app --reload            # http://localhost:8000  (viewer) and /docs (OpenAPI)
     REGISTA_DATA=data/synthetic/sample uvicorn regista.api:app
 
-Read endpoints are open. Write endpoints (uploads, verdicts, reviews, retraining) need the
-``X-Regista-Token`` header when REGISTA_ADMIN_TOKEN is set, and are switched off entirely with
-REGISTA_READONLY=1. Without either (local development) they are open.
+Two pages: the Product at ``/`` (open) and the Studio at ``/studio`` (regista.studio_api). Product reads are open.
+Studio reads (reviewers' data, marked [studio]) need the ``X-Regista-Token`` header with the Studio view key or the
+admin key; writes (marked [write]) need the admin key. REGISTA_READONLY=1 switches writes off entirely. With no key
+configured (local development) everything is open. The rules live in regista.access.
 
 Endpoints
 ---------
-GET  /                                          the viewer
+GET  /                                          the Product
+GET  /studio                                    the Studio (data behind the Studio keys; see regista.studio_api)
 GET  /api/health
 GET  /api/matches                               match directories under REGISTA_DATA
 POST /api/matches                               upload events.jsonl (+ tracks.jsonl); runs the Agent Framework workflow       [write]
@@ -21,12 +23,12 @@ POST /api/matches/{match_id}/chat               a conversation with the Libraria
 GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE
 GET  /api/matches/{match_id}/video.mp4          the whole broadcast, rendered on demand, cached
 GET  /api/matches/{match_id}/report             synthetic realism report (markdown)
-GET  /api/matches/{match_id}/review             the workflow's open review request
+GET  /api/matches/{match_id}/review             the workflow's open review request                                           [studio]
 POST /api/matches/{match_id}/review             answer it; the workflow resumes from its checkpoint                          [write]
 POST /api/matches/{match_id}/clips/{clip_id}/verdict   one verdict from the viewer                                         [write]
-GET  /api/matches/{match_id}/identity-review    open "who's who" questions for a vision match (crops, candidates, team sheets)
+GET  /api/matches/{match_id}/identity-review    open "who's who" questions for a vision match (crops, candidates, team sheets) [studio]
 POST /api/matches/{match_id}/identity-review    answer them; identity is corrected and possession, events, clips recomputed   [write]
-GET  /api/feedback                              verdict counts, the learned model, agreement per scorer
+GET  /api/feedback                              verdict counts, the learned model, agreement per scorer                       [studio]
 POST /api/feedback/train                        retrain the watchability model                                             [write]
 
 The service only reads and writes under REGISTA_DATA, REGISTA_CACHE and REGISTA_FEEDBACK_DIR.
@@ -54,13 +56,14 @@ from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field, StrictFloat, StrictInt, StringConstraints, model_validator
 
 from regista import __version__
+from regista.access import StudioReader, Writer, require_studio_reader, require_writer, role_of, write_mode  # noqa: F401
 from regista.agents.roles import default_agents
 from regista.librarian import search_clips
 from regista.schema import iter_jsonl, validate_jsonl
 
 DATA_ROOT = Path(os.environ.get("REGISTA_DATA", "data/synthetic/sample"))
 CACHE_ROOT = Path(os.environ.get("REGISTA_CACHE", "data/clips"))
-STATIC = Path(__file__).resolve().parent / "static"
+STATIC = Path(__file__).resolve().parent / "static"  # product/, studio/, shared/
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SYNC_TTL_S = 30.0
 ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,120}$")
@@ -82,26 +85,7 @@ app = FastAPI(title="Regista", version=__version__, description="Every touch. Ev
               lifespan=_lifespan)
 
 
-# ---------------------------------------------------------------------------- access control
-
-def write_mode() -> str:
-    if os.environ.get("REGISTA_READONLY") == "1":
-        return "read-only"
-    return "token" if os.environ.get("REGISTA_ADMIN_TOKEN") else "open"
-
-
-def require_writer(x_regista_token: Annotated[str | None, Header()] = None) -> None:
-    """Writes are the only way to spend Foundry credit or change what the model learns, so they are guarded."""
-    mode = write_mode()
-    if mode == "read-only":
-        raise HTTPException(403, "this deployment is read-only")
-    if mode == "token":
-        expected = os.environ.get("REGISTA_ADMIN_TOKEN", "")
-        if not x_regista_token or not hmac.compare_digest(x_regista_token.encode(), expected.encode()):
-            raise HTTPException(401, "a valid X-Regista-Token header is required to write")
-
-
-Writer = Depends(require_writer)
+# Access control (write_mode, require_writer, require_studio_reader) lives in regista.access.
 
 
 # ---------------------------------------------------------------------------- request bodies
@@ -415,7 +399,7 @@ def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def viewer() -> str:
-    return (STATIC / "viewer.html").read_text(encoding="utf-8")
+    return (STATIC / "product" / "index.html").read_text(encoding="utf-8")
 
 
 @app.get("/api/health")
@@ -479,8 +463,12 @@ def get_match(match_id: str) -> dict[str, Any]:
 
 @app.get("/api/matches/{match_id}/clips")
 def get_clips(match_id: str, player: str | None = None, tag: str | None = None, reason: str | None = None,
-              min_watchability: float = Query(0.0, ge=0.0, le=1.0)) -> list[dict[str, Any]]:
+              min_watchability: float = Query(0.0, ge=0.0, le=1.0),
+              x_regista_token: Annotated[str | None, Header()] = None) -> list[dict[str, Any]]:
+    """Clips with labels, best first. Without a Studio key, a verdict says only what was decided, not who decided it."""
     from regista.feedback import needs_review
+
+    studio = role_of(x_regista_token) is not None
 
     cosmos = _cosmos_match(match_id) is not None
     if cosmos:
@@ -499,6 +487,8 @@ def get_clips(match_id: str, player: str | None = None, tag: str | None = None, 
         if lb["watchability"] < min_watchability:
             continue
         verdict = verdicts.get(c["id"])
+        if verdict and not studio:
+            verdict = {"verdict": verdict["verdict"], "keep": verdict["keep"]}
         review = None if verdict else (lb.get("review") or needs_review(lb["watchability"], lb.get("prior_watchability")))
         out.append({**c, "label": lb, "review": review, "verdict": verdict, "source": "cosmos" if cosmos else "local",
                     "video_url": None if cosmos else f"/api/matches/{match_id}/clips/{c['id']}.mp4"})
@@ -576,7 +566,7 @@ def _queue_path(d: Path) -> Path:
     return d / "review" / QUEUE_FILE
 
 
-@app.get("/api/matches/{match_id}/identity-review")
+@app.get("/api/matches/{match_id}/identity-review", dependencies=[StudioReader])
 def identity_review(match_id: str) -> dict[str, Any]:
     d = _match_dir(match_id)
     q = _queue_path(d)
@@ -592,7 +582,7 @@ def identity_review(match_id: str) -> dict[str, Any]:
     return {"items": items, "teams": teams, "question": f"{len(items)} call(s) the identity agent is unsure of."}
 
 
-@app.get("/api/matches/{match_id}/identity-review/crops/{name}", include_in_schema=False)
+@app.get("/api/matches/{match_id}/identity-review/crops/{name}", include_in_schema=False, dependencies=[StudioReader])
 def identity_review_crop(match_id: str, name: str) -> FileResponse:
     d = _match_dir(match_id)
     if not CROP_RE.match(name):
@@ -920,7 +910,7 @@ async def upload_match(events: UploadFile = File(...), tracks: UploadFile | None
 
 # ---------------------------------------------------------------------------- human in the loop
 
-@app.get("/api/matches/{match_id}/review")
+@app.get("/api/matches/{match_id}/review", dependencies=[StudioReader])
 def pending_review(match_id: str) -> dict[str, Any]:
     """The workflow's open review request for this match, if it paused for a human."""
     d = _match_dir(match_id)
@@ -989,7 +979,7 @@ async def clip_verdict(match_id: str, clip_id: str, body: VerdictIn) -> dict[str
     return {"annotation": rec, "stored_in_cosmos": bool(stored)}
 
 
-@app.get("/api/feedback")
+@app.get("/api/feedback", dependencies=[StudioReader])
 async def feedback_status() -> dict[str, Any]:
     """How much the system has learned from people: verdict counts, the current model, and agreement per scorer."""
     from regista.feedback import WatchabilityModel, evaluate, latest_per_label, load_annotations, target_of
@@ -1017,3 +1007,13 @@ async def feedback_train() -> dict[str, Any]:
     model.save()
     await run_in_threadpool(_push_model)
     return {"model_name": model.name, "metrics": model.metrics, "evaluation": evaluate(anns, model)}
+
+
+# ---------------------------------------------------------------------------- the Studio and shared static files
+
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+from regista.studio_api import router as _studio_router  # noqa: E402
+
+app.include_router(_studio_router)
+app.mount("/static/shared", StaticFiles(directory=STATIC / "shared"), name="shared")

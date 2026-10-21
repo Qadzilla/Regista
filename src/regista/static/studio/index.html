@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regista Studio</title>
+<link rel="stylesheet" href="/static/shared/regista.css">
+<style>
+  header { display: flex; align-items: center; gap: var(--gap); padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header .role { margin-left: auto; font-size: 13px; }
+  main { padding: 16px 24px 48px; max-width: 1400px; margin: 0 auto; }
+  .gate { max-width: 460px; margin: 60px auto; display: grid; gap: 12px; }
+  .caps { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .cap b { display: block; font-size: 13px; color: var(--muted); font-weight: 600; }
+  .on { color: var(--ok); } .off { color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <p class="brand">REGI<span>STA</span> STUDIO</p>
+  <span class="muted">the control room</span>
+  <span class="role" id="role"></span>
+</header>
+<main>
+  <form class="gate panel" id="gate" hidden>
+    <h2 style="margin:0">Studio key</h2>
+    <p class="muted" style="margin:0">The view key shows everything and changes nothing; the admin key can also review, upload and retrain.
+      The key stays in this tab only.</p>
+    <input id="keyIn" type="password" autocomplete="off" placeholder="Paste a Studio key">
+    <button>Open the Studio</button>
+    <p class="muted" id="gateMsg" style="margin:0"></p>
+  </form>
+  <section id="studio" hidden>
+    <h2>This deployment</h2>
+    <div class="caps" id="caps"></div>
+  </section>
+</main>
+<script src="/static/shared/regista.js"></script>
+<script>
+const { esc, api, key } = window.Regista;
+const $ = (id) => document.getElementById(id);
+
+async function openStudio() {
+  try {
+    const s = await api('/api/studio/session', { auth: true });
+    $('gate').hidden = true; $('studio').hidden = false;
+    $('role').innerHTML = `${s.role === 'admin' ? 'admin key' : s.role === 'view' ? 'view key (read-only)' : 'open (no keys configured)'}`
+      + (s.role !== 'open' ? ` · <a href="#" id="signOut">forget key</a>` : '');
+    if ($('signOut')) $('signOut').onclick = (e) => { e.preventDefault(); key.clear(); location.reload(); };
+    $('caps').innerHTML = Object.entries(s.capabilities).map(([k, v]) =>
+      `<div class="cap panel"><b>${esc(k)}</b><span class="${v === true ? 'on' : v === false ? 'off' : ''}">${esc(v === true ? 'yes' : v === false ? 'no' : v)}</span></div>`).join('');
+  } catch (e) {
+    $('gate').hidden = false; $('studio').hidden = true;
+    $('gateMsg').textContent = e.status === 401 && key.get() ? 'That key was not accepted.' : '';
+    if (e.status === 401) key.clear();
+  }
+}
+
+$('gate').onsubmit = (e) => { e.preventDefault(); const v = $('keyIn').value.trim(); if (v) { key.set(v); $('keyIn').value = ''; openStudio(); } };
+openStudio();
+</script>
+</body>
+</html>

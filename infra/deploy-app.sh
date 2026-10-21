@@ -39,9 +39,14 @@ ENV_VARS=("REGISTA_CLOUD=1" "FOUNDRY_PROJECT_ENDPOINT=${FOUNDRY_PROJECT_ENDPOINT
           "REGISTA_SEARCH_ENDPOINT=${REGISTA_SEARCH_ENDPOINT:-}")
 SECRETS=()
 if [[ -n "${REGISTA_ADMIN_TOKEN:-}" ]]; then
-  # Writes (uploads, verdicts, reviews, retraining) on the public URL need this token; reads stay open.
+  # Writes (uploads, verdicts, reviews, retraining) on the public URL need this token; it also opens the Studio.
   SECRETS+=("admin-token=$REGISTA_ADMIN_TOKEN")
   ENV_VARS+=("REGISTA_ADMIN_TOKEN=secretref:admin-token")
+fi
+if [[ -n "${REGISTA_STUDIO_VIEW_TOKEN:-}" ]]; then
+  # The Studio view key: the whole Studio, read-only (for judges, and for Claude reading the live Studio).
+  SECRETS+=("studio-view-token=$REGISTA_STUDIO_VIEW_TOKEN")
+  ENV_VARS+=("REGISTA_STUDIO_VIEW_TOKEN=secretref:studio-view-token")
 fi
 if [[ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]]; then
   # The tracing connection string goes in as a Container Apps secret, referenced by the env var.

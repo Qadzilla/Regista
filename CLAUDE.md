@@ -143,7 +143,9 @@ src/regista/conversation.py  the conversational Librarian (plan step 7): follow-
 src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
 src/regista/api.py           FastAPI service: viewer at /, matches, clips with filters, search, on-demand MP4, upload → pipeline
-src/regista/static/viewer.html the clip viewer (player header, tag chips, watchability-sorted grid, Search + Ask Foundry, stack footer)
+src/regista/access.py        who may do what: Product open, Studio behind the view or admin key, writes admin-only
+src/regista/studio_api.py    Regista Studio (/studio): the control room's router; /api/studio/* behind the Studio keys
+src/regista/static/          product/ (the Product at /), studio/ (the Studio), shared/ (regista.css tokens, regista.js helpers)
 Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (built by GitHub Actions; no docker here)
 docs/architecture.md         two layers, the workflow roles local vs cloud, MCP tools, Azure per stage (running vs planned), auth
 docs/demo-storyboard.md      shot-by-shot plan for the sub-2-minute video, voiceover, what is named on screen

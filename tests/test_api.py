@@ -326,7 +326,7 @@ def test_viewer_escapes_everything_it_renders():
     import re
     from pathlib import Path
 
-    html = (Path(__file__).resolve().parents[1] / "src/regista/static/viewer.html").read_text()
+    html = (Path(__file__).resolve().parents[1] / "src/regista/static/product/index.html").read_text()
     assert "const esc = " in html
     for needle in ("${r.title}", "${r.explanation", "${r.verdict.annotator}", "${p.name}", "${team.name}", "${r.review}", "${t.replace(",
                    "${out.answer}", "${out.answered_by}", "${out.detail}", "${t}</span>"):

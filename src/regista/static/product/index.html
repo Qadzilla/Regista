@@ -173,7 +173,7 @@ async function loadLearn() {
       + (ev.n ? `<span class="stat">agreement with reviewers: rules <b>${pct(ev.rules_prior)}</b>${learned ? ` · learned <b>${pct(learned)}</b>` : ''}</span>` : '')
       + `<button id="retrain">Retrain</button><span class="stat" id="trainMsg"></span>`;
     $('retrain').onclick = retrain;
-  } catch (e) { $('learn').textContent = 'Feedback unavailable: ' + e.message; }
+  } catch (e) { $('learn').hidden = true; }  // reviewers' data: behind the Studio keys on a deployment with keys
 }
 
 async function retrain() {
@@ -242,7 +242,7 @@ function renderGrid(rows) {
         <div class="tags">${r.tags.filter(t => !/_appearance$|^on_ball_main$/.test(t)).map(t => `<span>${nice(t)}</span>`).join('')}</div>
         <div class="why">${esc(r.explanation || '')}</div>
         ${r.review ? `<span class="review">Regista is unsure: ${esc(r.review)}</span>` : ''}
-        ${r.verdict ? `<span class="done ${r.verdict.keep ? 'keep' : 'drop'}"><b>${r.verdict.keep ? 'Kept' : 'Dropped'}</b> by ${esc(r.verdict.annotator)}</span>` : ''}
+        ${r.verdict ? `<span class="done ${r.verdict.keep ? 'keep' : 'drop'}"><b>${r.verdict.keep ? 'Kept' : 'Dropped'}</b>${r.verdict.annotator ? ' by ' + esc(r.verdict.annotator) : ''}</span>` : ''}
         ${r.video_url ? `<div class="vbtns"><button class="vbtn keep" data-clip="${esc(r.clip_id)}" data-v="keep">Keep</button><button class="vbtn drop" data-clip="${esc(r.clip_id)}" data-v="drop">Drop</button></div>` : ''}
       </div>
     </div>`).join('');
