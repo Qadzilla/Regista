@@ -3,413 +3,130 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Regista Clips</title>
-<style>
-  :root { --bg: #0c0e14; --panel: #161a24; --line: #262c3a; --text: #f3f4f6; --muted: #9aa3b5; --accent: #ffcd28; --replay: #d62028; }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; }
-  header { display: flex; align-items: center; gap: 16px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
-  header h1 { font-size: 18px; margin: 0; letter-spacing: .08em; }
-  header h1 span { color: var(--accent); }
-  select, input[type=search] { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; }
-  input[type=search] { flex: 1; min-width: 260px; }
-  button { background: var(--accent); color: #111; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; }
-  main { padding: 16px 24px 48px; max-width: 1400px; margin: 0 auto; }
-  .player { display: flex; align-items: center; gap: 14px; margin: 8px 0 14px; }
-  .disc { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 20px; border: 2px solid #111; }
-  .player h2 { margin: 0; font-size: 20px; }
-  .player .sub { color: var(--muted); font-size: 13px; }
-  .chips { display: flex; gap: 8px; flex-wrap: wrap; margin: 10px 0 18px; }
-  .chip { border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-size: 13px; color: var(--muted); cursor: pointer; background: var(--panel); }
-  .chip.on { border-color: var(--accent); color: var(--accent); }
-  .understood { color: var(--muted); font-size: 13px; margin: 0 0 12px; }
-  .understood b { color: var(--text); font-weight: 600; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; display: flex; flex-direction: column; }
-  .card video { width: 100%; aspect-ratio: 16 / 9; background: #000; display: block; }
-  .card .body { padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 6px; }
-  .card .title { font-weight: 700; }
-  .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: 12.5px; }
-  .bar { height: 6px; background: #2b3140; border-radius: 3px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: var(--accent); }
-  .tags { display: flex; gap: 6px; flex-wrap: wrap; }
-  .tags span { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
-  .why { font-size: 12.5px; color: var(--muted); }
-  .reason { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
-  .reason.replay { color: var(--replay); }
-  .empty { color: var(--muted); padding: 40px 0; text-align: center; }
-  footer { color: var(--muted); font-size: 12px; text-align: center; padding: 24px; }
-  .learn { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; margin: 4px 0 12px; font-size: 13px; color: var(--muted); }
-  .learn b { color: var(--text); font-weight: 600; }
-  .learn .stat { white-space: nowrap; }
-  .learn button { padding: 5px 10px; font-size: 13px; }
-  .review { font-size: 12px; color: #111; background: var(--accent); border-radius: 4px; padding: 2px 7px; align-self: flex-start; }
-  .done { font-size: 12px; color: var(--muted); }
-  .done.keep b { color: #4ade80; } .done.drop b { color: #f87171; }
-  .vbtns { display: flex; gap: 8px; margin-top: 4px; }
-  .vbtn { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 12px; font-weight: 600; cursor: pointer; }
-  .vbtn.keep:hover { border-color: #4ade80; color: #4ade80; } .vbtn.drop:hover { border-color: #f87171; color: #f87171; }
-  .chip.rev { border-color: var(--accent); color: var(--accent); }
-  button.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
-  button:disabled { opacity: .5; cursor: wait; }
-  .answer { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; }
-  .answer .text { font-size: 15px; margin-bottom: 8px; }
-  .answer .by { color: var(--muted); font-size: 12.5px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .answer .tool { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; color: var(--text); }
-  .chat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; }
-  .chat .log { display: flex; flex-direction: column; gap: 8px; max-height: 320px; overflow-y: auto; margin-bottom: 10px; }
-  .chat .me { align-self: flex-end; background: #2a2f3d; border-radius: 10px 10px 2px 10px; padding: 6px 10px; max-width: 80%; }
-  .chat .bot { align-self: flex-start; border-left: 3px solid var(--accent); padding: 4px 10px; max-width: 90%; }
-  .chat .bot .how { color: var(--muted); font-size: 12px; margin-top: 3px; }
-  .chat .row { display: flex; gap: 8px; flex-wrap: wrap; } .chat .row input { flex: 1; min-width: 220px; }
-  .chat .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
-  .reel video { width: 100%; max-width: 720px; border-radius: 8px; background: #000; margin-top: 8px; display: block; }
-  .reel video[hidden] { display: none; }
-  .whos { background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 12px 14px; margin: 0 0 14px; }
-  .whos h3 { margin: 0 0 4px; font-size: 16px; } .whos .sub { color: var(--muted); font-size: 13px; margin-bottom: 10px; }
-  .qgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 12px; }
-  .q { border: 1px solid var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px; }
-  .q img { width: 100%; border-radius: 6px; background: #000; }
-  .q .opts { display: flex; flex-wrap: wrap; gap: 6px; }
-  .q .opt { background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
-  .q .opt.on { border-color: var(--accent); color: var(--accent); }
-  .q select { font-size: 12.5px; padding: 4px 6px; }
-  .novideo { aspect-ratio: 16 / 9; background: #000; display: grid; place-items: center; color: var(--muted); font-size: 12.5px; padding: 0 18px; text-align: center; }
-</style>
+<title>Regista</title>
+<meta name="description" content="Every touch, every replay, every player, found in seconds.">
+<link rel="stylesheet" href="/static/shared/regista.css">
+<link rel="stylesheet" href="/static/product/product.css">
 </head>
 <body>
-<header>
-  <h1>REGI<span>STA</span></h1>
-  <select id="match"></select>
-  <select id="player"></select>
-  <input id="q" type="search" placeholder='Ask: "find me Castellanos doing a nutmeg", "replays of the home striker&#39;s goal", "top 3 moments"'>
-  <button id="go">Search</button>
-  <button id="ask" class="alt" title="Microsoft Foundry model, calling Regista's MCP server and the Azure MCP Server">Ask Foundry</button>
-  <button id="chatToggle" class="alt" title="A conversation: follow-ups refine the search">Chat</button>
+<header class="top">
+  <p class="brand">REGI<span>STA</span></p>
+  <label class="pick"><span class="sr">Match</span><select id="match" aria-label="Match"></select></label>
+  <label class="pick"><span class="sr">Player</span><select id="player" aria-label="Player"></select></label>
 </header>
+
 <main>
-  <div class="chat" id="chat" hidden>
-    <div class="log" id="chatLog"></div>
-    <div class="row">
-      <input id="chatIn" type="search" placeholder='Talk to the Librarian: "find me Castellanos doing a nutmeg", then "now the replays", "what about Ibarra?", "make that a reel"'>
-      <select id="chatEngine" title="Who writes the reply"><option value="rules">Rules (instant)</option><option value="foundry">Microsoft Foundry</option></select>
-      <button id="chatGo">Send</button>
-    </div>
-    <p class="hint">Follow-ups build on what you asked before. "Start over" clears it.</p>
-    <div class="reel" id="reel"></div>
-  </div>
-  <div class="whos" id="whos" hidden></div>
-  <div class="learn" id="learn">Loading what Regista has learned…</div>
-  <div class="player" id="playerHead"></div>
-  <div class="chips" id="chips"></div>
-  <p class="understood" id="understood"></p>
-  <div class="answer" id="answer" hidden></div>
-  <div class="grid" id="grid"></div>
-  <div class="empty" id="empty" hidden>No clips match.</div>
-</main>
-<footer>Every touch. Every replay. Every player. Found instantly. Rendered from synthetic match data; no real footage.<br><span id="stack"></span></footer>
-<script>
-const $ = (id) => document.getElementById(id);
-// Everything that reaches innerHTML from the API goes through esc(): names, titles, tags, notes and verdict authors
-// can come from uploads or reviewers, so they are never trusted as markup.
-const esc = (v) => String(v ?? '').replace(/[&<>"'`]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
-const nice = (t) => esc(String(t).replace(/_/g, ' '));
-const state = { match: null, player: null, tag: null, clips: [], matchInfo: null };
+  <section class="landing" id="landing" aria-labelledby="promise">
+    <h1 id="promise">Every touch, every replay, every player, found in seconds.</h1>
+    <div class="examples" id="examples" role="group" aria-label="Try a question"></div>
+  </section>
 
-async function api(path) { const r = await fetch(path); if (!r.ok) throw new Error(await r.text()); return r.json(); }
-
-async function init() {
-  const matches = await api('/api/matches');
-  $('match').innerHTML = matches.map(m => `<option value="${esc(m.match_id)}">${esc(m.match_id)} · ${esc(m.teams[0].short_name)} ${m.score ? esc(m.score[m.teams[0].team_id]) : ''} - ${m.score ? esc(m.score[m.teams[1].team_id]) : ''} ${esc(m.teams[1].short_name)}${m.source === 'cosmos' ? ' · from Cosmos DB' : ''}</option>`).join('');
-  $('ask').onclick = ask;
-  $('chatToggle').onclick = () => { $('chat').hidden = !$('chat').hidden; if (!$('chat').hidden) $('chatIn').focus(); };
-  $('chatGo').onclick = sendChat;
-  $('chatIn').addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
-  $('match').onchange = () => loadMatch($('match').value);
-  $('player').onchange = () => { state.player = $('player').value; state.tag = null; loadClips(); };
-  $('go').onclick = search;
-  $('q').addEventListener('keydown', e => { if (e.key === 'Enter') search(); });
-  if (matches.length) await loadMatch(matches[0].match_id);
-}
-
-async function loadMatch(id) {
-  if (state.match !== id) resetChat();
-  state.match = id;
-  const info = await api(`/api/matches/${encodeURIComponent(id)}`);
-  state.matchInfo = info;
-  const starters = info.players.filter(p => p.starter);
-  const withClips = new Set(info.players_with_clips);
-  $('player').innerHTML = starters.map(p => `<option value="${esc(p.player_id)}" ${withClips.has(p.player_id) ? 'selected' : ''}>${withClips.has(p.player_id) ? '★ ' : ''}${esc(p.name)} (${esc(p.kit_number)}) · ${esc(teamShort(p.team_id))}</option>`).join('');
-  state.player = info.players_with_clips[0] || starters[0].player_id;
-  $('player').value = state.player;
-  state.tag = null;
-  await loadClips();
-  await loadWhos();
-}
-
-function teamShort(teamId) { return state.matchInfo.teams.find(t => t.team_id === teamId)?.short_name || teamId; }
-function kit(p) { const t = state.matchInfo.teams.find(t => t.team_id === p.team_id); return p.position === 'GK' ? t.kit.gk : t.kit.primary; }
-function textOn(hex) { const n = parseInt(hex.slice(1), 16); const l = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255); return l > 150 ? '#111' : '#fff'; }
-
-async function loadClips() {
-  $('understood').textContent = '';
-  $('answer').hidden = true;
-  const url = `/api/matches/${state.match}/clips?player=${encodeURIComponent(state.player)}` + (state.tag ? `&tag=${encodeURIComponent(state.tag)}` : '');
-  state.clips = await api(url);
-  renderHead();
-  renderChips();
-  const rows = state.clips.map(c => ({ ...c, ...c.label, clip_id: c.id, review: c.review, verdict: c.verdict }));
-  renderGrid(state.reviewOnly ? rows.filter(r => r.review) : rows);
-}
-
-async function loadLearn() {
-  try {
-    const f = await api('/api/feedback');
-    const ev = f.evaluation || {};
-    const pct = (x) => x ? `${Math.round(x.agreement * 100)}%` : '–';
-    const learned = f.model_name && ev[f.model_name];
-    $('learn').innerHTML = `<span class="stat">Learning from people: <b>${f.verdicts}</b> verdict${f.verdicts === 1 ? '' : 's'} on <b>${f.clips_reviewed}</b> clip${f.clips_reviewed === 1 ? '' : 's'}</span>`
-      + `<span class="stat">model <b>${esc(f.model_name || 'not trained yet')}</b></span>`
-      + (ev.n ? `<span class="stat">agreement with reviewers: rules <b>${pct(ev.rules_prior)}</b>${learned ? ` · learned <b>${pct(learned)}</b>` : ''}</span>` : '')
-      + `<button id="retrain">Retrain</button><span class="stat" id="trainMsg"></span>`;
-    $('retrain').onclick = retrain;
-  } catch (e) { $('learn').hidden = true; }  // reviewers' data: behind the Studio keys on a deployment with keys
-}
-
-async function retrain() {
-  $('trainMsg').textContent = 'training…';
-  const r = await post('/api/feedback/train');
-  const body = await r.json();
-  $('trainMsg').textContent = r.ok ? `trained ${body.model_name}` : (body.detail || 'not trained');
-  if (r.ok) { await loadLearn(); await loadClips(); }
-}
-
-function writeHeaders() {
-  let token = null;
-  try { token = localStorage.getItem('regista-token'); } catch (e) {}
-  return { 'Content-Type': 'application/json', ...(token ? { 'X-Regista-Token': token } : {}) };
-}
-
-async function post(url, body) {
-  let r = await fetch(url, { method: 'POST', headers: writeHeaders(), body: body ? JSON.stringify(body) : undefined });
-  if (r.status === 401) {
-    const token = prompt('This Regista deployment needs a write token to record verdicts:');
-    if (!token) return r;
-    try { localStorage.setItem('regista-token', token); } catch (e) {}
-    r = await fetch(url, { method: 'POST', headers: writeHeaders(), body: body ? JSON.stringify(body) : undefined });
-  }
-  return r;
-}
-
-async function sendVerdict(clipId, verdict) {
-  const r = await post(`/api/matches/${encodeURIComponent(state.match)}/clips/${encodeURIComponent(clipId)}/verdict`, { verdict });
-  if (r.status === 403) { alert('This deployment is read-only.'); return; }
-  if (!r.ok) { alert('Could not save verdict: ' + (await r.text()).slice(0, 300)); return; }
-  await loadClips(); await loadLearn();
-}
-
-function renderHead() {
-  const p = state.matchInfo.players.find(p => p.player_id === state.player);
-  const team = state.matchInfo.teams.find(t => t.team_id === p.team_id);
-  const k = kit(p);
-  $('playerHead').innerHTML = `<div class="disc" style="background:${esc(k)};color:${textOn(k)}">${esc(p.kit_number)}</div><div><h2>${esc(p.name)}</h2><div class="sub">${esc(team.name)} · ${esc(p.position)} · ${state.clips.length} clip${state.clips.length === 1 ? '' : 's'} in ${esc(state.match)}</div></div>`;
-}
-
-function renderChips() {
-  const counts = {};
-  for (const c of state.clips) for (const t of c.label.tags) if (!/_appearance$|^on_ball_main$|^touch$/.test(t)) counts[t] = (counts[t] || 0) + 1;
-  const tags = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  const nrev = state.clips.filter(c => c.review).length;
-  $('chips').innerHTML = `<span class="chip ${state.tag || state.reviewOnly ? '' : 'on'}" data-tag="">all (${state.clips.length})</span>`
-    + (nrev ? `<span class="chip rev ${state.reviewOnly ? 'on' : ''}" data-review="1">needs your review (${nrev})</span>` : '')
-    + tags.map(([t, n]) => `<span class="chip ${state.tag === t ? 'on' : ''}" data-tag="${esc(t)}">${nice(t)} (${n})</span>`).join('');
-  for (const el of $('chips').querySelectorAll('.chip')) el.onclick = () => {
-    state.reviewOnly = !!el.dataset.review; state.tag = el.dataset.review ? null : (el.dataset.tag || null); loadClips(); };
-}
-
-function fmt(t) { return `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; }
-
-function renderGrid(rows) {
-  $('empty').hidden = rows.length > 0;
-  $('grid').innerHTML = rows.map(r => `
-    <div class="card">
-      ${r.video_url ? `<video controls preload="none" src="${esc(r.video_url)}"></video>` : `<div class="novideo">Read from Cosmos DB. This replica no longer has the match's event stream, so there is no video to render.</div>`}
-      <div class="body">
-        <div class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${nice(r.reason)}</div>
-        <div class="title">${esc(r.title)}</div>
-        <div class="meta"><span>${fmt(r.t)} – ${fmt(r.t_end)}</span><span>watchability ${Number(r.watchability).toFixed(2)}</span></div>
-        <div class="bar"><i style="width:${Math.round(r.watchability * 100)}%"></i></div>
-        <div class="tags">${r.tags.filter(t => !/_appearance$|^on_ball_main$/.test(t)).map(t => `<span>${nice(t)}</span>`).join('')}</div>
-        <div class="why">${esc(r.explanation || '')}</div>
-        ${r.review ? `<span class="review">Regista is unsure: ${esc(r.review)}</span>` : ''}
-        ${r.verdict ? `<span class="done ${r.verdict.keep ? 'keep' : 'drop'}"><b>${r.verdict.keep ? 'Kept' : 'Dropped'}</b>${r.verdict.annotator ? ' by ' + esc(r.verdict.annotator) : ''}</span>` : ''}
-        ${r.video_url ? `<div class="vbtns"><button class="vbtn keep" data-clip="${esc(r.clip_id)}" data-v="keep">Keep</button><button class="vbtn drop" data-clip="${esc(r.clip_id)}" data-v="drop">Drop</button></div>` : ''}
+  <section class="ask panel" aria-label="Ask Regista">
+    <div class="log" id="log" aria-live="polite" hidden></div>
+    <form class="askrow" id="askForm">
+      <label class="sr" for="q">Ask for a moment</label>
+      <input id="q" type="search" autocomplete="off" maxlength="300" placeholder='Ask for a moment: "his nutmegs", "now the replays", "second half"'>
+      <div class="engine" role="radiogroup" aria-label="Who answers">
+        <label><input type="radio" name="engine" value="rules" checked><span>Instant</span></label>
+        <label><input type="radio" name="engine" value="foundry"><span>Foundry</span></label>
       </div>
-    </div>`).join('');
-  for (const b of $('grid').querySelectorAll('.vbtn')) b.onclick = () => sendVerdict(b.dataset.clip, b.dataset.v);
-  lazyPreview($('grid'));
-}
+      <button id="go" type="submit">Ask</button>
+    </form>
+    <p class="hint" id="engineHint"></p>
+  </section>
 
-// Clips render on first request, so the grid must not ask for every video at once: a card loads its first frame
-// only when it scrolls into view (or when someone presses play).
-const previewer = 'IntersectionObserver' in window ? new IntersectionObserver(entries => {
-  for (const e of entries) if (e.isIntersecting) { e.target.preload = 'metadata'; e.target.load(); previewer.unobserve(e.target); }
-}, { rootMargin: '200px' }) : null;
-function lazyPreview(root) {
-  for (const v of root.querySelectorAll('video[preload="none"]')) previewer ? previewer.observe(v) : (v.preload = 'metadata');
-}
+  <section class="timeline-wrap" id="timelineWrap" aria-label="The match, kick-off to full time" hidden>
+    <div id="timeline"></div>
+  </section>
 
-async function search() {
-  const q = $('q').value.trim();
-  if (!q) return loadClips();
-  $('answer').hidden = true;
-  let out;
-  try { out = await api(`/api/matches/${encodeURIComponent(state.match)}/search?q=${encodeURIComponent(q)}`); }
-  catch (e) { $('understood').textContent = detail(e); return; }
-  showResults(out);
-}
+  <section class="stage panel" id="stage" aria-label="Now playing">
+    <div class="screen">
+      <video id="stageVideo" controls playsinline preload="none"></video>
+      <div class="novideo" id="stageNoVideo" hidden></div>
+      <div class="loading" id="stageLoading" hidden>Preparing this clip. The first view renders it, which takes a few seconds.</div>
+    </div>
+    <div class="info">
+      <p class="now" id="stageNow"></p>
+      <h2 id="stageTitle">Pick a moment</h2>
+      <div class="tags" id="stageTags"></div>
+      <p class="why" id="stageWhy"></p>
+      <div class="actions">
+        <button id="playReel" type="button">Play reel</button>
+        <a class="btn alt" id="downloadReel" download>Download reel</a>
+        <a class="btn alt" id="exportMoments" download>Export moments</a>
+        <a class="btn ghost" id="fullMatch" target="_blank" rel="noopener">Watch the full match</a>
+      </div>
+    </div>
+  </section>
 
-function detail(e) { try { return JSON.parse(e.message).detail; } catch (_) { return e.message; } }
+  <section class="results" aria-labelledby="resultsHead">
+    <div class="results-bar">
+      <h2 id="resultsHead">Moments</h2>
+      <div class="sort" role="group" aria-label="Sort">
+        <button type="button" class="seg" data-sort="best" aria-pressed="true">Best first</button>
+        <button type="button" class="seg" data-sort="time" aria-pressed="false">Match order</button>
+      </div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden></p>
+    <button type="button" class="alt more" id="more" hidden>Show more</button>
+  </section>
+</main>
 
-function showResults(out) {
-  const p = out.parsed;
-  $('understood').innerHTML = `Understood: player <b>${esc(p.player || 'any')}</b>${p.player_how ? ` (${esc(p.player_how)})` : ''} · tags <b>${p.tags.length ? esc(p.tags.join(', ')) : 'any'}</b>${p.reasons.length ? ` · only <b>${esc(p.reasons.map(r => r.replace('_appearance', 's')).join(', '))}</b>` : ''}${p.minutes ? ` · minutes <b>${esc(p.minutes[0])}–${esc(p.minutes[1])}</b>` : ''} · ${esc(out.message)}`;
-  if (p.player_id && p.player_id !== state.player) { state.player = p.player_id; $('player').value = p.player_id; }
-  state.tag = null;
-  $('chips').innerHTML = '';
-  if (state.matchInfo) renderHead();
-  renderGrid(out.results);
-}
+<footer>
+  <p id="builtOn" class="muted"></p>
+  <p class="muted">Rendered from synthetic match data; no real footage.</p>
+  <p><button type="button" class="link" id="howOpen">How it works</button> · <a href="/studio">Regista Studio</a></p>
+</footer>
 
-// The Foundry Librarian: a Microsoft Foundry model (through Microsoft Agent Framework) that calls Regista's MCP server
-// and the Azure MCP Server. Slower than Search; its answer and every tool it called are shown as returned.
-async function ask() {
-  const q = $('q').value.trim();
-  if (!q) { $('q').focus(); return; }
-  $('ask').disabled = true; $('ask').textContent = 'Asking…';
-  $('answer').hidden = false;
-  $('answer').innerHTML = '<div class="by">The Librarian is working: it searches with its tools, then writes an answer.</div>';
-  try {
-    const r = await fetch(`/api/matches/${encodeURIComponent(state.match)}/ask`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ q }) });
-    const out = await r.json();
-    if (!r.ok) { $('answer').innerHTML = `<div class="text">${esc(typeof out.detail === 'string' ? out.detail : 'The Librarian could not answer.')}</div>`; return; }
-    const tools = (out.tools_used || []).map(t => `<span class="tool">${esc(t)}</span>`).join('');
-    $('answer').innerHTML = `<div class="text">${esc(out.answer)}</div><div class="by">answered by <b>${esc(out.answered_by)}</b>${tools ? ' · tools called ' + tools : ''}</div>`;
-    if (out.parsed) { const keep = $('answer').innerHTML; showResults(out); $('answer').hidden = false; $('answer').innerHTML = keep; }
-  } catch (e) {
-    $('answer').innerHTML = `<div class="text">${esc(e.message)}</div>`;
-  } finally {
-    $('ask').disabled = false; $('ask').textContent = 'Ask Foundry';
-  }
-}
+<dialog class="drawer" id="how" aria-labelledby="howTitle">
+  <div class="drawer-head">
+    <h2 id="howTitle">How it works</h2>
+    <button type="button" class="alt" id="howClose">Close</button>
+  </div>
 
-// Who's who: for matches the vision layer wrote, the identity agent's least certain calls, as questions. Answers correct
-// identity and the match is recomputed (possession, events, clips).
-const whos = { items: [], teams: {}, answers: {} };
-async function loadWhos() {
-  let out;
-  try { out = await api(`/api/matches/${encodeURIComponent(state.match)}/identity-review`); } catch (e) { $('whos').hidden = true; return; }
-  whos.items = out.items || []; whos.teams = out.teams || {}; whos.answers = {};
-  if (!whos.items.length) { $('whos').hidden = true; return; }
-  $('whos').hidden = false;
-  // Plain text; every use below goes through esc().
-  const name = (pid) => { for (const ps of Object.values(whos.teams)) { const p = ps.find(x => x.player_id === pid); if (p) return p.name + ' (' + p.kit_number + ')'; } return pid; };
-  $('whos').innerHTML = `<h3>Who's who?</h3><div class="sub">${esc(out.question)} Your answers correct the match and teach the kit-number reader.</div><div class="qgrid">`
-    + whos.items.map((it, i) => {
-      const cands = it.candidates.map(c => `<button class="opt" data-i="${i}" data-pid="${esc(c.player_id)}">${esc(c.name)} (${esc(c.kit_number)}) · ${Math.round(c.p * 100)}%</button>`).join('');
-      const pool = it.kind === 'track' ? (whos.teams[it.team_id] || []) : Object.values(whos.teams).flat();
-      const other = `<select data-i="${i}"><option value="">${it.kind === 'track' ? 'Someone else…' : 'Add a player…'}</option>${pool.map(p => `<option value="${esc(p.player_id)}">${esc(p.name)} (${esc(p.kit_number)})</option>`).join('')}</select>`;
-      const extra = it.kind === 'track'
-        ? `<button class="opt" data-i="${i}" data-pid="not_a_player">Not a player</button><button class="opt" data-i="${i}" data-pid="unknown">Can't tell</button>`
-        : `<button class="opt" data-i="${i}" data-pid="__nobody">Nobody</button>`;
-      const now = it.kind === 'track' ? (it.current ? `now: ${esc(name(it.current))}` : 'now: unnamed') : `now: ${it.current.length ? esc(it.current.map(name).join(', ')) : 'nobody'}`;
-      return `<div class="q"><img alt="" src="${esc(it.image_url || '')}"><b>${esc(it.question)}</b><span class="sub">${now}</span><div class="opts">${cands}${extra}</div>${other}</div>`;
-    }).join('') + `</div><div style="margin-top:10px;display:flex;gap:10px;align-items:center"><button id="whosGo">Save answers</button><span class="sub" id="whosMsg"></span></div>`;
-  const mark = (i) => {
-    const it = whos.items[i], a = whos.answers[it.item_id];
-    for (const b of $('whos').querySelectorAll(`.opt[data-i="${i}"]`)) {
-      const pid = b.dataset.pid;
-      b.classList.toggle('on', !!a && (it.kind === 'track' ? a.player_id === pid : (pid === '__nobody' ? a.players.length === 0 : a.players.includes(pid))));
-    }
-  };
-  for (const b of $('whos').querySelectorAll('.opt')) b.onclick = () => {
-    const i = +b.dataset.i, it = whos.items[i], pid = b.dataset.pid;
-    if (it.kind === 'track') whos.answers[it.item_id] = { item_id: it.item_id, player_id: pid };
-    else {
-      const a = whos.answers[it.item_id] || { item_id: it.item_id, players: [] };
-      a.players = pid === '__nobody' ? [] : (a.players.includes(pid) ? a.players.filter(x => x !== pid) : [...a.players, pid].slice(0, 6));
-      whos.answers[it.item_id] = a;
-    }
-    mark(i);
-  };
-  for (const sel of $('whos').querySelectorAll('select')) sel.onchange = () => {
-    const i = +sel.dataset.i, it = whos.items[i], pid = sel.value;
-    if (!pid) return;
-    if (it.kind === 'track') whos.answers[it.item_id] = { item_id: it.item_id, player_id: pid };
-    else { const a = whos.answers[it.item_id] || { item_id: it.item_id, players: [] }; if (!a.players.includes(pid)) a.players = [...a.players, pid].slice(0, 6); whos.answers[it.item_id] = a; }
-    mark(i);
-  };
-  $('whosGo').onclick = async () => {
-    const answers = Object.values(whos.answers);
-    if (!answers.length) { $('whosMsg').textContent = 'Pick at least one answer.'; return; }
-    $('whosMsg').textContent = 'Correcting identity and recomputing the match…';
-    const r = await post(`/api/matches/${encodeURIComponent(state.match)}/identity-review`, { answers });
-    const body = await r.json();
-    if (!r.ok) { $('whosMsg').textContent = typeof body.detail === 'string' ? body.detail : 'Could not save the answers.'; return; }
-    const done = `Who's who: saved ${body.answers} answer(s), ${body.renamed.length} renamed, ${body.cutaways.length} replay(s) set; the match was recomputed.`;
-    await loadMatch(state.match);
-    $('understood').textContent = done;  // after the reload, which clears the panel and this line
-  };
-}
+  <h3>Two layers</h3>
+  <div class="layers">
+    <div class="panel">
+      <b>Vision layer</b> <span class="muted">private, runs offline</span>
+      <p>Video in, events out. It finds the cuts between the main camera and replays, follows every player by kit number,
+        team colours and tracking, decides who has the ball, and spots passes, shots, take-ons and nutmegs.
+        The footage never leaves the machine it runs on.</p>
+    </div>
+    <div class="panel">
+      <b>Intelligence layer</b> <span class="muted">this app</span>
+      <p>Events in; clips, labels and answers out. It cuts every moment a player is on the ball in the main camera, plus every
+        replay and highlight they appear in, labels each one, scores how worth watching it is, and finds it when you ask.</p>
+    </div>
+  </div>
+  <p class="muted small">Between them sits one event stream with a published JSON Schema. The demo matches come from Regista's
+    synthetic match generator, which writes the same stream.</p>
 
-// The conversation: the server merges each message into the query so far and returns it; the page sends it back
-// with the next message (the server keeps nothing between turns).
-const chat = { state: null, history: [], busy: false };
-function resetChat() { chat.state = null; chat.history = []; if ($('chatLog')) { $('chatLog').innerHTML = ''; $('reel').innerHTML = ''; } }
-function addMsg(cls, html) { const div = document.createElement('div'); div.className = cls; div.innerHTML = html; $('chatLog').appendChild(div); $('chatLog').scrollTop = $('chatLog').scrollHeight; }
+  <h3>The agent workflow</h3>
+  <p class="muted small">A Microsoft Agent Framework workflow: each agent has one job, hands typed state to the next, retries on
+    failure, and routes what it cannot handle to a dead-letter file instead of crashing the run.</p>
+  <ol class="flow">
+    <li><b>Ingest</b> reads the event stream and indexes it.</li>
+    <li class="pair"><span><b>Validator</b> checks every record against the schema.</span><span><b>Possession</b> finds each player's time on the ball.</span>
+      <em>in parallel, then joined</em></li>
+    <li><b>Clip</b> cuts on-ball moments, replays and highlights.</li>
+    <li><b>Label</b> names each moment, scores it and says why.</li>
+    <li><b>Review</b> asks a person about the labels it is unsure of.</li>
+    <li><b>Persist</b> stores clips and labels.</li>
+    <li><b>Indexer</b> adds them to the search index. <em>only where Azure AI Search is configured</em></li>
+    <li><b>Librarian</b> answers questions over the labelled clips.</li>
+  </ol>
 
-async function sendChat() {
-  const message = $('chatIn').value.trim();
-  if (!message || chat.busy) return;
-  chat.busy = true; $('chatGo').disabled = true; $('chatIn').value = '';
-  addMsg('me', esc(message));
-  try {
-    const r = await fetch(`/api/matches/${encodeURIComponent(state.match)}/chat`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, state: chat.state, history: chat.history, engine: $('chatEngine').value }) });
-    const out = await r.json();
-    if (!r.ok) { addMsg('bot', esc(typeof out.detail === 'string' ? out.detail : 'The Librarian could not answer.')); return; }
-    chat.state = out.state; chat.history = out.history;
-    const tools = (out.tools_used || []).map(t => `<span class="tool">${esc(t)}</span>`).join(' ');
-    addMsg('bot', `${esc(out.reply)}<div class="how">understood: ${esc(out.understood)} · ${esc(out.answered_by)}${tools ? ' · ' + tools : ''}</div>`);
-    if (out.results && out.results.length) { state.tag = null; $('chips').innerHTML = ''; renderGrid(out.results); }
-    $('reel').innerHTML = '';
-    if (out.reel && out.reel.length) {
-      $('reel').innerHTML = `<button id="playReel">Play reel (${out.reel.length} clips)</button><video id="reelVideo" controls hidden></video>`;
-      $('playReel').onclick = () => playReel(out.reel.map(c => c.video_url));
-    }
-  } catch (e) { addMsg('bot', esc(e.message)); }
-  finally { chat.busy = false; $('chatGo').disabled = false; $('chatIn').focus(); }
-}
+  <h3>Azure on this deployment</h3>
+  <ul class="services" id="services"><li class="muted">Checking…</li></ul>
 
-function playReel(urls) {
-  const v = $('reelVideo'); let i = 0;
-  v.hidden = false;
-  const next = () => { if (i < urls.length) { v.src = urls[i++]; v.play().catch(() => {}); } };
-  v.onended = next;
-  next();
-}
+  <h3>How real is the data?</h3>
+  <p><a id="reportLink" target="_blank" rel="noopener">The realism report for this match</a><span class="muted small">:
+    its per-90 rates next to Premier League ranges.</span></p>
+</dialog>
 
-async function loadStack() {
-  try {
-    const h = await api('/api/health');
-    const on = [h.librarian && h.librarian !== 'rules' ? `Microsoft Foundry (${h.librarian.replace('foundry:', '')})` : null, 'Microsoft Agent Framework',
-      h.azure_mcp ? 'Azure MCP Server' : null, h.cloud.cosmos ? 'Azure Cosmos DB' : null, h.cloud.search ? 'Azure AI Search' : null,
-      h.tracing ? 'Application Insights tracing' : null].filter(Boolean);
-    $('stack').textContent = 'This deployment runs: ' + on.join(' · ');
-  } catch (e) {}
-}
-
-init().then(loadLearn).then(loadStack).catch(e => { $('understood').textContent = 'Could not load: ' + e.message; });
-</script>
+<script src="/static/shared/regista.js"></script>
+<script src="/static/product/timeline.js" defer></script>
+<script src="/static/product/app.js" defer></script>
 </body>
 </html>
