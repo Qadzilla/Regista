@@ -216,8 +216,10 @@ def _nothing(match_dir: str | Path, state: Record, match: Record, trace: list[Re
     have = [tag_word(t) for t in sorted(weights, key=lambda t: (-weights[t], t))[:4]]
     owner = f"{who} has" if who else "there are"
     reply = (f"{head} Without those filters ({', '.join(_filters(state))}), {owner} {moments(loose['total'])}"
-             + (f", among them {and_list(have)}" if have else "") + ".")
-    message = f"everything by {who}" if who else "show me everything"
+             + ((": " if loose["total"] == 1 else ", among them ") + and_list(have) if have else "") + ".")
+    # The message names nobody: the player or team is in ``state`` (and in the conversation's own state), and a name can
+    # be read as someone else (two players called Ivan). "everything" clears tags and angles; "whole match" the minutes.
+    message = "show me everything"
     if state["minutes"]:
         message += " in the whole match"
     label = (f"Show {who}'s moment" if who and loose["total"] == 1

@@ -122,6 +122,19 @@ def test_filters_that_leave_nothing_say_so_and_offer_the_way_out():
     assert chat_turn(MATCH_DIR, minutes["suggest"]["message"], minutes["state"])["total"] == 5
 
 
+def test_the_suggestion_keeps_the_player_when_a_first_name_is_shared():
+    """Fix K3's find: "everything by Ivan Brennan" was read as Ivan Ibarra (the first known name part wins), so the
+    suggestion names nobody and the state carries the player."""
+    names = {p["player_id"]: p["name"] for p in MATCH["players"]}
+    assert names["t_away_01"].split()[0] == names["t_home_10"].split()[0]  # two players share a first name
+    (out,) = _chat("nutmegs", state={**EMPTY, "player_ids": ["t_away_01"]})
+    sg = out["suggest"]
+    assert names["t_away_01"] not in sg["message"] and sg["state"]["player_ids"] == ["t_away_01"]
+    for state in (sg["state"], out["state"]):
+        after = chat_turn(MATCH_DIR, sg["message"], state)
+        assert after["state"]["player_ids"] == ["t_away_01"] and after["total"] == sg["total"]
+
+
 def test_the_titles_people_read_in_replies():
     """Audit J3 S2/S9: the assister is not "goal against"; replays and take-ons in plain words."""
     (ibarra,) = _chat("every touch by Ibarra")
