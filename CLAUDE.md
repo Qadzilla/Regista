@@ -248,7 +248,13 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 
 ## 4.1 Azure (live since 2026-10-20)
 
-**Status 2026-10-21: moving to a new subscription.** The first environment's directory is locked: its only admin was a
+**Status 2026-10-21, later: the move is off.** A new pay-as-you-go signup hit the same sign-in error, so the submission
+uses the frozen live app (image 229f71f: viewer, Search, Ask Foundry with both MCP servers, Cosmos library, AI Search,
+tracing) plus local demos of everything built since (Chat, Who's who, event spotting, vision, 90-minute run); the
+README says which is which. infra/SETUP.md and the new scripts stay ready if access returns (a Microsoft support call
+about the locked directory is the remaining route). Never claim a feature is live unless the live app serves it.
+
+**Earlier status, 2026-10-21: moving to a new subscription.** The first environment's directory is locked: its only admin was a
 personal account blocked by security defaults for command-line sign-in, then converted to an internal account whose
 generated password was lost. Its app keeps serving the last deploy (image 229f71f) until the free trial ends (about
 2026-11-19), but nothing there can be deployed or managed. A new pay-as-you-go subscription replaces it, set up with
@@ -292,8 +298,9 @@ first environment until the move is done.
 3. ~~Identity corrections from Zaid (plan step 3)~~ **Done 2026-10-21** (docs/vision.md "Who's who"): questions + crops, workflow pause, viewer panel, terminal; answers fix the match (12 simulated answers per dev match: clips 0.76/0.92 -> 0.83/0.95) and fine-tune the reader (neutral-positive on rendered footage). Found: name_tracks leaves correct tracks unnamed when time spans merely overlap (same flaw fixed in review); worth fixing in naming itself, measured on dev only.
 4. ~~A conversational Librarian (plan step 7)~~ **Done 2026-10-21**: `regista.conversation` + `POST /api/matches/{id}/chat` + the viewer's Chat panel with play-as-reel; rules engine checked in the browser. The Foundry engine is tested with a stand-in model only: the local Azure CLI token is blocked by security defaults (AADSTS530035) until Zaid runs `az login` again; verify it then, or on the live app after a deploy he approves.
 5. ~~A 90-minute run~~ **Done 2026-10-21** (docs/vision.md "A full 90-minute match"): fresh match scored once: 0.34x real time, goals 5/5, clips 0.86/0.94. It exposed and fixed: interception vs recovery is not observable (spotter v2 spots "ball won"), early event timing, renderer memory (4.6 GB -> 225 MB); probing and sampling no longer decode whole videos.
-6. Open (being fixed): the move to a new subscription, per infra/SETUP.md; Phase 0 (scripts, CI deploy, runbook) done
-   2026-10-21. Earlier note: Azure CLI sign-in blocked by security defaults (personal account counts as single-factor); fix with a directory user or by switching security defaults off briefly. Needed before the next deploy. Then: verify the Foundry chat engine, deploy, demo video, make the repo public.
+6. Azure: the move to a new subscription is off (signup failed with the same error); live app frozen at 229f71f; README
+   separates live from local features. Remaining: demo video (show local features), Zaid's recorded match, make the repo
+   public, submit by 2026-10-27. Scripts and runbook (infra/SETUP.md) are ready if access returns.
 3. Vision for real footage: frame sampling inside ffmpeg with gap-normalised motion features, a person detector instead of discs, a real homography; designed now, trained when the footage arrives.
 4. Demo video (docs/demo-storyboard.md needs a rewrite around the real match), pitch text, make the repo public before 2026-10-27.
 
