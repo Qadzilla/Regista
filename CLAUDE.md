@@ -150,7 +150,7 @@ docs/demo-storyboard.md      shot-by-shot plan for the sub-2-minute video, voice
 src/regista/cloud/           Azure wiring: config (.env), FoundryLabelAgent + FoundryLibrarianAgent (Agent Framework,
                              Regista MCP server as the Librarian's tool), CosmosPersistAgent; agents_for() swaps them in
 infra/provision.sh           az CLI provisioning: Foundry resource + project + model, Cosmos DB serverless, AI Search, Container Apps
-                             env + registry; writes .env (Application Insights was created and connected by hand)
+                             env + registry, App Insights + Foundry tracing, GitHub deploy identity; writes .env
 infra/deploy-app.sh          first deploy and secret/setting changes: app identity (pulls its image itself), roles, secrets; waits
                              for a ready revision (infra/lib/aca.sh)
 infra/ci-deploy.sh           GitHub Actions deploy (image only) after test, build and in-image smoke test; federated sign-in
@@ -246,22 +246,38 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 - Keep the README demo-ready: a judge should be able to understand and run the project from it.
 - The demo video is under 2 minutes. Design features so they demo well in that window.
 
-## 4.1 Azure (live since 2026-10-20)
+## 4.1 Azure (live since 2026-10-20; second environment since 2026-10-21)
 
-**Status 2026-10-21, later: the move is off.** A new pay-as-you-go signup hit the same sign-in error, so the submission
-uses the frozen live app (image 229f71f: viewer, Search, Ask Foundry with both MCP servers, Cosmos library, AI Search,
-tracing) plus local demos of everything built since (Chat, Who's who, event spotting, vision, 90-minute run); the
-README says which is which. infra/SETUP.md and the new scripts stay ready if access returns (a Microsoft support call
-about the locked directory is the remaining route). Never claim a feature is live unless the live app serves it.
+**Current environment (since 2026-10-21): Azure for Students.** Live app
+https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io, revision `regista-api--d1021183822`
+(image f01d587), then every push to `main` deploys itself through CI.
+- Subscription "Azure for Students" (3f0ab090-…, $100 credit, expires 2027-10-21, stops at the credit: no card) in the
+  **Northeastern University** directory; Zaid signs in as his member account al-qadi.z@northeastern.edu (Owner of the
+  subscription, not a directory admin). The same directory holds **"SPS Shared Services"**, the university's
+  subscription, which `az login` makes the default: never create or change anything there.
+- Run the infra scripts with `SUBSCRIPTION="Azure for Students" LOCATION=francecentral RG_TAGS="Owner=al-qadi.z@northeastern.edu;Cost Center=Azure for Students;IaC managed=Qadzilla/Regista"`.
+  A policy allows only francecentral, germanywestcentral, canadacentral, denmarkeast, belgiumcentral; resource groups
+  must carry the tags Owner (email), Cost Center and IaC managed (resources inherit them).
+- `regista-rg` in France Central: Foundry `regista-foundry-3f0ab0` (project `regista`, gpt-5-mini GlobalStandard, 10 of
+  500 quota), Cosmos DB `regista-cosmos-3f0ab0` (serverless), AI Search `regista-search-3f0ab0` (free), Container Apps
+  env `regista-env` (workload profiles mode: "express" environments cannot pull with the app's identity) + app
+  `regista-api`, registry `registaacr3f0ab0`, Application Insights `regista-appi` on the env's workspace (0.1 GB/day).
+- Keyless for real: key login off on Cosmos DB and Search; the registry has no admin user (the app pulls with AcrPull);
+  GitHub Actions deploys as app registration `regista-github-deploy` (owned by Zaid; federated credentials for both
+  GitHub subject formats, `main` only). The remaining secrets are the write token and the App Insights connection
+  string (Container Apps secrets; values in `.env`).
+- Verified 2026-10-21 (read-only except the library restore): health (Foundry, Cosmos DB, Search, Azure MCP, tracing),
+  three matches (syn_0294, syn_0141, syn_0142; 141/142 uploaded through the token-gated workflow, Foundry-labelled,
+  8 Search documents), Ask Foundry calling `search_index_query` in the container, a two-turn Foundry Chat, writes without
+  the token refused (401), spans in Application Insights.
+- Old `.env` (first environment) is at `~/.regista-old.env`; provision.sh refuses a `.env` written for another subscription.
+- No budget alert (none set; the offer stops at its credit). Cost estimate: about $10-15 through judging.
 
-**Earlier status, 2026-10-21: moving to a new subscription.** The first environment's directory is locked: its only admin was a
+**First environment (locked since 2026-10-21; do not link to it).** Its directory is locked: its only admin was a
 personal account blocked by security defaults for command-line sign-in, then converted to an internal account whose
-generated password was lost. Its app keeps serving the last deploy (image 229f71f) until the free trial ends (about
-2026-11-19), but nothing there can be deployed or managed. A new pay-as-you-go subscription replaces it, set up with
-`infra/SETUP.md`: an in-directory admin with Authenticator plus an emergency admin; never "Convert to internal user";
-provision.sh scripts everything once done by hand; GitHub Actions deploys with a federated identity (no stored secret);
-the app pulls its image with its own identity; key login is off on Cosmos DB and Search. The notes below describe the
-first environment until the move is done.
+generated password was lost. Its app (https://regista-api.ambitioussand-4ee47ff4.eastus.azurecontainerapps.io, image
+229f71f) keeps serving until its free trial ends (about 2026-11-19) and cannot be changed or deleted. Its notes, kept
+for the record:
 
 - Subscription: Azure free trial on Zaid's account ($200 credit, 30 days, ends about **2026-11-19**). The rules require the demo to stay reachable free of charge until judging ends **2026-11-10**, so the trial covers judging with about a week to spare. Do not upgrade to pay-as-you-go without asking Zaid.
 - Resource group `regista-rg`, East US: Foundry resource + project `regista` + `gpt-5-mini` deployment; Container Apps env `regista-env` + app `regista-api`; Container Registry (Basic). **Cosmos DB is in East US 2** because East US had no capacity.
@@ -280,7 +296,7 @@ first environment until the move is done.
 
 ## 4.2 Where we are and what's next (update at the end of every work session)
 
-**As of 2026-10-21.** `main` is at the latest pushed commit; CI (tests, image build, smoke test in the image) is green; the live app runs image 229f71f on revision `regista-api--d1020232137` (changes since are not deployed). 203 tests pass.
+**As of 2026-10-21 (evening).** `main` is at the latest pushed commit; CI (tests, image build, smoke test, push, deploy) is green; the live app is the new Azure for Students environment (§4.1), deployed by CI on every push to main. 209 tests pass.
 
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.76, precision 0.94; docs/vision.md).
 
@@ -298,9 +314,10 @@ first environment until the move is done.
 3. ~~Identity corrections from Zaid (plan step 3)~~ **Done 2026-10-21** (docs/vision.md "Who's who"): questions + crops, workflow pause, viewer panel, terminal; answers fix the match (12 simulated answers per dev match: clips 0.76/0.92 -> 0.83/0.95) and fine-tune the reader (neutral-positive on rendered footage). Found: name_tracks leaves correct tracks unnamed when time spans merely overlap (same flaw fixed in review); worth fixing in naming itself, measured on dev only.
 4. ~~A conversational Librarian (plan step 7)~~ **Done 2026-10-21**: `regista.conversation` + `POST /api/matches/{id}/chat` + the viewer's Chat panel with play-as-reel; rules engine checked in the browser. The Foundry engine is tested with a stand-in model only: the local Azure CLI token is blocked by security defaults (AADSTS530035) until Zaid runs `az login` again; verify it then, or on the live app after a deploy he approves.
 5. ~~A 90-minute run~~ **Done 2026-10-21** (docs/vision.md "A full 90-minute match"): fresh match scored once: 0.34x real time, goals 5/5, clips 0.86/0.94. It exposed and fixed: interception vs recovery is not observable (spotter v2 spots "ball won"), early event timing, renderer memory (4.6 GB -> 225 MB); probing and sampling no longer decode whole videos.
-6. Azure: the move to a new subscription is off (signup failed with the same error); live app frozen at 229f71f; README
-   separates live from local features. Remaining: demo video (show local features), Zaid's recorded match, make the repo
-   public, submit by 2026-10-27. Scripts and runbook (infra/SETUP.md) are ready if access returns.
+6. ~~Azure~~ **Done 2026-10-21**: the first directory locked, a pay-as-you-go signup was refused, and the environment was
+   rebuilt on Azure for Students (§4.1) with every feature live (Chat, Who's who, Ask Foundry, library) and CI deploys.
+   Remaining: demo video, Zaid's recorded match, make the repo public, submit by 2026-10-27; old GitHub secrets
+   ACR_LOGIN_SERVER/USERNAME/PASSWORD are unused and can be deleted (Zaid's go-ahead).
 3. Vision for real footage: frame sampling inside ffmpeg with gap-normalised motion features, a person detector instead of discs, a real homography; designed now, trained when the footage arrives.
 4. Demo video (docs/demo-storyboard.md needs a rewrite around the real match), pitch text, make the repo public before 2026-10-27.
 

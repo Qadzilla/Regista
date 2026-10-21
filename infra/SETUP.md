@@ -80,6 +80,11 @@ repository variables the workflow reads; a $60 monthly budget with email alerts;
 If the model has no quota in East US: `LOCATION=eastus2 ./infra/provision.sh`, or request quota in the Foundry portal
 (Management center > Quota). The model is a single setting (`MODEL=`), and the code reads it from `.env`.
 
+Found on the second setup (2026-10-21) and handled by the scripts now: newer CLI extensions create "express"
+Container Apps environments, which cannot pull with the app's identity (the script asks for workload profiles mode);
+the Cosmos DB preview extension wants `--capacity-mode Serverless`; GitHub may sign workflow tokens with a subject that
+carries the owner and repository ids (the script trusts both formats).
+
 ## 4. First deploy
 
 1. Push to `main` (or run the workflow by hand). GitHub Actions runs the tests, builds the image, smoke-tests the agent

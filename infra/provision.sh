@@ -191,7 +191,17 @@ if [[ -z "${SKIP_ACA:-}" ]]; then
   az config set extension.use_dynamic_install=yes_without_prompt -o none
   log "Container Apps environment $ACA_ENV"
   if ! az containerapp env show -n "$ACA_ENV" -g "$RG" -o none 2>/dev/null; then
-    az containerapp env create -n "$ACA_ENV" -g "$RG" --location "$LOCATION" -o none   # creates its Log Analytics workspace
+    # Standard (workload profiles) mode, named: newer CLI extensions default to "express" environments, which cannot
+    # pull images with the app's own identity. Reuse the resource group's Log Analytics workspace if there is one
+    # (Application Insights sits on it); otherwise the environment creates its own.
+    WS_ARGS=()
+    WS_NAME=$(az monitor log-analytics workspace list -g "$RG" --query "[0].name" -o tsv)
+    if [[ -n "$WS_NAME" ]]; then
+      WS_ARGS=(--logs-workspace-id "$(az monitor log-analytics workspace show -g "$RG" -n "$WS_NAME" --query customerId -o tsv)"
+               --logs-workspace-key "$(az monitor log-analytics workspace get-shared-keys -g "$RG" -n "$WS_NAME" --query primarySharedKey -o tsv)")
+    fi
+    az containerapp env create -n "$ACA_ENV" -g "$RG" --location "$LOCATION" --environment-mode WorkloadProfiles \
+      ${WS_ARGS[@]+"${WS_ARGS[@]}"} -o none
   fi
 
   log "Application Insights $APPI on the environment's workspace (capped at $LOG_CAP_GB GB/day), connected to Foundry"
