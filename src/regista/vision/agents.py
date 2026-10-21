@@ -303,11 +303,12 @@ class IdentityReviewExecutor(Executor):
     With review off it passes straight through. Answers that do not validate dead-letter the run (nothing is
     applied); the questions, crops and answers are kept in ``out_dir/review``."""
 
-    def __init__(self, keys: list[str], k: int = 12, feedback_dir: Path | str | None = None):
+    def __init__(self, keys: list[str], k: int = 12, feedback_dir: Path | str | None = None, min_doubt: float = 0.15):
         super().__init__(id="identity_review")
         self.keys = keys
         self.k = k
         self.feedback_dir = feedback_dir
+        self.min_doubt = min_doubt
 
     @handler
     async def check(self, message: Handoff, ctx: WorkflowContext[Handoff | DeadLetter]) -> None:
@@ -354,7 +355,7 @@ class IdentityReviewExecutor(Executor):
         from regista.vision.review import identity_questions, save_queue, write_crops
 
         result = joblib.load(state["identity_path"])
-        items = identity_questions(result, state["roster"], k=self.k)
+        items = identity_questions(result, state["roster"], k=self.k, min_doubt=self.min_doubt)
         review_dir = Path(state["out_dir"]) / "review"
         if items:
             write_crops(state["video_path"], items, review_dir / "crops")
@@ -406,7 +407,8 @@ def build_vision_workflow(agents: list[Agent] | None = None, *, max_retries: int
     keys = _state_keys(agents)
     start = VisionStartExecutor()
     roles = {r: RoleExecutor(by_role[r], keys, max_retries) for r in VISION_ROLE_ORDER}
-    review = IdentityReviewExecutor(keys, k=int((config or {}).get("review_questions", 12)), feedback_dir=(config or {}).get("feedback_dir"))
+    review = IdentityReviewExecutor(keys, k=int((config or {}).get("review_questions", 12)), feedback_dir=(config or {}).get("feedback_dir"),
+                                    min_doubt=float((config or {}).get("review_min_doubt", 0.15)))
     finish = FinishExecutor(keys)
     dead = DeadLetterExecutor(keys, VISION_ROLE_ORDER)
     b = WorkflowBuilder(name=VISION_WORKFLOW_NAME, description="Regista vision layer: broadcast video in, event stream out.",

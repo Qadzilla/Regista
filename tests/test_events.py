@@ -88,17 +88,16 @@ def _vision_shaped(seed):
 
 def test_spotter_finds_events_in_vision_shaped_positions(spotter):
     reports, records = [], []
-    for seed in (411, 412, 413):
+    for seed in (411, 412, 413, 414, 415, 416):  # six matches: fewer than ~25 tackles makes the floors platform-noisy
         r, pos, poss, main = _vision_shaped(seed)
         ev = spot_events(pos, poss, r.match, spotter, r.match["match_id"])
         records += ev
         reports.append(evaluate_events(ev, r.stream, main))
     rep = merge_reports(reports)
     assert rep["pass"]["precision"] >= 0.85 and rep["pass"]["recall"] >= 0.85, rep["pass"]
-    # Merging interception and recovery into "ball won" (indistinguishable in the footage) lets that broader class
-    # absorb some tackles: both hand the ball to the opponent. Measured on 13 tackles here, so the tackle floor is
-    # loose; the guard that matters is that turnovers to the opponent are found at all.
-    assert rep["tackle"]["recall"] >= 0.4 and rep["ball_won"]["recall"] >= 0.7, (rep["tackle"], rep["ball_won"])
+    # "Ball won" merges interception and recovery (indistinguishable in the footage); it absorbs a few tackles, since
+    # both hand the ball to the opponent, so turnovers are also guarded together.
+    assert rep["tackle"]["recall"] >= 0.6 and rep["ball_won"]["recall"] >= 0.7, (rep["tackle"], rep["ball_won"])
     turnovers_true = rep["tackle"]["true"] + rep["ball_won"]["true"]
     assert (rep["tackle"]["matched"] + rep["ball_won"]["matched"]) / turnovers_true >= 0.7
     assert rep["shot"]["recall"] >= 0.5 and rep["take_on"]["recall"] >= 0.4, (rep["shot"], rep["take_on"])

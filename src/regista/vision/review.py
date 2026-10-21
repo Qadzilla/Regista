@@ -67,8 +67,10 @@ def involvement_scores(cutaway: Record, cfg: Any) -> dict[str, float]:
     return out
 
 
-def identity_questions(result: Any, match: Record, k: int = 12, min_seconds: float = 1.0, cfg: Any = None) -> list[Record]:
-    """The ``k`` identity calls most worth a person's glance, most valuable first."""
+def identity_questions(result: Any, match: Record, k: int = 12, min_seconds: float = 1.0, cfg: Any = None,
+                       min_doubt: float = 0.15) -> list[Record]:
+    """The ``k`` identity calls most worth a person's glance, most valuable first. ``min_doubt`` 0 asks about
+    confident calls too (a person spot-checking, and tests that must get questions from any clip)."""
     fps = float(result.info.get("sample_fps", 5.0))
     items: list[tuple[float, Record]] = []
     for index, tr in enumerate(result.tracks):  # tids restart in every camera segment; the index is unique
@@ -78,7 +80,7 @@ def identity_questions(result: Any, match: Record, k: int = 12, min_seconds: flo
         ranked = sorted(tr.votes.items(), key=lambda kv: -kv[1])
         margin = ranked[0][1] - (ranked[1][1] if len(ranked) > 1 else 0.0) if ranked else 0.0
         doubt = 1.0 if tr.player_id is None else max(0.0, 1.0 - margin)
-        if doubt < 0.15:
+        if doubt < min_doubt:
             continue
         # The frame to show: the largest, least occluded view of the player.
         best = max(tr.obs, key=lambda o: (o.get("read_weight", 1.0), o.get("r", 0.0)))
@@ -104,8 +106,10 @@ def identity_questions(result: Any, match: Record, k: int = 12, min_seconds: flo
             doubt = max(1.0 - abs(s - 0.5) / 0.35 for s in near)
         elif nobody:
             doubt = 1.0  # a replay or highlight with nobody in it: the clip rule finds no one to cut it for
-        else:
+        elif min_doubt > 0:
             continue  # every candidate is clearly in or clearly out
+        else:
+            doubt = 0.05
         secs = float(c["t_end"]) - float(c["t"])
         items.append((max(0.2, doubt) * min(secs, 10.0) * 0.8, {
             "item_id": f"cw_{c['segment_id']}", "kind": "cutaway", "segment_id": c["segment_id"], "segment_kind": c["kind"],
@@ -355,13 +359,13 @@ def save_queue(items: list[Record], out_dir: Path | str) -> Path:
     return path
 
 
-def prepare_review(out_dir: Path | str, video: Path | str, result: Any, match: Record, k: int = 12) -> list[Record]:
+def prepare_review(out_dir: Path | str, video: Path | str, result: Any, match: Record, k: int = 12, min_doubt: float = 0.15) -> list[Record]:
     """Write the questions and crops for a match directory so a person can answer later (the viewer's "Who's who").
     Leaves an existing queue alone."""
     queue = Path(out_dir) / "review" / QUEUE_FILE
     if queue.exists():
         return json.loads(queue.read_text())["items"]
-    items = identity_questions(result, match, k=k)
+    items = identity_questions(result, match, k=k, min_doubt=min_doubt)
     if items:
         write_crops(video, items, Path(out_dir) / "review" / "crops")
         save_queue(items, out_dir)

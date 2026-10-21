@@ -304,7 +304,8 @@ def test_identity_review_pauses_the_workflow_asks_and_applies_answers(clips, mod
 
     out = tmp_path / "reviewed"
     run = run_vision_workflow({"video_path": clips["test"]["video"], "roster": roster, "out_dir": str(out), "review": True},
-                              config={"models_dir": str(models["dir"]), "review_questions": 4, "feedback_dir": str(tmp_path / "fb")},
+                              config={"models_dir": str(models["dir"]), "review_questions": 4, "feedback_dir": str(tmp_path / "fb"),
+                                      "review_min_doubt": 0.0},  # a tiny clip may have nothing uncertain; ask anyway
                               reviewer=reviewer)
     assert run.ok, (run.failed_role, run.dead_letters)
     assert len(asked) == 1 and 1 <= len(asked[0].items) <= 4
@@ -323,7 +324,8 @@ def test_identity_review_rejects_bad_answers_without_applying_any(clips, models,
     roster = load_match_header(clips["test"]["match_dir"])
     out = tmp_path / "bad"
     run = run_vision_workflow({"video_path": clips["test"]["video"], "roster": roster, "out_dir": str(out), "review": True},
-                              config={"models_dir": str(models["dir"]), "review_questions": 3, "feedback_dir": str(tmp_path / "fb")},
+                              config={"models_dir": str(models["dir"]), "review_questions": 3, "feedback_dir": str(tmp_path / "fb"),
+                                      "review_min_doubt": 0.0},
                               reviewer=lambda req: IdentityAnswers(answers=[{"item_id": it["item_id"], "player_id": "nobody", "players": ["nobody"]}
                                                                              for it in req.items]))
     assert not run.ok and run.failed_role == "identity_review"
@@ -342,7 +344,16 @@ def test_identity_review_through_the_api(clips, models, tmp_path, monkeypatch):
     roster = load_match_header(clips["test"]["match_dir"])
     out = tmp_path / "data" / "vis_api"
     summary = run_vision(clips["test"]["video"], roster, out, models_dir=models["dir"], match_id="vis_api")
-    assert isinstance(summary["review_questions"], int) and summary["review_questions"] > 0
+    assert isinstance(summary["review_questions"], int)
+    # A tiny clip may have nothing uncertain; prepare questions about confident calls too, so the flow is exercised.
+    import shutil
+
+    import joblib
+
+    from regista.vision.review import prepare_review
+
+    shutil.rmtree(out / "review", ignore_errors=True)
+    assert prepare_review(out, clips["test"]["video"], joblib.load(out / ".vision_work" / "identity.joblib"), roster, min_doubt=0.0)
     monkeypatch.setattr(api, "DATA_ROOT", tmp_path / "data")
     monkeypatch.setattr(api, "CACHE_ROOT", tmp_path / "cache")
     monkeypatch.setattr(api, "MODELS_DIR", models["dir"])
@@ -359,8 +370,6 @@ def test_identity_review_through_the_api(clips, models, tmp_path, monkeypatch):
     bad = {"answers": [{"item_id": first["item_id"], "player_id": "nobody", "players": ["nobody"]}]}
     assert c.post("/api/matches/vis_api/identity-review", json=bad).status_code == 422
     assert (out / "events.jsonl").read_text() == before and c.get("/api/matches/vis_api/identity-review").json()["items"]
-
-    import joblib
 
     truth, _ = _segments(clips["test"])
     answers = simulated_answers(got["items"], joblib.load(out / ".vision_work" / "identity.joblib"), truth, roster)
