@@ -376,22 +376,34 @@ def _render_clip_cached(d: Path, clip: dict, label: dict | None, fps: float, wid
                         lambda tmp: render_clip(Scene.load(d), clip, label, tmp, fps, Style(width, round(width * 9 / 16))))
 
 
+PRERENDER_PROGRESS: dict[str, Any] = {"running": False, "total": 0, "rendered": 0, "failed": 0, "started_at": None, "finished_at": None}
+
+
 def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
     """Render the featured player's clips for every local match, best first, so the first visitor after a deploy finds
-    them cached. Runs in a background thread at startup when REGISTA_PRERENDER=1 (set in the Dockerfile)."""
-    done = []
-    for d in sorted(DATA_ROOT.iterdir()) if DATA_ROOT.exists() else []:
-        manifest = d / "manifest.json"
-        player = json.loads(manifest.read_text()).get("clips_for") if manifest.exists() else None
-        if not player or not (d / "events.jsonl").exists():
-            continue
-        clips, labels = _clips(d, player)
-        for c in sorted((c for c in clips if c["player_id"] == player),
-                        key=lambda c: (-labels.get(c["id"], {}).get("watchability", 0.0), c["t"])):
+    them cached. Runs in a background thread at startup when REGISTA_PRERENDER=1 (set in the Dockerfile). Progress is
+    kept in PRERENDER_PROGRESS for the Studio."""
+    done, todo = [], []
+    PRERENDER_PROGRESS.update(running=True, total=0, rendered=0, failed=0, started_at=time.time(), finished_at=None)
+    try:
+        for d in sorted(DATA_ROOT.iterdir()) if DATA_ROOT.exists() else []:
+            manifest = d / "manifest.json"
+            player = json.loads(manifest.read_text()).get("clips_for") if manifest.exists() else None
+            if not player or not (d / "events.jsonl").exists():
+                continue
+            clips, labels = _clips(d, player)
+            todo += [(d, c, labels.get(c["id"])) for c in sorted((c for c in clips if c["player_id"] == player),
+                                                                  key=lambda c: (-labels.get(c["id"], {}).get("watchability", 0.0), c["t"]))]
+        PRERENDER_PROGRESS["total"] = len(todo)
+        for d, c, label in todo:
             try:
-                done.append(_render_clip_cached(d, c, labels.get(c["id"]), fps, width))
+                done.append(_render_clip_cached(d, c, label, fps, width))
+                PRERENDER_PROGRESS["rendered"] += 1
             except Exception as exc:  # noqa: BLE001  (one bad clip must not stop the rest)
+                PRERENDER_PROGRESS["failed"] += 1
                 print(f"prerender: {d.name}/{c['id']} failed: {exc!r}", flush=True)
+    finally:
+        PRERENDER_PROGRESS.update(running=False, finished_at=time.time())
     return done
 
 
@@ -690,20 +702,34 @@ class AskLimiter:
         with self.lock:
             if self.in_flight >= self.concurrent:
                 return False, 5.0, "busy"
+            for key in (visitor, "*"):  # keep each key's hits for its longest window, so every window counts them
+                longest = max(w for w, _cap, per_visitor in self.rules if per_visitor == (key != "*"))
+                self.hits[key] = [t for t in self.hits.get(key, []) if now - t < longest]
             for window, cap, per_visitor in self.rules:
-                key = visitor if per_visitor else "*"
-                times = [t for t in self.hits.get(key, []) if now - t < window]
-                self.hits[key] = times
+                times = [t for t in self.hits[visitor if per_visitor else "*"] if now - t < window]
                 if len(times) >= cap:
                     return False, round(window - (now - times[0]), 1), f"{cap} per {int(window)}s" + (" per visitor" if per_visitor else "")
             for key in (visitor, "*"):
-                self.hits.setdefault(key, []).append(now)
+                self.hits[key].append(now)
             self.in_flight += 1
             return True, 0.0, ""
 
     def release(self) -> None:
         with self.lock:
             self.in_flight = max(0, self.in_flight - 1)
+
+    def snapshot(self, now: float | None = None) -> dict[str, Any]:
+        """Read-only counts for the Studio: questions from everyone in the last minute, hour and day, against the limits."""
+        now = time.monotonic() if now is None else now
+        with self.lock:
+            everyone = list(self.hits.get("*", []))
+            visitors = sum(1 for k, ts in self.hits.items() if k != "*" and any(now - t < 3600 for t in ts))
+            in_flight = self.in_flight
+        (_, per_min, _), (_, per_hour, _), (_, total_hour, _), (_, total_day, _) = self.rules
+        return {"last_minute": sum(1 for t in everyone if now - t < 60), "last_hour": sum(1 for t in everyone if now - t < 3600),
+                "last_day": sum(1 for t in everyone if now - t < 86400), "visitors_last_hour": visitors, "in_flight": in_flight,
+                "limits": {"per_visitor_per_min": per_min, "per_visitor_per_hour": per_hour, "total_per_hour": total_hour,
+                           "total_per_day": total_day, "concurrent": self.concurrent}}
 
 
 _ask_limiter = AskLimiter.from_env()

@@ -32,12 +32,22 @@ ACCESS = {
     "GET /api/matches/{match_id}/review": "studio",
     "GET /api/feedback": "studio",
     "GET /api/studio/session": "studio",
+    "GET /api/studio/overview": "studio",
+    "GET /api/studio/runs": "studio",
+    "GET /api/studio/runs/{match_id}": "studio",
+    "GET /api/studio/data": "studio",
+    "GET /api/studio/usage": "studio",
+    "GET /api/studio/cache": "studio",
+    "GET /api/studio/jobs": "studio",
+    "GET /api/studio/jobs/{job_id}": "studio",
+    "GET /api/studio/jobs/{job_id}/log": "studio",
     # Writes (admin key)
     "POST /api/matches": "admin",
     "POST /api/matches/{match_id}/identity-review": "admin",
     "POST /api/matches/{match_id}/review": "admin",
     "POST /api/matches/{match_id}/clips/{clip_id}/verdict": "admin",
     "POST /api/feedback/train": "admin",
+    "POST /api/studio/jobs": "admin",
 }
 
 ADMIN, VIEW = "admin-key-for-tests", "view-key-for-tests"
