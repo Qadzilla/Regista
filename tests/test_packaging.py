@@ -37,3 +37,5 @@ def test_the_image_carries_the_league_and_builds_its_matches():
     docker = (REPO / "Dockerfile").read_text()
     assert "COPY data/season/league.json" in docker and "regista.season" in docker and "REGISTA_SEASON=" in docker
     assert _excluded("data/season/matches/rl_r01_ash_fai/events.jsonl") and not _excluded("data/season/league.json")
+    # the Profile agent's summaries ship beside the league (regista.season.summaries.summaries_path)
+    assert "COPY data/season/summaries.json ./data/season/summaries.json" in docker and not _excluded("data/season/summaries.json")

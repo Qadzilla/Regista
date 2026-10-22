@@ -2,10 +2,12 @@
 
 GET  /api/season                       league, table, rounds with their matches (each opens in the Clip view)
 GET  /api/players                      profile cards; filters position, club, q, min_minutes; sort by any stat per 90
-GET  /api/players/{global_id}          one profile: per-90 rates, percentiles, touch map, moments, matches, evidence
+GET  /api/players/{global_id}          one profile: per-90 rates, percentiles, touch map, moments, matches, evidence,
+                                       and the Profile agent's summary (every sentence citing its sources)
 GET  /api/players/{global_id}/moments  the player's moments across the season, best first; tag= filters
 GET  /api/players/{global_id}/reel.mp4 the player's best moments across matches, back to back (cached)
 GET  /api/compare?ids=a,b[,c]          two or three profiles side by side (cards plus every per-90 rate)
+POST /api/scout/ask                    the Scout agent: a plain question in, players out (rules, or Foundry: rate-limited)
 GET  /scout, /players/{global_id}      the Scout view and the player profile pages (static files under static/)
 
 Season matches themselves are ordinary matches to the rest of the API (``/api/matches/rl_…/clips`` and so on): they are
@@ -14,15 +16,17 @@ regenerated from ``data/season/league.json`` on first use (``regista.api._match_
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import threading
 from pathlib import Path
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel, StringConstraints
 
 from regista.season.profiles import HEADLINE, RATIOS, STATS, Season, card, load_season
 
@@ -111,9 +115,17 @@ async def list_players(position: Annotated[str | None, Query(pattern="^(GK|DF|MF
 
 @router.get("/api/players/{gid}")
 async def get_player(gid: str) -> dict[str, Any]:
+    """The profile, plus ``summary: {text, sentences: [{text, sources}], sources, model}`` from the Profile agent: the
+    stored one (data/season/summaries.json) while the numbers it was written from still hold, else the rules summary."""
+    from regista.season.summaries import summary_for
+
     _check_gid(gid)
-    p = await run_in_threadpool(_profile, gid)
-    return {**p, "card": card(p), "headline_keys": HEADLINE}
+
+    def build() -> dict[str, Any]:
+        p = _profile(gid)
+        return {**p, "card": card(p), "headline_keys": HEADLINE, "summary": summary_for(season(), p)}
+
+    return await run_in_threadpool(build)
 
 
 @router.get("/api/players/{gid}/moments")
@@ -197,6 +209,82 @@ async def compare(ids: Annotated[str, Query(pattern=r"^pl_[a-z0-9_]{1,40}(,pl_[a
     if len(out) < 2:
         raise HTTPException(422, "compare needs two or three different players")
     return {"players": out, "stats": stat_catalogue()}
+
+
+# ---------------------------------------------------------------------------- the Scout agent
+
+class ScoutAskIn(BaseModel):
+    q: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
+    engine: Literal["rules", "foundry"] = "foundry"
+
+
+def _scout_foundry(s: Season, q: str, rules: dict[str, Any]) -> tuple[str, list[tuple[str, dict[str, Any]]], str]:
+    """The Foundry Scout agent's answer (tests replace this). Returns (answer, tool calls with arguments, answered by);
+    without Foundry, the rules reply and an ``answered_by`` that says so."""
+    from regista.api import SEASON_LEAGUE, SEASON_ROOT
+    from regista.cloud import CloudConfig
+
+    cfg = CloudConfig.from_env()
+    if not cfg.foundry_enabled:
+        return rules["reply"], [], "rules (Foundry is not configured on this deployment)"
+    from regista.aio import run_sync
+    from regista.cloud.foundry import SCOUT_TOOLS, foundry_scout_answer
+
+    env = {"REGISTA_SEASON": str(SEASON_LEAGUE.resolve()), "REGISTA_SEASON_ROOT": str(SEASON_ROOT.resolve())}
+    text, calls = run_sync(foundry_scout_answer(cfg, q, rules["understood"], env, SCOUT_TOOLS))
+    return text, calls, f"foundry:{cfg.foundry_model}"
+
+
+@router.post("/api/scout/ask")
+async def scout_ask(body: ScoutAskIn, request: Request) -> dict[str, Any]:
+    """Ask the Scout agent about the league's players. Returns ``{reply, understood, query, players: [cards], trace,
+    answered_by, tools_used}``; each card is a profile card plus ``stat`` (the number the answer is about, with its rank)
+    and ``profile_url``. The rules engine always reads the question first (``understood`` says how). With
+    ``engine=foundry`` (the default) a Foundry agent then answers through Regista's MCP player tools, with the same
+    rate limits and public read-only tools as Ask Foundry; its cards are its own last tool call run again, and
+    ``checked`` lists any number in its reply no tool returned. Without Foundry, over the limits, or if it fails, the
+    rules answer stands and ``answered_by`` says why."""
+    from regista import api
+    from regista.season.scout import answer_rules, from_foundry
+
+    s = await run_in_threadpool(season)
+    out = await run_in_threadpool(answer_rules, s, body.q)
+    if body.engine != "foundry":
+        return out
+    ok, wait, which = api._ask_limiter.acquire(api._visitor(request))
+    if not ok:
+        out["answered_by"] = f"rules (Foundry is busy: {which}; try again in {max(1, int(wait))}s)"
+        return out
+
+    def run() -> tuple[tuple[str, list[tuple[str, dict[str, Any]]], str], list[Any]]:
+        from regista.cloud.telemetry import capture_spans
+
+        try:  # the slot frees when the work ends, even if the request has already timed out
+            with capture_spans("regista.scout") as cap:  # the Agent Framework spans of this answer, for its trace
+                answer = _scout_foundry(s, body.q, out)
+            return answer, cap.spans
+        finally:
+            api._ask_limiter.release()
+
+    try:
+        (text, calls, answered_by), spans = await asyncio.wait_for(run_in_threadpool(run), api.ASK_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        out["answered_by"] = "rules (Foundry took too long)"
+        return out
+    except Exception as exc:  # noqa: BLE001 - the rules answer stands
+        out["answered_by"] = f"rules (foundry fallback: {type(exc).__name__})"
+        return out
+    if not answered_by.startswith("foundry"):
+        out["answered_by"] = answered_by
+        return out
+    from regista.cloud.foundry import foundry_trace
+
+    final = await run_in_threadpool(from_foundry, s, out, text, calls, answered_by)
+    steps, note = foundry_trace(spans, [n for n, _a in calls])
+    final["trace"] = out["trace"] + steps
+    if note:
+        final["trace_note"] = note
+    return final
 
 
 def _check_gid(gid: str) -> None:

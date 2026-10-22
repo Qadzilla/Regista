@@ -54,6 +54,10 @@ What the workflow guarantees, and `tests/test_workflow.py` checks: typed handoff
 
 Uploads still pass no questions to the Librarian.
 
+**The Scout agent** (`POST /api/scout/ask`, `src/regista/season/scout.py`; the Scout view) answers questions about the Regista League's players: "a winger with the most take-ons", "midfielders who win the ball back", "the best finisher". The rules engine always reads the question first, into filters and a sort (roles map to positions, winger and striker are FW; phrases map to stats; "fewest" reverses; "top 3" limits), runs the `search_players` tool, writes the reply from its numbers, and says in `understood` what it heard. With the Foundry engine (the default when Foundry is configured) a `gpt-5-mini` agent on Microsoft Foundry, through Agent Framework, then calls Regista's MCP server, limited to the three read-only player tools, and answers with the names and numbers they returned. The cards come from running its last player tool call again in-process, `understood` names that call, and `checked` lists any number in its reply that no tool result holds. It shares Ask Foundry's limiter and timeout; over the limits, on a timeout or an error, the rules answer stands and `answered_by` says why. The answer carries the same `trace`.
+
+**The Profile agent's summaries** (`src/regista/season/summaries.py`): two or three sentences per player (what kind of player, what else stands out, the best moment), each sentence listing the facts it rests on (`S…` a stat with its rank among the position, `M…` a moment with its clip, `P1` the season). `python -m regista.season summarise` writes them with rules; with `--cloud` a Foundry model writes them from the same numbered facts, and an answer is refused (one retry, then the rules summary) when a sentence cites nothing, cites a fact that does not exist, uses a number its cited facts do not hold, or uses a gendered pronoun. The committed `data/season/summaries.json` records each summary's `model` and a fingerprint of the numbers it was written from; `GET /api/players/{id}` serves the stored summary only while the profile still has those numbers and otherwise writes the rules one on the spot (`model: "rules-v0 (live)"`).
+
 ## Two dashboards
 
 Live since 2026-10-22 (plan: `docs/plan-two-dashboards.md`). One FastAPI app serves both, with the same code locally and on Azure.
@@ -87,6 +91,9 @@ Live since 2026-10-22 (plan: `docs/plan-two-dashboards.md`). One FastAPI app ser
 | `validate_stream(path)` | schema validation of a match directory or one file |
 | `render_clip(match_dir, clip_id, out_dir)` | cut one clip to MP4 with its title card |
 | `list_matches(root)` | the matches available |
+| `search_players(position, club, q, sort, order, limit, min_minutes)` | the Regista League's players filtered and ranked by any stat per 90 or ratio, each with its rank among the position |
+| `get_profile(player)` | one player's season by global id or full name, without the per-event evidence lists |
+| `compare_players(players)` | two or three players side by side |
 
 Any MCP host can drive Regista with these. The Foundry Librarian attaches this server, and beside it Microsoft's Azure MCP Server (`azmcp`, from the `msmcp-azure` package), started read-only with only the Cosmos DB namespace, plus the Search namespace when Search is configured; the tools allowed are `cosmos_database_container_item_query`, `cosmos_list`, and `search_index_query` (`src/regista/cloud/foundry.py`). Calls to the Cosmos DB query tool have been seen from local CLI runs. Inside the container (public Ask Foundry, AI Search namespace only), `search_index_query` was verified on 2026-10-21 (revision `regista-api--d1021183822`); the Cosmos DB tools are not offered there by design.
 

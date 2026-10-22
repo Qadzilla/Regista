@@ -10,6 +10,8 @@ Both agents keep the exact role, inputs, outputs, and state keys of their rule-b
 - ``FoundryLibrarianAgent`` is an Agent Framework agent with Regista's own MCP server attached
   as a stdio tool. It calls ``search_clips`` itself and writes a short broadcast-ready answer;
   the deterministic results are kept alongside so the UI can still show clips.
+- ``foundry_scout_answer`` is the Scout agent (Scout view): an Agent Framework agent with Regista's MCP server
+  limited to the read-only player tools (``search_players``, ``get_profile``, ``compare_players``).
 
 Credentials: ``DefaultAzureCredential`` (az login locally, managed identity in Container Apps).
 Set FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_MODEL; see ``regista.cloud.config``.
@@ -65,7 +67,7 @@ matched, say what the tool reported and suggest the nearest thing it offered. Ne
 
 
 _CHILD_ENV_PREFIXES = ("REGISTA_", "FOUNDRY_", "AZURE_", "IDENTITY_", "MSI_")
-_CHILD_ENV_NAMES = ("PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "TMPDIR", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
+_CHILD_ENV_NAMES = ("PATH", "PYTHONPATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "TMPDIR", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
 _CHILD_ENV_SECRETS = ("REGISTA_COSMOS_KEY", "APPLICATIONINSIGHTS_CONNECTION_STRING")
 
 
@@ -125,7 +127,8 @@ def azure_mcp_tool(cloud: CloudConfig, namespaces: tuple[str, ...] | None = None
                         approval_mode="never_require")
 
 
-REGISTA_MCP_TOOLS = ("search_clips", "search_library", "list_matches", "derive_clips", "validate_stream", "render_clip")
+REGISTA_MCP_TOOLS = ("search_clips", "search_library", "list_matches", "derive_clips", "validate_stream", "render_clip",
+                     "search_players", "get_profile", "compare_players")
 
 
 def tool_server(name: str) -> str | None:
@@ -160,6 +163,22 @@ def tools_used(result: Any) -> list[str]:
             if getattr(c, "type", None) == "function_call" and getattr(c, "name", None):
                 names.append(c.name)
     return names
+
+
+def tool_calls(result: Any) -> list[tuple[str, dict[str, Any]]]:
+    """The tools the agent called during a run with their arguments, in order (arguments parsed from JSON text)."""
+    calls = []
+    for msg in getattr(result, "messages", []) or []:
+        for c in getattr(msg, "contents", []) or []:
+            if getattr(c, "type", None) == "function_call" and getattr(c, "name", None):
+                args = getattr(c, "arguments", None)
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args) if args.strip() else {}
+                    except json.JSONDecodeError:
+                        args = {}
+                calls.append((c.name, dict(args) if isinstance(args, dict) else {}))
+    return calls
 
 
 def cosmos_account_name(cloud: CloudConfig) -> str | None:
@@ -444,3 +463,44 @@ async def foundry_chat_reply(cloud: CloudConfig, match_dir: str, history: list[d
         turns.append(Message("user", [f"{message}\n\n{note}\n" + "\n".join(context)]))
         result = await agent.run(turns, tools=tools)
         return getattr(result, "text", None) or str(result), tools_used(result)
+
+
+# ---------------------------------------------------------------------------- the Scout agent (Scout view)
+
+SCOUT_TOOLS = ["search_players", "get_profile", "compare_players"]  # read-only, public data: synthetic players only
+
+SCOUT_INSTRUCTIONS = """You are Regista's Scout agent. A football scout asks about players in the Regista League, a
+synthetic league of 6 clubs and 10 rounds. Your tools (Regista MCP) read the season's profiles:
+- search_players: filter (position GK/DF/MF/FW, club, name words) and rank by a stat per 90 or a ratio. Wingers and
+  strikers are FW. "Finisher" means goals; "wins the ball back" means recoveries; "take-ons" means take_ons_won.
+- get_profile: one player by global id or full name.
+- compare_players: two or three players.
+Always call a tool before answering. Answer in one to three plain sentences a scout would say, not a list of fields:
+name the best one to three players with their club and the numbers exactly as the tools returned them, for example
+"Amari Ustinov (Ashby Athletic) wins the most take-ons among forwards, 3.29 per 90 (11 in 301 minutes), ahead of …".
+Say "per 90" for per-90 values. Never invent players, stats or numbers. Use full names or surnames, never gendered pronouns. Each question comes with a note on how Regista's rules read
+it: use it as a hint; if it reads the question wrongly, call the tools the way the question needs."""
+
+
+async def foundry_scout_answer(cloud: CloudConfig, question: str, understood: str, season_env: dict[str, str],
+                               tools: list[str] | None = None) -> tuple[str, list[tuple[str, dict[str, Any]]]]:
+    """The Scout agent's answer from a Foundry model (Agent Framework) with Regista's MCP server limited to the player
+    tools. ``season_env`` points the server at the league (REGISTA_SEASON, REGISTA_SEASON_ROOT). Returns (answer, the
+    tool calls it made with their arguments)."""
+    from contextlib import AsyncExitStack
+
+    from agent_framework import Agent, MCPStdioTool
+    from agent_framework.foundry import FoundryChatClient
+    from azure.identity.aio import DefaultAzureCredential
+
+    allowed = list(tools or SCOUT_TOOLS)
+    async with DefaultAzureCredential() as credential, AsyncExitStack() as stack:
+        client = FoundryChatClient(project_endpoint=cloud.foundry_project_endpoint, model=cloud.foundry_model, credential=credential)
+        regista_mcp = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"],
+                                   env=child_env(season_env), allowed_tools=allowed)
+        mcp = await stack.enter_async_context(regista_mcp)
+        agent = await stack.enter_async_context(Agent(client=client, name="regista-scout", instructions=SCOUT_INSTRUCTIONS))
+        prompt = (f"{question}\n\n[Regista's rules read this as: {understood}]\n"
+                  f"tools you hold (offer nothing else): {', '.join(allowed)}")
+        result = await agent.run(prompt, tools=[mcp])
+        return getattr(result, "text", None) or str(result), tool_calls(result)
