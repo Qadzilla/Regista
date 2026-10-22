@@ -236,14 +236,18 @@ def test_every_write_control_is_gated_on_the_admin_key(page, script):
     assert "const canWrite = () => S.caps.writes !== 'read-only' && (S.role === 'admin' || S.role === 'open');" in script
     assert "Needs the admin key: the view key can read but not write." in script
     # Keep, Drop, resume a paused review, save Who's who answers, retrain, start a job: each rendered with ${w()}.
-    for control in ('data-v="keep"${w()}', 'data-v="drop"${w()}', 'data-act="resume"${w()}', 'id="wwSave"${w()}', 'id="trRetrain"${w()}'):
+    for control in ('data-v="keep"${w()}', 'data-v="drop"${w()}', 'data-act="resume"${w()}', 'id="trRetrain"${w()}'):
+        assert control in script, control
+    # Who's who: the save button, the candidates and the "someone else" list need the admin key and the identity result
+    assert "const canAnswer = (mid) => canWrite() && !S.noIdentity.has(mid);" in script
+    for control in ('id="wwSave"${off}', 'data-pid="${c.player_id}"${off}', 'data-pid="unknown"${off}', '<select aria-label="Another player"${off}>'):
         assert control in script, control
     assert "j.running ? html` disabled" in script and ": w();" in script  # job forms
     assert 'id="upGo" type="submit" data-write' in page                    # the static upload button
     writes = re.findall(r"write\(`([^`]+)`", script) + re.findall(r"write\('([^']+)'", script)
     assert sorted(set(writes)) == sorted({"/api/matches/${enc(card.dataset.match)}/clips/${enc(card.dataset.clip)}/verdict",
                                           "/api/matches/${enc(box.dataset.match)}/review",
-                                          "/api/matches/${enc(S.whos.mid)}/identity-review", "/api/feedback/train",
+                                          "/api/matches/${enc(mid)}/identity-review", "/api/feedback/train",
                                           "/api/studio/jobs"})
 
 
@@ -256,3 +260,41 @@ def test_polling_intervals(script):
     assert "setTimeout(r, 2000)" in script and "out.status === 'running'" in script   # job log every 2 s while running
     assert "}, 30000);" in script and "document.visibilityState === 'visible'" in script  # overview every 30 s while visible
     assert "/log?offset=${offset}" in script
+
+
+# ------------------------------------------------------------------------------------------------ the K4 fixes (audits J1, J3)
+
+def test_keep_and_drop_reach_every_clip(page, script):
+    """J1 #1: the review queue has an All clips view (flagged first), so the 8 verdicts a retrain needs are reachable."""
+    assert '<select id="rvView"><option value="flagged">Flagged unsure</option><option value="all">All clips</option></select>' in page
+    assert "r.cl.value.filter((c) => (everyClip || c.review) && (showDecided || !c.verdict)).sort(reviewOrder)" in script
+    assert "(!!a.verdict - !!b.verdict) || (!!b.review - !!a.review)" in script  # undecided first, flagged first among them
+    assert "const MIN_VERDICTS = 8;" in script and 'id="rvProgress"' in page
+    assert script.count("data-view-all") >= 4  # queue, progress line, Training, a finished job
+
+
+def test_whos_who_reloads_after_an_answer_and_is_read_only_without_the_identity_result(script):
+    save = script[script.index("$('wwBody').addEventListener('click'"):script.index("$('wwBody').addEventListener('change'")]
+    assert "S.whosDone = { mid, out };" in save and "loadWhos(mid)" in save  # J1 #6: the list reloads, count drops
+    assert "S.noIdentity.add(S.whos.mid);" in save                         # a 409 makes it read-only for the session
+    assert "if (r.identity_result === false) S.noIdentity.add(r.match_id);" in script  # known up front from /api/studio/runs
+    assert "Read-only here: answers need the vision layer's identity result, which stays on the machine that ran it." in script
+
+
+def test_words(page, script):
+    """J3 N8, N9, S13, S14: plurals, where keys come from, an empty Runs tab, and what counts against the limits."""
+    assert set(re.findall(r"(\w+)\(s\)", script)) <= {"constructor", "chip"}, "say 1 answer / 3 answers, not answer(s)"
+    assert "Zaid shares the view key with judges in the submission" in page
+    assert "No workflow runs on this server yet: uploads and jobs appear here" in script
+    assert "Each of those requests still counts against these limits." in script and "not counted" not in script
+
+
+def test_upload_defaults_to_the_most_active_player(script):
+    upload = script[script.index("async function setUploadFile"):script.index("$('upEvents').onchange")]
+    assert "r.type === 'possession' || r.type === 'event'" in upload and "players.find((p) => p.starter)" in upload
+
+
+def test_jobs_show_long_args_shortened_and_offer_cut_clips_after_a_vision_run(script, page):
+    assert 'class="mono small args" title="${JSON.stringify(x.args || {})}">${argsShort(x.args)}' in script
+    steps = script[script.index("async function nextSteps"):script.index("// ---", script.index("async function nextSteps"))]
+    assert "job.kind === 'vision-run'" in steps and "kind: 'cut-clips'" in steps and "#whos-who/${enc(mid)}" in steps

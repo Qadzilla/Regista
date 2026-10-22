@@ -30,8 +30,11 @@
   const NOTHING = html``;
 
   // ------------------------------------------------------------------------------------------------ state and formatting
+  // rvView: the review queue shows clips flagged unsure, or every clip (flagged first). noIdentity: vision matches whose
+  // identity result is not on this server (a 409 on answering), remembered for the session.
   const S = { role: null, caps: {}, matches: null, tab: null, arg: null, poll: 0, crops: [], whos: null, pending: new Map(),
-              chat: { state: null, history: [] }, overview: null };
+              chat: { state: null, history: [] }, overview: null, rvView: 'flagged', noIdentity: new Set(), whosDone: null };
+  const MIN_VERDICTS = 8;  // regista.feedback.MIN_SAMPLES: the watchability model trains on at least this many reviewed clips
 
   const canWrite = () => S.caps.writes !== 'read-only' && (S.role === 'admin' || S.role === 'open');
   const whyNoWrite = () => (S.caps.writes === 'read-only' ? 'This deployment is read-only (REGISTA_READONLY=1).'
@@ -39,6 +42,8 @@
   const w = () => (canWrite() ? NOTHING : html` disabled title="${whyNoWrite()}"`);
 
   const num = (n) => (n === null || n === undefined ? '–' : typeof n === 'number' ? n.toLocaleString('en-GB') : String(n));
+  // "1 answer", "3 answers", "1 replay", "2 replays"; irregular plurals are passed in.
+  const plural = (n, word, many) => `${num(n)} ${n === 1 ? word : many || `${word}s`}`;
   const pct = (x) => (x === null || x === undefined ? '–' : `${Math.round(x * 1000) / 10}%`);
   const score = (x) => (typeof x === 'number' ? x.toFixed(2) : '–');
   const ms = (x) => (typeof x === 'number' ? (x >= 1000 ? `${(x / 1000).toFixed(1)} s` : `${Math.round(x)} ms`) : '–');
@@ -239,7 +244,8 @@
 
     const u = o.usage || {}, lim = u.limits || {};
     put($('ovUsage'), html`
-      ${u.foundry ? NOTHING : html`<div class="note small">Foundry is not configured here: questions are answered by rules and not counted.</div>`}
+      ${u.foundry ? NOTHING : html`<div class="note small">Foundry is not configured here, so Ask and Foundry Chat are answered by rules.
+        Each of those requests still counts against these limits.</div>`}
       ${meter('last hour', u.last_hour, lim.total_per_hour)}
       ${meter('last day', u.last_day, lim.total_per_day)}
       ${meter('in flight', u.in_flight, lim.concurrent)}
@@ -336,16 +342,32 @@
       <div data-result></div></div>`;
   }
 
+  // Flagged clips first (the Label agent asked), then the rest in match order; decided ones last.
+  const reviewOrder = (a, b) => (!!a.verdict - !!b.verdict) || (!!b.review - !!a.review) || ((a.t || 0) - (b.t || 0));
+
+  // How far the verdicts are from a retrain, under the queue's controls.
+  async function reviewProgress() {
+    let f;
+    try { f = await studioGet('/api/feedback'); } catch (e) { $('rvProgress').textContent = ''; return; }
+    const n = f.clips_reviewed || 0;
+    put($('rvProgress'), n >= MIN_VERDICTS
+      ? html`${plural(n, 'clip')} reviewed: enough to retrain. <a href="#training">Retrain in Training</a>.`
+      : html`${plural(n, 'clip')} reviewed. The watchability model retrains from ${MIN_VERDICTS}: ${S.rvView === 'all' ? 'keep or drop' : html`<a href="#" data-view-all>show all clips</a> and keep or drop`} ${MIN_VERDICTS - n} more.`);
+  }
+
   async function loadReview(arg) {
     const sel = $('rvMatch');
+    $('rvView').value = S.rvView;
+    $('rvHeading').textContent = S.rvView === 'all' ? 'All clips (flagged unsure first)' : 'Clips flagged unsure';
     put($('rvPaused'), NOTHING);
     put($('rvClips'), html`<div class="muted">Loading…</div>`);
+    reviewProgress();
     let all;
     try { all = await matches(); } catch (e) { fail($('rvClips'), e); return; }
     put(sel, options(all.map((m) => ({ value: m.match_id, label: matchLabel(m) })), arg || '', 'All matches'));
     const targets = arg ? all.filter((m) => m.match_id === arg) : all;
     if (arg && !targets.length) { fail($('rvClips'), { detail: `no match ${arg}` }); return; }
-    const showDecided = $('rvDecided').checked;
+    const showDecided = $('rvDecided').checked, everyClip = S.rvView === 'all';
     S.pending.clear();
     const results = await Promise.all(targets.map(async (m) => {
       const [rv, cl] = await Promise.allSettled([
@@ -363,16 +385,35 @@
     put($('rvPaused'), paused.length ? html`<h3>Paused workflow reviews</h3>${paused}` : NOTHING);
 
     let total = 0;
+    const showAll = html` <a href="#" data-view-all>Show all clips</a> to keep or drop any of them.`;
     const groups = results.map((r) => {
       if (r.cl.status === 'rejected') return html`<h3 class="mono">${r.m.match_id}</h3><div class="err">${errText(r.cl.reason)}</div>`;
-      const list = r.cl.value.filter((c) => c.review || (showDecided && c.verdict));
+      const list = r.cl.value.filter((c) => (everyClip || c.review) && (showDecided || !c.verdict)).sort(reviewOrder);
       total += list.filter((c) => !c.verdict).length;
-      if (!list.length) return arg ? html`<h3 class="mono">${r.m.match_id}</h3><div class="empty">No clip of this match is flagged unsure${showDecided ? '' : ' without a verdict'}.</div>` : NOTHING;
-      return html`<h3><span class="mono">${r.m.match_id}</span> · ${list.length} clip(s)</h3><div class="cards">${list.map((c) => clipCard(r.m.match_id, c))}</div>`;
+      if (!list.length) {
+        if (!arg) return NOTHING;
+        const none = everyClip ? (r.cl.value.length ? 'Every clip of this match has a verdict.' : 'This match has no clips yet.')
+          : `No clip of this match is flagged unsure${showDecided ? '' : ' without a verdict'}.`;
+        return html`<h3 class="mono">${r.m.match_id}</h3><div class="empty">${none}${everyClip ? NOTHING : showAll}</div>`;
+      }
+      const flagged = list.filter((c) => c.review && !c.verdict).length;
+      return html`<h3><span class="mono">${r.m.match_id}</span> · ${plural(list.length, 'clip')}${everyClip && flagged ? ` · ${flagged} flagged unsure` : ''}</h3>
+        <div class="cards">${list.map((c) => clipCard(r.m.match_id, c))}</div>`;
     });
-    put($('rvClips'), total || showDecided || arg ? html`${groups}` : html`${groups}<div class="empty">Nothing to review: every clip flagged unsure has a verdict.</div>`);
+    const nothing = everyClip ? html`<div class="empty">Every clip has a verdict. Tick “show decided” to see them.</div>`
+      : html`<div class="empty">Nothing to review: every clip flagged unsure has a verdict.${showAll}</div>`;
+    put($('rvClips'), total || showDecided || arg ? html`${groups}` : html`${groups}${nothing}`);
     lazyVideos($('rvClips'));
   }
+
+  // "show all clips" links, wherever they are rendered (the queue, its progress line, the Training tab)
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-view-all]');
+    if (!a) return;
+    e.preventDefault();
+    S.rvView = 'all';
+    if (S.tab === 'review') loadReview(S.arg); else go('review', a.dataset.viewAll || null);
+  });
 
   function annotator() {
     const a = $('rvAnnotator').value.trim() || 'zaid';
@@ -395,6 +436,7 @@
       put(acts, html`${verdictLine({ keep: b.dataset.v === 'keep', annotator: a.annotator || who })}
         <span class="muted small">${a.id || ''} · ${out.stored_in_cosmos ? 'stored in Cosmos DB' : 'stored locally'}</span>`);
       refreshOverview(false);
+      reviewProgress();
     } catch (err) {
       if (err.status === 401) { lockOut('That key is no longer accepted.'); return; }
       for (const x of acts.querySelectorAll('button')) x.disabled = !canWrite();
@@ -423,13 +465,30 @@
   });
 
   $('rvMatch').onchange = () => go('review', $('rvMatch').value);
+  $('rvView').onchange = () => { S.rvView = $('rvView').value === 'all' ? 'all' : 'flagged'; loadReview(S.arg); };
   $('rvDecided').onchange = () => loadReview(S.arg);
   $('rvRefresh').onclick = async () => { S.matches = null; loadReview(S.arg); };
 
   // ------------------------------------------------------------------------------------------------ 3. who's who
+  // Vision matches, and whether each still has the identity result an answer rewrites (identity_result false: a copy
+  // without it, like the live app's; answering there would end in a 409 after the work of answering).
   async function visionMatches() {
     const runs = await studioGet('/api/studio/runs');
-    return runs.filter((r) => r.kind === 'vision').map((r) => r.match_id);
+    const vision = runs.filter((r) => r.kind === 'vision');
+    for (const r of vision) if (r.identity_result === false) S.noIdentity.add(r.match_id);
+    return vision.map((r) => r.match_id);
+  }
+
+  const NO_IDENTITY = "Read-only here: answers need the vision layer's identity result, which stays on the machine that ran it. "
+    + 'The questions and crops are shown so you can see what the identity agent asks.';
+  const canAnswer = (mid) => canWrite() && !S.noIdentity.has(mid);
+  const wa = (mid) => (canAnswer(mid) ? NOTHING : html` disabled title="${canWrite() ? NO_IDENTITY : whyNoWrite()}"`);
+
+  // What the last save did, shown above the reloaded list (the answered cards are gone from it).
+  function savedBox(out) {
+    return html`<div class="okbox">Saved ${plural(out.answers, 'answer')} by ${out.annotator}: ${plural((out.renamed || []).length, 'track')} renamed,
+      ${plural((out.cutaways || []).length, 'replay')} set, and possession, events and clips recomputed.${out.next_questions ? ` ${plural(out.next_questions, 'new question')}.` : ''}</div>
+      <details><summary>what the server returned</summary>${jsonBlock(out)}</details>`;
   }
 
   function dropCrops() { for (const u of S.crops) URL.revokeObjectURL(u); S.crops = []; }
@@ -458,8 +517,13 @@
   function renderWhos(out) {
     const { mid, items, teams } = S.whos;
     const body = $('wwBody');
-    if (!items.length) { put(body, html`<div class="empty">${out.message || 'No open identity questions for this match.'}</div>`); return; }
-    put(body, html`<p><b>${out.question || ''}</b> <span class="muted small mono">${mid}</span></p>
+    dropCrops();
+    const done = S.whosDone && S.whosDone.mid === mid ? savedBox(S.whosDone.out) : NOTHING;
+    S.whosDone = null;
+    if (!items.length) { put(body, html`${done}<div class="empty">No open identity questions for this match.</div>`); return; }
+    const off = wa(mid);
+    put(body, html`${done}${S.noIdentity.has(mid) ? html`<div class="note small">${NO_IDENTITY}</div>` : NOTHING}
+      <p><b>${plural(items.length, 'call')} the identity agent is unsure of</b> <span class="muted small mono">${mid}</span></p>
       <div class="qgrid">${items.map((it, i) => {
         const pool = it.kind === 'track' ? (teams[it.team_id] || []) : Object.values(teams).flat();
         const now = it.kind === 'track' ? (it.current ? playerName(it.current) : 'unnamed') : ((it.current || []).length ? it.current.map(playerName).join(', ') : 'nobody');
@@ -469,15 +533,15 @@
           <span class="muted small mono">${it.item_id} · ${it.kind}${it.segment_kind ? ` (${it.segment_kind})` : ''} · ${clock(it.t0)}–${clock(it.t1)}${typeof it.confidence === 'number' ? ` · conf ${score(it.confidence)}` : ''}</span>
           <span class="small">now: ${now}</span>
           <div class="opts">
-            ${(it.candidates || []).map((c) => html`<button type="button" class="opt" data-pid="${c.player_id}">${c.name} (${c.kit_number}) <span class="p">${Math.round((c.p || 0) * 100)}%</span></button>`)}
-            ${it.kind === 'track' ? html`<button type="button" class="opt" data-pid="not_a_player">Not a player</button><button type="button" class="opt" data-pid="unknown">Can't tell</button>`
-              : html`<button type="button" class="opt" data-pid="__nobody">Nobody</button>`}
+            ${(it.candidates || []).map((c) => html`<button type="button" class="opt" data-pid="${c.player_id}"${off}>${c.name} (${c.kit_number}) <span class="p">${Math.round((c.p || 0) * 100)}%</span></button>`)}
+            ${it.kind === 'track' ? html`<button type="button" class="opt" data-pid="not_a_player"${off}>Not a player</button><button type="button" class="opt" data-pid="unknown"${off}>Can't tell</button>`
+              : html`<button type="button" class="opt" data-pid="__nobody"${off}>Nobody</button>`}
           </div>
-          <select aria-label="Another player"><option value="">${it.kind === 'track' ? 'Someone else…' : 'Add a player…'}</option>
+          <select aria-label="Another player"${off}><option value="">${it.kind === 'track' ? 'Someone else…' : 'Add a player…'}</option>
             ${pool.map((p) => html`<option value="${p.player_id}">${p.name} (${p.kit_number})</option>`)}</select>
         </div>`;
       })}</div>
-      <div class="bar" style="margin-top:12px"><button id="wwSave"${w()}>Save answers and recompute the match</button>
+      <div class="bar" style="margin-top:12px"><button id="wwSave"${off}>Save answers and recompute the match</button>
         <span class="small" id="wwMsg"></span></div>
       <div id="wwResult"></div>`);
     for (const img of body.querySelectorAll('img[data-crop]')) {
@@ -509,6 +573,7 @@
 
   $('wwBody').addEventListener('click', async (e) => {
     const opt = e.target.closest('.opt');
+    if (opt && opt.disabled) return;
     if (opt) { answerWhos(+opt.closest('.q').dataset.i, opt.dataset.pid, true); return; }
     if (e.target.id !== 'wwSave' || e.target.disabled) return;
     const answers = Object.values(S.whos.answers);
@@ -516,17 +581,22 @@
     e.target.disabled = true;
     $('wwMsg').textContent = 'Correcting identity and recomputing possession, events and clips…';
     try {
-      const out = await write(`/api/matches/${enc(S.whos.mid)}/identity-review`, { answers, annotator: annotator() });
-      $('wwMsg').textContent = '';
-      put($('wwResult'), html`<div class="okbox">Saved ${num(out.answers)} answer(s) by ${out.annotator}; ${num((out.renamed || []).length)} track(s) renamed,
-        ${num((out.cutaways || []).length)} replay(s) set; the match was recomputed.${out.next_questions ? ` ${out.next_questions} new question(s).` : ''}</div>${jsonBlock(out)}`);
+      const mid = S.whos.mid;
+      const out = await write(`/api/matches/${enc(mid)}/identity-review`, { answers, annotator: annotator() });
       S.matches = null;
       refreshOverview(false);
+      S.whosDone = { mid, out };  // the reloaded list shows it on top; the answered cards are gone, new questions appear
+      if (S.tab === 'whos-who' && S.arg === mid) loadWhos(mid); else go('whos-who', mid);
     } catch (err) {
-      e.target.disabled = !canWrite();
+      if (err.status === 401) { lockOut('That key is no longer accepted.'); return; }
       $('wwMsg').textContent = '';
-      const missing = err.status === 409 && /identity result/i.test(errText(err));
-      fail($('wwResult'), err, missing ? 'Answer on the machine that ran the vision layer: this deployment has the questions and crops, but not the vision identity result, video and models needed to apply the answers.' : null);
+      if (err.status === 409 && /identity result/i.test(errText(err))) {
+        S.noIdentity.add(S.whos.mid);  // read-only for the rest of the session, said up front from now on
+        renderWhos({});
+        return;
+      }
+      e.target.disabled = !canAnswer(S.whos.mid);
+      fail($('wwResult'), err);
     }
   });
   $('wwBody').addEventListener('change', (e) => {
@@ -552,7 +622,7 @@
     const NAMES = { as_reviewed: 'label as reviewed', rules_prior: 'rules prior' };
     return html`<table class="grid"><tr><th>Scorer</th><th>Agreement with people</th><th>Mean abs. error</th></tr>
       ${scorers.map(([k, v]) => html`<tr><td>${NAMES[k] || k}</td><td class="mono">${pct(v.agreement)}</td><td class="mono">${score(v.mean_abs_error)}</td></tr>`)}</table>
-      <p class="muted small">on ${num(ev.n)} reviewed clip(s)${ev.as_reviewed_by_model ? `; labelled by ${Object.entries(ev.as_reviewed_by_model).map(([m, n]) => `${m} (${n})`).join(', ')}` : ''}</p>`;
+      <p class="muted small">on ${plural(ev.n, 'reviewed clip')}${ev.as_reviewed_by_model ? `; labelled by ${Object.entries(ev.as_reviewed_by_model).map(([m, n]) => `${m} (${n})`).join(', ')}` : ''}</p>`;
   }
 
   function renderFeedback(f) {
@@ -569,6 +639,8 @@
       ${feats.length ? html`<details><summary>${feats.length} feature weights</summary><table class="grid">${feats.map(([k, v]) => html`<tr><td class="mono">${k}</td><td class="mono">${score(v)}</td></tr>`)}
         <tr><td class="mono muted">intercept</td><td class="mono">${score(m.intercept)}</td></tr></table></details>` : NOTHING}
       <div class="bar" style="margin-top:10px"><button id="trRetrain"${w()}>Retrain from every verdict</button><span class="small" id="trMsg"></span></div>
+      ${(f.clips_reviewed || 0) < MIN_VERDICTS ? html`<p class="small muted">Retraining needs ${MIN_VERDICTS} reviewed clips; ${num(f.clips_reviewed || 0)} so far.
+        <a href="#" data-view-all>Keep or drop ${MIN_VERDICTS - (f.clips_reviewed || 0)} more in the Review queue</a>.</p>` : NOTHING}
       <div id="trResult"></div>`);
     $('trRetrain').onclick = async () => {
       $('trRetrain').disabled = true; $('trMsg').textContent = 'Training…';
@@ -638,7 +710,9 @@
     try { runs = await studioGet('/api/studio/runs'); } catch (e) { fail($('ruList'), e); return; }
     const failed = runs.filter((r) => r.status === 'failed').length;
     setCount('nRuns', failed, true);
-    put($('ruList'), runs.length ? html`<div class="tableWrap"><table class="grid">
+    const ran = runs.filter((r) => r.has_run).length;
+    put($('ruList'), runs.length ? html`${ran ? NOTHING : html`<div class="empty">No workflow runs on this server yet: uploads and jobs appear here.
+        The matches below came with the app, so they have no run recorded on this server.</div>`}<div class="tableWrap"><table class="grid">
       <tr><th>Match</th><th>Kind</th><th>Status</th><th>Finished</th><th>Agents</th><th>Dead letters</th><th>Label models</th><th>Review</th><th>Source</th></tr>
       ${runs.map((r) => {
         const ok = (r.agents || []).filter((a) => a.status === 'ok').length;
@@ -647,9 +721,9 @@
           <td>${(r.agents || []).length ? `${ok} / ${r.agents.length} ok` : '–'}</td>
           <td class="${(r.dead_letters || []).length ? 'bad' : 'muted'}">${num((r.dead_letters || []).length)}</td>
           <td class="small">${Object.entries(r.label_models || {}).map(([m, n]) => `${m} (${n})`).join(', ') || '–'}</td>
-          <td class="small">${(r.review || {}).pending_items ? `${r.review.pending_items} clip(s) waiting` : '–'}</td>
+          <td class="small">${(r.review || {}).pending_items ? `${plural(r.review.pending_items, 'clip')} waiting` : '–'}</td>
           <td class="small">${r.source || ''}</td></tr>`;
-      })}</table></div>` : html`<div class="empty">No matches on this deployment.</div>`);
+      })}</table></div>` : html`<div class="empty">No workflow runs on this server yet: uploads and jobs appear here.</div>`);
     if (arg) loadRunDetail(arg);
   }
 
@@ -666,8 +740,8 @@
     const rv = r.review || {};
     put(el, html`<h3>Run · <span class="mono">${r.match_id}</span> ${chip(r.status)}</h3>
       ${kv([['kind', r.kind || '–'], ['finished', when(r.finished_at)], ['source', r.source || '–'],
-            ['label models', Object.entries(r.label_models || {}).map(([m, n]) => `${m}: ${n} label(s)`).join(', ') || '–'],
-            ['review', rv.pending_requests ? `${rv.pending_requests} request(s), ${rv.pending_items} clip(s) waiting` : 'nothing waiting']])}
+            ['label models', Object.entries(r.label_models || {}).map(([m, n]) => `${m}: ${plural(n, 'label')}`).join(', ') || '–'],
+            ['review', rv.pending_requests ? `${plural(rv.pending_requests, 'request')}, ${plural(rv.pending_items, 'clip')} waiting` : 'nothing waiting']])}
       ${rv.pending_requests ? html`<p class="small"><a href="#review/${enc(r.match_id)}">Answer it in the Review queue</a></p>` : NOTHING}
       ${r.has_run ? NOTHING : html`<div class="note small" style="margin-top:8px">No pipeline run is recorded on this replica for this match.
         Runs are kept in the match's agents/ folder, which the container image does not ship; a match uploaded here gets one.</div>`}
@@ -693,13 +767,23 @@
     const sel = $('upPlayer');
     if (!file) { put(sel, html`<option value="">pick events.jsonl first</option>`); sel.disabled = true; return; }
     try {
-      const text = await file.slice(0, 2 * 1024 * 1024).text();
-      const h = JSON.parse(text.split('\n', 1)[0]);
+      const text = await file.slice(0, 32 * 1024 * 1024).text();
+      const lines = text.split('\n');
+      const h = JSON.parse(lines[0]);
       if (!h || h.type !== 'match' || !Array.isArray(h.players)) throw new Error('the first line is not a match header');
       up.header = h;
       const team = Object.fromEntries((h.teams || []).map((t) => [t.team_id, t.short_name || t.team_id]));
       const players = [...h.players].sort((a, b) => (b.starter ? 1 : 0) - (a.starter ? 1 : 0));
-      const first = players.find((p) => p.starter) || players[0];
+      // The file's featured player: the one with the most possessions and events (as the cut-clips job picks), not
+      // the first starter, who is usually the goalkeeper.
+      const active = new Map();
+      for (const line of lines.slice(1)) {
+        if (!line.includes('"player_id"')) continue;
+        let r; try { r = JSON.parse(line); } catch (e) { continue; }
+        if (r && (r.type === 'possession' || r.type === 'event') && r.player_id) active.set(r.player_id, (active.get(r.player_id) || 0) + 1);
+      }
+      const most = h.players.reduce((best, p) => ((active.get(p.player_id) || 0) > (active.get(best && best.player_id) || 0) ? p : best), null);
+      const first = (most && active.get(most.player_id) ? most : null) || players.find((p) => p.starter) || players[0];
       put(sel, html`${players.map((p) => html`<option value="${p.player_id}"${first && p.player_id === first.player_id ? html` selected` : NOTHING}>${p.name} (${p.kit_number}) · ${team[p.team_id] || p.team_id}${p.starter ? '' : ' · sub'}</option>`)}`);
       sel.disabled = false;
       $('upMatchId').placeholder = h.match_id || 'from the file';
@@ -762,14 +846,14 @@
     const id = `jf-${kind}-${name}`;
     const d = String(desc || '');
     let control;
-    if (name === 'roster') control = html`<select id="${id}" data-name="${name}" data-type="str">${options(list, '', 'pick a match')}</select>`;
+    if (name === 'roster' || name === 'match') control = html`<select id="${id}" data-name="${name}" data-type="str">${options(list, '', 'pick a match')}</select>`;
     else if (name === 'set') control = html`<select id="${id}" data-name="${name}" data-type="str" data-fresh><option value="dev" selected>dev (seeds 201-206, tuned against)</option><option value="fresh">fresh (301-303, frozen models only)</option></select>
       <div class="note small" data-fresh-warning hidden>${FRESH_WARNING}</div>`;
     else if (name === 'match_ids') control = html`<div class="opts" id="${id}" data-name="${name}" data-type="list-check">${list.map((m) => html`<label class="small"><input type="checkbox" value="${m.value}"> <span class="mono">${m.value}</span></label>`)}</div>`;
     else if (/^bool/i.test(d)) control = html`<label class="small"><input type="checkbox" id="${id}" data-name="${name}" data-type="bool"${/default true/i.test(d) ? html` checked` : NOTHING}> ${name}</label>`;
     else if (/^int/i.test(d)) control = html`<input type="number" id="${id}" data-name="${name}" data-type="int" min="1" max="99999" step="1" placeholder="${/optional/i.test(d) ? 'optional' : ''}">`;
     else if (/^list/i.test(d)) control = html`<input id="${id}" data-name="${name}" data-type="list" placeholder="comma-separated">`;
-    else control = html`<input id="${id}" data-name="${name}" data-type="str" maxlength="500" placeholder="${name === 'out' ? 'new match id' : name === 'video' ? '/path/to/video.mp4' : ''}">`;
+    else control = html`<input id="${id}" data-name="${name}" data-type="str" maxlength="500" placeholder="${name === 'out' ? 'new match id' : name === 'video' ? '/path/to/video.mp4' : name === 'player' ? 'optional, e.g. t_home_09' : ''}">`;
     return html`<div class="field"><span><b class="mono">${name}</b> · ${d}</span>${control}</div>`;
   }
 
@@ -785,6 +869,12 @@
     }
     return args;
   }
+
+  // "video=…/match.mp4 roster=syn_0294 out=vis_0002": paths by their file name; the cell ellipsises the rest.
+  const argsShort = (args) => Object.entries(args || {}).map(([k, v]) => {
+    const t = Array.isArray(v) ? v.join(',') : String(v);
+    return `${k}=${/[\\/]/.test(t) ? `…/${t.split(/[\\/]/).pop()}` : t}`;
+  }).join(' ') || '–';
 
   async function loadJobs(arg) {
     stopPolling();
@@ -804,7 +894,7 @@
     put($('jbList'), jobs.length ? html`<div class="tableWrap"><table class="grid"><tr><th>Job</th><th>Kind</th><th>Status</th><th>Started</th><th>Ended</th><th>Exit</th><th>Args</th><th>Log</th></tr>
       ${jobs.map((x) => html`<tr class="click${x.id === arg ? ' sel' : ''}" data-job="${x.id}"><td class="mono small">${x.id}</td><td>${x.kind}</td><td>${chip(x.status)}</td>
         <td class="small">${when(x.started_at)}</td><td class="small">${x.ended_at ? when(x.ended_at) : '–'}</td><td class="mono">${x.returncode ?? '–'}</td>
-        <td class="mono small">${JSON.stringify(x.args || {})}</td><td class="small">${bytes(x.log_bytes)}</td></tr>`)}</table></div>`
+        <td class="mono small args" title="${JSON.stringify(x.args || {})}">${argsShort(x.args)}</td><td class="small">${bytes(x.log_bytes)}</td></tr>`)}</table></div>`
       : html`<div class="empty">No jobs yet.</div>`);
     const show = arg || (j.running && j.running.id);
     if (show) followJob(show); else { $('jbLog').textContent = 'Pick a job.'; $('jbLogWho').textContent = ''; put($('jbResult'), NOTHING); }
@@ -854,7 +944,7 @@
       offset = out.next_offset;
       $('jbLogWho').textContent = `${id} · ${out.status} · ${bytes(out.size)}`;
       if (out.status === 'running') { sawRunning = true; await new Promise((r) => setTimeout(r, 2000)); continue; }
-      if (sawRunning) { loadJobs(id); return; }  // it just ended: refresh the banner, the forms and the list once
+      if (sawRunning) { S.matches = null; loadJobs(id); return; }  // it just ended: refresh the banner, the forms (a new match?) and the list once
       if (offset < out.size) continue;  // a finished job: read the rest without waiting
       break;
     }
@@ -863,9 +953,49 @@
       if (ticket !== S.poll) return;
       put($('jbResult'), html`<h3>Job ${chip(job.status)} <span class="muted small">exit ${job.returncode ?? '–'}</span></h3>
         ${kv([['argv', (job.argv || []).join(' ')], ['started', when(job.started_at)], ['ended', when(job.ended_at)]])}
-        ${job.result ? html`<h3>Result</h3>${jsonBlock(job.result)}` : NOTHING}`);
+        ${job.result ? html`<h3>Result</h3>${jsonBlock(job.result)}` : NOTHING}
+        <div id="jbNext"></div>`);
       setCount('nJobs', 0, false);
+      if (job.status === 'ok') nextSteps(job, ticket);
     } catch (e) { fail($('jbResult'), e); }
+  }
+
+  // After a vision run: the new match, and a Cut clips job so the Product has something to show (vision-run writes the
+  // event stream, not clips). After cut-clips: where the clips are.
+  async function nextSteps(job, ticket) {
+    const el = $('jbNext');
+    const mid = job.kind === 'vision-run' ? (job.args || {}).out : job.kind === 'cut-clips' ? (job.args || {}).match : null;
+    if (!el || !mid || !ID.test(mid)) return;
+    S.matches = null;
+    let m;
+    try { m = await api(`/api/matches/${enc(mid)}`); } catch (e) { if (ticket === S.poll) fail(el, e); return; }
+    if (ticket !== S.poll) return;
+    const links = html`<a href="#runs/${enc(mid)}">its run</a> · <a href="#review/${enc(mid)}" data-view-all="${mid}">its clips in the Review queue</a>
+      ${job.kind === 'vision-run' ? html` · <a href="#whos-who/${enc(mid)}">Who's who</a>` : NOTHING} · <a href="/">the Product</a>`;
+    if (job.kind === 'cut-clips' || m.clip_count) {
+      put(el, html`<div class="okbox newMatch"><span>Match <b class="mono">${mid}</b> has ${plural(m.clip_count || 0, 'clip')}${(m.players_with_clips || []).length ? ` for ${m.players_with_clips.join(', ')}` : ''}.</span><span class="small">${links}</span></div>`);
+      return;
+    }
+    const players = [...(m.players || [])].sort((a, b) => (b.starter ? 1 : 0) - (a.starter ? 1 : 0));
+    const gate = canWrite() ? NOTHING : html` disabled title="${whyNoWrite()}"`;
+    put(el, html`<div class="okbox newMatch"><span>New match <b class="mono">${mid}</b>: the vision layer wrote its event stream. It has no clips yet,
+        so the Product has nothing to show for it until clips are cut.</span><span class="small">${links}</span></div>
+      <form class="jobform panel" id="jbCut"><h4>Cut clips for <span class="mono">${mid}</span></h4>
+        <label class="small">Player <select id="jbCutPlayer"><option value="">the featured or most active player</option>
+          ${players.map((p) => html`<option value="${p.player_id}">${p.name} (${p.kit_number})${p.starter ? '' : ' · sub'}</option>`)}</select></label>
+        <div class="bar"><button${gate}>Cut clips</button><span class="small" data-msg></span></div></form>`);
+    $('jbCut').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = $('jbCut').querySelector('button'), msg = $('jbCut').querySelector('[data-msg]');
+      if (btn.disabled) return;
+      const args = { match: mid };
+      if ($('jbCutPlayer').value) args.player = $('jbCutPlayer').value;
+      btn.disabled = true; msg.textContent = 'Starting…';
+      try { go('jobs', (await write('/api/studio/jobs', { kind: 'cut-clips', args })).id); } catch (err) {
+        if (err.status === 401) { lockOut('That key is no longer accepted.'); return; }
+        btn.disabled = !canWrite(); msg.textContent = errText(err);
+      }
+    };
   }
 
   // ------------------------------------------------------------------------------------------------ 7. console
