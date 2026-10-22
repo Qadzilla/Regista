@@ -32,7 +32,7 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 
 **Live app: https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io**. Every push to `main` that passes the tests, the image build and the in-image smoke test deploys itself.
 
-> **Two dashboards, live since 2026-10-22:** the Product at `/` and Regista Studio at `/studio` (plan: `docs/plan-two-dashboards.md`). The Studio's view key for judges is set on the live app with one `infra/deploy-app.sh` run; until then the Studio opens only with the admin key.
+> **Two dashboards, live since 2026-10-22:** the Product at `/` and Regista Studio at `/studio` (plan: `docs/plan-two-dashboards.md`). Judges get the Studio's view-only key with the submission; it opens the whole Studio and changes nothing.
 
 One app serves two dashboards, locally and on Azure:
 

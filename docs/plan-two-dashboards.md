@@ -1,6 +1,6 @@
 # Plan: two dashboards, the Product and the Studio
 
-Drafted 2026-10-21 with Zaid, for judging criterion 4 (User Experience and Presentation: an intuitive UX, the project's value made clear, a balanced frontend and backend), with criteria 2 and 3 in mind. **Status: built, audited and live since 2026-10-22** (PRs #4-#17 into `ux/two-dashboards`, audits J1-J3, fixes K1-K5, then PR #18 to `main`, deployed by CI). Still to do: set the Studio view key on the live app with one `infra/deploy-app.sh` run.
+Drafted 2026-10-21 with Zaid, for judging criterion 4 (User Experience and Presentation: an intuitive UX, the project's value made clear, a balanced frontend and backend), with criteria 2 and 3 in mind. **Status: built, audited and live since 2026-10-22** (PRs #4-#17 into `ux/two-dashboards`, audits J1-J3, fixes K1-K5, then PR #18 to `main`, deployed by CI). The Studio view key was set on the live app the same night with one `infra/deploy-app.sh` run.
 
 ## 1. The idea
 

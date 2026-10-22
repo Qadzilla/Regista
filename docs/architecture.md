@@ -123,7 +123,7 @@ subscription Azure for Students (Northeastern University directory), resource gr
                            data-contributor, and Search roles,
                            env FOUNDRY_PROJECT_ENDPOINT, FOUNDRY_MODEL, REGISTA_COSMOS_ENDPOINT, REGISTA_SEARCH_ENDPOINT, REGISTA_CLOUD=1,
                            secrets admin-token (REGISTA_ADMIN_TOKEN), appi-connection (APPLICATIONINSIGHTS_CONNECTION_STRING),
-                           and studio-view-token (REGISTA_STUDIO_VIEW_TOKEN, once deploy-app.sh has run with it)
+                           and studio-view-token (REGISTA_STUDIO_VIEW_TOKEN)
 ```
 
 Provision with `infra/provision.sh` (idempotent; creates the Foundry resource, project and deployment, Cosmos DB and its containers, AI Search, and the Container Apps environment and registry, and writes `.env`). It does not create Application Insights or connect it to the Foundry project; that was done by hand in the portal. Build the image by pushing to `main`, deploy with `infra/deploy-app.sh`. Free-trial subscriptions cannot run ACR Tasks, which is why the image builds on GitHub Actions rather than with `az containerapp up --source`.
