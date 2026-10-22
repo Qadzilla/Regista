@@ -58,11 +58,19 @@ ADMIN, VIEW = "admin-key-for-tests", "view-key-for-tests"
 SAMPLE = Path(__file__).resolve().parents[1] / "data" / "synthetic" / "sample"
 
 
+def _api_routes(routes):
+    """Every APIRoute, including those of included routers: FastAPI before 0.13x copies them into app.routes, newer
+    versions keep one entry per included router (its routes under ``original_router``). Regista's routers have no prefix."""
+    for r in routes:
+        if isinstance(r, APIRoute):
+            yield r
+        elif getattr(r, "original_router", None) is not None:
+            yield from _api_routes(r.original_router.routes)
+
+
 def _declared() -> dict[str, str]:
     out = {}
-    for r in api.app.routes:
-        if not isinstance(r, APIRoute):
-            continue
+    for r in _api_routes(api.app.routes):
         calls = {d.call for d in r.dependant.dependencies}
         level = "admin" if access.require_writer in calls else "studio" if access.require_studio_reader in calls else "public"
         for m in r.methods:
