@@ -352,7 +352,7 @@ https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io, revi
   (3 min 5 s: shots 17 s, identity 126 s) → needs_review with 2 questions; both answered yes (checked against the
   film's ground truth and the crops) → done; the match joined his profile (11 appearances). His moments: 4 of 5 found,
   4 of 5 correct. The first try failed at shots: the image had a newer scikit-learn than the models were pickled
-  with; scikit-learn is now pinned to 1.7. Test uploads up_6ae3bb64d6 (failed) and up_8807d7835c (done) stay in storage.
+  with; scikit-learn is now pinned to 1.7. The failed test upload up_6ae3bb64d6 was deleted from storage (2026-10-22); up_8807d7835c (done) stays as the demo upload.
 - Keyless for real: key login off on Cosmos DB and Search; the registry has no admin user (the app pulls with AcrPull);
   GitHub Actions deploys as app registration `regista-github-deploy` (owned by Zaid; federated credentials for both
   GitHub subject formats, `main` only). The remaining secrets are the write token and the App Insights connection
