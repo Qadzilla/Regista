@@ -16,7 +16,7 @@ Rewritten 2026-10-21 around what runs today; beats 4-7 rewritten the same day fo
 |---|---|---|
 | Vision layer | Laptop, from this repository (models in `models/vision/`, never deployed) | docs/vision.md; models present on Zaid's Mac |
 | Who's who, answered | Regista Studio on the laptop (`localhost:8000/studio`, no keys set locally, so it is open), match `vis_0201` from the local vision run: answering needs that run's identity result, which never leaves the laptop | `GET …/vis_0201/identity-review` lists the questions |
-| Who's who on the live app | Read-only: the Studio with the view key shows `vis_0201`'s 11 questions and crops; answering there returns 409 and says why. Not filmed | |
+| Who's who on the live app | Read-only: the Studio with the view key shows `vis_0201`'s 3 questions and crops; answering there returns 409 and says why. Not filmed | |
 | The Product: ask box, timeline, stage | Live app, revision deployed by CI from `main` after the merge | `GET /api/health`: `librarian: foundry:gpt-5-mini`, `azure_mcp: true`, `tracing: true`, Cosmos DB and Search on |
 | Foundry labels | Live app, match `syn_0141`: its labels were written by `foundry:gpt-5-mini` through the cloud workflow, stored in Cosmos DB, and exported read-only into the image, so the cards carry the "Labelled by Microsoft Foundry" badge | `GET /api/matches/syn_0141/clips` |
 | Ask box turns | Instant engine on `syn_0294`; replies below are the real output (`regista.conversation.chat_turn`, checked on 2026-10-21 against the branch) | run locally, same code as the live app |

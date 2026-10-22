@@ -42,6 +42,8 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
     e.add_argument("--out", type=Path, default=None, help="write the full report as JSON")
     e.add_argument("--e2e-seed", type=int, default=None, help="match for the end-to-end clip comparison (default: the set's first)")
+    e.add_argument("--with-labels", action="store_true", dest="labels",
+                   help="score the older footage that draws the ball holder's name label and ring (what the v3 models saw)")
 
     r = sub.add_parser("run", help="run the vision layer on a video and write a match directory")
     r.add_argument("video", type=Path)
@@ -68,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
     ee.add_argument("--root", type=Path, default=None)
     ee.add_argument("--models", type=Path, default=DEFAULT_MODELS_DIR)
     ee.add_argument("--out", type=Path, default=None)
+    ee.add_argument("--with-labels", action="store_true", dest="labels", help="as for evaluate")
     sub.add_parser("mermaid", help="print the vision workflow graph")
     args = ap.parse_args(argv)
 
@@ -89,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
         from regista.vision.evaluate import evaluate_all
 
         report = evaluate_all(args.root, args.models, test_specs=FRESH_SPECS if args.match_set == "fresh" else TEST_SPECS,
-                              e2e_seed=args.e2e_seed)
+                              e2e_seed=args.e2e_seed, labels=args.labels)
         if args.out:
             args.out.parent.mkdir(parents=True, exist_ok=True)
             args.out.write_text(json.dumps(report, indent=2, default=str) + "\n", encoding="utf-8")
@@ -106,7 +109,8 @@ def main(argv: list[str] | None = None) -> int:
             spotter = train_event_spotter(event_dataset(EVENT_TRAIN_SPECS, root, args.models), args.models)
             print(json.dumps(spotter.info, indent=2))
             return 0
-        report = score_event_spotter(event_dataset(FRESH_SPECS if args.match_set == "fresh" else TEST_SPECS, root, args.models),
+        report = score_event_spotter(event_dataset(FRESH_SPECS if args.match_set == "fresh" else TEST_SPECS, root, args.models,
+                                                   labels=args.labels),
                                      EventSpotter.load(args.models))
         for kind, v in report["all"].items():
             print(f"{kind:13s} true {v['true']:4d}  predicted {v['predicted']:4d}  precision {v['precision']}  recall {v['recall']}  "

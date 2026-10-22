@@ -1,7 +1,8 @@
 """The demo vision match (data/synthetic/sample/vis_0201) and the packager that made it (regista.vision.package).
 
 The committed match must validate, serve its Who's who questions with crops, refuse answers without changing anything
-(the identity result stays on the machine that ran the vision layer), and render with the trimmed tracks.
+(the identity result stays on the machine that ran the vision layer, in data/vision/, which the tests never see), and
+render with the trimmed tracks. It was cut from footage without name labels, so no crop shows the answer.
 """
 
 from __future__ import annotations
@@ -47,6 +48,7 @@ def test_committed_vision_match_validates():
     assert manifest["source"] == "vision" and manifest["clips_for"] == "t_home_09"
     assert "vision layer" in manifest["note"] and "rendered" in manifest["note"]
     assert manifest["rendering"]["captions"] is False
+    assert manifest["rendering"]["name_labels"] is False and manifest["rendering"]["holder_ring"] is False  # crops must not print the answer
     assert manifest["score"] == header["score"]
     clips = [c for c in iter_jsonl(VIS / "clips.jsonl") if c["type"] == "clip"]
     assert clips and all(c["player_id"] == "t_home_09" for c in clips)
@@ -58,7 +60,7 @@ def test_committed_vision_match_validates():
 
 def test_review_queue_loads_with_crops():
     items = json.loads((VIS / "review" / QUEUE_FILE).read_text())["items"]
-    assert len(items) >= 5
+    assert len(items) >= 3
     assert {"track", "cutaway"} <= {it["kind"] for it in items}
     assert any(it.get("segment_kind") == "replay" for it in items)
     for it in items:
@@ -150,6 +152,10 @@ def test_package_match_round_trip_and_path_guard(tmp_path):
     assert not (out / "agents").exists() and machine_paths(out) == []
     assert m["review"]["questions"] == len(json.loads((VIS / "review" / QUEUE_FILE).read_text())["items"])
     assert m["files"]["tracks.jsonl"] == sum(1 for _ in iter_jsonl(VIS / "tracks.jsonl"))  # already trimmed: unchanged
+    edited = {**json.loads((out / "manifest.json").read_text()), "title": "A heading", "subtitle": "set by hand"}
+    (out / "manifest.json").write_text(json.dumps(edited))
+    again = package_match(src, out, player_id="t_home_09", note="test", track_hz=None)  # e.g. after a Who's who answer
+    assert (again["title"], again["subtitle"]) == ("A heading", "set by hand")
     with pytest.raises(ValueError, match="directory name"):
         package_match(src, tmp_path / "out" / "other", player_id="t_home_09", note="test")
     q = json.loads((src / "review" / QUEUE_FILE).read_text())

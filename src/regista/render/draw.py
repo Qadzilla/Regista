@@ -73,6 +73,11 @@ class Style:
     # Broadcast captions ("NUTMEG! ... through the legs of ...", "REPLAY · goal by ...") name the event on screen.
     # Footage used to train or test the vision layer is rendered without them: real footage carries no such labels.
     captions: bool = True
+    # The name label over the ball holder (and over a clip's focus player) and the coloured ring under them are
+    # broadcast-style graphics that say who has the ball. Vision footage turns both off (regista.vision.dataset):
+    # real footage has neither, and a model could learn to read them instead of the play.
+    labels: bool = True
+    holder_ring: bool = True
 
     def __post_init__(self) -> None:
         # libx264 with yuv420p needs even dimensions; round down rather than fail in the encoder.
@@ -208,7 +213,9 @@ def draw_players(img: Image.Image, cam: Camera, style: Style, scene: Scene, posi
     draw = ImageDraw.Draw(img)
     base_r = 14.0 * style.s
     # Far players first so near players overlap them; the focus player and the holder go last so they are never hidden.
-    on_top = [pid for pid in dict.fromkeys((focus, holder)) if pid and pid in positions]
+    # Without labels or rings the holder takes its place by depth like everyone else: drawing the holder last would mark them too.
+    marked = (focus, holder) if style.labels or style.holder_ring else (focus,)
+    on_top = [pid for pid in dict.fromkeys(marked) if pid and pid in positions]
     ordinary = sorted(((pid, p) for pid, p in positions.items() if pid not in on_top), key=lambda kv: -cam.depth(kv[1][1]))
     order = ordinary + [(pid, positions[pid]) for pid in on_top]
     discs: dict[str, tuple[float, float, float]] = {}
@@ -221,7 +228,7 @@ def draw_players(img: Image.Image, cam: Camera, style: Style, scene: Scene, posi
         fill, text = hex_rgb(fill_hex), hex_rgb(text_hex)
         draw.ellipse([sx - r * 0.9, sy - r * 0.25, sx + r * 0.9, sy + r * 0.45], fill=darken(style.grass_a, 0.6))
         ring_w = max(2, int(3 * style.s))
-        if pid == holder or pid == focus:
+        if style.holder_ring and (pid == holder or pid == focus):
             ring = r + max(2.0, 3.0 * style.s)
             colour = COLOUR_ACCENT if pid == holder else COLOUR_FOCUS
             draw.ellipse([sx - ring, sy - r - ring, sx + ring, sy - r + ring], outline=colour, width=ring_w)
@@ -236,7 +243,7 @@ def draw_players(img: Image.Image, cam: Camera, style: Style, scene: Scene, posi
         draw.ellipse([bx - br * 1.2, by - br * 0.4, bx + br * 1.2, by + br * 0.6], fill=darken(style.grass_a, 0.6))
         draw.ellipse([bx - br, by - 2 * br, bx + br, by], fill=(250, 250, 250), outline=(30, 30, 30), width=max(1, int(1.5 * style.s)))
     # Name labels last, above the disc, moved below it when another disc sits where the label would go.
-    for pid in on_top:
+    for pid in on_top if style.labels else ():
         if pid not in discs:
             continue
         sx, sy, r = discs[pid]
