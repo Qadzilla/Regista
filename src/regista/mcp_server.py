@@ -12,6 +12,12 @@ Tools
 - ``validate_stream(path)``                     schema-validate a match directory or a single JSONL file
 - ``render_clip(match_dir, clip_id, out_dir)``  cut one clip to MP4 with its title card
 - ``list_matches(root)``                        the match directories available under a folder
+- ``search_players(position, club, q, sort, order, limit, min_minutes)``
+                                                the Regista League's players filtered and ranked by any stat per 90
+- ``get_profile(player)``                       one player's season (by global id or name), without the evidence lists
+- ``compare_players(players)``                  two or three players side by side
+
+The player tools read the league named by REGISTA_SEASON / REGISTA_SEASON_ROOT (default data/season/…).
 
 Everything runs locally and deterministically; no model, no keys. A Foundry-hosted agent
 calls these tools and reasons about the answers; it never re-implements them. The server
@@ -38,7 +44,8 @@ server = FastMCP(
         "Regista finds every on-ball moment, replay, and highlight of a football player in a match and "
         "labels them. Use search_clips for natural-language questions like 'find me Castellanos doing a "
         "nutmeg'. Use derive_clips to list a player's clips, validate_stream to check data, render_clip "
-        "to produce a video. Paths are match directories containing events.jsonl (and clips.jsonl)."
+        "to produce a video. Paths are match directories containing events.jsonl (and clips.jsonl). For the "
+        "synthetic Regista League's players across the season use search_players, get_profile and compare_players."
     ),
 )
 
@@ -119,6 +126,55 @@ def list_matches(root: str = "data/synthetic/sample") -> list[dict[str, Any]]:
             out.append({"match_dir": str(d), "match_id": d.name, "score": manifest.get("score"), "clips_for": manifest.get("clips_for"),
                         "video_duration_s": manifest.get("video_duration_s")})
     return out
+
+
+# ---------------------------------------------------------------------------- the Regista League's players (Scout view)
+
+def _season():
+    import os
+
+    from regista.season.profiles import load_season
+
+    return load_season(os.environ.get("REGISTA_SEASON", "data/season/league.json"),
+                       os.environ.get("REGISTA_SEASON_ROOT", "data/season/matches"))
+
+
+def _player_tool_docs() -> str:
+    from regista.season.scout import sort_keys
+
+    return ("Search the synthetic Regista League's players (6 clubs, 10 rounds) and rank them. position: GK, DF, MF or FW "
+            "(wingers and strikers are FW). club: name or short name. q: words of a player's name. sort: one of "
+            + ", ".join(sort_keys()) + " (stats are per 90; pass_accuracy, take_on_success and shot_accuracy are ratios). "
+            "order: desc (most first) or asc. min_minutes: leave empty for the default (40% of the most minutes when ranking). "
+            "Returns each player's global_id, club, minutes, the sorted stat with its count and rank among the same position, "
+            "and their headline rates per 90.")
+
+
+@server.tool(description=_player_tool_docs())
+def search_players(position: str | None = None, club: str | None = None, q: str | None = None, sort: str = "minutes",
+                   order: str = "desc", limit: int = 10, min_minutes: float | None = None) -> dict[str, Any]:
+    from regista.season.scout import search_players as _search_players
+
+    return _search_players(_season(), position=position, club=club, q=q, sort=sort, order=order, limit=limit, min_minutes=min_minutes)
+
+
+@server.tool()
+def get_profile(player: str) -> dict[str, Any]:
+    """One Regista League player's season, by global id (pl_ash_09) or full name: appearances, minutes, every stat per
+    90 (or ratio) with its count, percentile and rank among the same position, best moments, matches, and the
+    profile summary. Without the per-event evidence lists."""
+    from regista.season.scout import get_profile as _get_profile
+
+    return _get_profile(_season(), player)
+
+
+@server.tool()
+def compare_players(players: list[str]) -> dict[str, Any]:
+    """Two or three Regista League players side by side (global ids or full names): every stat per 90 and ratio,
+    with counts, percentiles and ranks among their positions."""
+    from regista.season.scout import compare_players as _compare_players
+
+    return _compare_players(_season(), players)
 
 
 def main(argv: list[str] | None = None) -> int:

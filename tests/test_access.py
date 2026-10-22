@@ -24,6 +24,7 @@ ACCESS = {
     "GET /api/players/{gid}/moments": "public",
     "GET /api/players/{gid}/reel.mp4": "public",
     "GET /api/compare": "public",
+    "POST /api/scout/ask": "public",  # the Scout agent: reads only; Foundry behind the Ask limits, player tools only
     # The Product (open)
     "GET /": "public",
     "GET /api/health": "public",
