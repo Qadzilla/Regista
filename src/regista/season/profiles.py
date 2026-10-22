@@ -118,7 +118,7 @@ class Season:
                     if test(rec):
                         a["counts"][key] += 1
                         if len(a["evidence"][key]) < MAX_EVIDENCE:
-                            a["evidence"][key].append({"match_id": fx["match_id"], "event_id": rec["id"], "t": rec["t"],
+                            a["evidence"][key].append({"match_id": fx["match_id"], "player_id": rec["player_id"], "event_id": rec["id"], "t": rec["t"],
                                                        "clip_id": clip_of_event.get((rec["player_id"], rec["id"]))})
                 pt = rec.get("pitch")
                 if pt and rec["event_type"] in ("touch", "pass", "cross", "carry", "take_on", "shot", "tackle", "interception",
@@ -260,7 +260,8 @@ def _clips_and_moments(d: Path, local_to_global: dict[str, str | None]) -> tuple
         lb = labels.get(cid)
         if gid and lb:
             moments.setdefault(gid, []).append({
-                "match_id": match_id, "round": round_no, "clip_id": cid, "t": c["t"], "t_end": c["t_end"], "reason": c["reason"],
+                "match_id": match_id, "round": round_no, "clip_id": cid, "player_id": c["player_id"], "t": c["t"], "t_end": c["t_end"],
+                "reason": c["reason"],
                 "title": lb["title"], "tags": [t for t in lb["tags"] if t not in ("touch", "on_ball_main")],
                 "watchability": lb["watchability"], "video_url": f"/api/matches/{match_id}/clips/{cid}.mp4"})
     return clip_of_event, moments
