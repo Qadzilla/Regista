@@ -15,7 +15,7 @@ os.environ["REGISTA_DOTENV"] = ""
 os.environ["REGISTA_SEASON_WARM"] = "0"  # no test builds the full league at app startup; test_season uses a small one
 for _var in ("FOUNDRY_PROJECT_ENDPOINT", "FOUNDRY_MODEL", "REGISTA_COSMOS_ENDPOINT", "REGISTA_COSMOS_KEY", "REGISTA_CLOUD",
              "REGISTA_SEARCH_ENDPOINT", "APPLICATIONINSIGHTS_CONNECTION_STRING", "REGISTA_ADMIN_TOKEN", "REGISTA_STUDIO_VIEW_TOKEN",
-             "REGISTA_READONLY"):
+             "REGISTA_READONLY", "REGISTA_STORAGE_ACCOUNT"):
     os.environ.pop(_var, None)
 
 
@@ -24,3 +24,5 @@ def _isolated_feedback(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("REGISTA_FEEDBACK_DIR", str(tmp_path_factory.mktemp("feedback")))
     # Never the developer's own full vision outputs (data/vision): an answer there would rewrite a committed package.
     monkeypatch.setenv("REGISTA_VISION_WORK", str(tmp_path_factory.mktemp("vision_work")))
+    # The Player view's uploads, queue and results: a private folder per test, never Azure.
+    monkeypatch.setenv("REGISTA_PLAYER_DIR", str(tmp_path_factory.mktemp("player")))

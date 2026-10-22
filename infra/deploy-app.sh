@@ -36,7 +36,7 @@ log() { printf '\n\033[1;33m== %s\033[0m\n' "$*"; }
 
 ENV_VARS=("REGISTA_CLOUD=1" "FOUNDRY_PROJECT_ENDPOINT=${FOUNDRY_PROJECT_ENDPOINT:-}" "FOUNDRY_MODEL=${FOUNDRY_MODEL:-}"
           "REGISTA_COSMOS_ENDPOINT=${REGISTA_COSMOS_ENDPOINT:-}" "REGISTA_COSMOS_DATABASE=${REGISTA_COSMOS_DATABASE:-regista}"
-          "REGISTA_SEARCH_ENDPOINT=${REGISTA_SEARCH_ENDPOINT:-}")
+          "REGISTA_SEARCH_ENDPOINT=${REGISTA_SEARCH_ENDPOINT:-}" "REGISTA_STORAGE_ACCOUNT=${REGISTA_STORAGE_ACCOUNT:-}")
 # Writes (uploads, verdicts, reviews, retraining) on the public URL need the admin key; it also opens the Studio. The app
 # fails closed without it (REGISTA_CLOUD=1, no key: Studio closed, writes off), but a deploy that silently drops the key
 # is still a mistake, so refuse it.
@@ -81,6 +81,13 @@ if [[ -n "${REGISTA_SEARCH_ENDPOINT:-}" ]]; then
   SEARCH_ID=$(az search service show -n "$SEARCH_NAME" -g "$RG" --query id -o tsv)
   for role in "7ca78c08-252a-4471-8644-bb5ff32d4ba0" "8ebe5a00-799e-43f5-93ac-243d3dce84a7"; do
     az role assignment create --role "$role" --assignee-object-id "$APP_OID" --assignee-principal-type ServicePrincipal --scope "$SEARCH_ID" -o none 2>/dev/null || true
+  done
+fi
+if [[ -n "${REGISTA_STORAGE_ACCOUNT:-}" ]]; then
+  # The Player view: the app stores uploads and reads results (Blob) and queues vision jobs (Queue).
+  STORAGE_ID=$(az storage account show -n "$REGISTA_STORAGE_ACCOUNT" -g "$RG" --query id -o tsv)
+  for role in "Storage Blob Data Contributor" "Storage Queue Data Message Sender"; do
+    az role assignment create --role "$role" --assignee-object-id "$APP_OID" --assignee-principal-type ServicePrincipal --scope "$STORAGE_ID" -o none 2>/dev/null || true
   done
 fi
 if [[ -n "${REGISTA_COSMOS_ENDPOINT:-}" ]]; then

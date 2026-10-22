@@ -40,11 +40,13 @@ _warm_lock = threading.Lock()
 
 def season() -> Season:
     from regista.api import DATA_ROOT, SEASON_LEAGUE, SEASON_ROOT
+    from regista.player_api import uploaded_matches
     from regista.season.claims import claimed_matches
 
     if not SEASON_LEAGUE.exists():
         raise HTTPException(404, "no league on this server (data/season/league.json)")
-    return load_season(SEASON_LEAGUE, SEASON_ROOT, claimed_matches(DATA_ROOT))  # confirmed claims count too (claims_api)
+    # Confirmed claims count too (claims_api), and the Player view's finished uploads (player_api)
+    return load_season(SEASON_LEAGUE, SEASON_ROOT, claimed_matches(DATA_ROOT), uploaded_matches())
 
 
 def warm_season() -> None:

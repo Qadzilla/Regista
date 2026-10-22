@@ -152,6 +152,23 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 - **Out of scope:** accounts and sign-in, footage-rights handling (post-hackathon), messaging, payments. **Microsoft
   Fabric** fits season analytics but is **planned**, not built.
 
+### 2.6 The third view: Player (decided 2026-10-22, part of the Oct 27 submission)
+
+| Route | View | For |
+|---|---|---|
+| `/me` | **Player view** | a (synthetic) player uploads their own match footage, watches Regista's vision agents work on it, answers "is this you?", and the match joins their profile |
+
+- **Footage is synthetic**: `python -m regista.player.film` renders a friendly between the player's club and another league
+  club in the vision layer's format (640x360, 10 fps, no captions or name labels). Not real footage, by decision.
+- **Processing runs in the cloud** (option A): the app stores the video in **Azure Blob Storage** and queues a message on an
+  **Azure Storage Queue** (`vision-jobs`); an event-driven **Azure Container Apps Job** (KEDA queue scaler) runs the vision
+  workflow with the models from a private Blob container, writes the match folder back to Blob, and the app serves it.
+  `regista.player.store` is the contract (blob layout, queue message, `UploadRecord`); a local folder backend runs the
+  same code in tests and offline. A laptop can run the same worker against the same queue as a fallback.
+- **Identity is free**: the roster is both clubs' league squads (`roster_for`), so the vision match carries global ids and
+  joins the profile with no mapping; "is this you?" is Who's who aimed at the player.
+- **Writes need the admin token** (uploads, answers), like every write. Synthetic players only.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
@@ -173,7 +190,11 @@ src/regista/mcp_server.py    MCP server exposing search_clips, search_library, d
 src/regista/season/          the Regista League (Scout view data): league.py (6 clubs, squads with global player ids, double round
                              robin, seeds; committed as data/season/league.json), build.py (regenerates each match folder on demand,
                              tracks only when video needs them), profiles.py (per-90 rates, percentiles, touch map, moments, evidence)
+src/regista/player/          the Player view: store.py (Blob + Queue or a local folder: uploads, jobs, matches, models), film.py
+                             (synthetic footage of a friendly between league clubs; roster_for gives the vision team sheet)
 src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
+src/regista/player_api.py    the Player view (/me): uploads to the store (admin), progress, "is this you?" answers through the
+                             identity review, finished pv_ matches fetched from the store and served via _match_dir and profiles
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
@@ -314,6 +335,24 @@ https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io, revi
   500 quota), Cosmos DB `regista-cosmos-3f0ab0` (serverless), AI Search `regista-search-3f0ab0` (free), Container Apps
   env `regista-env` (workload profiles mode: "express" environments cannot pull with the app's identity) + app
   `regista-api`, registry `registaacr3f0ab0`, Application Insights `regista-appi` on the env's workspace (0.1 GB/day).
+- **Player view (since 2026-10-22):** storage account `registast3f0ab0` (shared-key login off, no public blobs) with
+  containers `uploads`, `matches`, `models` (the trained vision models, private) and the queue `vision-jobs`; Container
+  Apps Job `regista-vision` (event trigger, KEDA azure-queue scaler signing in with the job's system identity, 2 CPU /
+  4 GiB, `python -m regista.player.worker --once`, roles AcrPull + Storage Blob/Queue Data Contributor), made by
+  `infra/deploy-job.sh`; CI keeps its image in step with the app. Storage needed `Microsoft.Storage` registered (Azure
+  says "SubscriptionNotFound" otherwise). `job update --args "-m"` fails (the CLI reads the dashes), so the command is
+  set with `az resource update`.
+- **Branch images:** ACR Tasks (`az acr build`) are blocked on this subscription too. Pushes to `feature/**` run the
+  workflow's test and build and push `regista:branch-<sha>` (never `latest`) as the app registration
+  `regista-github-build` (AcrPush on the registry only, federated for `refs/heads/feature/player-view`; variable
+  `AZURE_BUILD_CLIENT_ID`). The deploy job runs on `main` only. Use a branch image for the vision job with
+  `IMAGE=…:branch-<sha> ./infra/deploy-job.sh`; the live app is untouched.
+- **End to end in Azure, 2026-10-22** (branch image a6a8037, local app on the real storage, live app untouched): a
+  3-minute synthetic film for Femi Toure (pl_bro_09) went upload → Blob → queue → job execution `regista-vision-2cvlj`
+  (3 min 5 s: shots 17 s, identity 126 s) → needs_review with 2 questions; both answered yes (checked against the
+  film's ground truth and the crops) → done; the match joined his profile (11 appearances). His moments: 4 of 5 found,
+  4 of 5 correct. The first try failed at shots: the image had a newer scikit-learn than the models were pickled
+  with; scikit-learn is now pinned to 1.7. Test uploads up_6ae3bb64d6 (failed) and up_8807d7835c (done) stay in storage.
 - Keyless for real: key login off on Cosmos DB and Search; the registry has no admin user (the app pulls with AcrPull);
   GitHub Actions deploys as app registration `regista-github-deploy` (owned by Zaid; federated credentials for both
   GitHub subject formats, `main` only). The remaining secrets are the write token and the App Insights connection

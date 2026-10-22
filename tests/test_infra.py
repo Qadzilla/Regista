@@ -122,3 +122,24 @@ def test_provision_is_safe_in_a_shared_directory():
     # Offers without budgets (Azure for Students) do not stop the run.
     assert 'budget not created' in s
     assert 'REGISTA_SUBSCRIPTION_ID' in _text("infra/deploy-app.sh")
+
+
+def test_player_view_storage_and_job_are_keyless():
+    p = _text("infra/provision.sh")
+    assert "--allow-shared-key-access false" in p and "--allow-blob-public-access false" in p
+    assert "Microsoft.Storage" in p and "vision-jobs" in p and "REGISTA_STORAGE_ACCOUNT=$STORAGE" in p
+    j = _text("infra/deploy-job.sh")
+    assert "--scale-rule-identity system" in j and "--identity system" in j and "--mi-system-assigned" in j
+    assert "connection" not in j.lower() and "account-key" not in j and "secret" not in j.lower()
+    assert '["python","-m","regista.player.worker","--once"]' in j
+    assert "Storage Blob Data Contributor" in _text("infra/deploy-app.sh")
+    assert "containerapp job update" in _text("infra/ci-deploy.sh")
+
+
+def test_feature_branches_build_images_but_never_deploy():
+    import yaml
+
+    wf = yaml.safe_load(_text(".github/workflows/build-image.yml"))
+    assert "github.ref == 'refs/heads/main'" in wf["jobs"]["deploy"]["if"]
+    s = _text(".github/workflows/build-image.yml")
+    assert "vars.AZURE_BUILD_CLIENT_ID" in s and 'tags="branch-${{ github.sha }}"' in s  # a branch image is never latest

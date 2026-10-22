@@ -11,6 +11,10 @@ Besides the league's fixtures, a profile counts the matches of its confirmed cla
 uploaded match in which the Studio confirmed that a player is this league player. Only the claimed player counts there,
 under their global id; such matches have ``source: claim`` (and the ``claim_id``) in the profile's match list, league
 fixtures ``source: league``. The league table counts fixtures only.
+
+It also counts the Player view's finished uploads (``regista.player_api.uploaded_matches``): footage a player filmed,
+cut by the vision workflow. Their team sheet already carries global ids, so no mapping is needed; only the uploader
+counts there, with ``source: upload`` (and the ``upload_id``) in the match list.
 """
 
 from __future__ import annotations
@@ -75,13 +79,18 @@ class Season:
     table: list[Record] = field(default_factory=list)
     extra: list[Record] = field(default_factory=list)    # confirmed claims' matches: {match_id, match_dir, players, claims}
     claimed: list[Record] = field(default_factory=list)  # the claimed matches that were counted, for the API and the trace
+    uploads: list[Record] = field(default_factory=list)  # Player-view uploads: {match_id, match_dir, players, claims}
+    uploaded: list[Record] = field(default_factory=list)  # the uploaded matches that were counted
 
     # ------------------------------------------------------------------ build
     @classmethod
-    def build(cls, league: Record, root: Path | str, claimed: list[Record] | None = None) -> Season:
+    def build(cls, league: Record, root: Path | str, claimed: list[Record] | None = None,
+              uploaded: list[Record] | None = None) -> Season:
         """The season from the league's fixtures, plus the matches of ``claimed`` (``regista.season.claims.claimed_matches``:
-        one row per confirmed claim)."""
-        s = cls(league, Path(root), extra=_group_claims(claimed or []))
+        one row per confirmed claim) and of ``uploaded`` (``regista.player_api.uploaded_matches``: one row per finished
+        Player-view upload)."""
+        s = cls(league, Path(root), extra=_group_claims(claimed or []),
+                uploads=_group_claims([{**u, "claim_id": u["upload_id"]} for u in uploaded or []]))
         s._aggregate()
         return s
 
@@ -107,6 +116,8 @@ class Season:
                        counts=lambda p: bool(p["starter"]))
         for e in self.extra:
             self._add_claimed(acc, e)
+        for e in self.uploads:
+            self._add_claimed(acc, e, source="upload")
         for gid, a in acc.items():
             self.profiles[gid] = _finish(a)
         _percentiles(self.profiles)
@@ -115,10 +126,11 @@ class Season:
             r["position"] = i
             r["goal_difference"] = r["goals_for"] - r["goals_against"]
 
-    def _add_claimed(self, acc: dict[str, Record], e: Record) -> None:
+    def _add_claimed(self, acc: dict[str, Record], e: Record, source: str = "claim") -> None:
         """A confirmed claim's match: only the claimed players count, their per-match ids mapped to their global ids.
         The league table is untouched (the match is not a league fixture). A claimed player is counted for the whole
-        match: the vision layer's team sheet says who was on the pitch, not when they came on."""
+        match: the vision layer's team sheet says who was on the pitch, not when they came on. ``source="upload"``: a
+        Player-view upload, the same way, its uploader in ``players`` and the upload id where a claim id would be."""
         d = Path(e["match_dir"])
         stream = list(iter_jsonl(d / "events.jsonl"))
         header = stream[0]
@@ -129,13 +141,18 @@ class Season:
         other = {header.get("home_team_id"): header.get("away_team_id"), header.get("away_team_id"): header.get("home_team_id")}
         date = (header.get("meta") or {}).get("date")
         manifest = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
-        self.claimed.append({"match_id": e["match_id"], "players": local_to_global, "claims": e["claims"], "date": date,
-                             "title": manifest.get("title"), "score": header.get("score", {})})
+        counted = {"match_id": e["match_id"], "players": local_to_global, "date": date, "title": manifest.get("title"),
+                   "score": header.get("score", {})}
+        if source == "upload":
+            self.uploaded.append({**counted, "uploads": e["claims"]})
+        else:
+            self.claimed.append({**counted, "claims": e["claims"]})
+        ref = "upload_id" if source == "upload" else "claim_id"
 
         def entry(p: Record) -> Record:
             gid = local_to_global[p["player_id"]]
             return {"club_id": acc[gid]["club_id"], "opponent": teams.get(other.get(p["team_id"]), {}).get("name"),
-                    "team": teams.get(p["team_id"], {}).get("name"), "source": "claim", "claim_id": e["claims"].get(p["player_id"])}
+                    "team": teams.get(p["team_id"], {}).get("name"), "source": source, ref: e["claims"].get(p["player_id"])}
 
         _add_match(acc, d, stream, local_to_global, round_no=None, date=date, entry=entry,
                    counts=lambda p: p["player_id"] in local_to_global, derive_for=list(local_to_global))
@@ -212,7 +229,8 @@ def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_g
             a["minutes"] += minutes
             a["matches"].append({"match_id": match_id, "round": round_no, "date": date, "player_id": p["player_id"],
                                  **entry(p), "home": p["team_id"] == header.get("home_team_id"),
-                                 "score": f"{score.get('t_home', 0)}–{score.get('t_away', 0)}"})
+                                 # a vision match whose header has no score (nothing counted the goals) shows none
+                                 "score": f"{score.get('t_home', 0)}–{score.get('t_away', 0)}" if score else None})
     for rec in stream:
         if rec["type"] != "event" or not rec.get("player_id"):
             continue
@@ -348,18 +366,20 @@ _cache: dict[tuple[str, str], Season] = {}
 _cache_lock = threading.Lock()
 
 
-def load_season(league_path: Path | str, root: Path | str, claimed: list[Record] | None = None) -> Season:
-    """The season for this league file, match folder and confirmed claims (``regista.season.claims.claimed_matches``),
-    built once per process: rebuilt when the league file changes or a claim is confirmed or withdrawn."""
+def load_season(league_path: Path | str, root: Path | str, claimed: list[Record] | None = None,
+                uploaded: list[Record] | None = None) -> Season:
+    """The season for this league file, match folder, confirmed claims (``regista.season.claims.claimed_matches``) and
+    finished Player-view uploads (``regista.player_api.uploaded_matches``), built once per process: rebuilt when the
+    league file changes, a claim is confirmed or withdrawn, or an upload finishes (or its match changes)."""
     from regista.season.claims import fingerprint
 
     league_path, root = Path(league_path), Path(root)
-    claimed = list(claimed or [])
-    key = (str(league_path.resolve()), str(league_path.stat().st_mtime_ns), fingerprint(claimed))
+    claimed, uploaded = list(claimed or []), list(uploaded or [])
+    key = (str(league_path.resolve()), str(league_path.stat().st_mtime_ns), fingerprint(claimed), fingerprint(uploaded))
     with _cache_lock:
         s = _cache.get(key)
         if s is None:
-            s = Season.build(load_league(league_path), root, claimed)
+            s = Season.build(load_league(league_path), root, claimed, uploaded)
             _cache.clear()
             _cache[key] = s
         return s
@@ -371,14 +391,16 @@ def invalidate() -> None:
         _cache.clear()
 
 
-def refresh(league_path: Path | str, root: Path | str, claimed: list[Record], global_ids: list[str]) -> Record:
-    """Rebuild the season now (league fixtures plus confirmed claims) and say what each of ``global_ids`` looks like
-    afterwards: the Profile agent's job when a match with global ids or confirmed claims goes through the workflow."""
+def refresh(league_path: Path | str, root: Path | str, claimed: list[Record], global_ids: list[str],
+            uploaded: list[Record] | None = None) -> Record:
+    """Rebuild the season now (league fixtures, confirmed claims, finished uploads) and say what each of ``global_ids``
+    looks like afterwards: the Profile agent's job when a match with global ids or confirmed claims goes through the
+    workflow."""
     league_path = Path(league_path)
     if not league_path.exists():
         return {"skipped": f"no league at {league_path}", "profiles": []}
     invalidate()
-    s = load_season(league_path, root, claimed)
+    s = load_season(league_path, root, claimed, uploaded)
     out = []
     for gid in dict.fromkeys(global_ids):
         p = s.player(gid)
@@ -386,5 +408,6 @@ def refresh(league_path: Path | str, root: Path | str, claimed: list[Record], gl
             out.append({"global_id": gid, "known": False})
             continue
         out.append({"global_id": gid, "known": True, "name": p["name"], "appearances": p["appearances"], "minutes": p["minutes"],
-                    "claimed_matches": [m["match_id"] for m in p["matches"] if m.get("source") == "claim"]})
-    return {"profiles": out, "league_matches": len(s.matches), "claimed_matches": len(s.claimed)}
+                    "claimed_matches": [m["match_id"] for m in p["matches"] if m.get("source") == "claim"],
+                    "uploaded_matches": [m["match_id"] for m in p["matches"] if m.get("source") == "upload"]})
+    return {"profiles": out, "league_matches": len(s.matches), "claimed_matches": len(s.claimed), "uploaded_matches": len(s.uploaded)}

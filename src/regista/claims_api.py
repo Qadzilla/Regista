@@ -123,10 +123,11 @@ def _links(c: dict[str, Any]) -> dict[str, Any]:
 def _profile_refresh():
     """The Profile agent's refresh, bound to the folders this API serves."""
     from regista import api
+    from regista.player_api import uploaded_matches
     from regista.season.claims import claimed_matches
     from regista.season.profiles import refresh
 
-    return lambda gids: refresh(api.SEASON_LEAGUE, api.SEASON_ROOT, claimed_matches(api.DATA_ROOT), gids)
+    return lambda gids: refresh(api.SEASON_LEAGUE, api.SEASON_ROOT, claimed_matches(api.DATA_ROOT), gids, uploaded_matches())
 
 
 def counts(rows: list[dict[str, Any]]) -> dict[str, int]:

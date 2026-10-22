@@ -46,6 +46,9 @@
   const colour = (c, fallback) => (/^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : fallback);
   const group = () => (POSITIONS[profile.position] || [null, 'players'])[1];
   const where = (m) => (m ? `${m.home ? 'v' : 'at'} ${m.opponent}` : '');
+  // A league match is a round; a match from outside the league is footage the player filmed (the Player view) or a claim.
+  const roundText = (m) => (m && m.source === 'upload' ? 'Filmed by the player' : m && m.source === 'claim' ? 'Claimed match'
+    : `Round ${m && m.round !== null && m.round !== undefined ? m.round : '?'}`);
   const clipHref = (matchId, playerId, clipId) =>
     `/?match=${encodeURIComponent(matchId)}&player=${encodeURIComponent(playerId)}&clip=${encodeURIComponent(clipId)}`;
   const timeHref = (matchId, t) => `/?match=${encodeURIComponent(matchId)}&t=${Math.max(0, Math.floor(t))}`;
@@ -139,7 +142,7 @@
       else if (src.match_id && typeof src.t === 'number') href = timeHref(src.match_id, src.t);
       else if (typeof src.url === 'string' && src.url.startsWith('/') && !src.url.startsWith('//')) href = src.url;
       const m = matchById[src.match_id];
-      const when = m ? ` <span class="muted">Round ${esc(m.round)}, ${esc(where(m))}</span>` : '';
+      const when = m ? ` <span class="muted">${esc(roundText(m))}, ${esc(where(m))}</span>` : '';
       return `<li>${href ? `<a href="${esc(href)}">${esc(title)}</a>` : esc(title)}${when}</li>`;
     }).join('');
     box.innerHTML = `<h2>Summary</h2>${paras}${by}${sources ? `<h3 class="small">Sources</h3><ol class="sources">${sources}</ol>` : ''}`;
@@ -257,7 +260,7 @@
       const m = matchById[e.match_id];
       const href = e.clip_id ? clipHref(e.match_id, e.player_id, e.clip_id) : timeHref(e.match_id, e.t);
       return `<li><a href="${esc(href)}">
-        <span class="ev-when">${m ? `Round ${esc(m.round)} · ${esc(where(m))}` : esc(e.match_id)}</span>
+        <span class="ev-when">${m ? `${esc(roundText(m))} · ${esc(where(m))}` : esc(e.match_id)}</span>
         <span class="ev-t">${esc(fmtTime(e.t))}</span>
         <span class="ev-go">${e.clip_id ? 'Watch the moment' : 'Open the match here'}</span></a></li>`;
     }).join('');
@@ -348,7 +351,7 @@
         <span class="reason${replay ? ' replay' : ''}">${esc(reasonLabel(m.reason))}</span>
         <h3 class="title">${esc(m.title)}</h3>
         ${tags.length ? `<p class="tagwords">${tags.map((t) => esc(tagLabel(t))).join(' · ')}</p>` : ''}
-        <p class="meta"><span>Round ${esc(m.round ?? (match && match.round) ?? '?')}${match ? ` · ${esc(where(match))}` : ''}</span>
+        <p class="meta"><span>${esc(match ? roundText(match) : `Round ${m.round ?? '?'}`)}${match ? ` · ${esc(where(match))}` : ''}</span>
           <a href="${esc(clipHref(m.match_id, m.player_id, m.clip_id))}">Open in Clips</a></p>
       </div>
     </article>`;
@@ -371,11 +374,14 @@
 
   // ------------------------------------------------------------------ matches
   function renderMatches() {
-    const ms = (profile.matches || []).slice().sort((a, b) => a.round - b.round);
+    // League rounds first, then matches from outside the league: footage the player filmed, or a confirmed claim.
+    const ms = (profile.matches || []).slice().sort((a, b) => (a.round ?? Infinity) - (b.round ?? Infinity));
+    const badge = (m) => (m.source === 'upload' ? '<span class="badge filmed" title="Footage the player uploaded, cut by Regista’s vision agents">Filmed by the player · cut from video</span>'
+      : m.source === 'claim' ? '<span class="badge" title="The player said “that’s me”; the operator confirmed it">Claimed</span>' : `Round ${esc(m.round)}`);
     $('matchList').innerHTML = ms.map((m) => {
       const r = result(m);
       return `<li><a href="${esc(matchHref(m))}">
-        <span class="mr">Round ${esc(m.round)}</span>
+        <span class="mr">${badge(m)}</span>
         <span class="md muted">${esc(fmtDate(m.date))}</span>
         <span class="mo">${esc(m.home ? 'v' : 'at')} ${esc(m.opponent)} <span class="muted">(${m.home ? 'home' : 'away'})</span></span>
         <span class="ms">${esc(m.score)}${r ? ` <span class="res res-${r[0]}" title="${r[1]}"><span class="sr">${r[1]}</span><span aria-hidden="true">${r[0]}</span></span>` : ''}</span>

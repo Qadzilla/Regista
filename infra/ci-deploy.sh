@@ -17,3 +17,9 @@ az containerapp update -n "$ACA_APP" -g "$AZURE_RG" --image "$IMAGE" --revision-
 wait_ready "$ACA_APP" "$AZURE_RG"
 URL="https://$(az containerapp show -n "$ACA_APP" -g "$AZURE_RG" --query properties.configuration.ingress.fqdn -o tsv)"
 curl -fsS -m 30 "$URL/api/health" > /dev/null && echo "health OK at $URL"
+
+# The Player view's vision job runs the same image: keep it in step (it exists once infra/deploy-job.sh has run).
+: "${JOB:=regista-vision}"
+if az containerapp job show -n "$JOB" -g "$AZURE_RG" -o none 2>/dev/null; then
+  az containerapp job update -n "$JOB" -g "$AZURE_RG" --image "$IMAGE" -o none && echo "job $JOB now runs $IMAGE"
+fi

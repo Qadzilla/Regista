@@ -17,7 +17,8 @@ COPY src ./src
 COPY data/synthetic ./data/synthetic
 COPY data/season/league.json ./data/season/league.json
 COPY data/season/summaries.json ./data/season/summaries.json
-RUN pip install --no-cache-dir ".[cloud]"
+# cloud: Azure SDKs and Agent Framework; vision: the Player view's job runs the vision workflow from this same image
+RUN pip install --no-cache-dir ".[cloud,vision]"
 # The Regista League's 30 matches, regenerated from the committed definition (deterministic; tracks come on demand)
 RUN python -m regista.season --league data/season/league.json --root data/season/matches build
 
