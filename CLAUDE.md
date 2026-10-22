@@ -169,6 +169,20 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
   joins the profile with no mapping; "is this you?" is Who's who aimed at the player.
 - **Writes need the admin token** (uploads, answers), like every write. Synthetic players only.
 
+### 2.7 Match recaps and Microsoft Fabric (decided 2026-10-22, part of the Oct 27 submission)
+
+- **Match recap** (the brief's "automated recaps, personalised per fan"): a short written recap of any match (headline
+  plus 3-4 paragraphs; every sentence links to its moment in the Clip view) and a recap reel. Personalised by picking a
+  player: the recap is told from their side. **English only.** Two engines as elsewhere: Instant (rules) and Foundry
+  (rate-limited like Ask Foundry, rules fallback). A Recap step in the intelligence workflow; an MCP tool `match_recap`.
+  Shown in the Clip view, on profiles, and on `/me` after an upload. No live commentary ticker (decided: less jargon).
+- **Microsoft Fabric**: Zaid's Northeastern account can use Fabric (the tenant allows trials, checked 2026-10-22). A
+  "Regista" workspace on his own trial capacity with a lakehouse `regista_league`; the season and Player-view uploads
+  land in OneLake as Delta tables (keyless, Entra ID); a Fabric notebook recomputes the league leaders and percentiles
+  and Regista checks they match its own. Only his own workspace is created or touched: the tenant is the university's.
+  The Fabric data agent is not used (preview).
+- `docs/criteria.md` replaces `docs/gap-analysis.md`: each judging criterion, its evidence and where to check it.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
