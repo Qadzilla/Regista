@@ -35,10 +35,14 @@ POST /api/matches/{match_id}/identity-review    answer them; identity is correct
 GET  /api/claims                                "that's me" claims: uploaded-match players linked to league players     [studio]
 POST /api/claims                                claim one (pending until the Studio decides; regista.claims_api)          [write]
 POST /api/claims/{claim_id}/decision            confirm (runs the workflow; the Profile agent refreshes) or reject        [write]
+GET  /me, /api/player/uploads[/{id}[/questions|/crops/{name}]]   the Player view: uploads and their progress (regista.player_api)
+POST /api/player/uploads                        a player's footage: stored, queued for the vision worker              [write]
+POST /api/player/uploads/{id}/answers           "is this you?" answered; identity corrected, the match recomputed    [write]
 GET  /api/feedback                              verdict counts, the learned model, agreement per scorer                       [studio]
 POST /api/feedback/train                        retrain the watchability model                                             [write]
 
-The service only reads and writes under REGISTA_DATA, REGISTA_CACHE and REGISTA_FEEDBACK_DIR.
+The service only reads and writes under REGISTA_DATA, REGISTA_CACHE, REGISTA_FEEDBACK_DIR and, for the Player view,
+REGISTA_PLAYER_MATCHES and the Player store (REGISTA_PLAYER_DIR, or Azure Storage with REGISTA_STORAGE_ACCOUNT).
 """
 
 from __future__ import annotations
@@ -189,6 +193,12 @@ def _match_dir(match_id: str) -> Path:
         season_dir = _season_match_dir(match_id)
         if season_dir is not None:
             return season_dir
+        if match_id.startswith("pv_"):  # a Player-view upload the worker finished, fetched from the store (regista.player_api)
+            from regista.player_api import player_match_dir
+
+            player_dir = player_match_dir(match_id)
+            if player_dir is not None:
+                return player_dir
         if match_id in _library():
             raise HTTPException(409, f"match {match_id!r} is stored in Cosmos DB without its event stream: clips and labels can be "
                                      "read, but video, search and verdicts need the match on this replica")
@@ -962,8 +972,10 @@ async def answer_identity_review(match_id: str, body: IdentityReviewIn) -> dict[
     return out
 
 
-def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn, served: Path | None = None) -> dict[str, Any]:
-    """Apply answers to the vision output ``d``; when the app serves a package of it (``served``), package it again."""
+def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn, served: Path | None = None,
+                           models_dir: Path | None = None) -> dict[str, Any]:
+    """Apply answers to the vision output ``d``; when the app serves a package of it (``served``), package it again.
+    ``models_dir`` overrides the models the match was made with (a Player-view match made by the cloud worker)."""
     import joblib
 
     from regista.feedback import feedback_dir
@@ -981,7 +993,7 @@ def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn, serve
     manifest = json.loads((d / "manifest.json").read_text())
     seg_recs = [r for r in iter_jsonl(d / "events.jsonl") if r["type"] == "camera_segment"]
     run = d / ".vision_work" / "run.json"  # the models the match was made with, when run_vision recorded them
-    models = Path(json.loads(run.read_text())["models_dir"]) if run.exists() else MODELS_DIR
+    models = models_dir or (Path(json.loads(run.read_text())["models_dir"]) if run.exists() else MODELS_DIR)
     summary = refresh_from_identity(d, header, probe(manifest["video"]["path"]), header["match_id"], seg_recs, ident,
                                     models_dir=models if models.exists() else MODELS_DIR)
     joblib.dump(ident, d / ".vision_work" / "identity.joblib")
@@ -1401,10 +1413,12 @@ async def feedback_train() -> dict[str, Any]:
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from regista.claims_api import router as _claims_router  # noqa: E402
+from regista.player_api import router as _player_router  # noqa: E402
 from regista.season_api import router as _season_router  # noqa: E402
 from regista.studio_api import router as _studio_router  # noqa: E402
 
 app.include_router(_season_router)
 app.include_router(_claims_router)
+app.include_router(_player_router)
 app.include_router(_studio_router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")  # product/, studio/, shared/: public files, no data

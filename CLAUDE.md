@@ -193,6 +193,8 @@ src/regista/season/          the Regista League (Scout view data): league.py (6 
 src/regista/player/          the Player view: store.py (Blob + Queue or a local folder: uploads, jobs, matches, models), film.py
                              (synthetic footage of a friendly between league clubs; roster_for gives the vision team sheet)
 src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
+src/regista/player_api.py    the Player view (/me): uploads to the store (admin), progress, "is this you?" answers through the
+                             identity review, finished pv_ matches fetched from the store and served via _match_dir and profiles
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
