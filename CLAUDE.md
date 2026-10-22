@@ -342,6 +342,11 @@ https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io, revi
   `infra/deploy-job.sh`; CI keeps its image in step with the app. Storage needed `Microsoft.Storage` registered (Azure
   says "SubscriptionNotFound" otherwise). `job update --args "-m"` fails (the CLI reads the dashes), so the command is
   set with `az resource update`.
+- **Branch images:** ACR Tasks (`az acr build`) are blocked on this subscription too. Pushes to `feature/**` run the
+  workflow's test and build and push `regista:branch-<sha>` (never `latest`) as the app registration
+  `regista-github-build` (AcrPush on the registry only, federated for `refs/heads/feature/player-view`; variable
+  `AZURE_BUILD_CLIENT_ID`). The deploy job runs on `main` only. Use a branch image for the vision job with
+  `IMAGE=…:branch-<sha> ./infra/deploy-job.sh`; the live app is untouched.
 - Keyless for real: key login off on Cosmos DB and Search; the registry has no admin user (the app pulls with AcrPull);
   GitHub Actions deploys as app registration `regista-github-deploy` (owned by Zaid; federated credentials for both
   GitHub subject formats, `main` only). The remaining secrets are the write token and the App Insights connection

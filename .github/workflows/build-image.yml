@@ -12,7 +12,7 @@ name: build-image
 
 on:
   push:
-    branches: [main]
+    branches: [main, "feature/**"]   # feature branches: tested, built and pushed as branch-<sha>, never deployed
     paths: ["src/**", "tests/**", "data/synthetic/**", "data/season/**", "Dockerfile", ".dockerignore", "pyproject.toml", "README.md", "LICENSE",
             ".github/workflows/build-image.yml", "infra/ci-deploy.sh", "infra/lib/**"]
   pull_request:
@@ -40,6 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PUSH: ${{ github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != '' }}
+      MAIN: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -54,17 +55,21 @@ jobs:
       # tools inside the image (an MCP handshake only: no credentials, nothing queried) before anything is pushed.
       - name: Smoke-test agent tools inside the image
         run: docker run --rm regista:ci python -m regista.cloud.smoke
+      # main signs in as the deploy identity; a feature branch as the build identity, which may only push images
+      # (AcrPush on the registry, trusted for that branch alone) and has no right to touch the app.
       - if: env.PUSH == 'true'
         uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          client-id: ${{ github.ref == 'refs/heads/main' && vars.AZURE_CLIENT_ID || vars.AZURE_BUILD_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
       - if: env.PUSH == 'true'
         name: Push to the registry
         run: |
           az acr login --name "${{ vars.ACR_NAME }}"
-          for tag in "${{ github.sha }}" latest; do
+          tags="${{ github.sha }} latest"
+          [ "$MAIN" = "true" ] || tags="branch-${{ github.sha }}"   # a branch image is never latest
+          for tag in $tags; do
             docker tag regista:ci "${{ vars.ACR_LOGIN_SERVER }}/regista:$tag"
             docker push "${{ vars.ACR_LOGIN_SERVER }}/regista:$tag"
           done
@@ -73,7 +78,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != ''
+    if: github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != '' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     concurrency: deploy-live-app   # one deploy at a time; a newer push waits for the running one
     steps:
