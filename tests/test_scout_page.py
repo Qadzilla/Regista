@@ -64,10 +64,12 @@ def test_the_page_says_its_players_are_synthetic(page):
     assert "synthetic players and clubs from Regista's generated" in page
 
 
-def test_the_scout_agent_slot_is_ready_to_wire(page, script):
-    assert 'id="scoutAsk"' in page and 'id="scoutAnswer"' in page
-    assert "Ask the Scout agent: coming in this build" in page
-    assert "function renderScoutAnswer(json)" in script and "POST /api/scout/ask" in script
+def test_the_scout_agent_is_wired(page, script):
+    assert 'id="scoutAsk"' in page and 'id="scoutAnswer"' in page and 'name="scoutEngine"' in page
+    assert "coming in this build" not in page + script
+    assert "function renderScoutAnswer(json)" in script and "R.api('/api/scout/ask', { method: 'POST', body: { q, engine } })" in script
+    # who answered is always said, and a Foundry fallback to the rules shows its reason
+    assert "Answered by Microsoft Foundry" in script and "Answered by Regista's rules" in script
 
 
 def test_numbers_come_from_the_api_and_text_is_escaped(script):

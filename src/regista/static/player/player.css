@@ -168,3 +168,10 @@ footer p { margin: 4px 0; }
   .evlist a { grid-template-columns: minmax(0, 1fr) auto; }
   .evlist .ev-go { grid-column: 1 / -1; }
 }
+
+/* "Add a match" (add-match.js) lays out its forms as grids; grid items keep their content's width by default, so a file
+   input or a long label pushed the page past a phone's width. Let every column shrink and long words wrap. */
+#addMatch [style*="display:grid"] { grid-template-columns: minmax(0, 1fr); }
+#addMatch * { min-width: 0; max-width: 100%; }
+#addMatch input, #addMatch select { width: 100%; }
+#addMatch p, #addMatch span, #addMatch label { overflow-wrap: anywhere; }

@@ -54,9 +54,14 @@
       <label class="sr" for="scoutAsk">Ask the Scout agent</label>
       <input id="scoutAsk" type="search" autocomplete="off" maxlength="300"
              placeholder='"A forward who wins take-ons and shoots a lot"'>
+      <div class="engine" role="radiogroup" aria-label="Who answers">
+        <label><input type="radio" name="scoutEngine" value="rules" checked><span>Instant</span></label>
+        <label><input type="radio" name="scoutEngine" value="foundry"><span>Foundry</span></label>
+      </div>
       <button type="submit" id="scoutAskGo">Ask</button>
     </form>
-    <p class="hint" id="scoutAskHint">Ask the Scout agent: coming in this build.</p>
+    <p class="hint" id="scoutAskHint">Instant: Regista's own rules read the question and rank the players, with no AI model.
+      Foundry: a Microsoft Foundry agent answers through Regista's player tools (MCP), from the same numbers.</p>
     <div class="answer" id="scoutAnswer" aria-live="polite"></div>
   </section>
 

@@ -159,3 +159,11 @@ footer p { margin: 4px 0; }
   .ctable { font-size: 12px; }
   .ctable th, .ctable td { padding: 5px 3px; }
 }
+
+/* Who answers the Scout agent's question (same look as the Product's toggle) */
+.engine { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.engine label { display: flex; cursor: pointer; }
+.engine input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.engine span { padding: 8px 12px; color: var(--muted); font-weight: 600; }
+.engine input:checked + span { background: var(--line); color: var(--text); }
+.engine input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }

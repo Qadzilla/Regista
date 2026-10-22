@@ -450,15 +450,23 @@
 
   // ------------------------------------------------------------------ the Scout agent (wired by Scout C)
 
-  // Renders a reply from the Scout agent into #scoutAnswer. Expected shape (defensive: every field optional):
-  //   { answer: "plain text", players: [cards as GET /api/players returns them] }
-  // Players in the reply render as ordinary cards, with stars that join the shortlist.
+  // Renders a reply from the Scout agent (POST /api/scout/ask) into #scoutAnswer: the reply, how the question was
+  // understood, who answered and with which tools, then the players as ordinary cards (stars join the shortlist).
   function renderScoutAnswer(json) {
     const box = $('scoutAnswer');
-    const answer = json && typeof json.answer === 'string' ? json.answer : '';
+    const reply = json && typeof (json.reply ?? json.answer) === 'string' ? (json.reply ?? json.answer) : '';
     const players = Array.isArray(json?.players) ? json.players.filter(p => p && p.global_id) : [];
     for (const p of players) state.known.set(p.global_id, p);
-    box.innerHTML = (answer ? `<p class="reply">${esc(answer)}</p>` : '') +
+    const by = typeof json?.answered_by === 'string' ? json.answered_by : '';
+    const tools = Array.isArray(json?.tools_used) ? json.tools_used : [];
+    const byLine = by.startsWith('foundry')
+      ? `Answered by Microsoft Foundry${tools.length ? `, using ${tools.map(esc).join(', ')}` : ''}.`
+      : (by && by !== 'rules' ? `Answered by Regista's rules (${esc(by.replace(/^rules\s*/, '').replace(/^\(|\)$/g, ''))}).` : "Answered by Regista's rules.");
+    const checked = Array.isArray(json?.checked) && json.checked.length
+      ? `<p class="muted small">Numbers in this reply that no tool returned: ${json.checked.map(esc).join(', ')}.</p>` : '';
+    box.innerHTML = (reply ? `<p class="reply">${esc(reply)}</p>` : '') +
+      (json?.understood ? `<p class="muted small">Understood: ${esc(json.understood)}</p>` : '') +
+      `<p class="muted small">${byLine}</p>${checked}` +
       (players.length ? `<div class="cards">${players.map(cardHtml).join('')}</div>` : '');
     paint(box);
   }
@@ -471,13 +479,24 @@
     if (p) toggleShortlist(p);
   });
 
-  $('scoutAskForm').addEventListener('submit', (ev) => {
+  $('scoutAskForm').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const q = $('scoutAsk').value.trim();
     if (!q) return;
-    // The Scout agent's request goes here: POST /api/scout/ask with { question: q } (built by Scout C), then
-    // renderScoutAnswer(reply). Until then the box says so instead of pretending to answer.
-    $('scoutAnswer').innerHTML = '<p class="muted">The Scout agent is coming in this build. Until then, the filters and the sort below answer the same questions.</p>';
+    const engine = document.querySelector('input[name="scoutEngine"]:checked')?.value || 'rules';
+    const go = $('scoutAskGo');
+    go.disabled = true;
+    $('scoutAnswer').innerHTML = `<p class="muted">${engine === 'foundry' ? 'Asking the Foundry Scout agent… (a few seconds)' : 'Ranking the players…'}</p>`;
+    try {
+      renderScoutAnswer(await R.api('/api/scout/ask', { method: 'POST', body: { q, engine } }));
+    } catch (e) {
+      const why = e && e.status === 429 ? 'Too many questions just now; try again in a minute.'
+        : e && e.status === 422 ? 'Ask in under 200 characters.'
+        : 'Regista could not answer just now. Check your connection and try again.';
+      $('scoutAnswer').innerHTML = `<p class="muted">${esc(why)}</p>`;
+    } finally {
+      go.disabled = false;
+    }
   });
 
   // ------------------------------------------------------------------ start
