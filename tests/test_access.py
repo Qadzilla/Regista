@@ -54,6 +54,7 @@ ACCESS = {
     "GET /api/studio/jobs": "studio",
     "GET /api/studio/jobs/{job_id}": "studio",
     "GET /api/studio/jobs/{job_id}/log": "studio",
+    "GET /api/claims": "studio",
     # Writes (admin key)
     "POST /api/matches": "admin",
     "POST /api/matches/{match_id}/identity-review": "admin",
@@ -61,6 +62,8 @@ ACCESS = {
     "POST /api/matches/{match_id}/clips/{clip_id}/verdict": "admin",
     "POST /api/feedback/train": "admin",
     "POST /api/studio/jobs": "admin",
+    "POST /api/claims": "admin",
+    "POST /api/claims/{claim_id}/decision": "admin",
 }
 
 ADMIN, VIEW = "admin-key-for-tests", "view-key-for-tests"
