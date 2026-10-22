@@ -353,6 +353,19 @@ for the record:
 
 **As of 2026-10-22 (morning).** `main` is at the latest pushed commit; CI (tests, image build, smoke test, push, deploy) is green. Live: the Clip view (`/`), the Studio (`/studio`) and, since PR #25, the **Scout view** (`/scout`, `/players/{id}`, §2.5) on revision `regista-api--d1022062451` (verified read-only, including one Foundry Scout answer that called `search_players`). 501 tests pass.
 
+**Earlier, 2026-10-22 (early).** `main` is at a537d2c plus docs; CI (tests, image build, smoke test, push, deploy) is green; the
+live app serves **the two dashboards** (PR #18, deployed by CI 2026-10-22 00:56-01:09 UTC): the Product at `/` and Regista Studio
+at `/studio` (plan and the agents that built it: docs/plan-two-dashboards.md; PRs #4-#17 merged into `ux/two-dashboards`, then
+#18 to `main`). 410 tests pass, on FastAPI 0.128 and on 0.141 as CI installs it. Checked on the live app after the deploy,
+read-only: health (Foundry, Cosmos DB, Search, Azure MCP, tracing), four matches with video (syn_0294 featured, syn_0141,
+syn_0142, vis_0201), both pages and their scripts, the CSP and frame headers, Studio reads and writes refused without a key,
+render limits (width 999 gives 400), timeline fields, no console errors. **The Studio view key is live** (added to `.env` and
+set by one `infra/deploy-app.sh` run on 2026-10-22, same image, revision `regista-api--d1022011224`); checked with it read-only:
+role view, overview (to-do, Cosmos DB and Search counts, usage, prerender), Who's who (3 questions), feedback, and a write
+attempt refused with 403.
+Audits J1-J3 and fixes K1-K5 are recorded in the PRs; K5 found the renderer drew the ball holder's name and ring into vision
+footage, removed them and retrained (models/vision_v4, local); fresh clips 0.75 / 0.94 (docs/vision.md).
+
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.75, precision 0.94 with v4; docs/vision.md).
 
 **Audited 2026-10-20** by independent agents; every finding was fixed or is listed below. The full record is in commits 6d1a870 and d1de317.
