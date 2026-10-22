@@ -277,7 +277,7 @@ def test_vision_cli_commands_reach_their_work(monkeypatch, tmp_path):
     import regista.vision.evaluate as ev
 
     calls = []
-    monkeypatch.setattr(ev, "evaluate_all", lambda root, models, test_specs=None, e2e_seed=None: calls.append([s.seed for s in test_specs]) or {})
+    monkeypatch.setattr(ev, "evaluate_all", lambda root, models, test_specs=None, e2e_seed=None, labels=False: calls.append([s.seed for s in test_specs]) or {})
     assert cli.main(["evaluate", "--set", "fresh", "--root", str(tmp_path)]) == 0
     assert cli.main(["evaluate", "--root", str(tmp_path)]) == 0
     assert calls == [[301, 302, 303], [201, 202, 203, 204, 205, 206]]
@@ -392,3 +392,45 @@ def test_identity_review_through_the_api(clips, models, tmp_path, monkeypatch):
         assert learned["crops"] > 0 and learned["matches"][0]["match"] == "vis_api"
     else:
         assert learned["reason"] == "no answered track corrections with usable crops"
+
+
+def test_answering_a_packaged_vision_match_on_the_machine_that_ran_it(clips, models, tmp_path, monkeypatch):
+    """The committed package holds no identity result; on the machine that ran the vision layer its full output sits in
+    the work root. An answer is applied there and the package is rebuilt: still small, still free of machine paths."""
+    import shutil
+
+    import joblib
+    from fastapi.testclient import TestClient
+
+    from regista import api
+    from regista.vision.package import machine_paths, package_match, write_clips
+    from regista.vision.pipeline import run_vision
+    from regista.vision.review import prepare_review, simulated_answers
+
+    roster = load_match_header(clips["test"]["match_dir"])
+    work = tmp_path / "work" / "vis_pkg"
+    run_vision(clips["test"]["video"], roster, work, models_dir=models["dir"], match_id="vis_pkg")
+    assert json.loads((work / ".vision_work" / "run.json").read_text())["models_dir"] == str(Path(models["dir"]).resolve())
+    shutil.rmtree(work / "review", ignore_errors=True)
+    assert prepare_review(work, clips["test"]["video"], joblib.load(work / ".vision_work" / "identity.joblib"), roster, min_doubt=0.0)
+    write_clips(work, "t_home_09")
+    pkg = tmp_path / "data" / "vis_pkg"
+    package_match(work, pkg, player_id="t_home_09", note="test package", track_hz=1.0)
+    assert not (pkg / ".vision_work").exists() and machine_paths(pkg) == []
+
+    monkeypatch.setattr(api, "DATA_ROOT", tmp_path / "data")
+    monkeypatch.setattr(api, "CACHE_ROOT", tmp_path / "cache")
+    c = TestClient(api.app)
+    items = c.get("/api/matches/vis_pkg/identity-review").json()["items"]
+    answers = simulated_answers(items, joblib.load(work / ".vision_work" / "identity.joblib"), _segments(clips["test"])[0], roster)
+    monkeypatch.setenv("REGISTA_VISION_WORK", str(tmp_path / "elsewhere"))  # the live app: no full output anywhere
+    assert c.post("/api/matches/vis_pkg/identity-review", json={"answers": answers}).status_code == 409
+    monkeypatch.setenv("REGISTA_VISION_WORK", str(tmp_path / "work"))
+    r = c.post("/api/matches/vis_pkg/identity-review", json={"answers": answers, "annotator": "zaid"})
+    assert r.status_code == 200, r.text
+    manifest = json.loads((pkg / "manifest.json").read_text())
+    assert manifest["review"]["answers"] == len(answers) and manifest["note"] == "test package"
+    assert len((pkg / "review" / "identity_answers.jsonl").read_text().splitlines()) == len(answers)
+    assert not (pkg / ".vision_work").exists() and machine_paths(pkg) == []
+    assert all(not v for v in validate_match_dir(pkg).values())
+    assert (pkg / "clips.jsonl").exists() and (work / "clips.jsonl").exists()

@@ -17,8 +17,8 @@ How
   defender while the carrier goes round him; the positions show that, as a camera would.
 - Derived from a spotted shot, by broadcast logic: a save when the opposing goalkeeper has the ball straight after;
   a goal when the ball ends in the goal mouth, nobody claims it, and play restarts from the centre spot.
-- Never used: on-screen captions (event-spotting footage is rendered without them) and anything from the generator
-  at inference. Each team's attacking direction comes from where its goalkeeper stands in each period.
+- Never used: on-screen captions or the holder's name label and ring (event-spotting footage is rendered without
+  them) and anything from the generator at inference. Each team's attacking direction comes from where its goalkeeper stands in each period.
 """
 
 from __future__ import annotations
@@ -621,12 +621,15 @@ def merge_reports(reports: list[dict[str, dict[str, Any]]]) -> dict[str, dict[st
 # ---------------------------------------------------------------------------- reproducible training and scoring (python -m regista.vision ...)
 
 EVENTS_ROOT = Path("/tmp/regista_events")
-EVENT_DATA = {"track_hz": 10.0, "captions": False}  # event-spotting footage: positions at 10 Hz, no on-screen captions
+EVENT_DATA = {"track_hz": 10.0, "captions": False, "labels": False}  # positions at 10 Hz; no captions, name labels or ring
 GENERATED_SEEDS = list(range(1001, 1061))           # 60 matches that are only generated, never rendered
 
 
-def event_dataset(specs, root: Path | str = EVENTS_ROOT, models_dir: Path | str = "models/vision") -> list[dict[str, Any]]:
-    """Render ``specs`` for event spotting and run the identity stage on true camera segments (cached under ``root``)."""
+def event_dataset(specs, root: Path | str = EVENTS_ROOT, models_dir: Path | str = "models/vision", *,
+                  labels: bool = False) -> list[dict[str, Any]]:
+    """Render ``specs`` for event spotting and run the identity stage on true camera segments (cached under ``root``,
+    per models directory and per video, so footage rendered another way or another reader never reuses a stale result).
+    ``labels=True`` scores the older footage with the holder's name label and ring (docs/vision.md)."""
     import joblib
 
     from regista.vision.dataset import make_match
@@ -637,8 +640,8 @@ def event_dataset(specs, root: Path | str = EVENTS_ROOT, models_dir: Path | str 
 
     items = []
     for spec in specs:
-        it = make_match(spec, root, **EVENT_DATA)
-        path = Path(root) / "identity" / f"{spec.match_id}.joblib"
+        it = make_match(spec, root, **{**EVENT_DATA, "labels": labels})
+        path = Path(root) / "identity" / Path(models_dir).name / f"{Path(it['video']).stem}.joblib"
         if not path.exists():
             info = probe(it["video"])
             segs = Truth(it["match_dir"], info.width, info.height).segments(info.duration_s)

@@ -22,12 +22,16 @@ compared over every main-camera frame at 10 fps: players move 0.38 m on average 
 
 The other records, the clips and the Who's who questions are copied unchanged. Answering the questions (``POST
 /api/matches/{id}/identity-review``) needs the identity result, the video and the vision models, which stay on the
-machine that ran the vision layer (docs/vision.md, "Who's who").
+machine that ran the vision layer (docs/vision.md, "Who's who"). There the full vision output lives in the work root,
+``data/vision/<match_id>/`` by default (``REGISTA_VISION_WORK``; git-ignored and left out of the image). ``work_dir_for``
+finds it, an answer is applied to it, and ``repackage`` carries the corrected match, the answers and the next questions
+into the committed package. Without it (the live app) answers are refused and nothing changes.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 from collections import Counter
@@ -42,6 +46,9 @@ from regista.vision.review import QUEUE_FILE as REVIEW_QUEUE
 Record = dict[str, Any]
 # Absolute paths that would name the machine (home folders, temp folders); a packaged match must hold none.
 MACHINE_PATH_RE = re.compile(r"(/Users/|/home/|/private/|/tmp/|/var/folders/|[A-Za-z]:\\\\)")
+DEFAULT_WORK_ROOT = Path("data/vision")
+IDENTITY_FILE = Path(".vision_work") / "identity.joblib"
+KEPT_FIELDS = ("title", "subtitle")  # the Product's heading for the match, written by hand
 
 
 def downsample_tracks(records: Iterable[Record], track_hz: float, segment_ids: set[str] | None = None) -> list[Record]:
@@ -121,6 +128,10 @@ def package_match(src: Path | str, dest: Path | str, *, player_id: str, note: st
     main_ids = {r["id"] for r in stream if r["type"] == "camera_segment" and r["kind"] == "main"}
     clips = list(iter_jsonl(src / "clips.jsonl"))
 
+    kept: Record = {}  # what the app shows about the match (set by hand in the committed manifest) survives repackaging
+    if (dest / "manifest.json").exists():
+        old = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+        kept = {k: old[k] for k in KEPT_FIELDS if k in old}
     if dest.exists():
         shutil.rmtree(dest)
     (dest / "review" / "crops").mkdir(parents=True)
@@ -150,6 +161,7 @@ def package_match(src: Path | str, dest: Path | str, *, player_id: str, note: st
     clips_for = [c for c in clips if c["type"] == "clip" and c.get("player_id") == player_id]
     manifest: Record = {
         "match_id": header["match_id"],
+        **kept,
         "source": "vision",
         "note": note,
         "rendering": rendering or {},
@@ -176,6 +188,45 @@ def package_match(src: Path | str, dest: Path | str, *, player_id: str, note: st
     return manifest
 
 
+def work_root() -> Path:
+    """Where full vision outputs live on the machine that ran the vision layer (read per call, so tests can move it)."""
+    return Path(os.environ.get("REGISTA_VISION_WORK") or DEFAULT_WORK_ROOT)
+
+
+def work_dir_for(match_dir: Path | str) -> Path | None:
+    """The full vision output an answer to ``match_dir``'s questions is applied to, if it is on this machine: the match
+    directory itself when it is an unpackaged vision run, else ``work_root() / <match_id>`` when that holds the identity
+    result and a manifest naming a video that exists. None on the live app, which has neither."""
+    match_dir = Path(match_dir)
+    if (match_dir / IDENTITY_FILE).exists():
+        return match_dir
+    work = work_root() / match_dir.name
+    if not (work / IDENTITY_FILE).exists() or not (work / "manifest.json").exists():
+        return None
+    video = json.loads((work / "manifest.json").read_text(encoding="utf-8")).get("video", {}).get("path")
+    return work if video and Path(video).exists() else None
+
+
+def write_clips(work: Path | str, player_id: str) -> int:
+    """``clips.jsonl`` for one player, as the local intelligence pipeline writes it (clip rule, rules-v0 labeller, the
+    flags for human review), with no model learned from verdicts, so a package does not depend on whose verdicts are
+    on the machine."""
+    from regista.agents.roles import flag_for_review
+    from regista.clips import derive_clips
+
+    clips, labels = derive_clips(list(iter_jsonl(Path(work) / "events.jsonl")), player_id)
+    return write_jsonl(Path(work) / "clips.jsonl", clips + flag_for_review(labels))
+
+
+def repackage(work: Path | str, dest: Path | str) -> Record:
+    """Package ``work`` into ``dest`` again with ``dest``'s own settings (player, note, rendering, track rate), after
+    identity answers changed ``work``. Clips are derived again for the package's player."""
+    old = json.loads((Path(dest) / "manifest.json").read_text(encoding="utf-8"))
+    write_clips(work, old["clips_for"])
+    return package_match(work, dest, player_id=old["clips_for"], note=old["note"], rendering=old.get("rendering") or {},
+                         track_hz=(old.get("tracks_trimmed") or {}).get("track_hz"))
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -186,7 +237,10 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--note", required=True)
     ap.add_argument("--track-hz", type=float, default=1.0, help="downsample tracks to this rate (0: keep the vision layer's)")
     ap.add_argument("--rendering", default="{}", help="JSON: how the video was rendered (seed, size, fps, captions)")
+    ap.add_argument("--derive-clips", action="store_true", help="write src/clips.jsonl for --player first (see write_clips)")
     args = ap.parse_args(argv)
+    if args.derive_clips:
+        write_clips(args.src, args.player)
     m = package_match(args.src, args.dest, player_id=args.player, note=args.note, rendering=json.loads(args.rendering),
                       track_hz=args.track_hz or None)
     print(json.dumps({k: m[k] for k in ("match_id", "score", "files", "tracks_trimmed", "clip_reasons", "review")}, indent=2))

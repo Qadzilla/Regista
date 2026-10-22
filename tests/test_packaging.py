@@ -30,3 +30,4 @@ def test_dockerignore_keeps_the_package_and_drops_run_state():
     assert not _excluded("src/regista/static/product/index.html") and not _excluded("src/regista/schemas/regista-events.schema.json")
     assert _excluded(".env")
     assert _excluded("data/synthetic/sample/syn_0294/agents/trace.jsonl")
+    assert _excluded("data/vision/vis_0201/.vision_work/identity.joblib")  # full vision outputs stay on the machine that ran them

@@ -899,17 +899,20 @@ def identity_review_crop(match_id: str, name: str) -> FileResponse:
 async def answer_identity_review(match_id: str, body: IdentityReviewIn) -> dict[str, Any]:
     """Correct identity from a person's answers, then recompute possession, events and clips. The open questions are
     claimed atomically (a second answer gets 409); answers that do not validate change nothing (422)."""
+    from regista.vision.package import work_dir_for
+
     d = _match_dir(match_id)
-    q = _queue_path(d)
-    if not (d / ".vision_work" / "identity.joblib").exists():
+    work = work_dir_for(d)  # d itself for a vision run; for a packaged match, its full output if it is on this machine
+    if work is None:
         raise HTTPException(409, "this match has no identity result to correct (it was not written by the vision layer)")
+    q = _queue_path(work)
     claimed = q.with_name(f"identity_review.claimed-{uuid.uuid4().hex[:8]}.json")
     try:
         os.rename(q, claimed)
     except FileNotFoundError:
         raise HTTPException(409, "no open identity questions (already answered, or none were asked)")
     try:
-        out = await run_in_threadpool(_apply_identity_review, d, claimed, body)
+        out = await run_in_threadpool(_apply_identity_review, work, claimed, body, d)
     except ValueError as exc:
         os.rename(claimed, q)  # nothing was applied; the questions stay open
         raise HTTPException(422, str(exc))
@@ -919,7 +922,8 @@ async def answer_identity_review(match_id: str, body: IdentityReviewIn) -> dict[
     return out
 
 
-def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn) -> dict[str, Any]:
+def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn, served: Path | None = None) -> dict[str, Any]:
+    """Apply answers to the vision output ``d``; when the app serves a package of it (``served``), package it again."""
     import joblib
 
     from regista.feedback import feedback_dir
@@ -936,7 +940,10 @@ def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn) -> di
     changed = apply_answers(ident, items, answers)  # in memory until the recompute has succeeded
     manifest = json.loads((d / "manifest.json").read_text())
     seg_recs = [r for r in iter_jsonl(d / "events.jsonl") if r["type"] == "camera_segment"]
-    summary = refresh_from_identity(d, header, probe(manifest["video"]["path"]), header["match_id"], seg_recs, ident, models_dir=MODELS_DIR)
+    run = d / ".vision_work" / "run.json"  # the models the match was made with, when run_vision recorded them
+    models = Path(json.loads(run.read_text())["models_dir"]) if run.exists() else MODELS_DIR
+    summary = refresh_from_identity(d, header, probe(manifest["video"]["path"]), header["match_id"], seg_recs, ident,
+                                    models_dir=models if models.exists() else MODELS_DIR)
     joblib.dump(ident, d / ".vision_work" / "identity.joblib")
     claimed.rename(claimed.with_name(claimed.name.replace(".claimed-", ".").replace(".json", ANSWERED_SUFFIX)))
     (d / "clips.jsonl").unlink(missing_ok=True)  # clips are derived again from the corrected stream
@@ -946,6 +953,12 @@ def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn) -> di
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fh:
             fh.write("".join(json.dumps(r) + "\n" for r in records))
+    if served is not None and served != d:
+        from regista.vision.package import repackage
+
+        repackage(d, served)  # the corrected match, the answers and the next questions, without machine paths
+        shutil.rmtree(CACHE_ROOT / served.name, ignore_errors=True)
+        librarian_cache.cache_clear()
     return {"answers": len(answers), "annotator": body.annotator, **changed, "record_counts": summary["record_counts"],
             "next_questions": summary.get("review_questions")}
 

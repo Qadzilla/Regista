@@ -149,6 +149,31 @@ def test_focus_player_is_drawn_on_top(scene):
     assert img.size == (640, 360)
 
 
+def test_vision_footage_has_no_name_label_or_ring_on_the_holder(scene):
+    """Vision footage must not say who has the ball: no name label over the holder, no ring under them (B1)."""
+    import numpy as np
+
+    from regista.render.draw import COLOUR_ACCENT, draw_main_view
+    from regista.vision.dataset import vision_style
+
+    label_fill = (12, 14, 20)
+
+    def marks(style: Style, t: float) -> tuple[int, int]:
+        img, cam = draw_main_view(scene, t, style)
+        sx, sy = cam.project(*scene.positions_at(t)[scene.holder_at(t)])
+        a = np.asarray(img)[max(0, int(sy) - 70):int(sy) + 40, max(0, int(sx) - 70):int(sx) + 70].reshape(-1, 3)
+        return int((a == label_fill).all(1).sum()), int((a == COLOUR_ACCENT).all(1).sum())
+
+    main = [s for s in scene.segments if s["kind"] == "main"]
+    times = [p["t"] + 0.3 for p in scene.possessions if any(m["t"] <= p["t"] + 0.3 < m["t_end"] for m in main)][:5]
+    assert times
+    vision = vision_style((640, 360))
+    assert (vision.captions, vision.labels, vision.holder_ring) == (False, False, False)
+    for t in times:
+        assert all(n > 0 for n in marks(Style(640, 360), t)), t   # the Product's broadcast style marks the holder
+        assert marks(vision, t) == (0, 0), t                       # vision footage does not
+
+
 def test_frame_count_matches_segment_durations(scene, tmp_path):
     out = tmp_path / "match.mp4"
     manifest = render_video(scene, out, fps=FPS, style=SMALL, workers=1)

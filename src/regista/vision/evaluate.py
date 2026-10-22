@@ -307,8 +307,8 @@ def tune_cutaway(items: list[dict[str, Any]], reader, cfg=None) -> dict[str, Any
 
 # ---------------------------------------------------------------------------- everything
 
-def _items(specs: list[MatchSpec], root: Path | str) -> list[dict[str, Any]]:
-    return [make_match(s, root) for s in specs]
+def _items(specs: list[MatchSpec], root: Path | str, labels: bool = False) -> list[dict[str, Any]]:
+    return [make_match(s, root, labels=labels) for s in specs]
 
 
 def segment_items(items: list[dict[str, Any]]) -> list[tuple[str, list[Record]]]:
@@ -320,13 +320,13 @@ def segment_items(items: list[dict[str, Any]]) -> list[tuple[str, list[Record]]]
 
 
 def train_all(root: Path | str, models_dir: Path | str, train_specs: list[MatchSpec] | None = None, n_synth: int = 20000,
-              log=print) -> dict[str, Any]:
+              labels: bool = False, log=print) -> dict[str, Any]:
     """Train the shot model and the kit-number reader, tune the cutaway thresholds, save everything to ``models_dir``."""
     from regista.vision.dataset import TRAIN_SPECS
     from regista.vision.identity import IdentityConfig
     from regista.vision.shots import train_shot_model
 
-    items = _items(train_specs or TRAIN_SPECS, root)
+    items = _items(train_specs or TRAIN_SPECS, root, labels)
     t0 = time.perf_counter()
     shot = train_shot_model(segment_items(items))
     shot.save(models_dir)
@@ -345,8 +345,9 @@ def train_all(root: Path | str, models_dir: Path | str, train_specs: list[MatchS
 
 
 def evaluate_all(root: Path | str, models_dir: Path | str, test_specs: list[MatchSpec] | None = None, e2e_seed: int | None = None,
-                 log=print) -> dict[str, Any]:
-    """Every metric in docs/vision.md, on the development set (default) or the given matches."""
+                 labels: bool = False, log=print) -> dict[str, Any]:
+    """Every metric in docs/vision.md, on the development set (default) or the given matches. ``labels=True`` scores
+    the older footage that draws the holder's name label and ring."""
     from regista.schema import iter_jsonl
     from regista.vision.dataset import TEST_SPECS
     from regista.vision.identity import IdentityConfig, run_identity
@@ -356,8 +357,8 @@ def evaluate_all(root: Path | str, models_dir: Path | str, test_specs: list[Matc
     from regista.vision.truth import load_match_header
 
     specs = test_specs or TEST_SPECS
-    items = _items(specs, root)
-    report: dict[str, Any] = {"test_matches": [it["spec"].match_id for it in items]}
+    items = _items(specs, root, labels)
+    report: dict[str, Any] = {"test_matches": [it["spec"].match_id for it in items], "footage": Path(items[0]["video"]).stem}
     shot = ShotModel.load(models_dir)
     reader = DigitClassifierReader.load(models_dir)
     cfg = IdentityConfig.load(models_dir)
@@ -406,7 +407,7 @@ def evaluate_all(root: Path | str, models_dir: Path | str, test_specs: list[Matc
     # End to end on one evaluation match: predicted segments, the full pipeline, then the intelligence layer's clip rule.
     e2e_item = next((it for it in items if e2e_seed is None or it["spec"].seed == e2e_seed), items[0])
     t0 = time.perf_counter()
-    out_dir = Path(root) / "out" / f"vis_{e2e_item['spec'].match_id}"
+    out_dir = Path(root) / "out" / (f"vis_{e2e_item['spec'].match_id}" + ("_labels" if labels else ""))
     summ = run_vision(e2e_item["video"], load_match_header(e2e_item["match_dir"]), out_dir, models_dir=models_dir)
     vs = list(iter_jsonl(out_dir / "events.jsonl"))
     ts = list(iter_jsonl(Path(e2e_item["match_dir"]) / "events.jsonl"))

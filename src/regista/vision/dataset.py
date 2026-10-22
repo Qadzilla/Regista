@@ -81,22 +81,32 @@ def _team(text: str | None) -> dict[str, Any]:
     return parse_team_arg(text) if text else {}
 
 
+def vision_style(size: tuple[int, int] = (640, 360), *, captions: bool = False, labels: bool = False):
+    """The renderer's style for vision footage: no captions, no name labels, no holder ring unless asked for."""
+    from regista.render.draw import Style
+
+    return Style(width=size[0], height=size[1], captions=captions, labels=labels, holder_ring=labels)
+
+
 def make_match(spec: MatchSpec, root: Path | str = DEFAULT_ROOT, *, size: tuple[int, int] = (640, 360), fps: float = 10.0,
                track_hz: float = 2.0, workers: int | None = None, end_card_s: float = 3.0, force: bool = False,
-               t_end: float | None = None, captions: bool = False) -> dict[str, Any]:
+               t_end: float | None = None, captions: bool = False, labels: bool = False) -> dict[str, Any]:
     """Generate and render one match. Returns ``{"match_dir", "video", "spec"}``; skips work already on disk.
 
     Vision footage is rendered without the on-screen captions by default: they name the event ("REPLAY · goal by
     ...", "NUTMEG! ..."), real footage has nothing like them, and the v2 shot model turned out to lean on them for
-    replays (docs/vision.md). ``captions=True`` reproduces the v2 training footage."""
-    from regista.render.draw import Style
+    replays (docs/vision.md). ``captions=True`` reproduces the v2 training footage.
+
+    It is also rendered without the broadcast's player graphics: the name label over the ball holder and the ring
+    under them say who has the ball, and real footage has neither. ``labels=True`` draws both, as the footage the
+    v2 and v3 models were trained on did (docs/vision.md, "Name labels")."""
     from regista.render.scene import Scene
     from regista.render.video import render_video
     from regista.synth import generate
 
     root = Path(root)
     match_dir = root / "matches" / spec.match_id
-    tag = f"{size[0]}x{size[1]}_{fps:g}fps" + (f"_to{t_end:g}s" if t_end else "") + ("" if captions else "_nocap")
+    tag = f"{size[0]}x{size[1]}_{fps:g}fps" + (f"_to{t_end:g}s" if t_end else "") + ("" if captions else "_nocap") + ("" if labels else "_nolabels")
     video = root / "video" / f"{spec.match_id}_{tag}.mp4"
     if force or not (match_dir / "events.jsonl").exists():
         teams = None
@@ -108,7 +118,7 @@ def make_match(spec: MatchSpec, root: Path | str = DEFAULT_ROOT, *, size: tuple[
         (match_dir / "spec.json").write_text(json.dumps(spec.__dict__), encoding="utf-8")
     if force or not video.exists():
         scene = Scene.load(match_dir)
-        render_video(scene, video, fps=fps, style=Style(width=size[0], height=size[1], captions=captions), workers=workers, t1=t_end,
+        render_video(scene, video, fps=fps, style=vision_style(size, captions=captions, labels=labels), workers=workers, t1=t_end,
                      end_card_s=end_card_s if t_end is None else 0.0)
     return {"match_dir": str(match_dir), "video": str(video), "spec": spec}
 
