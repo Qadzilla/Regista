@@ -25,6 +25,12 @@ ACCESS = {
     "GET /api/players/{gid}/reel.mp4": "public",
     "GET /api/compare": "public",
     "POST /api/scout/ask": "public",  # the Scout agent: reads only; Foundry behind the Ask limits, player tools only
+    # The Player view (reads open: synthetic players, records without paths or keys; writes admin-only)
+    "GET /me": "public",
+    "GET /api/player/uploads": "public",
+    "GET /api/player/uploads/{upload_id}": "public",
+    "GET /api/player/uploads/{upload_id}/questions": "public",
+    "GET /api/player/uploads/{upload_id}/crops/{name}": "public",
     # The Product (open)
     "GET /": "public",
     "GET /api/health": "public",
@@ -65,6 +71,8 @@ ACCESS = {
     "POST /api/studio/jobs": "admin",
     "POST /api/claims": "admin",
     "POST /api/claims/{claim_id}/decision": "admin",
+    "POST /api/player/uploads": "admin",
+    "POST /api/player/uploads/{upload_id}/answers": "admin",
 }
 
 ADMIN, VIEW = "admin-key-for-tests", "view-key-for-tests"

@@ -118,7 +118,7 @@ def test_grid_videos_load_lazily(script):
 
 def test_the_views_switch_marks_clips_as_current_and_is_styled_once_for_every_page(page):
     nav = re.search(r'<nav class="views" aria-label="Views">(.*?)</nav>', page).group(1)
-    assert re.findall(r'<a href="([^"]+)"', nav) == ["/", "/scout"]
+    assert re.findall(r'<a href="([^"]+)"', nav) == ["/", "/scout", "/me"]
     assert '<a href="/" aria-current="page">Clips</a>' in nav and ">Scout</a>" in nav
     shared = (PRODUCT.parent / "shared/regista.css").read_text()
     assert ".views {" in shared and '.views a[aria-current="page"]' in shared
