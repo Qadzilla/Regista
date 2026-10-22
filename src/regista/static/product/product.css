@@ -90,7 +90,7 @@ details.how dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .card .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
 .card .title { font-weight: 700; overflow-wrap: anywhere; }
 .reason { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
-.reason.replay { color: var(--replay); }
+.reason.replay { color: #ff6b70; }  /* --replay is 3.3:1 on the panel at 11 px; this is 6.3:1 */
 .meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12.5px; }
 .bar { height: 5px; background: #2b3140; border-radius: 3px; overflow: hidden; }
 .bar i { display: block; height: 100%; background: var(--accent); }
@@ -139,3 +139,73 @@ footer p { margin: 4px 0; }
   .askrow button { flex: 0 0 auto; }
   .flow li.pair { grid-template-columns: 1fr; }
 }
+
+/* The match line, errors with a way out, tag chips, card previews */
+.lede { margin: 0 0 14px; color: var(--muted); max-width: 62ch; }
+.matchline h2 { margin: 0; font-size: 17px; line-height: 1.3; }
+.matchline p { margin: 3px 0 0; font-size: 13px; }
+.vision-note { color: var(--text); max-width: 80ch; }
+.vision-note .badge { margin-right: 4px; }
+.neterr { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--bad); border-radius: var(--radius);
+          padding: 10px 14px; background: #2a1518; }
+.neterr span { flex: 1 1 240px; }
+.msg .retry, .msg .wayout { display: block; margin-top: 8px; padding: 5px 12px; font-size: 13.5px; }
+.msg .fallback { display: block; margin-top: 4px; font-size: 12.5px; color: var(--warn); }
+.tagbar { display: flex; flex-wrap: wrap; gap: 6px; margin: -4px 0 12px; }
+.chip { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 4px 11px; font-weight: 600; font-size: 13px; }
+.chip .n { color: var(--muted); font-weight: 400; margin-left: 2px; }
+.chip[aria-pressed="true"] { background: var(--line); color: var(--text); border-color: var(--muted); }
+.chip:hover { border-color: var(--accent); }
+.card .thumb { position: relative; display: block; aspect-ratio: 16 / 9; background: #000; }
+.card .thumb video { position: absolute; inset: 0; height: 100%; }
+.card .prep { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12.5px; pointer-events: none; }
+
+/* "How Regista answered": plain steps first, the exact names and times one click further */
+details.how ol.plain { margin: 6px 0 4px; padding-left: 20px; color: var(--text); }
+details.how ol.plain li { margin: 1px 0; }
+details.how .by { margin: 4px 0; }
+details.how details.tech { margin: 4px 0 2px; font-size: 11.5px; }
+details.how details.tech .steps { margin-top: 6px; }
+details.how .engine-raw { margin: 4px 0 0; font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+
+/* The realism report, rendered from its Markdown */
+.report { margin-top: 8px; font-size: 13px; }
+.report h4 { margin: 12px 0 4px; font-size: 14px; }
+.report p { color: var(--muted); }
+.tablewrap { overflow-x: auto; margin: 8px 0; }
+.report table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.report th, .report td { text-align: left; padding: 4px 8px 4px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.report th { color: var(--muted); font-weight: 600; }
+.verdict { font-weight: 700; white-space: nowrap; }
+.verdict.ok { color: var(--ok); }
+.verdict.off { color: var(--warn); }
+
+/* The timeline (timeline.js draws it; its styles live here, not in an injected <style>) */
+.rtl { position: relative; user-select: none; -webkit-user-select: none; }
+.rtl svg { display: block; width: 100%; overflow: visible; }
+.rtl svg:focus { outline: none; }
+.rtl .bg { fill: var(--panel, #161a24); }
+.rtl .period { fill: var(--line, #262c3a); opacity: .55; }
+.rtl .grid { stroke: var(--line, #262c3a); stroke-width: 1; }
+.rtl .tick, .rtl .lane-name, .rtl .period-name { fill: var(--muted, #9aa3b5); font: 10px/1 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+.rtl .lane-name { font-size: 11px; }
+.rtl .goal-line { stroke: var(--text, #f3f4f6); stroke-width: 1; stroke-dasharray: 2 3; opacity: .55; }
+.rtl .goal { fill: var(--text, #f3f4f6); stroke: var(--bg, #0c0e14); stroke-width: 1.5; }
+.rtl .k-on_ball_main { fill: var(--accent, #ffcd28); }
+.rtl .k-replay_appearance { fill: var(--replay, #d62028); }
+.rtl .k-highlight_appearance { fill: var(--highlight, #4aa8ff); }
+.rtl .k-closeup_appearance { fill: var(--closeup, #c18cff); }
+.rtl .k-other { fill: var(--muted, #9aa3b5); }
+.rtl .clip { cursor: pointer; }
+.rtl .clip .hit { fill: transparent; }
+.rtl .clip.dim .mark { opacity: .22; }
+.rtl .clip:hover .mark, .rtl .clip.dim:hover .mark { opacity: 1; }
+.rtl .clip .ring { fill: none; stroke: var(--text, #f3f4f6); stroke-width: 2; display: none; }
+.rtl .clip.sel .ring { display: block; stroke: var(--text, #f3f4f6); }
+.rtl .clip:focus { outline: none; }
+.rtl .clip:focus-visible .ring, .rtl svg:focus-visible .clip.cur .ring { display: block; stroke: var(--accent, #ffcd28); }
+.rtl-tip { position: absolute; z-index: 3; pointer-events: none; transform: translateX(-50%); max-width: min(280px, 90%);
+           background: var(--bg, #0c0e14); color: var(--text, #f3f4f6); border: 1px solid var(--line, #262c3a); border-radius: 6px;
+           padding: 6px 9px; font-size: 12px; line-height: 1.35; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
+.rtl-tip b { display: block; font-weight: 700; }
+.rtl-tip span { color: var(--muted, #9aa3b5); }

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Regista</title>
 <meta name="description" content="Every touch, every replay, every player, found in seconds.">
+<link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
 <link rel="stylesheet" href="/static/product/product.css">
 </head>
@@ -16,9 +17,20 @@
 </header>
 
 <main>
+  <div class="neterr" id="netError" role="alert" hidden><span id="netErrorText"></span><button type="button" class="alt" id="netRetry">Retry</button></div>
+
   <section class="landing" id="landing" aria-labelledby="promise">
     <h1 id="promise">Every touch, every replay, every player, found in seconds.</h1>
+    <p class="lede">Regista watched this match and cut every moment each player had the ball, plus every replay and highlight
+      they appear in. Ask for any moment.</p>
     <div class="examples" id="examples" role="group" aria-label="Try a question"></div>
+  </section>
+
+  <section class="matchline" aria-label="This match">
+    <h2 id="matchTitle"></h2>
+    <p id="matchSub" class="muted" hidden></p>
+    <p id="visionNote" class="vision-note" hidden><span class="badge vision">Cut from video</span> on a moment means the vision layer
+      found it in the pictures: who had the ball, what happened and who is in each replay.</p>
   </section>
 
   <section class="ask panel" aria-label="Ask Regista">
@@ -67,6 +79,7 @@
         <button type="button" class="seg" data-sort="time" aria-pressed="false">Match order</button>
       </div>
     </div>
+    <div class="tagbar" id="tagbar" role="group" aria-label="Filter the moments by tag" hidden></div>
     <div class="grid" id="grid"></div>
     <p class="empty" id="empty" hidden></p>
     <button type="button" class="alt more" id="more" hidden>Show more</button>
@@ -99,15 +112,16 @@
         replay and highlight they appear in, labels each one, scores how worth watching it is, and finds it when you ask.</p>
     </div>
   </div>
-  <p class="muted small">Between them sits one event stream with a published JSON Schema. The demo matches come from Regista's
-    synthetic match generator, which writes the same stream.</p>
+  <p class="muted small">Between them sits one list of match events in a published format. The demo matches come from Regista's
+    own match generator, which writes the same list, so no real footage or data is needed.</p>
 
   <h3>The agent workflow</h3>
-  <p class="muted small">A Microsoft Agent Framework workflow: each agent has one job, hands typed state to the next, retries on
-    failure, and routes what it cannot handle to a dead-letter file instead of crashing the run.</p>
+  <p class="muted small">A Microsoft Agent Framework workflow: each agent has one job and passes what it found to the next. An agent
+    that fails tries again, and anything it still cannot handle is set aside and recorded, so one bad record never stops the
+    whole match.</p>
   <ol class="flow">
     <li><b>Ingest</b> reads the event stream and indexes it.</li>
-    <li class="pair"><span><b>Validator</b> checks every record against the schema.</span><span><b>Possession</b> finds each player's time on the ball.</span>
+    <li class="pair"><span><b>Validator</b> checks every event is complete and well formed.</span><span><b>Possession</b> finds each player's time on the ball.</span>
       <em>in parallel, then joined</em></li>
     <li><b>Clip</b> cuts on-ball moments, replays and highlights.</li>
     <li><b>Label</b> names each moment, scores it and says why.</li>
@@ -121,8 +135,12 @@
   <ul class="services" id="services"><li class="muted">Checking…</li></ul>
 
   <h3>How real is the data?</h3>
-  <p><a id="reportLink" target="_blank" rel="noopener">The realism report for this match</a><span class="muted small">:
-    its per-90 rates next to Premier League ranges.</span></p>
+  <p class="small">The three-minute demo matches are packed on purpose, so a short clip reel has goals, nutmegs and replays in it;
+    their numbers sit above a real match's. With its realistic setting, over eight 30-minute matches, the generator sits inside
+    Premier League ranges per 90 minutes on all 13 measures Regista checks (passes, shots, goals, tackles, nutmegs and more).</p>
+  <p><button type="button" class="link" id="reportToggle" aria-expanded="false" aria-controls="report">Show this match's numbers next to
+    Premier League ranges</button></p>
+  <div class="report" id="report" hidden></div>
 </dialog>
 
 <script src="/static/shared/regista.js"></script>
