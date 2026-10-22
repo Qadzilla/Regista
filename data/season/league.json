@@ -1,0 +1,1091 @@
+{
+ "league": "Regista League",
+ "season": "2026/27",
+ "seed": 2026,
+ "generator": {
+  "name": "regista-synth",
+  "version": "0.1.0",
+  "profile": "realistic",
+  "minutes": 15.0,
+  "periods": 2,
+  "track_hz": 1.0
+ },
+ "clubs": [
+  {
+   "club_id": "cl_ashby",
+   "name": "Ashby Athletic",
+   "short_name": "ASH",
+   "ground": "Ashby Park",
+   "kit": {
+    "primary": "#C8102E",
+    "secondary": "#FFFFFF",
+    "gk": "#111111"
+   },
+   "squad": [
+    {
+     "global_id": "pl_ash_01",
+     "name": "Hugo Fontaine",
+     "kit_number": 1,
+     "position": "GK",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_02",
+     "name": "Leon Valente",
+     "kit_number": 2,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_04",
+     "name": "Gino Yilmaz",
+     "kit_number": 4,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_05",
+     "name": "Otis Oliveira",
+     "kit_number": 5,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_03",
+     "name": "Otis Ustinov",
+     "kit_number": 3,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_08",
+     "name": "Haruki Adeyemi",
+     "kit_number": 8,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_06",
+     "name": "Amari Haddad",
+     "kit_number": 6,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_10",
+     "name": "Hugo Delgado",
+     "kit_number": 10,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_07",
+     "name": "Gino Reyes",
+     "kit_number": 7,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_09",
+     "name": "Amari Ustinov",
+     "kit_number": 9,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_11",
+     "name": "Zane Weber",
+     "kit_number": 11,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_ash_13",
+     "name": "Elias Brennan",
+     "kit_number": 13,
+     "position": "GK",
+     "starter": false
+    },
+    {
+     "global_id": "pl_ash_15",
+     "name": "Benji Ibarra",
+     "kit_number": 15,
+     "position": "DF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_ash_14",
+     "name": "Dario Valente",
+     "kit_number": 14,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_ash_16",
+     "name": "Emeka Gallagher",
+     "kit_number": 16,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_ash_17",
+     "name": "Farid Bakker",
+     "kit_number": 17,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_ash_20",
+     "name": "Noel Delgado",
+     "kit_number": 20,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_ash_22",
+     "name": "Teo Sorensen",
+     "kit_number": 22,
+     "position": "DF",
+     "starter": false
+    }
+   ]
+  },
+  {
+   "club_id": "cl_brookfield",
+   "name": "Brookfield Rovers",
+   "short_name": "BRO",
+   "ground": "The Brook",
+   "kit": {
+    "primary": "#1E3A8A",
+    "secondary": "#F5D90A",
+    "gk": "#C6FF00"
+   },
+   "squad": [
+    {
+     "global_id": "pl_bro_01",
+     "name": "Jonah Eriksen",
+     "kit_number": 1,
+     "position": "GK",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_02",
+     "name": "Bruno Kowalski",
+     "kit_number": 2,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_04",
+     "name": "Caio Sorensen",
+     "kit_number": 4,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_05",
+     "name": "Gael Haddad",
+     "kit_number": 5,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_03",
+     "name": "Elias Bakker",
+     "kit_number": 3,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_08",
+     "name": "Kenan Petrov",
+     "kit_number": 8,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_06",
+     "name": "Gael Valente",
+     "kit_number": 6,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_10",
+     "name": "Kenan Nakamura",
+     "kit_number": 10,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_07",
+     "name": "Milan Brennan",
+     "kit_number": 7,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_09",
+     "name": "Femi Toure",
+     "kit_number": 9,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_11",
+     "name": "Leon Whitfield",
+     "kit_number": 11,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_bro_13",
+     "name": "Bruno Yilmaz",
+     "kit_number": 13,
+     "position": "GK",
+     "starter": false
+    },
+    {
+     "global_id": "pl_bro_15",
+     "name": "Idris Dubois",
+     "kit_number": 15,
+     "position": "DF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_bro_14",
+     "name": "Milan Novak",
+     "kit_number": 14,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_bro_16",
+     "name": "Gael Toure",
+     "kit_number": 16,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_bro_17",
+     "name": "Jonah Toure",
+     "kit_number": 17,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_bro_20",
+     "name": "Owen Petrov",
+     "kit_number": 20,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_bro_22",
+     "name": "Ivan Toure",
+     "kit_number": 22,
+     "position": "DF",
+     "starter": false
+    }
+   ]
+  },
+  {
+   "club_id": "cl_calder",
+   "name": "Calder Town",
+   "short_name": "CAL",
+   "ground": "Calder Road",
+   "kit": {
+    "primary": "#00A650",
+    "secondary": "#FFFFFF",
+    "gk": "#FF1493"
+   },
+   "squad": [
+    {
+     "global_id": "pl_cal_01",
+     "name": "Noel Brennan",
+     "kit_number": 1,
+     "position": "GK",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_02",
+     "name": "Otis Nakamura",
+     "kit_number": 2,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_04",
+     "name": "Yusuf Bakker",
+     "kit_number": 4,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_05",
+     "name": "Leon Toure",
+     "kit_number": 5,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_03",
+     "name": "Elias Popescu",
+     "kit_number": 3,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_08",
+     "name": "Mateo Delgado",
+     "kit_number": 8,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_06",
+     "name": "Sami Okafor",
+     "kit_number": 6,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_10",
+     "name": "Cole Rahman",
+     "kit_number": 10,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_07",
+     "name": "Ivan Whitfield",
+     "kit_number": 7,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_09",
+     "name": "Kenan Kowalski",
+     "kit_number": 9,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_11",
+     "name": "Mateo Brennan",
+     "kit_number": 11,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_cal_13",
+     "name": "Kenan Sorensen",
+     "kit_number": 13,
+     "position": "GK",
+     "starter": false
+    },
+    {
+     "global_id": "pl_cal_15",
+     "name": "Leon Ustinov",
+     "kit_number": 15,
+     "position": "DF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_cal_14",
+     "name": "Gael Bakker",
+     "kit_number": 14,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_cal_16",
+     "name": "Cole Delgado",
+     "kit_number": 16,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_cal_17",
+     "name": "Zane Sorensen",
+     "kit_number": 17,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_cal_20",
+     "name": "Leon Brennan",
+     "kit_number": 20,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_cal_22",
+     "name": "Haruki Tanaka",
+     "kit_number": 22,
+     "position": "DF",
+     "starter": false
+    }
+   ]
+  },
+  {
+   "club_id": "cl_dunmore",
+   "name": "Dunmore City",
+   "short_name": "DUN",
+   "ground": "Dunmore Stadium",
+   "kit": {
+    "primary": "#6A0DAD",
+    "secondary": "#FFFFFF",
+    "gk": "#FFD700"
+   },
+   "squad": [
+    {
+     "global_id": "pl_dun_01",
+     "name": "Emeka Castellanos",
+     "kit_number": 1,
+     "position": "GK",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_02",
+     "name": "Gino Vargas",
+     "kit_number": 2,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_04",
+     "name": "Femi Rahman",
+     "kit_number": 4,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_05",
+     "name": "Haruki Okafor",
+     "kit_number": 5,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_03",
+     "name": "Farid Okafor",
+     "kit_number": 3,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_08",
+     "name": "Haruki Zidane",
+     "kit_number": 8,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_06",
+     "name": "Farid Vargas",
+     "kit_number": 6,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_10",
+     "name": "Pavel Petrov",
+     "kit_number": 10,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_07",
+     "name": "Cole Zidane",
+     "kit_number": 7,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_09",
+     "name": "Sami Ibarra",
+     "kit_number": 9,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_11",
+     "name": "Jonah Okafor",
+     "kit_number": 11,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_dun_13",
+     "name": "Zane Ustinov",
+     "kit_number": 13,
+     "position": "GK",
+     "starter": false
+    },
+    {
+     "global_id": "pl_dun_15",
+     "name": "Idris Zidane",
+     "kit_number": 15,
+     "position": "DF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_dun_14",
+     "name": "Owen Toure",
+     "kit_number": 14,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_dun_16",
+     "name": "Idris Valente",
+     "kit_number": 16,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_dun_17",
+     "name": "Teo Haddad",
+     "kit_number": 17,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_dun_20",
+     "name": "Femi Santos",
+     "kit_number": 20,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_dun_22",
+     "name": "Idris Eriksen",
+     "kit_number": 22,
+     "position": "DF",
+     "starter": false
+    }
+   ]
+  },
+  {
+   "club_id": "cl_eastwick",
+   "name": "Eastwick United",
+   "short_name": "EAS",
+   "ground": "Eastwick Lane",
+   "kit": {
+    "primary": "#FF8C00",
+    "secondary": "#000000",
+    "gk": "#9E9E9E"
+   },
+   "squad": [
+    {
+     "global_id": "pl_eas_01",
+     "name": "Leon Oliveira",
+     "kit_number": 1,
+     "position": "GK",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_02",
+     "name": "Dario Rahman",
+     "kit_number": 2,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_04",
+     "name": "Milan Vargas",
+     "kit_number": 4,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_05",
+     "name": "Dario Okafor",
+     "kit_number": 5,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_03",
+     "name": "Gino Mensah",
+     "kit_number": 3,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_08",
+     "name": "Emeka Dubois",
+     "kit_number": 8,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_06",
+     "name": "Bruno Lindqvist",
+     "kit_number": 6,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_10",
+     "name": "Zane Eriksen",
+     "kit_number": 10,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_07",
+     "name": "Haruki Fontaine",
+     "kit_number": 7,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_09",
+     "name": "Hugo Ustinov",
+     "kit_number": 9,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_11",
+     "name": "Ivan Santos",
+     "kit_number": 11,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_eas_13",
+     "name": "Jonah Whitfield",
+     "kit_number": 13,
+     "position": "GK",
+     "starter": false
+    },
+    {
+     "global_id": "pl_eas_15",
+     "name": "Nico Popescu",
+     "kit_number": 15,
+     "position": "DF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_eas_14",
+     "name": "Ade Sorensen",
+     "kit_number": 14,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_eas_16",
+     "name": "Owen Ferreira",
+     "kit_number": 16,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_eas_17",
+     "name": "Cole Vargas",
+     "kit_number": 17,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_eas_20",
+     "name": "Luca Marchetti",
+     "kit_number": 20,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_eas_22",
+     "name": "Noel Dubois",
+     "kit_number": 22,
+     "position": "DF",
+     "starter": false
+    }
+   ]
+  },
+  {
+   "club_id": "cl_fairhaven",
+   "name": "Fairhaven FC",
+   "short_name": "FAI",
+   "ground": "Harbour Ground",
+   "kit": {
+    "primary": "#00B5E2",
+    "secondary": "#002147",
+    "gk": "#8B4513"
+   },
+   "squad": [
+    {
+     "global_id": "pl_fai_01",
+     "name": "Haruki Vargas",
+     "kit_number": 1,
+     "position": "GK",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_02",
+     "name": "Jamal Lindqvist",
+     "kit_number": 2,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_04",
+     "name": "Idris Whitfield",
+     "kit_number": 4,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_05",
+     "name": "Nico Whitfield",
+     "kit_number": 5,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_03",
+     "name": "Idris Santos",
+     "kit_number": 3,
+     "position": "DF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_08",
+     "name": "Luca Mensah",
+     "kit_number": 8,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_06",
+     "name": "Sami Popescu",
+     "kit_number": 6,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_10",
+     "name": "Noel Oliveira",
+     "kit_number": 10,
+     "position": "MF",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_07",
+     "name": "Farid Mensah",
+     "kit_number": 7,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_09",
+     "name": "Yusuf Tanaka",
+     "kit_number": 9,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_11",
+     "name": "Benji Tanaka",
+     "kit_number": 11,
+     "position": "FW",
+     "starter": true
+    },
+    {
+     "global_id": "pl_fai_13",
+     "name": "Rafa Sorensen",
+     "kit_number": 13,
+     "position": "GK",
+     "starter": false
+    },
+    {
+     "global_id": "pl_fai_15",
+     "name": "Kenan Oliveira",
+     "kit_number": 15,
+     "position": "DF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_fai_14",
+     "name": "Luca Fontaine",
+     "kit_number": 14,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_fai_16",
+     "name": "Milan Toure",
+     "kit_number": 16,
+     "position": "MF",
+     "starter": false
+    },
+    {
+     "global_id": "pl_fai_17",
+     "name": "Haruki Petrov",
+     "kit_number": 17,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_fai_20",
+     "name": "Milan Whitfield",
+     "kit_number": 20,
+     "position": "FW",
+     "starter": false
+    },
+    {
+     "global_id": "pl_fai_22",
+     "name": "Sami Novak",
+     "kit_number": 22,
+     "position": "DF",
+     "starter": false
+    }
+   ]
+  }
+ ],
+ "fixtures": [
+  {
+   "match_id": "rl_r01_ash_fai",
+   "round": 1,
+   "date": "2026-08-15",
+   "home": "cl_ashby",
+   "away": "cl_fairhaven",
+   "seed": 20270
+  },
+  {
+   "match_id": "rl_r01_eas_bro",
+   "round": 1,
+   "date": "2026-08-15",
+   "home": "cl_eastwick",
+   "away": "cl_brookfield",
+   "seed": 20271
+  },
+  {
+   "match_id": "rl_r01_cal_dun",
+   "round": 1,
+   "date": "2026-08-15",
+   "home": "cl_calder",
+   "away": "cl_dunmore",
+   "seed": 20272
+  },
+  {
+   "match_id": "rl_r02_eas_ash",
+   "round": 2,
+   "date": "2026-08-22",
+   "home": "cl_eastwick",
+   "away": "cl_ashby",
+   "seed": 20280
+  },
+  {
+   "match_id": "rl_r02_fai_dun",
+   "round": 2,
+   "date": "2026-08-22",
+   "home": "cl_fairhaven",
+   "away": "cl_dunmore",
+   "seed": 20281
+  },
+  {
+   "match_id": "rl_r02_cal_bro",
+   "round": 2,
+   "date": "2026-08-22",
+   "home": "cl_calder",
+   "away": "cl_brookfield",
+   "seed": 20282
+  },
+  {
+   "match_id": "rl_r03_ash_dun",
+   "round": 3,
+   "date": "2026-08-29",
+   "home": "cl_ashby",
+   "away": "cl_dunmore",
+   "seed": 20290
+  },
+  {
+   "match_id": "rl_r03_cal_eas",
+   "round": 3,
+   "date": "2026-08-29",
+   "home": "cl_calder",
+   "away": "cl_eastwick",
+   "seed": 20291
+  },
+  {
+   "match_id": "rl_r03_fai_bro",
+   "round": 3,
+   "date": "2026-08-29",
+   "home": "cl_fairhaven",
+   "away": "cl_brookfield",
+   "seed": 20292
+  },
+  {
+   "match_id": "rl_r04_cal_ash",
+   "round": 4,
+   "date": "2026-09-05",
+   "home": "cl_calder",
+   "away": "cl_ashby",
+   "seed": 20300
+  },
+  {
+   "match_id": "rl_r04_dun_bro",
+   "round": 4,
+   "date": "2026-09-05",
+   "home": "cl_dunmore",
+   "away": "cl_brookfield",
+   "seed": 20301
+  },
+  {
+   "match_id": "rl_r04_fai_eas",
+   "round": 4,
+   "date": "2026-09-05",
+   "home": "cl_fairhaven",
+   "away": "cl_eastwick",
+   "seed": 20302
+  },
+  {
+   "match_id": "rl_r05_ash_bro",
+   "round": 5,
+   "date": "2026-09-12",
+   "home": "cl_ashby",
+   "away": "cl_brookfield",
+   "seed": 20310
+  },
+  {
+   "match_id": "rl_r05_fai_cal",
+   "round": 5,
+   "date": "2026-09-12",
+   "home": "cl_fairhaven",
+   "away": "cl_calder",
+   "seed": 20311
+  },
+  {
+   "match_id": "rl_r05_dun_eas",
+   "round": 5,
+   "date": "2026-09-12",
+   "home": "cl_dunmore",
+   "away": "cl_eastwick",
+   "seed": 20312
+  },
+  {
+   "match_id": "rl_r06_fai_ash",
+   "round": 6,
+   "date": "2026-09-19",
+   "home": "cl_fairhaven",
+   "away": "cl_ashby",
+   "seed": 20320
+  },
+  {
+   "match_id": "rl_r06_bro_eas",
+   "round": 6,
+   "date": "2026-09-19",
+   "home": "cl_brookfield",
+   "away": "cl_eastwick",
+   "seed": 20321
+  },
+  {
+   "match_id": "rl_r06_dun_cal",
+   "round": 6,
+   "date": "2026-09-19",
+   "home": "cl_dunmore",
+   "away": "cl_calder",
+   "seed": 20322
+  },
+  {
+   "match_id": "rl_r07_ash_eas",
+   "round": 7,
+   "date": "2026-09-26",
+   "home": "cl_ashby",
+   "away": "cl_eastwick",
+   "seed": 20330
+  },
+  {
+   "match_id": "rl_r07_dun_fai",
+   "round": 7,
+   "date": "2026-09-26",
+   "home": "cl_dunmore",
+   "away": "cl_fairhaven",
+   "seed": 20331
+  },
+  {
+   "match_id": "rl_r07_bro_cal",
+   "round": 7,
+   "date": "2026-09-26",
+   "home": "cl_brookfield",
+   "away": "cl_calder",
+   "seed": 20332
+  },
+  {
+   "match_id": "rl_r08_dun_ash",
+   "round": 8,
+   "date": "2026-10-03",
+   "home": "cl_dunmore",
+   "away": "cl_ashby",
+   "seed": 20340
+  },
+  {
+   "match_id": "rl_r08_eas_cal",
+   "round": 8,
+   "date": "2026-10-03",
+   "home": "cl_eastwick",
+   "away": "cl_calder",
+   "seed": 20341
+  },
+  {
+   "match_id": "rl_r08_bro_fai",
+   "round": 8,
+   "date": "2026-10-03",
+   "home": "cl_brookfield",
+   "away": "cl_fairhaven",
+   "seed": 20342
+  },
+  {
+   "match_id": "rl_r09_ash_cal",
+   "round": 9,
+   "date": "2026-10-10",
+   "home": "cl_ashby",
+   "away": "cl_calder",
+   "seed": 20350
+  },
+  {
+   "match_id": "rl_r09_bro_dun",
+   "round": 9,
+   "date": "2026-10-10",
+   "home": "cl_brookfield",
+   "away": "cl_dunmore",
+   "seed": 20351
+  },
+  {
+   "match_id": "rl_r09_eas_fai",
+   "round": 9,
+   "date": "2026-10-10",
+   "home": "cl_eastwick",
+   "away": "cl_fairhaven",
+   "seed": 20352
+  },
+  {
+   "match_id": "rl_r10_bro_ash",
+   "round": 10,
+   "date": "2026-10-17",
+   "home": "cl_brookfield",
+   "away": "cl_ashby",
+   "seed": 20360
+  },
+  {
+   "match_id": "rl_r10_cal_fai",
+   "round": 10,
+   "date": "2026-10-17",
+   "home": "cl_calder",
+   "away": "cl_fairhaven",
+   "seed": 20361
+  },
+  {
+   "match_id": "rl_r10_eas_dun",
+   "round": 10,
+   "date": "2026-10-17",
+   "home": "cl_eastwick",
+   "away": "cl_dunmore",
+   "seed": 20362
+  }
+ ]
+}

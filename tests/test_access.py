@@ -15,6 +15,15 @@ from fastapi.testclient import TestClient
 from regista import access, api
 
 ACCESS = {
+    # The Scout view (open, reads only: synthetic players)
+    "GET /scout": "public",
+    "GET /players/{gid}": "public",
+    "GET /api/season": "public",
+    "GET /api/players": "public",
+    "GET /api/players/{gid}": "public",
+    "GET /api/players/{gid}/moments": "public",
+    "GET /api/players/{gid}/reel.mp4": "public",
+    "GET /api/compare": "public",
     # The Product (open)
     "GET /": "public",
     "GET /api/health": "public",

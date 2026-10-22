@@ -18,6 +18,8 @@ local.settings.json
 data/raw/
 data/clips/
 data/studio/
+# regenerated from data/season/league.json (python -m regista.season build)
+data/season/matches/
 footage/
 
 # Model weights and large artifacts

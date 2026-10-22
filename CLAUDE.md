@@ -170,6 +170,10 @@ src/regista/validate.py      CLI validator
 src/regista/librarian.py     the Librarian: plain-English clip search (player, tags, minutes, replays), no cloud
 src/regista/conversation.py  the conversational Librarian (plan step 7): follow-ups merge into the query so far; chat_turn; /chat
 src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
+src/regista/season/          the Regista League (Scout view data): league.py (6 clubs, squads with global player ids, double round
+                             robin, seeds; committed as data/season/league.json), build.py (regenerates each match folder on demand,
+                             tracks only when video needs them), profiles.py (per-90 rates, percentiles, touch map, moments, evidence)
+src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
 src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
                              /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline
@@ -236,6 +240,7 @@ python3 -m regista.render.clips data/synthetic/sample/syn_0294 --player t_home_0
 python3 -m regista.librarian data/synthetic/sample/syn_0294 "find me Castellanos doing a nutmeg"
 python3 -m regista.mcp_server --list-tools        # or without the flag: stdio MCP server for any MCP host
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
+python3 -m regista.season build && python3 -m regista.season table && python3 -m regista.season players --position FW --sort take_ons_won
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
 uvicorn regista.api:app          # viewer at http://localhost:8000, OpenAPI at /docs

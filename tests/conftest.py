@@ -12,6 +12,7 @@ import os
 import pytest
 
 os.environ["REGISTA_DOTENV"] = ""
+os.environ["REGISTA_SEASON_WARM"] = "0"  # no test builds the full league at app startup; test_season uses a small one
 for _var in ("FOUNDRY_PROJECT_ENDPOINT", "FOUNDRY_MODEL", "REGISTA_COSMOS_ENDPOINT", "REGISTA_COSMOS_KEY", "REGISTA_CLOUD",
              "REGISTA_SEARCH_ENDPOINT", "APPLICATIONINSIGHTS_CONNECTION_STRING", "REGISTA_ADMIN_TOKEN", "REGISTA_STUDIO_VIEW_TOKEN",
              "REGISTA_READONLY"):

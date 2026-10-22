@@ -70,6 +70,9 @@ from regista.schema import iter_jsonl, validate_jsonl
 
 DATA_ROOT = Path(os.environ.get("REGISTA_DATA", "data/synthetic/sample"))
 CACHE_ROOT = Path(os.environ.get("REGISTA_CACHE", "data/clips"))
+# The Regista League (regista.season): a committed definition, matches regenerated from it into SEASON_ROOT on demand.
+SEASON_LEAGUE = Path(os.environ.get("REGISTA_SEASON", "data/season/league.json"))
+SEASON_ROOT = Path(os.environ.get("REGISTA_SEASON_ROOT", "data/season/matches"))
 STATIC = Path(__file__).resolve().parent / "static"  # product/, studio/, shared/
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SYNC_TTL_S = 30.0
@@ -84,6 +87,10 @@ async def _lifespan(_app: FastAPI):
     configure_tracing("regista-api")
     if os.environ.get("REGISTA_PRERENDER") == "1":
         threading.Thread(target=_prerender, name="regista-prerender", daemon=True).start()
+    if os.environ.get("REGISTA_SEASON_WARM", "1") == "1" and SEASON_LEAGUE.exists():
+        from regista.season_api import warm_season
+
+        threading.Thread(target=warm_season, name="regista-season", daemon=True).start()
     yield
     flush_tracing()
 
@@ -176,11 +183,35 @@ def _match_dir(match_id: str) -> Path:
     _check_id(match_id)
     d = DATA_ROOT / match_id
     if not (d / "events.jsonl").exists():
+        season_dir = _season_match_dir(match_id)
+        if season_dir is not None:
+            return season_dir
         if match_id in _library():
             raise HTTPException(409, f"match {match_id!r} is stored in Cosmos DB without its event stream: clips and labels can be "
                                      "read, but video, search and verdicts need the match on this replica")
         raise HTTPException(404, f"no match {match_id!r}")
     return d
+
+
+def _is_season_match(match_id: str) -> bool:
+    if not match_id.startswith("rl_") or not SEASON_LEAGUE.exists():
+        return False
+    from regista.season.build import fixture_of
+    from regista.season.league import load_league_cached as load_league
+
+    return fixture_of(load_league(SEASON_LEAGUE), match_id) is not None
+
+
+def _season_match_dir(match_id: str) -> Path | None:
+    """A Regista League match, regenerated from its fixture if needed (with tracks, for video); None if it is not one."""
+    if not match_id.startswith("rl_") or not SEASON_LEAGUE.exists():
+        return None
+    from regista.season.build import ensure_tracks, fixture_of
+    from regista.season.league import load_league_cached as load_league
+
+    league = load_league(SEASON_LEAGUE)
+    fx = fixture_of(league, match_id)
+    return ensure_tracks(league, fx, SEASON_ROOT) if fx else None
 
 
 def _header(d: Path) -> dict[str, Any]:
@@ -567,8 +598,8 @@ def list_matches() -> list[dict[str, Any]]:
 def _cosmos_match(match_id: str) -> dict[str, Any] | None:
     """The header of a match only Cosmos DB holds, or None when the match is local or unknown."""
     _check_id(match_id)
-    if (DATA_ROOT / match_id / "events.jsonl").exists():
-        return None
+    if (DATA_ROOT / match_id / "events.jsonl").exists() or _is_season_match(match_id):
+        return None  # a season match is always served from its regenerated stream, even if Cosmos DB holds a copy
     return _library().get(match_id)
 
 
@@ -1358,7 +1389,9 @@ async def feedback_train() -> dict[str, Any]:
 
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
+from regista.season_api import router as _season_router  # noqa: E402
 from regista.studio_api import router as _studio_router  # noqa: E402
 
+app.include_router(_season_router)
 app.include_router(_studio_router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")  # product/, studio/, shared/: public files, no data
