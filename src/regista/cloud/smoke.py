@@ -70,8 +70,19 @@ async def checks() -> list[dict]:
     return out
 
 
+def vision_checks() -> list[dict]:
+    """The Container Apps Job runs the vision workflow from this same image: its libraries must import."""
+    missing = []
+    for mod in ("cv2", "sklearn", "scipy", "joblib", "azure.storage.blob", "azure.storage.queue"):
+        try:
+            __import__(mod)
+        except Exception as exc:  # noqa: BLE001 - reported, not raised
+            missing.append(f"{mod}: {type(exc).__name__}: {exc}")
+    return [{"check": "vision-libraries", "ok": not missing, "missing": missing}]
+
+
 def main() -> int:
-    results = file_checks() + asyncio.run(checks())
+    results = file_checks() + vision_checks() + asyncio.run(checks())
     for r in results:
         print(json.dumps(r))
     return 0 if all(r["ok"] for r in results) else 1

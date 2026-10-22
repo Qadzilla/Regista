@@ -100,6 +100,15 @@ carries the owner and repository ids (the script trusts both formats).
    waits until the new revision is the ready one, and writes `REGISTA_APP_URL` to `.env`.
 3. From then on every push to `main` deploys itself. Run `deploy-app.sh` again only to change secrets or settings.
 
+## 4b. The Player view's vision job
+
+```bash
+python -m regista.player.models push          # or: az storage blob upload-batch -d models --destination-path vision -s models/vision --auth-mode login
+./infra/deploy-job.sh                         # the event-driven Container Apps Job on the vision-jobs queue
+```
+
+Run `deploy-app.sh` again after provisioning storage, so the app gets `REGISTA_STORAGE_ACCOUNT` and its storage roles.
+
 ## 5. Restore the library
 
 ```bash

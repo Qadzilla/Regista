@@ -333,6 +333,13 @@ https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io, revi
   500 quota), Cosmos DB `regista-cosmos-3f0ab0` (serverless), AI Search `regista-search-3f0ab0` (free), Container Apps
   env `regista-env` (workload profiles mode: "express" environments cannot pull with the app's identity) + app
   `regista-api`, registry `registaacr3f0ab0`, Application Insights `regista-appi` on the env's workspace (0.1 GB/day).
+- **Player view (since 2026-10-22):** storage account `registast3f0ab0` (shared-key login off, no public blobs) with
+  containers `uploads`, `matches`, `models` (the trained vision models, private) and the queue `vision-jobs`; Container
+  Apps Job `regista-vision` (event trigger, KEDA azure-queue scaler signing in with the job's system identity, 2 CPU /
+  4 GiB, `python -m regista.player.worker --once`, roles AcrPull + Storage Blob/Queue Data Contributor), made by
+  `infra/deploy-job.sh`; CI keeps its image in step with the app. Storage needed `Microsoft.Storage` registered (Azure
+  says "SubscriptionNotFound" otherwise). `job update --args "-m"` fails (the CLI reads the dashes), so the command is
+  set with `az resource update`.
 - Keyless for real: key login off on Cosmos DB and Search; the registry has no admin user (the app pulls with AcrPull);
   GitHub Actions deploys as app registration `regista-github-deploy` (owned by Zaid; federated credentials for both
   GitHub subject formats, `main` only). The remaining secrets are the write token and the App Insights connection

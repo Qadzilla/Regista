@@ -47,6 +47,7 @@ SUFFIX=$(echo "$SUB_ID" | tr -d '-' | cut -c1-6)
 : "${COSMOS_LOCATION:=$LOCATION}"         # the first environment needed eastus2: East US had no Cosmos DB capacity
 : "${COSMOS_DB:=regista}"
 : "${SEARCH:=regista-search-$SUFFIX}"
+: "${STORAGE:=registast$SUFFIX}"           # the Player view: uploads, results, models (Blob) and the vision-jobs queue
 : "${SEARCH_LOCATION:=$LOCATION}"         # the first environment needed southcentralus: no free tier in East US
 : "${ACA_ENV:=regista-env}"
 : "${ACA_APP:=regista-api}"
@@ -104,7 +105,7 @@ echo "signed in as $ME_UPN; management and Foundry tokens OK"
 
 log "Resource providers"
 for ns in Microsoft.CognitiveServices Microsoft.DocumentDB Microsoft.Search Microsoft.App Microsoft.OperationalInsights \
-          Microsoft.Insights Microsoft.ContainerRegistry Microsoft.Consumption; do
+          Microsoft.Insights Microsoft.ContainerRegistry Microsoft.Consumption Microsoft.Storage; do
   az provider register -n "$ns" --wait -o none
 done
 
@@ -183,6 +184,28 @@ fi
 SEARCH_ID=$(az search service show -n "$SEARCH" -g "$RG" --query id -o tsv)
 for role in "${SEARCH_ROLES[@]}"; do
   az role assignment create --role "$role" --assignee-object-id "$ME_OID" --assignee-principal-type User --scope "$SEARCH_ID" -o none 2>/dev/null || true
+done
+
+# ---------------------------------------------------------------------------- 3b. storage for the Player view
+log "Storage account $STORAGE: containers uploads, matches, models; queue vision-jobs (Entra ID only)"
+if ! az storage account show -n "$STORAGE" -g "$RG" -o none 2>/dev/null; then
+  az storage account create -n "$STORAGE" -g "$RG" -l "$LOCATION" --sku Standard_LRS --kind StorageV2 \
+    --allow-shared-key-access false --allow-blob-public-access false --min-tls-version TLS1_2 -o none
+fi
+STORAGE_ID=$(az storage account show -n "$STORAGE" -g "$RG" --query id -o tsv)
+# Data roles for you (to create the containers and push models), keyless like everything else.
+for role in "Storage Blob Data Contributor" "Storage Queue Data Contributor"; do
+  az role assignment create --role "$role" --assignee-object-id "$ME_OID" --assignee-principal-type User --scope "$STORAGE_ID" -o none 2>/dev/null || true
+done
+for c in uploads matches models; do
+  for _ in 1 2 3 4 5 6; do  # a new role assignment can take a minute to apply
+    az storage container create --account-name "$STORAGE" -n "$c" --auth-mode login -o none 2>/dev/null && break
+    sleep 15
+  done
+done
+for _ in 1 2 3 4 5 6; do
+  az storage queue create --account-name "$STORAGE" -n vision-jobs --auth-mode login -o none 2>/dev/null && break
+  sleep 15
 done
 
 # ---------------------------------------------------------------------------- 4. hosting, tracing, registry, CI identity
@@ -309,6 +332,7 @@ FOUNDRY_MODEL=$MODEL
 REGISTA_COSMOS_ENDPOINT=$COSMOS_ENDPOINT
 REGISTA_COSMOS_DATABASE=$COSMOS_DB
 REGISTA_SEARCH_ENDPOINT=https://$SEARCH.search.windows.net
+REGISTA_STORAGE_ACCOUNT=$STORAGE
 REGISTA_RESOURCE_GROUP=$RG
 REGISTA_ADMIN_TOKEN=$ADMIN_TOKEN
 REGISTA_STUDIO_VIEW_TOKEN=$VIEW_TOKEN
