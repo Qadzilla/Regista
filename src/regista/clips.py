@@ -229,7 +229,7 @@ def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-
         duration = clip["t_end"] - clip["t"]
         key_event = _key_event(relevant, clip, player_id)
         headline_tag = max(((TAG_WEIGHTS.get(t, 0.1), t) for t in tags if t not in REASON_TAGS), default=(0.0, ""))[1]
-        headline = headline_tag.replace("_", " ") if headline_tag else "appearance"
+        headline = title_word(headline_tag) if headline_tag else ""
         seg = index.seg_by_id[clip["segment_ids"][0]]
         explanation = _explanation(roster, player, clip["reason"], tags, relevant, seg, headline_tag)
         if scorer is not None and getattr(scorer, "trained", False):
@@ -243,13 +243,13 @@ def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-
         when = f"{minute}'"
         who = f"{player['name']} ({player['kit_number']})"
         if clip["reason"] == "on_ball_main":
-            title = f"{who}: {headline} at {when}"
+            title = f"{who}: {headline or 'on the ball'} at {when}"
         elif clip["reason"] == "replay_appearance":
-            title = f"{who}: {headline} · replay {seg.get('playback_speed', 1):g}x {(seg.get('angle') or '').replace('_', ' ')}".rstrip()
+            title = f"{who}: " + (f"{headline} · " if headline else "") + replay_words(seg)
         elif clip["reason"] == "highlight_appearance":
-            title = f"{who}: {headline} · highlights"
+            title = f"{who}: " + (f"{headline} · " if headline else "") + "in the highlights"
         else:
-            title = f"{who}: closeup at {when}"
+            title = f"{who}: close-up at {when}"
 
         label = _envelope(match_id, "lb", n, player_id)
         label.update(
@@ -272,10 +272,10 @@ def derive_clips(records: Iterable[Record], player_id: str, *, pre_roll_s: float
 def _summary(player: Record, reason: str, events: list[Record], when: str) -> str:
     name = player["name"]
     if reason != "on_ball_main":
-        what = reason.split("_")[0]
+        what = reason.split("_")[0].replace("closeup", "close-up")
         types = sorted({e["event_type"] for e in events if e.get("player_id") == player["player_id"]})
         if types:
-            return f"{name} appears in a {what} of: {', '.join(t.replace('_', ' ') for t in types)}."
+            return f"{name} appears in a {what} of: {', '.join(tag_word(t) for t in types)}."
         return f"{name} appears in a {what} segment."
     verbs = []
     for e in events:
@@ -285,7 +285,7 @@ def _summary(player: Record, reason: str, events: list[Record], when: str) -> st
         if et in ("touch", "possession_change", "pressure"):
             continue
         outcome = e.get("outcome", "neutral")
-        verbs.append(et.replace("_", " ") + ("" if outcome == "neutral" else f" ({outcome})"))
+        verbs.append(tag_word(et) + ("" if outcome == "neutral" else f" ({outcome})"))
     if not verbs:
         return f"{name} on the ball at {when}."
     return f"{name} on the ball at {when}: " + ", ".join(verbs[:6]) + ("..." if len(verbs) > 6 else "") + "."
@@ -319,11 +319,37 @@ _CUT_BECAUSE = {"on_ball_main": "{name} had the ball in the main camera", "repla
                 "highlight_appearance": "{name} appears in the highlights", "closeup_appearance": "the camera closed in on {name}"}
 
 
+# A tag as one word or two, the way a person writes it in a title or a list ("take-on", not "take on" or "take_on").
+TAG_WORDS: dict[str, str] = {"take_on": "take-on", "throw_in": "throw-in", "kick_off": "kick-off", "card_yellow": "yellow card",
+                             "card_red": "red card", "var_review": "VAR check", "recovery": "ball won back", "ball_won": "ball won"}
+# In a title, the player's part when the moment is someone else's: the goal they set up, the nutmeg they suffered.
+_TITLE_AGAINST = {"goal_against": "assist", "nutmeg_against": "nutmegged", "take_on_against": "taken on", "foul_against": "fouled"}
+
+
+def tag_word(tag: str) -> str:
+    """A tag in a person's spelling: ``take_on`` -> "take-on", ``key_pass`` -> "key pass"."""
+    return TAG_WORDS.get(tag) or tag.replace("_", " ")
+
+
+def title_word(tag: str) -> str:
+    """The headline word of a title, from the clip player's point of view: ``goal_against`` is the goal they set up."""
+    return _TITLE_AGAINST.get(tag) or tag_word(tag)
+
+
+def replay_words(seg: Record) -> str:
+    """A replay segment in plain words: "half-speed replay from high and wide", "replay from behind the goal"."""
+    speed = seg.get("playback_speed", 1) or 1
+    pace = {0.5: "half-speed ", 0.25: "quarter-speed "}.get(speed, "slow-motion " if speed < 1 else "fast " if speed > 1 else "")
+    angle = seg.get("angle") or ""
+    where = _ANGLES.get(angle, f"from the {angle.replace('_', ' ')} angle" if angle else "")
+    return f"{pace}replay {where}".rstrip()
+
+
 def tag_phrase(tag: str, definite: bool = False) -> str:
     """A tag in plain words: ``take_on`` -> "a take-on", or "the take-on" when ``definite``."""
     if definite and tag in _THE_AGAINST:
         return _THE_AGAINST[tag]
-    phrase = TAG_PHRASES.get(tag) or ("an " if tag[:1] in "aeiou" else "a ") + tag.replace("_", " ")
+    phrase = TAG_PHRASES.get(tag) or ("an " if tag[:1] in "aeiou" else "a ") + tag_word(tag)
     if definite and phrase.startswith(("a ", "an ")):
         phrase = "the " + phrase.split(" ", 1)[1]
     return phrase
@@ -394,5 +420,5 @@ def _explanation(roster: dict[str, Record], player: Record, reason: str, tags: l
     if reason == "highlight_appearance":
         first = (and_list(moments) + ", shown again in the highlights") if moments else "A moment from the highlights"
         return f"{first[0].upper() + first[1:]}. Cut because {cut}{part}."
-    first = f"A closeup around {and_list(moments)}" if moments else "A closeup, away from the ball"
+    first = f"A close-up around {and_list(moments)}" if moments else "A close-up, away from the ball"
     return f"{first}. Cut because {cut}."
