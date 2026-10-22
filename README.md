@@ -34,6 +34,14 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 
 > **Two dashboards, live since 2026-10-22:** the Product at `/` and Regista Studio at `/studio` (plan: `docs/plan-two-dashboards.md`). Judges get the Studio's view-only key with the submission; it opens the whole Studio and changes nothing.
 
+> **Scout view, live since 2026-10-22:** `/scout` and `/players/{id}`, beside the Clip view (CLAUDE.md §2.5). Verified on revision `regista-api--d1022062451`: league, profiles, cross-match reels, deep links, the Scout agent on Instant and on Foundry (it called `search_players` through Regista's MCP server; every number in its reply came from the tool), claims refused without a key.
+
+**Regista Scout (`/scout`, `/players/{id}`), open to everyone.** Every player in the **Regista League**, a synthetic season (6 clubs, 30 thirty-minute matches, fixed squads), searchable like a scout would:
+- **League table, filters and sort** by any of 22 per-90 stats or three ratios, with percentiles among players in the same position; **shortlist** and **compare** two or three players side by side.
+- **Ask the Scout agent** ("midfielders who win the ball back"): **Instant** rules, or a **Microsoft Foundry** agent through Regista's MCP player tools (`search_players`, `get_profile`, `compare_players`), rate-limited like Ask Foundry, and it says how it understood the question.
+- **Player profiles:** a summary written by Foundry with its sources, a best-of reel across matches, every stat linked to the events and clips it was counted from, a touch map, moments and matches. Each moment opens in the Clip view at that clip (`/?match=…&player=…&clip=…`), and the Clip view links back to the profile.
+- **Add a match and claims:** a player adds a match (the vision layer's output) and says which player is them; the claim waits in the Studio's **Claims** tab for the operator, and a confirmed claim joins the profile through the workflow's Profile agent step. Video processing runs on the operator's machine (cloud video processing is planned). No real players' profiles: synthetic players only.
+
 One app serves two dashboards, locally and on Azure:
 
 **Regista, the Product (`/`), open to everyone.** For creators, scouts and fans: ask for a moment, watch it, take it away.
