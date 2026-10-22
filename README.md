@@ -36,6 +36,12 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 
 > **Scout view, live since 2026-10-22:** `/scout` and `/players/{id}`, beside the Clip view (CLAUDE.md §2.5). Verified on revision `regista-api--d1022062451`: league, profiles, cross-match reels, deep links, the Scout agent on Instant and on Foundry (it called `search_players` through Regista's MCP server; every number in its reply came from the tool), claims refused without a key.
 
+> **Player view, live since 2026-10-22:** `/me` (CLAUDE.md §2.6), on revision `regista-api--d1022150227`. Verified: an upload processed end to end in Azure, read back on the live app (5 moments, joined Femi Toure's profile); uploads refused without the admin token.
+
+**Regista Player (`/me`): a player uploads their own footage.** Pick a (synthetic) player, upload a match video, and watch Regista's vision agents work on it live: shots, identity, possession, events, then clips. Answer "Is this you?" where Regista is unsure, and the match joins the player's Scout profile.
+- **Event-driven in Azure, keyless:** the app stores the video in **Azure Blob Storage** and queues a message on an **Azure Storage Queue**; an **Azure Container Apps Job** (KEDA queue scaler, signing in with its managed identity) starts one execution per upload, runs the vision workflow (**Microsoft Agent Framework**) with models from a private Blob container, and writes the match back. A 3-minute upload takes about 3 minutes.
+- **Synthetic footage:** `python -m regista.player.film` renders a friendly between two league clubs in the vision layer's format; both squads carry their global player ids, so the match joins profiles with no mapping. Uploads need the admin token.
+
 **Regista Scout (`/scout`, `/players/{id}`), open to everyone.** Every player in the **Regista League**, a synthetic season (6 clubs, 30 thirty-minute matches, fixed squads), searchable like a scout would:
 - **League table, filters and sort** by any of 22 per-90 stats or three ratios, with percentiles among players in the same position; **shortlist** and **compare** two or three players side by side.
 - **Ask the Scout agent** ("midfielders who win the ball back"): **Instant** rules, or a **Microsoft Foundry** agent through Regista's MCP player tools (`search_players`, `get_profile`, `compare_players`), rate-limited like Ask Foundry, and it says how it understood the question.

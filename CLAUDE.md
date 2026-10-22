@@ -390,7 +390,9 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-22 (morning).** `main` is at the latest pushed commit; CI (tests, image build, smoke test, push, deploy) is green. Live: the Clip view (`/`), the Studio (`/studio`) and, since PR #25, the **Scout view** (`/scout`, `/players/{id}`, §2.5) on revision `regista-api--d1022062451` (verified read-only, including one Foundry Scout answer that called `search_players`). 501 tests pass.
+**As of 2026-10-22 (afternoon).** `main` is at the latest pushed commit; CI is green. Live: Clips (`/`), Studio (`/studio`), Scout (`/scout`, `/players/{id}`) and, since PR #28, the **Player view** (`/me`, §2.6) on revision `regista-api--d1022150227` (after CI's deploy, `deploy-app.sh` gave the app `REGISTA_STORAGE_ACCOUNT` and its storage roles); the vision job `regista-vision` runs main's image. Verified read-only on the live app: `/me`, the processed upload's match and profile, uploads refused without the token. 551 tests pass.
+
+**Earlier, 2026-10-22 (morning).** `main` is at the latest pushed commit; CI (tests, image build, smoke test, push, deploy) is green. Live: the Clip view (`/`), the Studio (`/studio`) and, since PR #25, the **Scout view** (`/scout`, `/players/{id}`, §2.5) on revision `regista-api--d1022062451` (verified read-only, including one Foundry Scout answer that called `search_players`). 501 tests pass.
 
 **Earlier, 2026-10-22 (early).** `main` is at a537d2c plus docs; CI (tests, image build, smoke test, push, deploy) is green; the
 live app serves **the two dashboards** (PR #18, deployed by CI 2026-10-22 00:56-01:09 UTC): the Product at `/` and Regista Studio
