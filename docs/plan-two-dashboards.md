@@ -1,6 +1,6 @@
 # Plan: two dashboards, the Product and the Studio
 
-Drafted 2026-10-21 with Zaid, for judging criterion 4 (User Experience and Presentation: an intuitive UX, the project's value made clear, a balanced frontend and backend), with criteria 2 and 3 in mind. **Status (2026-10-21, late): approved by Zaid on 2026-10-21; being built on the integration branch `ux/two-dashboards`. Phase 0 and Phase 1 (A, B, C, D, E, F, H) are merged there, with agent I's wiring and docs; agent G (the Studio page) is in progress; then the Phase 3 audit and one merge to `main`. Nothing here is on the live app yet.**
+Drafted 2026-10-21 with Zaid, for judging criterion 4 (User Experience and Presentation: an intuitive UX, the project's value made clear, a balanced frontend and backend), with criteria 2 and 3 in mind. **Status: built, audited and live since 2026-10-22** (PRs #4-#17 into `ux/two-dashboards`, audits J1-J3, fixes K1-K5, then PR #18 to `main`, deployed by CI). Still to do: set the Studio view key on the live app with one `infra/deploy-app.sh` run.
 
 ## 1. The idea
 

@@ -311,17 +311,16 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-21 (evening).** `main` is at the latest pushed commit; CI (tests, image build, smoke test, push, deploy) is green; the live app is the new Azure for Students environment (§4.1), deployed by CI on every push to main. 212 tests pass.
-
-**On the integration branch `ux/two-dashboards` (built, not live until merged to `main`; plan in docs/plan-two-dashboards.md):**
-the app splits into the Product at `/` and Regista Studio at `/studio`. Merged there: access.py (admin key + Studio view key,
-every route classified in tests/test_access.py), the Studio API and status CLI (H), the Product page (A) with the answer trace
-"How Regista answered" (B), the timeline, Download reel and Export moments (C), library matches with video (D), the demo vision
-match vis_0201 (E), plain-English explanations (F), and wiring and docs (I: opens on the featured match, visible picker labels,
-reel and match-order fixes, smoke test for static files and sample matches). Still open on the branch: the Studio page (G, seven
-tabs), then the audit (J1 parity, J2 security, J3 browser), then one merge to `main`, which deploys it. The Product was walked in the
-browser locally at 1280 and 375 px (agent I); nothing of it has run on the live app. 332 tests pass on the
-branch with agent I's work.
+**As of 2026-10-22 (early).** `main` is at a537d2c plus docs; CI (tests, image build, smoke test, push, deploy) is green; the
+live app serves **the two dashboards** (PR #18, deployed by CI 2026-10-22 00:56-01:09 UTC): the Product at `/` and Regista Studio
+at `/studio` (plan and the agents that built it: docs/plan-two-dashboards.md; PRs #4-#17 merged into `ux/two-dashboards`, then
+#18 to `main`). 410 tests pass, on FastAPI 0.128 and on 0.141 as CI installs it. Checked on the live app after the deploy,
+read-only: health (Foundry, Cosmos DB, Search, Azure MCP, tracing), four matches with video (syn_0294 featured, syn_0141,
+syn_0142, vis_0201), both pages and their scripts, the CSP and frame headers, Studio reads and writes refused without a key,
+render limits (width 999 gives 400), timeline fields, no console errors. **Not live yet: the Studio view key** (the Studio
+opens only with the admin key until `infra/deploy-app.sh` runs once with `REGISTA_STUDIO_VIEW_TOKEN` in `.env`).
+Audits J1-J3 and fixes K1-K5 are recorded in the PRs; K5 found the renderer drew the ball holder's name and ring into vision
+footage, removed them and retrained (models/vision_v4, local); fresh clips 0.75 / 0.94 (docs/vision.md).
 
 **Built and working:** event-stream contract (schema 0.1.1) and synthetic generator; 2D broadcast renderer; clip rule and labeller; Librarian (rule-based locally, Foundry with `--cloud`); Regista MCP server; the Agent Framework workflow with human review, retries, dead letters and checkpoints; learning from verdicts (watchability model); Cosmos DB, AI Search, Foundry tracing; token-gated FastAPI app on Container Apps; vision layer v0 on rendered footage (fresh-match clip recall 0.75, precision 0.94 with v4; docs/vision.md).
 
@@ -329,9 +328,9 @@ branch with agent I's work.
 
 **Waiting on Zaid:**
 - Footage: our own consenting match (§1.5), ready **Saturday 2026-10-24** (Zaid, 2026-10-21). Bring: video files, the team sheet (name, number, team), notes of key moments. Then: label, retrain the shot model on that format, run vision end to end, cut the demo.
-- First real Keep/Drop verdicts (the Studio's review queue once `ux/two-dashboards` is merged).
-- Before the merge deploys: put `REGISTA_STUDIO_VIEW_TOKEN` in `.env` (provision.sh writes one) and run `infra/deploy-app.sh` once,
-  because CI deploys change only the image and the Studio needs the view-key secret. Give judges the view key in the submission.
+- First real Keep/Drop verdicts (the Studio's review queue, admin key).
+- Go-ahead to put `REGISTA_STUDIO_VIEW_TOKEN` in `.env` and run `infra/deploy-app.sh` once (CI deploys change only the image,
+  so the view-key secret needs this run). Then give judges the view key in the submission.
 
 **Next build work, in order (not blocked on footage):**
 1. ~~Make the hero tech visible on the live app~~ **Done and live 2026-10-20** (PR #1, image 229f71f, revision `regista-api--d1020232137`): Ask Foundry with public read-only tools, matches read back from Cosmos DB, health/footer naming the stack. Verified from the container: Foundry answered, `search_index_query` ran through the Azure MCP Server, spans reached App Insights. Container tracing had never worked before: deploy-app.sh cut the connection string at ';' (fixed in infra/lib/dotenv.sh).
