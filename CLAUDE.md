@@ -152,6 +152,23 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 - **Out of scope:** accounts and sign-in, footage-rights handling (post-hackathon), messaging, payments. **Microsoft
   Fabric** fits season analytics but is **planned**, not built.
 
+### 2.6 The third view: Player (decided 2026-10-22, part of the Oct 27 submission)
+
+| Route | View | For |
+|---|---|---|
+| `/me` | **Player view** | a (synthetic) player uploads their own match footage, watches Regista's vision agents work on it, answers "is this you?", and the match joins their profile |
+
+- **Footage is synthetic**: `python -m regista.player.film` renders a friendly between the player's club and another league
+  club in the vision layer's format (640x360, 10 fps, no captions or name labels). Not real footage, by decision.
+- **Processing runs in the cloud** (option A): the app stores the video in **Azure Blob Storage** and queues a message on an
+  **Azure Storage Queue** (`vision-jobs`); an event-driven **Azure Container Apps Job** (KEDA queue scaler) runs the vision
+  workflow with the models from a private Blob container, writes the match folder back to Blob, and the app serves it.
+  `regista.player.store` is the contract (blob layout, queue message, `UploadRecord`); a local folder backend runs the
+  same code in tests and offline. A laptop can run the same worker against the same queue as a fallback.
+- **Identity is free**: the roster is both clubs' league squads (`roster_for`), so the vision match carries global ids and
+  joins the profile with no mapping; "is this you?" is Who's who aimed at the player.
+- **Writes need the admin token** (uploads, answers), like every write. Synthetic players only.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
@@ -173,6 +190,8 @@ src/regista/mcp_server.py    MCP server exposing search_clips, search_library, d
 src/regista/season/          the Regista League (Scout view data): league.py (6 clubs, squads with global player ids, double round
                              robin, seeds; committed as data/season/league.json), build.py (regenerates each match folder on demand,
                              tracks only when video needs them), profiles.py (per-90 rates, percentiles, touch map, moments, evidence)
+src/regista/player/          the Player view: store.py (Blob + Queue or a local folder: uploads, jobs, matches, models), film.py
+                             (synthetic footage of a friendly between league clubs; roster_for gives the vision team sheet)
 src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile

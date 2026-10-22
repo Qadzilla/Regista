@@ -18,6 +18,7 @@ local.settings.json
 data/raw/
 data/clips/
 data/studio/
+data/player/
 # regenerated from data/season/league.json (python -m regista.season build)
 data/season/matches/
 footage/

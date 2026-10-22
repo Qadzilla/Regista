@@ -8,6 +8,7 @@ data/**/agents/
 data/clips/
 data/feedback/
 data/studio/
+data/player/
 data/vision/
 data/season/matches/
 **/.vision_work/
