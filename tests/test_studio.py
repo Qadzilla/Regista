@@ -173,7 +173,7 @@ def test_vision_matches_say_whether_who_s_who_can_be_answered_here(studio):
 
 
 def test_todo_words_are_singular_or_plural(studio):
-    clip = next(json.loads(line) for line in (studio.match / "clips.jsonl").read_text().splitlines() if '"type":"clip"' in line)
+    clip = next(r for r in map(json.loads, (studio.match / "clips.jsonl").read_text().splitlines()) if r["type"] == "clip")
     (studio.match / "review").mkdir()
     (studio.match / "review" / "identity_review.json").write_text(json.dumps({"items": [{"item_id": "tr_1"}]}))
     whos = next(t for t in _get(studio, "/api/studio/overview")["todo"] if t["kind"] == "whos_who")
