@@ -54,6 +54,7 @@ Record = dict[str, Any]
 WORKFLOW_NAME = "regista-pipeline"
 TRACE_EVENT = "regista_trace"
 DEAD_EVENT = "regista_dead_letter"
+REVIEWED = {"keep": "kept", "drop": "dropped", "fix": "corrected"}  # a verdict as the public explanation says it
 HEAVY_KEYS = ("stream", "index")           # rebuildable from match_dir; kept out of workflow state
 ROLE_ORDER = ["ingest", "validator", "possession", "clip", "label", "review", "persist", "indexer", "librarian"]  # "indexer" is optional
 
@@ -344,7 +345,8 @@ class ReviewExecutor(Executor):
                     lb["watchability"] = round(float(v["watchability"]), 3)
                 if v.get("tags"):
                     lb["tags"] = rec["correction"]["tags"] + [t for t in lb["tags"] if t.endswith("_appearance") or t == "on_ball_main"]
-                lb["explanation"] = f"{lb['explanation']} Reviewed by {answer.annotator}: {verdict}."
+                # The label is public (clips, search, Cosmos DB, the Search index); who reviewed stays in the annotation.
+                lb["explanation"] = f"{lb['explanation']} Reviewed by a person: {REVIEWED[verdict]}."
                 lb.pop("review", None)
                 applied.append({"clip_id": lb["clip_id"], "verdict": verdict, "annotation_id": rec["id"]})
         retrained = None

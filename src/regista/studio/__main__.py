@@ -5,8 +5,9 @@
     python3 -m regista.studio status --json                # the raw overview
 
 The key is REGISTA_STUDIO_VIEW_TOKEN (or REGISTA_ADMIN_TOKEN only when there is no view key), from the environment or
-``.env`` (REGISTA_DOTENV picks another file). It travels only in the X-Regista-Token header and is never printed. The URL
-is --url, else REGISTA_APP_URL, else the local app.
+``.env`` (REGISTA_DOTENV picks another file). It travels only in the X-Regista-Token header, is never printed, never
+follows a redirect, and is not sent at all over plain http to a host other than this machine (use https). The URL is
+--url, else REGISTA_APP_URL, else the local app.
 """
 
 from __future__ import annotations
@@ -18,8 +19,10 @@ import sys
 import urllib.error
 import urllib.request
 from typing import Any
+from urllib.parse import urlsplit
 
 DEFAULT_URL = "http://127.0.0.1:8000"
+LOCAL_HOSTS = {"localhost", "127.0.0.1", "::1"}
 
 
 def _key() -> tuple[str | None, str]:
@@ -35,10 +38,16 @@ def _key() -> tuple[str | None, str]:
     return None, "no key"
 
 
+def key_is_safe_to_send(url: str) -> bool:
+    """https anywhere, or http to this machine. Plain http to another host would show the key to the network."""
+    u = urlsplit(url)
+    return u.scheme == "https" or (u.scheme == "http" and (u.hostname or "").lower() in LOCAL_HOSTS)
+
+
 def fetch_overview(url: str, key: str | None, timeout: float = 30.0) -> dict[str, Any]:
     req = urllib.request.Request(url.rstrip("/") + "/api/studio/overview", headers={"Accept": "application/json"})
     if key:
-        req.add_header("X-Regista-Token", key)
+        req.add_unredirected_header("X-Regista-Token", key)  # a redirect, even to another host, never carries the key
     with urllib.request.urlopen(req, timeout=timeout) as r:  # noqa: S310 - an http(s) URL the user chose
         return json.loads(r.read().decode("utf-8"))
 
@@ -82,6 +91,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     key, key_name = _key()
     url = args.url or os.environ.get("REGISTA_APP_URL") or DEFAULT_URL
+    if key and not key_is_safe_to_send(url):
+        print(f"warning: {url} is plain http to another host, so the {key_name} is not sent (use https)", file=sys.stderr)
+        key, key_name = None, "no key: not sent over http"
     try:
         o = fetch_overview(url, key)
     except urllib.error.HTTPError as exc:

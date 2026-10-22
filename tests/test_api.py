@@ -85,19 +85,21 @@ def test_search(client):
     assert all(r["video_url"].endswith(".mp4") and "nutmeg" in r["tags"] for r in out["results"])
 
 
-def test_clip_render_on_demand_and_cache(client):
+def test_clip_render_on_demand_and_cache(client, monkeypatch):
+    from regista import api
+
+    monkeypatch.setattr(api, "RENDER_FPS", {5})
+    monkeypatch.setattr(api, "RENDER_WIDTHS", {320})  # small and quick
     clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()
     clip = clips[-1]
     url = f"/api/matches/{client.match_id}/clips/{clip['id']}.mp4"
     r = client.get(url, params={"fps": 5, "width": 320})
     assert r.status_code == 200 and r.headers["content-type"] == "video/mp4" and len(r.content) > 1000
-    from regista import api
-
     cached = api.CACHE_ROOT / client.match_id / f"{clip['id']}_5fps_320.mp4"
     assert cached.exists()
     assert count_frames(cached) == len(frame_times(clip["t"], clip["t_end"], 5.0))
     assert client.get(url, params={"fps": 5, "width": 320}).content == r.content  # served from cache
-    assert client.get(f"/api/matches/{client.match_id}/clips/cl_t_home_09_999999.mp4").status_code == 404
+    assert client.get(f"/api/matches/{client.match_id}/clips/cl_t_home_09_999999.mp4", params={"fps": 5, "width": 320}).status_code == 404
 
 
 def test_render_once_under_concurrent_requests(tmp_path):
@@ -163,8 +165,11 @@ def test_render_failure_leaves_nothing_and_renders_are_capped(tmp_path, monkeypa
     assert peak[0] == 2 and len(list(tmp_path.glob("c*.mp4"))) == 6
 
 
-def test_prerender_fills_the_cache_the_endpoint_reads(client):
+def test_prerender_fills_the_cache_the_endpoint_reads(client, monkeypatch):
     from regista import api
+
+    monkeypatch.setattr(api, "RENDER_FPS", {4})
+    monkeypatch.setattr(api, "RENDER_WIDTHS", {160})
 
     done = api._prerender(fps=4.0, width=160)
     clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()

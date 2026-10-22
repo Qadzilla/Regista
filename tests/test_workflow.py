@@ -120,7 +120,8 @@ def test_human_in_the_loop_pauses_records_verdicts_and_resumes(match_dir, tmp_pa
     asked = {i["clip_id"] for i in seen[0].items}
     for lb in wf.state["labels"][PLAYER]:
         if lb["clip_id"] in asked:
-            assert lb["watchability"] == 0.0 and "Reviewed by test-reviewer: drop" in lb["explanation"] and "review" not in lb
+            assert lb["watchability"] == 0.0 and "Reviewed by a person: dropped." in lb["explanation"]
+            assert "test-reviewer" not in lb["explanation"] and "review" not in lb
     anns = load_annotations(fb / "annotations.jsonl")
     assert {a["context"]["clip_id"] for a in anns} == asked
     assert all(a["source"] == "human" and a["annotator"] == "test-reviewer" for a in anns)

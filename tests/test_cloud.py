@@ -180,6 +180,7 @@ def test_api_upload_reports_dead_letters(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "DATA_ROOT", tmp_path / "data")
     monkeypatch.setattr(api, "CACHE_ROOT", tmp_path / "cache")
     monkeypatch.setenv("REGISTA_CLOUD", "1")
+    monkeypatch.setenv("REGISTA_ADMIN_TOKEN", "admin-key-for-tests")  # the cloud app never takes a write without one
     monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://invalid.example/api/projects/x")
     monkeypatch.setenv("FOUNDRY_MODEL", "nope")
     monkeypatch.delenv("REGISTA_COSMOS_ENDPOINT", raising=False)
@@ -199,7 +200,8 @@ def test_api_upload_reports_dead_letters(tmp_path, monkeypatch):
     r = generate(seed=7, minutes=0.5)
     events = "\n".join(json.dumps(x) for x in r.stream) + "\n"
     with TestClient(api.app) as client:
-        resp = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")}, params={"player": PLAYER})
+        resp = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")}, params={"player": PLAYER},
+                           headers={"X-Regista-Token": "admin-key-for-tests"})
     body = resp.json()
     assert resp.status_code == 201 and body["pipeline_ok"] is False
     assert body["dead_letters"] == [{"agent": "label", "error": "AgentError: endpoint unreachable"}]
