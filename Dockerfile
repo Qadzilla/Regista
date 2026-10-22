@@ -15,12 +15,18 @@ WORKDIR /app
 COPY pyproject.toml README.md LICENSE ./
 COPY src ./src
 COPY data/synthetic ./data/synthetic
+COPY data/season/league.json ./data/season/league.json
+COPY data/season/summaries.json ./data/season/summaries.json
 RUN pip install --no-cache-dir ".[cloud]"
+# The Regista League's 30 matches, regenerated from the committed definition (deterministic; tracks come on demand)
+RUN python -m regista.season --league data/season/league.json --root data/season/matches build
 
 ENV REGISTA_DATA=/app/data/synthetic/sample \
     REGISTA_CACHE=/app/data/clips \
     REGISTA_FEEDBACK_DIR=/app/data/feedback \
     REGISTA_PRERENDER=1 \
+    REGISTA_SEASON=/app/data/season/league.json \
+    REGISTA_SEASON_ROOT=/app/data/season/matches \
     AZURE_MCP_COLLECT_TELEMETRY=false \
     PYTHONUNBUFFERED=1
 EXPOSE 8000

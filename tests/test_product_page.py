@@ -112,3 +112,112 @@ def test_the_footer_names_only_what_health_reports(script):
 
 def test_grid_videos_load_lazily(script):
     assert "IntersectionObserver" in script and 'preload="none"' in script
+
+
+# ---------------------------------------------------------------------------- the Clip view beside the Scout view
+
+def test_the_views_switch_marks_clips_as_current_and_is_styled_once_for_every_page(page):
+    nav = re.search(r'<nav class="views" aria-label="Views">(.*?)</nav>', page).group(1)
+    assert re.findall(r'<a href="([^"]+)"', nav) == ["/", "/scout"]
+    assert '<a href="/" aria-current="page">Clips</a>' in nav and ">Scout</a>" in nav
+    shared = (PRODUCT.parent / "shared/regista.css").read_text()
+    assert ".views {" in shared and '.views a[aria-current="page"]' in shared
+    assert ".views" not in (PRODUCT / "product.css").read_text()  # one rule, shared by the Scout and profile pages
+
+
+def test_league_matches_join_the_picker_lazily_after_the_featured_match(script):
+    init = script[script.index("async function init()"):script.index("async function loadSeason()")]
+    assert "loadSeason();" in init and "await loadSeason" not in init  # the first paint never waits for the league
+    assert init.index("[first, ...state.matches.filter(m => m !== first)]") < init.index("loadSeason();")
+    season = script[script.index("async function loadSeason()"):script.index("function ensureOption(")]
+    assert "R.api('/api/season')" in season and "createElement('optgroup')" in season and "'Regista League 2026/27'" in season
+    assert "esc(m.match_id)" in season and "esc(m.title" in season
+    assert "catch (e) { return; }" in season  # no league on the server: the picker keeps its matches, no error shown
+
+
+def link_id_pattern(script: str) -> re.Pattern:
+    return re.compile(re.search(r"const LINK_ID = /(.+)/;", script).group(1))
+
+
+@pytest.mark.parametrize("value, ok", [
+    ("rl_r01_eas_bro", True), ("syn_0294", True), ("t_away_09", True), ("cl_t_away_09_000003", True),
+    ("../../etc", False), ("<b>", False), ("", False), ("-x", False), (".hidden", False), ("a" * 121, False),
+    ("rl_r01 eas", False), ("a/b", False), ("a\"b", False),
+])
+def test_deep_link_ids_are_checked_before_they_are_used(script, value, ok):
+    pattern = link_id_pattern(script)
+    assert bool(pattern.fullmatch(value)) is ok and ("!v.includes('..')" in script)
+
+
+def test_deep_links_open_a_match_player_and_moment_and_fall_back_quietly(script):
+    read = script[script.index("function readLink()"):script.index("const playerOfClip")]
+    for key in ("'match'", "'player'", "'clip'", "q.get('t')"):
+        assert key in read, key
+    assert "Number.isFinite(t) && t >= 0" in read
+    assert "/^cl_(.+)_\\d{6}$/" in script  # a clip names its player, so clip= alone selects them
+    init = script[script.index("async function init()"):script.index("async function loadSeason()")]
+    assert "await loadMatch(link.match, { player: link.player || playerOfClip(link.clip), quiet: true })" in init
+    assert "await loadMatch(first.match_id)" in init  # a link that fails lands on the featured match ...
+    assert "history.replaceState(null, '', location.pathname)" in init  # ... with the bad link cleared from the address
+    assert "if (quiet && !previous) return false;" in script  # and says nothing about it
+    linked = script[script.index("async function openLinked("):script.index("// ------------------------------------------------------------------ loading")]
+    assert "state.all.has(link.clip)" in linked and "select(link.clip, true, true)" in linked
+    assert "/video.mp4')}#t=${Math.round(link.t)}" in linked  # t= starts the full match there and picks the nearest moment
+    assert "v.muted = true" in script  # browsers only autoplay a linked clip muted
+
+
+def test_the_url_follows_the_match_player_and_moment_with_replace_state(script):
+    sync = script[script.index("function syncUrl()"):script.index("// The moment a link asked for")]
+    assert "history.replaceState(null, '', url)" in sync and "pushState" not in script
+    assert "q.set('player', state.player)" in sync and "q.set('clip', state.picked)" in sync
+    assert "if (await loadMatch($('match').value)) syncUrl();" in script
+    pick = script[script.index("async function pickPlayer("):script.index("// ------------------------------------------------------------------ the conversation")]
+    assert pick.index("state.picked = null;") < pick.index("syncUrl();")  # a new player: the old moment leaves the URL
+
+
+def test_a_league_player_links_to_their_scout_profile(page, script):
+    assert 'id="scoutLink"' in page and 'id="scoutLinkLine"' in page
+    fn = script[script.index("function scoutLink()"):script.index("function showPlayerMoments()")]
+    assert "global_player_id" in fn and "/^pl_[a-z0-9_]{1,40}$/" in fn and "`/players/${enc(gid)}`" in fn
+    assert "textContent" in fn and "innerHTML" not in fn  # the name is set as text
+
+
+@pytest.fixture(scope="module")
+def season_client(tmp_path_factory):
+    """The real league's clubs with its first fixture only: quick to build, opened through the normal match API."""
+    from regista import api
+    from regista.season.league import new_league, save_league
+
+    league = new_league(2026)
+    small = {**league, "fixtures": league["fixtures"][:1]}
+    tmp = tmp_path_factory.mktemp("product_season")
+    mp = pytest.MonkeyPatch()
+    mp.setattr(api, "SEASON_LEAGUE", save_league(small, tmp / "league.json"))
+    mp.setattr(api, "SEASON_ROOT", tmp / "matches")
+    mp.setattr(api, "CACHE_ROOT", tmp / "cache")
+    yield TestClient(api.app), small["fixtures"][0]["match_id"]
+    mp.undo()
+
+
+def test_what_the_page_reads_for_a_league_match_is_there(season_client):
+    c, mid = season_client
+    s = c.get("/api/season").json()
+    listed = [m for r in s["rounds"] for m in r["matches"]]
+    assert [m["match_id"] for m in listed] == [mid] and listed[0]["title"].startswith("Round 1: ")
+    assert f"{s['league']} {s['season']}" == "Regista League 2026/27"  # the picker group's label
+    m = c.get(f"/api/matches/{mid}").json()
+    assert m["title"] == listed[0]["title"]
+    assert all(re.fullmatch(r"pl_[a-z0-9_]{1,40}", p["global_player_id"]) for p in m["players"])
+    clips = c.get(f"/api/matches/{mid}/clips").json()
+    assert clips and all(re.fullmatch(r"cl_(.+)_\d{6}", x["id"]).group(1) == x["player_id"] for x in clips)
+    assert {x["player_id"] for x in clips} == {p["player_id"] for p in m["players"] if p["starter"]}  # every starter: the player picker works
+    one = clips[0]
+    assert c.get(f"/api/matches/{mid}/moments.csv", params={"player": one["player_id"]}).status_code == 200
+    assert c.get("/api/matches/rl_r99_nob_ody").status_code == 404  # an unknown league id: the page falls back
+
+
+def test_matches_outside_the_league_have_no_global_ids():
+    from regista import api
+
+    m = TestClient(api.app).get("/api/matches/syn_0294").json()
+    assert not any(p.get("global_player_id") for p in m["players"])

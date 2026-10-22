@@ -95,6 +95,8 @@ class Team:
     short_name: str
     kit: dict[str, str]
     attack_sign: int
+    club_id: str | None = None                       # a club that exists across matches (regista.season)
+    squad: list[dict[str, Any]] | None = None        # fixed names and global ids, formation order then bench
     players: list[Player] = field(default_factory=list)
 
     @property
@@ -119,6 +121,7 @@ class Player:
     position: str
     anchor: Point
     starter: bool = True
+    global_id: str | None = None   # the same person in every match of a season (regista.season)
     x: float = 0.0
     y: float = 0.0
 
@@ -159,7 +162,8 @@ class SynthResult:
 
 class MatchSim:
     def __init__(self, seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo",
-                 periods: int = 1, teams: list[dict[str, Any]] | None = None):
+                 periods: int = 1, teams: list[dict[str, Any]] | None = None, match_id: str | None = None,
+                 meta: dict[str, str] | None = None):
         if profile not in PROFILES:
             raise ValueError(f"unknown profile {profile!r}; choose from {', '.join(PROFILES)}")
         if periods not in (1, 2):
@@ -178,7 +182,9 @@ class MatchSim:
         self.rng = random.Random(seed)
         # Track sampling has its own stream so the camera model and --track-hz never change the match itself.
         self.track_rng = random.Random(seed * 7919 + 1)
-        self.match_id = f"syn_{seed:04d}"
+        self.match_id = match_id or f"syn_{seed:04d}"
+        # competition, season, date, venue for the match record (a season's fixtures set them; defaults otherwise)
+        self.meta = {k: str(v) for k, v in (meta or {}).items() if k in ("competition", "season", "date", "venue")}
 
         self.t = 0.0
         self.next_sample_t = 0.0
@@ -212,10 +218,21 @@ class MatchSim:
         teams: list[Team] = []
         for spec in self.team_specs:
             team = Team(**spec)
+            # A season squad brings its own names and global ids, so the same people play every match; without one,
+            # names are drawn from the match's own random stream (unchanged since 0.1.0).
+            people = iter(team.squad or [])
+            def who() -> tuple[str, str | None]:
+                if team.squad:
+                    person = next(people)
+                    return person["name"], person["global_id"]
+                return self._name(used), None
             for position, number, ax, ay in FORMATION_433:
-                team.players.append(Player(f"{team.team_id}_{number:02d}", team, self._name(used), number, position, (ax, ay)))
+                name, gid = who()
+                team.players.append(Player(f"{team.team_id}_{number:02d}", team, name, number, position, (ax, ay), global_id=gid))
             for position, number in BENCH:
-                team.players.append(Player(f"{team.team_id}_{number:02d}", team, self._name(used), number, position, (-8.0, 34.0), starter=False))
+                name, gid = who()
+                team.players.append(Player(f"{team.team_id}_{number:02d}", team, name, number, position, (-8.0, 34.0), starter=False,
+                                           global_id=gid))
             teams.append(team)
         return teams[0], teams[1]
 
@@ -955,12 +972,13 @@ class MatchSim:
         return {
             "type": "match", "id": f"ma_{self.match_id}", "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
             "source": "synthetic",
-            "competition": "Regista Synthetic League", "season": "2026/27", "date": "2026-10-19", "venue": "Northbridge Arena",
+            **{"competition": "Regista Synthetic League", "season": "2026/27", "date": "2026-10-19", "venue": "Northbridge Arena", **self.meta},
             "home_team_id": self.home.team_id, "away_team_id": self.away.team_id,
-            "teams": [{"team_id": t.team_id, "name": t.name, "short_name": t.short_name, "kit": t.kit} for t in (self.home, self.away)],
+            "teams": [{"team_id": t.team_id, "name": t.name, "short_name": t.short_name, "kit": t.kit,
+                       **({"club_id": t.club_id} if t.club_id else {})} for t in (self.home, self.away)],
             "players": [
                 {"player_id": p.player_id, "team_id": p.team.team_id, "name": p.name, "kit_number": p.kit_number,
-                 "position": p.position, "starter": p.starter}
+                 "position": p.position, "starter": p.starter, **({"global_player_id": p.global_id} if p.global_id else {})}
                 for t in (self.home, self.away) for p in t.players
             ],
             "video": {"video_id": f"{self.match_id}_broadcast", "fps": self.fps, "width": 1920, "height": 1080,
@@ -1036,7 +1054,9 @@ class MatchSim:
 
 
 def _team_specs(teams: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
-    """Two team specs (name, short_name, kit) merged over the defaults; team ids and attack signs are fixed."""
+    """Two team specs (name, short_name, kit, and for a season club_id and squad) merged over the defaults; team ids
+    and attack signs are fixed. A squad lists 18 people ({"global_id", "name"}): the 4-3-3 starters in formation order
+    (kit numbers 1, 2, 4, 5, 3, 8, 6, 10, 7, 9, 11), then the bench (13, 15, 14, 16, 17, 20, 22)."""
     specs = [dict(s) for s in TEAM_SPECS]
     if teams is None:
         return specs
@@ -1048,6 +1068,13 @@ def _team_specs(teams: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
                 base[key] = str(given[key])
         if "kit" in given:
             base["kit"] = {**base["kit"], **{k: str(v) for k, v in given["kit"].items()}}
+        if "club_id" in given:
+            base["club_id"] = str(given["club_id"])
+        if "squad" in given:
+            squad = [{"global_id": str(m["global_id"]), "name": str(m["name"])} for m in given["squad"]]
+            if len(squad) != len(FORMATION_433) + len(BENCH):
+                raise ValueError(f"a squad needs {len(FORMATION_433) + len(BENCH)} people, got {len(squad)}")
+            base["squad"] = squad
         if len(base["short_name"]) > 4:
             raise ValueError(f"short_name {base['short_name']!r} must be at most 4 characters")
     return specs
@@ -1067,5 +1094,7 @@ def parse_team_arg(text: str) -> dict[str, Any]:
 
 
 def generate(seed: int = 42, minutes: float = 3.0, track_hz: float = 1.0, fps: float = 25.0, profile: str = "demo",
-             periods: int = 1, teams: list[dict[str, Any]] | None = None) -> SynthResult:
-    return MatchSim(seed=seed, minutes=minutes, track_hz=track_hz, fps=fps, profile=profile, periods=periods, teams=teams).run()
+             periods: int = 1, teams: list[dict[str, Any]] | None = None, match_id: str | None = None,
+             meta: dict[str, str] | None = None) -> SynthResult:
+    return MatchSim(seed=seed, minutes=minutes, track_hz=track_hz, fps=fps, profile=profile, periods=periods, teams=teams,
+                    match_id=match_id, meta=meta).run()

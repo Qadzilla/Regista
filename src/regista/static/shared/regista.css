@@ -1,5 +1,5 @@
-/* Shared by the Product (/) and the Studio (/studio): colour tokens and base elements. The look comes later; pages
-   style their own layout on top of these tokens. */
+/* Shared by the Product (/), the Scout pages (/scout, /players/{id}) and the Studio (/studio): colour tokens and base
+   elements. The look comes later; pages style their own layout on top of these tokens. */
 :root {
   --bg: #0c0e14; --panel: #161a24; --line: #262c3a; --text: #f3f4f6; --muted: #9aa3b5;
   --accent: #ffcd28; --replay: #d62028; --ok: #3ccf7a; --warn: #ffb020; --bad: #ff5a5f;
@@ -18,3 +18,10 @@ button:disabled { opacity: .5; cursor: default; }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 .brand { font-size: 18px; margin: 0; letter-spacing: .08em; font-weight: 800; }
 .brand span { color: var(--accent); }
+
+/* The views switch in each page's header: <nav class="views" aria-label="Views"><a href="/">Clips</a><a href="/scout">Scout</a></nav>,
+   the current view marked aria-current="page". Two short links, so it fits beside the brand at 375 px. */
+.views { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; flex: 0 0 auto; }
+.views a { color: var(--muted); text-decoration: none; font-weight: 600; font-size: 13.5px; padding: 4px 12px; border-radius: 999px; line-height: 1.3; }
+.views a:hover { color: var(--text); }
+.views a[aria-current="page"] { background: var(--line); color: var(--text); }

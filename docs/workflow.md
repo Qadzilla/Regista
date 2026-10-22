@@ -11,6 +11,7 @@ flowchart TD
   label["label"];
   review["review"];
   persist["persist"];
+  profiles["profiles"];
   librarian["librarian"];
   finish["finish"];
   dead_letter["dead_letter"];
@@ -23,7 +24,8 @@ flowchart TD
   clip --> label;
   label --> review;
   review --> persist;
-  persist --> librarian;
+  persist --> profiles;
+  profiles --> librarian;
   librarian --> finish;
   ingest --> dead_letter;
   validator --> dead_letter;
@@ -33,6 +35,7 @@ flowchart TD
   persist --> dead_letter;
   librarian --> dead_letter;
   review --> dead_letter;
+  profiles --> dead_letter;
 ```
 
 The graph above is the default local pipeline. The `indexer` node (Azure AI Search) is added after `persist` only when
@@ -48,6 +51,7 @@ flowchart TD
   review["review"];
   persist["persist"];
   indexer["indexer"];
+  profiles["profiles"];
   librarian["librarian"];
   finish["finish"];
   dead_letter["dead_letter"];
@@ -61,7 +65,8 @@ flowchart TD
   label --> review;
   review --> persist;
   persist --> indexer;
-  indexer --> librarian;
+  indexer --> profiles;
+  profiles --> librarian;
   librarian --> finish;
   ingest --> dead_letter;
   validator --> dead_letter;
@@ -72,8 +77,14 @@ flowchart TD
   indexer --> dead_letter;
   librarian --> dead_letter;
   review --> dead_letter;
+  profiles --> dead_letter;
 ```
 
 The second graph was generated from the same `WorkflowPipeline.mermaid()` with the agents from
 `regista.cloud.agents_for(CloudConfig(search_endpoint=...))`; building it contacts no Azure service.
 `--graph docs/workflow.md` rewrites this file with the first graph only.
+
+`profiles` is the Profile agent (`ProfileRefreshExecutor`): after the match is persisted, it refreshes the Scout view's
+profiles of the league players the match speaks for (global player ids on its team sheet, or confirmed "that's me"
+claims, `regista.season.claims`) and records which in the trace; a match that speaks for nobody passes straight through.
+Confirming a claim in the Studio runs this workflow on the claimed match (`POST /api/claims/{id}/decision`).

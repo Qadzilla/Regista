@@ -16,7 +16,9 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 Record = dict[str, Any]
 
-SCHEMA_VERSION = "0.1.1"  # 0.1.1: annotation.context (additive)
+SCHEMA_VERSION = "0.1.1"  # 0.1.1: annotation.context (additive). Since 2026-10-22 the match record also accepts the
+# optional season fields teams[].club_id and players[].global_player_id (regista.season); optional and additive, so
+# every 0.1.1 record stays valid and the version was not bumped (that would restamp every committed match).
 # The schemas ship inside the package so validation works from any install, not only a repo checkout.
 SCHEMA_DIR = Path(__file__).resolve().parent / "schemas"
 EVENTS_SCHEMA = SCHEMA_DIR / "regista-events.schema.json"

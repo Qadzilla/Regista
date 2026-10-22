@@ -4,7 +4,7 @@ The same roles as ``regista.agents.roles`` (and their Foundry and Cosmos DB vari
 Agent Framework executors in a graph:
 
     ingest ──┬── validator ──┐
-             └── possession ─┴─▶ clip ─▶ label ─▶ review ─▶ persist ─▶ librarian ─▶ finish
+             └── possession ─┴─▶ clip ─▶ label ─▶ review ─▶ persist ─▶ profiles ─▶ librarian ─▶ finish
                                                     ▲  │
        every role ── DeadLetter ──▶ dead_letter     └──┘ pauses for a human verdict when the
                                                          Label agent is unsure (request_info)
@@ -19,6 +19,9 @@ What Agent Framework provides here, and what the tests prove:
   with the remaining roles recorded as skipped.
 - **Human in the loop.** The review executor asks for verdicts with ``ctx.request_info`` and resumes in its
   ``@response_handler``; verdicts are stored as human annotations and retrain the watchability model.
+- **Profiles.** The profiles executor (the Profile agent) hands the persisted match to the Scout view: when the match
+  carries global player ids (a league match) or has confirmed claims ("that's me", regista.season.claims), it rebuilds
+  the affected players' profiles and records which in the trace; otherwise it notes that there was nothing to refresh.
 - **Checkpointing.** With a checkpoint directory, a paused review survives a restart and resumes from disk.
 - **Visualisation.** ``mermaid()`` renders the graph for the docs.
 
@@ -56,7 +59,7 @@ TRACE_EVENT = "regista_trace"
 DEAD_EVENT = "regista_dead_letter"
 REVIEWED = {"keep": "kept", "drop": "dropped", "fix": "corrected"}  # a verdict as the public explanation says it
 HEAVY_KEYS = ("stream", "index")           # rebuildable from match_dir; kept out of workflow state
-ROLE_ORDER = ["ingest", "validator", "possession", "clip", "label", "review", "persist", "indexer", "librarian"]  # "indexer" is optional
+ROLE_ORDER = ["ingest", "validator", "possession", "clip", "label", "review", "persist", "indexer", "profiles", "librarian"]  # "indexer" is optional
 
 
 # ---------------------------------------------------------------------------- messages
@@ -159,7 +162,8 @@ _key = state_key
 
 
 def _known_keys(agents: list[Agent]) -> list[str]:
-    keys = {"match_dir", "player_ids", "queries", "review", "annotator", "match", "record_counts", "label_notes", "review_log"}
+    keys = {"match_dir", "player_ids", "queries", "review", "annotator", "match", "record_counts", "label_notes", "review_log",
+            "profiles_refreshed"}
     for a in agents:
         keys.update(a.inputs)
         keys.update(a.outputs)
@@ -366,6 +370,87 @@ class ReviewExecutor(Executor):
                 "records_in": {"flagged": flagged}, "records_out": None, "error": None, "state_keys": [], "note": note}
 
 
+def affected_profiles(match_dir: str, header: Record | None = None) -> list[Record]:
+    """The league players this match speaks for: roster entries with a global player id, and players with a confirmed
+    claim (regista.season.claims). [{global_id, player_id, source: global_id|claim, claim_id?}]"""
+    from regista.season.claims import confirmed
+
+    if header is None:
+        header = next(iter_jsonl(Path(match_dir) / "events.jsonl"))
+    roster = {p["player_id"]: p for p in header.get("players", [])}
+    out = [{"global_id": p["global_player_id"], "player_id": pid, "source": "global_id"}
+           for pid, p in roster.items() if p.get("global_player_id")]
+    seen = {a["global_id"] for a in out}
+    for c in confirmed(match_id=header["match_id"]):
+        if c["player_id"] in roster and c["global_id"] not in seen:
+            seen.add(c["global_id"])
+            out.append({"global_id": c["global_id"], "player_id": c["player_id"], "source": "claim", "claim_id": c["claim_id"]})
+    return out
+
+
+def default_profile_refresh(global_ids: list[str]) -> Record:
+    """Rebuild the season from the default places (REGISTA_SEASON, REGISTA_SEASON_ROOT, claims under REGISTA_DATA): what the
+    CLI uses. The API passes its own, bound to the folders it serves."""
+    import os
+
+    from regista.season.claims import claimed_matches
+    from regista.season.profiles import refresh
+
+    data_root = Path(os.environ.get("REGISTA_DATA", "data/synthetic/sample"))
+    return refresh(os.environ.get("REGISTA_SEASON", "data/season/league.json"), os.environ.get("REGISTA_SEASON_ROOT", "data/season/matches"),
+                   claimed_matches(data_root), global_ids)
+
+
+class ProfileRefreshExecutor(Executor):
+    """The Profile agent: after persist, refreshes the Scout view's profiles of the league players this match speaks for
+    (global ids on the team sheet, or confirmed claims), and records which in the trace. A refresh failure dead-letters
+    like any role's; a match that speaks for nobody passes straight through."""
+
+    def __init__(self, keys: list[str], refresh: Callable[[list[str]], Record] | None = None):
+        super().__init__(id="profiles")
+        self.keys = keys
+        self.refresh = refresh or default_profile_refresh
+
+    @handler
+    async def check(self, message: Handoff, ctx: WorkflowContext[Handoff | DeadLetter]) -> None:
+        state = _read_state(ctx, self.keys)
+        started = time.perf_counter()
+        try:
+            affected = await asyncio.to_thread(affected_profiles, state["match_dir"], state.get("match"))
+            result = await asyncio.to_thread(self.refresh, [a["global_id"] for a in affected]) if affected else None
+        except Exception as exc:  # noqa: BLE001 - recorded and dead-lettered like any role's failure
+            ctx.set_state(_status_key("profiles"), "failed")
+            await ctx.add_event(WorkflowEvent(TRACE_EVENT, data={**self._row("failed", started, note="profile refresh failed"),
+                                                                  "error": f"{type(exc).__name__}: {exc}"}))
+            await ctx.send_message(DeadLetter(role="profiles", error=f"{type(exc).__name__}: {exc}", retryable=False, attempts=1,
+                                              inputs={"match_dir": 1}, run_id=message.run_id))
+            return
+        if not affected:
+            refreshed: Record = {"affected": [], "profiles": [], "note": "no global ids or confirmed claims: no profile to refresh"}
+        else:
+            refreshed = {"affected": affected, **(result or {})}
+            done = [p["global_id"] for p in refreshed.get("profiles", []) if p.get("known")]
+            how = {a["global_id"]: f"claim {a['claim_id']}" if a["source"] == "claim" else "global id" for a in affected}
+            refreshed["note"] = (refreshed["skipped"] if refreshed.get("skipped") else
+                                 f"refreshed {len(done)} profile(s): " + ", ".join(f"{g} ({how[g]})" for g in done))
+        ctx.set_state(_key("profiles_refreshed"), refreshed)
+        ctx.set_state(_status_key("profiles"), "ok")
+        await ctx.add_event(WorkflowEvent(TRACE_EVENT, data={
+            **self._row("ok", started, note=refreshed["note"]),
+            "records_in": {"global_ids": sum(a["source"] == "global_id" for a in affected),
+                           "claims": sum(a["source"] == "claim" for a in affected)},
+            "records_out": {"profiles": len([p for p in refreshed.get("profiles", []) if p.get("known")])},
+            "state_keys": ["profiles_refreshed"],
+            "profiles": [p["global_id"] for p in refreshed.get("profiles", []) if p.get("known")]}))
+        await ctx.send_message(Handoff(from_role="profiles", run_id=message.run_id))
+
+    @staticmethod
+    def _row(status: str, started: float, *, note: str) -> Record:
+        return {"at": _now(), "agent": "profiles", "attempt": 1, "status": status,
+                "elapsed_ms": round((time.perf_counter() - started) * 1000, 1), "records_in": None, "records_out": None,
+                "error": None, "state_keys": [], "note": note}
+
+
 class FinishExecutor(Executor):
     def __init__(self, keys: list[str]):
         super().__init__(id="finish")
@@ -424,7 +509,8 @@ class WorkflowPipeline:
     """Builds and runs the Agent Framework workflow, writing the same trace files as the original orchestrator."""
 
     def __init__(self, agents: list[Agent] | None = None, state_dir: Path | str = "agents", *, max_retries: int = 2,
-                 feedback_dir: Path | str | None = None, checkpoint_dir: Path | str | None = None, retrain: bool = True):
+                 feedback_dir: Path | str | None = None, checkpoint_dir: Path | str | None = None, retrain: bool = True,
+                 profile_refresh: Callable[[list[str]], Record] | None = None):
         self.agents = agents or default_agents()
         self.by_role = {a.role: a for a in self.agents}
         self.state_dir = Path(state_dir)
@@ -432,6 +518,7 @@ class WorkflowPipeline:
         self.feedback_dir = Path(feedback_dir) if feedback_dir else None
         self.checkpoint_dir = Path(checkpoint_dir) if checkpoint_dir else None
         self.retrain = retrain
+        self.profile_refresh = profile_refresh
         self.keys = _known_keys(self.agents) + ["run_id", "review_run_id"]
         if self.feedback_dir is not None:
             for a in self.agents:  # the Label agent's learned prior comes from the same folder the reviewer writes to
@@ -444,17 +531,18 @@ class WorkflowPipeline:
     def build(self):
         roles = {r: RoleExecutor(self.by_role[r], self.keys, self.max_retries) for r in self.by_role}
         review = ReviewExecutor(self.keys, self.feedback_dir, self.retrain)
+        profiles = ProfileRefreshExecutor(self.keys, self.profile_refresh)
         finish = FinishExecutor(self.keys)
-        order = [r for r in ROLE_ORDER if r in roles or r == "review"]
+        order = [r for r in ROLE_ORDER if r in roles or r in ("review", "profiles")]
         dead = DeadLetterExecutor(self.keys, order)
         storage = FileCheckpointStorage(self.checkpoint_dir) if self.checkpoint_dir else None
         b = WorkflowBuilder(name=WORKFLOW_NAME, description="Regista: broadcast match in, labelled clip library out.",
                             start_executor=roles["ingest"], checkpoint_storage=storage, output_from=[finish, dead])
         b.add_fan_out_edges(roles["ingest"], [roles["validator"], roles["possession"]])
         b.add_fan_in_edges([roles["validator"], roles["possession"]], roles["clip"])
-        tail = [roles["persist"]] + ([roles["indexer"]] if "indexer" in roles else []) + [roles["librarian"], finish]
+        tail = [roles["persist"]] + ([roles["indexer"]] if "indexer" in roles else []) + [profiles, roles["librarian"], finish]
         b.add_chain([roles["clip"], roles["label"], review] + tail)
-        for ex in [*roles.values(), review]:
+        for ex in [*roles.values(), review, profiles]:
             b.add_edge(ex, dead)  # only DeadLetter messages reach it; handoffs are routed by type to the next role
         return b.build()
 

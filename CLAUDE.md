@@ -123,6 +123,35 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 - **Broadcasters and studios** needing instant replay packages per player.
 - **Fans** who want a personalised reel of their favourite player.
 
+### 2.5 Two views: Clips and Scout (decided 2026-10-22, part of the Oct 27 submission)
+
+> One pipeline, two jobs: **Clips** finds any moment in a match; **Scout** turns every match a player is seen in into a
+> verified profile scouts can search.
+
+| Route | View | For |
+|---|---|---|
+| `/` | **Clip view** (the Product as built) | creators, broadcasters, fans: ask anything, get clips and reels; a header switch to Scout |
+| `/scout` | **Scout view** | scouts: filter, ask the Scout agent, shortlist, compare players across the season |
+| `/players/{id}` | **Player profile** | one player across every match: reel, per-90 stats, touch map, matches, Foundry summary, "Add a match" |
+| `/studio` | **Studio** (as built) | the operator; adds a Claims tab ("that's me" confirmations) |
+
+- **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 8 minutes, generator
+  profile `realistic`, fixed squads of 18 with **global player ids** (`pl_…`) on every roster entry. The league definition
+  (`data/season/league.json`: clubs, squads, fixtures, seeds) is committed; matches regenerate deterministically from it
+  on the server (0.2 s each) and are not committed.
+- **Profiles** are aggregated from the event streams: appearances, minutes, counts and per-90 rates, a touch map (attack
+  left to right), best moments across matches, and every stat links to the moments it came from ("verified by Regista").
+  The **Profile agent** refreshes a profile when a match is added and has Foundry write a summary whose claims cite clips.
+- **Scout agent** (Foundry) over new MCP tools `search_players`, `get_profile`, `compare_players`, plus the clip tools.
+- **Add a match / claims:** on the live app a player adds a match as the vision layer's output (events + tracks, as
+  uploads do today) and claims "that's me" (kit number + team); the claim is a human annotation confirmed in the Studio.
+  On the operator's laptop the same flow accepts a video file and runs the vision layer locally first. Cloud video
+  processing is **planned**, not built (scope: models in Azure, video storage, a job runner).
+- **No real players' profiles for now.** Zaid's recorded match can appear in the Clip view (with consent) but gets no
+  profiles. Profiles are synthetic players only.
+- **Out of scope:** accounts and sign-in, footage-rights handling (post-hackathon), messaging, payments. **Microsoft
+  Fabric** fits season analytics but is **planned**, not built.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
@@ -141,6 +170,16 @@ src/regista/validate.py      CLI validator
 src/regista/librarian.py     the Librarian: plain-English clip search (player, tags, minutes, replays), no cloud
 src/regista/conversation.py  the conversational Librarian (plan step 7): follow-ups merge into the query so far; chat_turn; /chat
 src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
+src/regista/season/          the Regista League (Scout view data): league.py (6 clubs, squads with global player ids, double round
+                             robin, seeds; committed as data/season/league.json), build.py (regenerates each match folder on demand,
+                             tracks only when video needs them), profiles.py (per-90 rates, percentiles, touch map, moments, evidence)
+src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
+src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
+                             Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
+src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
+                             on the claimed match, whose profiles executor (the Profile agent, after persist) refreshes the profile
+src/regista/static/player/add-match.js  "Add a match" on a profile: upload events + tracks (or, locally, a video through a vision-run
+                             job), then "which one is you?" (team + kit number) as a claim; the Studio's Claims tab decides
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
 src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
                              /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline
@@ -207,6 +246,7 @@ python3 -m regista.render.clips data/synthetic/sample/syn_0294 --player t_home_0
 python3 -m regista.librarian data/synthetic/sample/syn_0294 "find me Castellanos doing a nutmeg"
 python3 -m regista.mcp_server --list-tools        # or without the flag: stdio MCP server for any MCP host
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
+python3 -m regista.season build && python3 -m regista.season table && python3 -m regista.season players --position FW --sort take_ons_won
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
 uvicorn regista.api:app          # viewer at http://localhost:8000, OpenAPI at /docs

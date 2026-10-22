@@ -166,8 +166,10 @@ OPERATION_KINDS = {"invoke_agent": "agent", "chat": "model", "execute_tool": "to
 def spans_to_trace(spans: list[Any], server_of: Any = None) -> list[dict[str, Any]]:
     """Agent Framework's GenAI spans as answer-trace steps, in the order they started: ``invoke_agent <agent>`` is an
     agent, ``chat <model>`` a model call, ``execute_tool <tool>`` a tool call (``server_of(tool)`` names its MCP
-    server). Every other span (the root, MCP protocol messages, HTTP) is left out."""
+    server). Every other span (the root, MCP protocol messages, HTTP) is left out, and so is a tool span inside another
+    tool span: the MCP client's ``tools/call`` span is tagged ``execute_tool`` too, under the call it carries out."""
     steps = []
+    tool_spans: set[Any] = set()
     for s in sorted(spans, key=lambda s: s.start_time or 0):
         attrs = dict(getattr(s, "attributes", None) or {})
         op, _, rest = (s.name or "").partition(" ")
@@ -175,6 +177,13 @@ def spans_to_trace(spans: list[Any], server_of: Any = None) -> list[dict[str, An
         kind = OPERATION_KINDS.get(op)
         if kind is None:
             continue
+        if kind == "tool":
+            sid = getattr(getattr(s, "context", None), "span_id", None)
+            parent = getattr(getattr(s, "parent", None), "span_id", None)
+            if sid is not None:
+                tool_spans.add(sid)
+            if parent is not None and parent in tool_spans:
+                continue
         if kind == "tool":
             label = attrs.get("gen_ai.tool.name") or rest
         elif kind == "agent":

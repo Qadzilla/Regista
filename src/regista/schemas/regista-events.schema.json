@@ -83,6 +83,7 @@
               "team_id": { "type": "string", "minLength": 1 },
               "name": { "type": "string" },
               "short_name": { "type": "string", "maxLength": 4 },
+              "club_id": { "type": "string", "minLength": 1, "description": "the club across the matches of a season (optional)" },
               "kit": {
                 "type": "object",
                 "properties": {
@@ -109,7 +110,8 @@
               "name": { "type": "string" },
               "kit_number": { "type": "integer", "minimum": 1, "maximum": 99 },
               "position": { "type": "string", "enum": ["GK", "DF", "MF", "FW"] },
-              "starter": { "type": "boolean" }
+              "starter": { "type": "boolean" },
+              "global_player_id": { "type": "string", "pattern": "^pl_[a-z0-9_]+$", "description": "the same person in every match of a season (optional)" }
             },
             "required": ["player_id", "team_id", "name", "kit_number", "position", "starter"],
             "additionalProperties": false

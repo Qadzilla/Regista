@@ -31,3 +31,11 @@ def test_dockerignore_keeps_the_package_and_drops_run_state():
     assert _excluded(".env")
     assert _excluded("data/synthetic/sample/syn_0294/agents/trace.jsonl")
     assert _excluded("data/vision/vis_0201/.vision_work/identity.joblib")  # full vision outputs stay on the machine that ran them
+
+
+def test_the_image_carries_the_league_and_builds_its_matches():
+    docker = (REPO / "Dockerfile").read_text()
+    assert "COPY data/season/league.json" in docker and "regista.season" in docker and "REGISTA_SEASON=" in docker
+    assert _excluded("data/season/matches/rl_r01_ash_fai/events.jsonl") and not _excluded("data/season/league.json")
+    # the Profile agent's summaries ship beside the league (regista.season.summaries.summaries_path)
+    assert "COPY data/season/summaries.json ./data/season/summaries.json" in docker and not _excluded("data/season/summaries.json")

@@ -53,6 +53,8 @@ python -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 
 Teams, roster (with `kit_number`, `position`, `starter`), kit colours (hex), video metadata (`fps`, `width`, `height`, `duration_s`), `periods` (start/end in video time plus attacking direction), and `generator` provenance when synthetic.
 
+**Seasons (optional, added 2026-10-22).** In a match from the Regista League (`regista.season`), each team also carries `club_id` (the club across matches) and each roster entry `global_player_id` (`pl_…`, the same person in every match). Per-match ids (`t_home_09`) are unchanged, so every other record and the clip rule work as before. Both fields are optional; streams without them are still valid 0.1.1.
+
 ### `camera_segment` — what the director is showing
 
 | Field | Meaning |

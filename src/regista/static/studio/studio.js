@@ -1,6 +1,6 @@
 // Regista Studio: the control room. Plain script, no build step; needs /static/shared/regista.js first.
 //
-// Tabs are hash-routed (#overview, #review/<match>, #whos-who/<match>, #training, #runs/<match>, #jobs/<job>, #console/<match>)
+// Tabs are hash-routed (#overview, #review/<match>, #whos-who/<match>, #claims/<match>, #training, #runs/<match>, #jobs/<job>, #console/<match>)
 // so the overview's to-do links land on the right place. Every read sends the Studio key (view or admin) in the
 // key header through Regista.api; every write control is disabled, with the reason as a tooltip, unless the
 // key is the admin key. The key never appears in a URL or in the page.
@@ -144,7 +144,7 @@
   };
 
   // ------------------------------------------------------------------------------------------------ routing
-  const TABS = { overview: loadOverview, review: loadReview, 'whos-who': loadWhos, training: loadTraining, runs: loadRuns, jobs: loadJobs, console: loadConsole };
+  const TABS = { overview: loadOverview, review: loadReview, 'whos-who': loadWhos, claims: loadClaims, training: loadTraining, runs: loadRuns, jobs: loadJobs, console: loadConsole };
 
   function stopPolling() { S.poll++; }  // any running poll loop sees the counter move and stops
 
@@ -172,9 +172,9 @@
   });
 
   // ------------------------------------------------------------------------------------------------ 1. overview
-  const TODO_TAB = { failed_run: 'runs', workflow_review: 'review', whos_who: 'whos-who', unsure_clips: 'review', stale_model: 'training' };
-  const TODO_LABEL = { failed_run: 'failed run', workflow_review: 'paused workflow', whos_who: "who's who", unsure_clips: 'unsure clips', stale_model: 'stale model' };
-  const TODO_CLASS = { failed_run: 'failed', workflow_review: 'paused', whos_who: 'warn', unsure_clips: 'warn', stale_model: 'muted' };
+  const TODO_TAB = { failed_run: 'runs', workflow_review: 'review', whos_who: 'whos-who', pending_claims: 'claims', unsure_clips: 'review', stale_model: 'training' };
+  const TODO_LABEL = { failed_run: 'failed run', workflow_review: 'paused workflow', whos_who: "who's who", pending_claims: 'claims', unsure_clips: 'unsure clips', stale_model: 'stale model' };
+  const TODO_CLASS = { failed_run: 'failed', workflow_review: 'paused', whos_who: 'warn', pending_claims: 'warn', unsure_clips: 'warn', stale_model: 'muted' };
 
   function todoHref(t) {
     const anchor = String(t.link || '').split('#')[1] || '';
@@ -202,6 +202,7 @@
     const sum = (kinds) => (o.todo || []).filter((t) => kinds.includes(t.kind)).reduce((a, t) => a + (t.count || 0), 0);
     setCount('nReview', sum(['unsure_clips', 'workflow_review']), true);
     setCount('nWhos', sum(['whos_who']), true);
+    setCount('nClaims', sum(['pending_claims']), true);
     setCount('nRuns', sum(['failed_run']), true);
     if (render) renderOverview(o);
   }
@@ -835,6 +836,91 @@
       fail($('upResult'), err);
     } finally { $('upGo').disabled = !canWrite(); }
   };
+
+  // ------------------------------------------------------------------------------------------------ claims
+  // "That's me" claims from the Add-a-match form on player profiles (regista.claims_api). #claims/<match> filters by match.
+  const CLAIM_CLASS = { pending: 'warn', confirmed: 'ok', rejected: 'bad' };  // not 'paused': .paused is the paused-workflow box
+
+  function claimCard(c) {
+    const p = c.player || {}, who = c.person || {};
+    const links = c.links || {};
+    const dec = c.decision;
+    const kit = c.kit_matches === false ? html` <span class="warn small">number ${p.kit_number} here, ${who.kit_number} in the league</span>` : NOTHING;
+    const acts = c.status === 'pending'
+      ? html`<button class="keep" data-decide="confirm"${w()}>Confirm</button><button class="drop" data-decide="reject"${w()}>Reject</button>`
+      : c.status === 'confirmed' ? html`<button class="alt small" data-decide="reject"${w()}>Withdraw (reject)</button>`
+        : html`<button class="alt small" data-decide="confirm"${w()}>Confirm after all</button>`;
+    return html`<div class="claim ${c.status}" data-claim="${c.claim_id}" data-match="${c.match_id}" data-player="${c.player_id}">
+      <div class="bar"><span class="chip ${CLAIM_CLASS[c.status] || 'muted'}">${c.status}</span>
+        <span class="muted small mono">${c.claim_id}</span></div>
+      <dl class="who">
+        <dt>In match</dt><dd><a href="${apiPathOrPage(links.match)}">${c.match_id}</a> · <a href="#runs/${enc(c.match_id)}">run</a></dd>
+        <dt>Player there</dt><dd>${p.name || c.player_id} (${p.kit_number ?? '?'}) · ${p.team || p.team_id || ''} <span class="muted mono">${c.player_id}</span>${kit}</dd>
+        <dt>Says they are</dt><dd><a href="${apiPathOrPage(links.profile)}">${who.name || c.global_id}</a> (${who.kit_number ?? '?'}) · ${who.club || ''} · ${who.position || ''} <span class="muted mono">${c.global_id}</span></dd>
+        <dt>Claimed by</dt><dd>${c.claimant} · ${when(c.claimed_at)}${c.note ? html`<br><span class="muted">“${c.note}”</span>` : NOTHING}</dd>
+        ${dec ? html`<dt>Decision</dt><dd>${dec.decision} by ${dec.by} · ${when(dec.at)}${dec.note ? html`<br><span class="muted">“${dec.note}”</span>` : NOTHING}</dd>` : NOTHING}
+      </dl>
+      <div data-clip><button type="button" class="alt small" data-show-clip>Show a clip of ${p.name || c.player_id}</button></div>
+      <div class="acts">${acts}<input data-note maxlength="300" placeholder="note (optional)" aria-label="Decision note"><span class="small" data-msg></span></div>
+      <div data-result></div></div>`;
+  }
+  // Links into our own pages (the Clip view, a profile): same-origin paths only.
+  const apiPathOrPage = (u) => (typeof u === 'string' && /^\/[A-Za-z0-9_.\-/?=&%]*$/.test(u) && !u.startsWith('//') && !u.includes('..') ? u : '#');
+
+  async function loadClaims(arg) {
+    const status = $('clStatus').value;
+    put($('clList'), html`<div class="muted">Loading…</div>`);
+    const qs = new URLSearchParams();
+    if (status) qs.set('status', status);
+    if (arg) qs.set('match_id', arg);
+    let out;
+    try { out = await studioGet(`/api/claims${qs.toString() ? `?${qs}` : ''}`); } catch (e) { fail($('clList'), e); return; }
+    const n = out.counts || {};
+    setCount('nClaims', n.pending || 0, true);
+    put($('clCounts'), html`${plural(n.pending || 0, 'pending claim')} · ${num(n.confirmed || 0)} confirmed · ${num(n.rejected || 0)} rejected${arg ? html` · match <b class="mono">${arg}</b> (<a href="#claims">all matches</a>)` : NOTHING}`);
+    const list = out.claims || [];
+    put($('clList'), list.length ? html`<div class="claims">${list.map(claimCard)}</div>`
+      : html`<div class="empty">${status === 'pending' ? 'No claim is waiting. Claims come from "Add a match" on a player profile (/players/…).' : 'No claims.'}</div>`);
+  }
+
+  $('clStatus').onchange = () => loadClaims(S.arg);
+  $('clRefresh').onclick = () => loadClaims(S.arg);
+  $('clList').addEventListener('click', async (e) => {
+    const card = e.target.closest('[data-claim]');
+    if (!card) return;
+    if (e.target.matches('[data-show-clip]')) {
+      const box = card.querySelector('[data-clip]');
+      put(box, html`<span class="muted small">Finding clips…</span>`);
+      let clips;
+      try { clips = await studioGet(`/api/matches/${enc(card.dataset.match)}/clips?player=${enc(card.dataset.player)}`); } catch (err) { fail(box, err); return; }
+      const c = (clips || []).find((x) => apiPath(x.video_url));
+      put(box, c ? html`<video controls muted playsinline preload="metadata" src="${apiPath(c.video_url)}"></video>
+          <span class="small">${(c.label || {}).title || c.id} · ${clock(c.t)}–${clock(c.t_end)} · ${plural(clips.length, 'clip')} of this player</span>`
+        : html`<div class="empty">No clip with video for this player here${(clips || []).length ? ' (Cosmos DB only)' : ''}.</div>`);
+      return;
+    }
+    const btn = e.target.closest('[data-decide]');
+    if (!btn || btn.disabled) return;
+    const decision = btn.dataset.decide, msg = card.querySelector('[data-msg]');
+    const annotator = $('clAnnotator').value.trim() || 'zaid';
+    if (!ANNOTATOR.test(annotator)) { msg.textContent = 'Decided by: letters, digits, spaces, . _ - (up to 40).'; return; }
+    for (const b of card.querySelectorAll('[data-decide]')) b.disabled = true;
+    msg.textContent = decision === 'confirm' ? 'Confirming: the workflow cuts and labels this player’s moments, then the Profile agent refreshes the profile…' : 'Rejecting…';
+    try {
+      const out = await write(`/api/claims/${enc(card.dataset.claim)}/decision`, { decision, annotator, note: card.querySelector('[data-note]').value.trim() });
+      const prof = ((out.profiles || {}).profiles || [])[0];
+      const run = out.run;
+      put(card.querySelector('[data-result]'), html`<div class="okbox small">${out.claim.status}${prof ? html` · profile ${prof.name || prof.global_id}: ${plural(prof.appearances, 'appearance')}, ${num(prof.minutes)} min` : NOTHING}
+        ${run ? html` · workflow ${chip(run.pipeline_ok ? 'ok' : 'failed')} <a href="#runs/${enc(card.dataset.match)}">trace</a>` : NOTHING}</div>`);
+      msg.textContent = '';
+      refreshOverview(false);
+      setTimeout(() => loadClaims(S.arg), 1500);
+    } catch (err) {
+      if (err.status === 401) { lockOut('That key is no longer accepted.'); return; }
+      msg.textContent = errText(err);
+      for (const b of card.querySelectorAll('[data-decide]')) b.disabled = !canWrite();
+    }
+  });
 
   // ------------------------------------------------------------------------------------------------ 6. jobs
   // Each kind's fields come from the API's allow-list; known fields get a typed control, anything new is typed from its

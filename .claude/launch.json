@@ -4,8 +4,28 @@
     {
       "name": "regista-api",
       "runtimeExecutable": "uvicorn",
-      "runtimeArgs": ["regista.api:app", "--host", "127.0.0.1", "--port", "8000"],
+      "runtimeArgs": [
+        "regista.api:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8000"
+      ],
       "port": 8000
+    },
+    {
+      "name": "regista-offline",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "REGISTA_DOTENV=",
+        "uvicorn",
+        "regista.api:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8040"
+      ],
+      "port": 8040
     }
   ]
 }

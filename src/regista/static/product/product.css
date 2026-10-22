@@ -145,6 +145,8 @@ footer p { margin: 4px 0; }
 .matchline h2 { margin: 0; font-size: 17px; line-height: 1.3; }
 .matchline p { margin: 3px 0 0; font-size: 13px; }
 .vision-note { color: var(--text); max-width: 80ch; }
+.matchline .scout-link { margin-top: 6px; font-size: 14px; }
+.scout-link a { font-weight: 600; }
 .vision-note .badge { margin-right: 4px; }
 .neterr { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--bad); border-radius: var(--radius);
           padding: 10px 14px; background: #2a1518; }
