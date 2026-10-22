@@ -39,7 +39,8 @@ def client(tmp_path_factory):
 def test_viewer_and_health(client):
     assert client.get("/api/health").json()["ok"] is True
     page = client.get("/")
-    assert page.status_code == 200 and "REGI" in page.text and "/api/matches" in page.text
+    assert page.status_code == 200 and "REGI" in page.text and "/static/product/app.js" in page.text
+    assert "/api/matches" in client.get("/static/product/app.js").text
 
 
 def test_list_and_get_match(client):
@@ -49,6 +50,37 @@ def test_list_and_get_match(client):
     assert info["players_with_clips"] == [PLAYER] and info["clip_count"] > 0
     assert client.get("/api/matches/nope").status_code == 404
     assert client.get("/api/matches/..%2Fetc").status_code in (400, 404)
+
+
+def test_the_committed_sample_features_syn_0294(monkeypatch, tmp_path):
+    """The Product opens on the featured match: the flagship (Castellanos's nutmeg and goal), not the first by name."""
+    from regista import api
+
+    monkeypatch.setattr(api, "DATA_ROOT", Path(__file__).resolve().parents[1] / "data" / "synthetic" / "sample")
+    monkeypatch.setattr(api, "CACHE_ROOT", tmp_path)
+    listed = {m["match_id"]: m for m in TestClient(api.app).get("/api/matches").json()}
+    assert [mid for mid, m in listed.items() if m["featured"]] == ["syn_0294"]
+    assert all(m["clip_count"] > 0 and m["video"] for m in listed.values())
+
+
+def test_sample_matches_have_human_titles_and_every_player_with_moments_is_counted(monkeypatch, tmp_path):
+    """The Product names matches in words (manifest title and subtitle, never the id) and lists first the players who
+    have moments, with how many: the count GET /clips?player= returns, derived on the fly for players with none on disk."""
+    from regista import api
+
+    monkeypatch.setattr(api, "DATA_ROOT", Path(__file__).resolve().parents[1] / "data" / "synthetic" / "sample")
+    monkeypatch.setattr(api, "CACHE_ROOT", tmp_path)
+    c = TestClient(api.app)
+    listed = c.get("/api/matches").json()
+    titles = [m["title"] for m in listed]
+    assert all(titles) and len(set(titles)) == len(titles) and all(m["subtitle"] for m in listed)
+    assert not any(m["match_id"] in m["title"] + m["subtitle"] for m in listed)
+    info = c.get("/api/matches/syn_0294").json()
+    assert info["title"] == next(m["title"] for m in listed if m["match_id"] == "syn_0294")
+    counts = info["moment_counts"]
+    assert counts["t_home_09"] == 11 and len(counts) > 1 and all(n > 0 for n in counts.values())
+    for pid in ("t_home_10", sorted(counts)[0]):
+        assert counts[pid] == len(c.get("/api/matches/syn_0294/clips", params={"player": pid}).json()), pid
 
 
 def test_clip_filters(client):
@@ -73,19 +105,21 @@ def test_search(client):
     assert all(r["video_url"].endswith(".mp4") and "nutmeg" in r["tags"] for r in out["results"])
 
 
-def test_clip_render_on_demand_and_cache(client):
+def test_clip_render_on_demand_and_cache(client, monkeypatch):
+    from regista import api
+
+    monkeypatch.setattr(api, "RENDER_FPS", {5})
+    monkeypatch.setattr(api, "RENDER_WIDTHS", {320})  # small and quick
     clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()
     clip = clips[-1]
     url = f"/api/matches/{client.match_id}/clips/{clip['id']}.mp4"
     r = client.get(url, params={"fps": 5, "width": 320})
     assert r.status_code == 200 and r.headers["content-type"] == "video/mp4" and len(r.content) > 1000
-    from regista import api
-
     cached = api.CACHE_ROOT / client.match_id / f"{clip['id']}_5fps_320.mp4"
     assert cached.exists()
     assert count_frames(cached) == len(frame_times(clip["t"], clip["t_end"], 5.0))
     assert client.get(url, params={"fps": 5, "width": 320}).content == r.content  # served from cache
-    assert client.get(f"/api/matches/{client.match_id}/clips/cl_t_home_09_999999.mp4").status_code == 404
+    assert client.get(f"/api/matches/{client.match_id}/clips/cl_t_home_09_999999.mp4", params={"fps": 5, "width": 320}).status_code == 404
 
 
 def test_render_once_under_concurrent_requests(tmp_path):
@@ -151,8 +185,11 @@ def test_render_failure_leaves_nothing_and_renders_are_capped(tmp_path, monkeypa
     assert peak[0] == 2 and len(list(tmp_path.glob("c*.mp4"))) == 6
 
 
-def test_prerender_fills_the_cache_the_endpoint_reads(client):
+def test_prerender_fills_the_cache_the_endpoint_reads(client, monkeypatch):
     from regista import api
+
+    monkeypatch.setattr(api, "RENDER_FPS", {4})
+    monkeypatch.setattr(api, "RENDER_WIDTHS", {160})
 
     done = api._prerender(fps=4.0, width=160)
     clips = client.get(f"/api/matches/{client.match_id}/clips", params={"player": PLAYER}).json()
@@ -322,15 +359,16 @@ def test_a_review_can_only_be_answered_once(client):
 
 
 def test_viewer_escapes_everything_it_renders():
-    """Static check: no API value reaches innerHTML unescaped."""
-    import re
+    """Static check: no API value reaches innerHTML unescaped (the Product page and its script)."""
     from pathlib import Path
 
-    html = (Path(__file__).resolve().parents[1] / "src/regista/static/viewer.html").read_text()
+    product = Path(__file__).resolve().parents[1] / "src/regista/static/product"
+    html = (product / "index.html").read_text() + (product / "app.js").read_text()
     assert "const esc = " in html
-    for needle in ("${r.title}", "${r.explanation", "${r.verdict.annotator}", "${p.name}", "${team.name}", "${r.review}", "${t.replace(",
-                   "${out.answer}", "${out.answered_by}", "${out.detail}", "${t}</span>"):
+    for needle in ("${r.title}", "${r.explanation", "${p.name}", "${team.name}", "${out.reply}", "${out.understood", "${out.answered_by}",
+                   "${out.detail}", "${s.name}", "${s.kind}", "${t}</span>", "${message}"):
         assert needle not in html, needle
-    assert "esc(r.verdict.annotator)" in html and "esc(r.title)" in html
-    # The Foundry Librarian's answer is model output and the tool names come from MCP servers: both are escaped.
-    assert "esc(out.answer)" in html and "esc(out.answered_by)" in html and "esc(t)}</span>" in html
+    assert "esc(r.title)" in html and "esc(p.name)" in html and "esc(message)" in html
+    # Replies and the Foundry Librarian's words are model output; tool and step names come from MCP servers: all escaped.
+    assert "esc(out.reply)" in html and "esc(out.understood" in html and "esc(by)" in html
+    assert "esc(s.name)" in html and "esc(s.kind)" in html and "esc(t)}</span>" in html

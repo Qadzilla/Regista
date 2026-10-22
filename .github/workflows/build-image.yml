@@ -1,8 +1,8 @@
 # Test, build, smoke-test, push, deploy. A failing step stops everything after it.
 #
 #   test     the full suite
-#   build    the service image, then `python -m regista.cloud.smoke` inside it (both MCP servers must list their tools);
-#            on main, the image is pushed to Azure Container Registry
+#   build    the service image, then `python -m regista.cloud.smoke` inside it (both MCP servers must list their tools,
+#            and the dashboards' static files and the four sample matches must be in the image); on main, the image is pushed to Azure Container Registry
 #   deploy   on main, the container app is updated to that image and the run waits until the new revision is ready
 #
 # Pull requests get test and build (no push, no deploy). Azure sign-in uses a federated identity (OpenID Connect):

@@ -1,5 +1,8 @@
 {
   "match_id": "syn_0294",
+  "title": "Demo match: Castellanos scores and nutmegs",
+  "subtitle": "Three minutes from Regista's match generator, packed on purpose: a goal, a nutmeg, replays and a closeup.",
+  "featured": true,
   "generator": {
     "name": "regista-synth",
     "version": "0.1.0",

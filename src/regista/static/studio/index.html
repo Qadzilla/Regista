@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regista Studio</title>
+<link rel="stylesheet" href="/static/shared/regista.css">
+<link rel="stylesheet" href="/static/studio/studio.css">
+</head>
+<body>
+<header class="top">
+  <p class="brand">REGI<span>STA</span> STUDIO</p>
+  <span class="muted">the control room</span>
+  <a class="muted small" href="/">Product &rarr;</a>
+  <span class="role" id="role"></span>
+</header>
+
+<form class="gate panel" id="gate" hidden>
+  <h2>Studio key</h2>
+  <p class="muted">The view key shows everything and changes nothing; the admin key can also review, upload, retrain and
+    start jobs. The key stays in this tab only (sessionStorage) and travels only in a request header.</p>
+  <p class="muted">Judges: Zaid shares the view key with judges in the submission. The admin key stays with Zaid.</p>
+  <input id="keyIn" type="password" autocomplete="off" placeholder="Paste a Studio key" aria-label="Studio key">
+  <button>Open the Studio</button>
+  <p class="muted" id="gateMsg"></p>
+</form>
+
+<div id="studio" hidden>
+  <nav class="tabs" id="tabs" aria-label="Studio sections">
+    <a href="#overview" data-tab="overview">Overview</a>
+    <a href="#review" data-tab="review">Review queue <span class="count" id="nReview"></span></a>
+    <a href="#whos-who" data-tab="whos-who">Who's who <span class="count" id="nWhos"></span></a>
+    <a href="#training" data-tab="training">Training</a>
+    <a href="#runs" data-tab="runs">Runs <span class="count" id="nRuns"></span></a>
+    <a href="#jobs" data-tab="jobs">Jobs <span class="count" id="nJobs"></span></a>
+    <a href="#console" data-tab="console">Console</a>
+  </nav>
+  <p class="writeNote" id="writeNote" hidden></p>
+
+  <main>
+    <section data-view="overview" hidden>
+      <div class="bar">
+        <h2>Overview</h2>
+        <span class="muted small" id="ovStamp"></span>
+        <button class="alt small" id="ovRefresh" type="button">Refresh</button>
+      </div>
+      <div class="cols2">
+        <div>
+          <h3>To do</h3>
+          <div id="ovTodo"></div>
+        </div>
+        <div>
+          <h3>Health</h3>
+          <div class="tiles" id="ovHealth"></div>
+        </div>
+      </div>
+      <div class="cols3">
+        <div><h3>Foundry usage <span class="muted small">(Ask and Chat)</span></h3><div id="ovUsage"></div></div>
+        <div><h3>Data</h3><div id="ovData"></div></div>
+        <div><h3>Render cache</h3><div id="ovCache"></div></div>
+      </div>
+      <h3>This deployment</h3>
+      <div class="tiles" id="ovCaps"></div>
+    </section>
+
+    <section data-view="review" hidden>
+      <div class="bar">
+        <h2>Review queue</h2>
+        <label class="small">Match <select id="rvMatch"></select></label>
+        <label class="small">Show <select id="rvView"><option value="flagged">Flagged unsure</option><option value="all">All clips</option></select></label>
+        <label class="small">Reviewer <input id="rvAnnotator" value="zaid" maxlength="40" size="10" pattern="[A-Za-z0-9_ .\-]{1,40}"></label>
+        <label class="small"><input type="checkbox" id="rvDecided"> show decided</label>
+        <button class="alt small" id="rvRefresh" type="button">Refresh</button>
+      </div>
+      <div id="rvPaused"></div>
+      <h3 id="rvHeading">Clips flagged unsure</h3>
+      <p class="muted small">Score is the Label agent's watchability; prior is what the rules (or the learned model) said before it.
+        Keep and Drop are human verdicts on any clip, flagged or not: they teach the watchability model on the next retrain.</p>
+      <p class="small" id="rvProgress"></p>
+      <div id="rvClips"></div>
+    </section>
+
+    <section data-view="whos-who" hidden>
+      <div class="bar">
+        <h2>Who's who</h2>
+        <label class="small">Vision match <select id="wwMatch"></select></label>
+        <button class="alt small" id="wwRefresh" type="button">Refresh</button>
+      </div>
+      <p class="muted small">The identity agent's least certain calls. Answers correct identity frame by frame, recompute possession,
+        events and clips, and become training data for the kit-number reader (Training &rarr; Learn from Who's who answers).</p>
+      <div id="wwBody"></div>
+    </section>
+
+    <section data-view="training" hidden>
+      <div class="bar">
+        <h2>Training</h2>
+        <button class="alt small" id="trRefresh" type="button">Refresh</button>
+      </div>
+      <div class="cols2">
+        <div>
+          <h3>Watchability model <span class="muted small">(learned from human verdicts)</span></h3>
+          <div id="trFeedback"></div>
+        </div>
+        <div>
+          <h3>Vision models</h3>
+          <div id="trVision"></div>
+        </div>
+      </div>
+    </section>
+
+    <section data-view="runs" hidden>
+      <div class="bar">
+        <h2>Runs</h2>
+        <button class="alt small" id="ruRefresh" type="button">Refresh</button>
+      </div>
+      <div class="cols2 wideLeft">
+        <div>
+          <div id="ruList"></div>
+          <div id="ruDetail"></div>
+        </div>
+        <div>
+          <h3>Upload a match</h3>
+          <form id="upForm" class="panel upload">
+            <div class="drop" id="upDrop" tabindex="0">
+              <b>Drop events.jsonl and tracks.jsonl here</b>
+              <span class="muted small">or pick them below. Tracks are optional; events are validated against the schema first.</span>
+            </div>
+            <label class="small">events.jsonl <input type="file" id="upEvents" accept=".jsonl,application/json,text/plain"></label>
+            <label class="small">tracks.jsonl <input type="file" id="upTracks" accept=".jsonl,application/json,text/plain"></label>
+            <label class="small">Player <select id="upPlayer" disabled><option value="">pick events.jsonl first</option></select></label>
+            <label class="small">Match id <input id="upMatchId" placeholder="from the file" maxlength="120"></label>
+            <label class="small"><input type="checkbox" id="upReview"> pause for review on unsure clips</label>
+            <button id="upGo" type="submit" data-write>Upload and run the workflow</button>
+            <p class="small" id="upMsg"></p>
+          </form>
+          <div id="upResult"></div>
+        </div>
+      </div>
+    </section>
+
+    <section data-view="jobs" hidden>
+      <div class="bar">
+        <h2>Jobs</h2>
+        <span class="muted small">vision jobs, local only, one at a time</span>
+        <button class="alt small" id="jbRefresh" type="button">Refresh</button>
+      </div>
+      <div id="jbState"></div>
+      <div class="cols2">
+        <div>
+          <h3>Log <span class="muted small" id="jbLogWho"></span></h3>
+          <pre class="log" id="jbLog">Pick a job.</pre>
+          <div id="jbResult"></div>
+        </div>
+        <div id="jbForms"></div>
+      </div>
+      <h3>Past jobs</h3>
+      <div id="jbList"></div>
+    </section>
+
+    <section data-view="console" hidden>
+      <div class="bar"><h2>Console</h2><span class="muted small">send a question to any engine and see exactly what comes back</span></div>
+      <form id="coForm" class="panel console">
+        <input id="coQ" maxlength="300" placeholder="find me Castellanos doing a nutmeg" aria-label="Question">
+        <select id="coMatch" aria-label="Match"></select>
+        <select id="coEngine" aria-label="Engine">
+          <option value="search">search (rules, GET /search)</option>
+          <option value="ask">ask (Foundry Librarian, POST /ask)</option>
+          <option value="chat-rules">chat, rules (POST /chat)</option>
+          <option value="chat-foundry">chat, Foundry (POST /chat)</option>
+        </select>
+        <button type="submit">Send</button>
+        <button type="button" class="alt" id="coReset">New conversation</button>
+      </form>
+      <p class="muted small" id="coNote"></p>
+      <div class="cols2">
+        <div>
+          <h3>Trace</h3>
+          <div id="coTrace" class="muted small">Nothing sent yet.</div>
+          <h3>Conversation state</h3>
+          <pre class="log json" id="coState">Chat engines keep the query so far here and send it back with the next message.</pre>
+        </div>
+        <div>
+          <h3>Raw response <span class="muted small" id="coStatus"></span></h3>
+          <pre class="log json" id="coRaw"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/static/shared/regista.js"></script>
+<script src="/static/studio/studio.js"></script>
+</body>
+</html>

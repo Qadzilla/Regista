@@ -134,6 +134,8 @@ class IdentityAgent(Agent):
         result = run_identity(state["video_path"], state["roster"], segs, reader, cfg)
         path = _work_dir(state) / "identity.joblib"
         joblib.dump(result, path)
+        models = Path(self.config.get("models_dir", str(DEFAULT_MODELS_DIR))).resolve()  # what an answer later recomputes with
+        (path.parent / "run.json").write_text(json.dumps({"models_dir": str(models)}) + "\n", encoding="utf-8")
         state["identity_path"] = str(path)
         state["identity_summary"] = {k: v for k, v in result.info.items() if k != "video"} | {"cutaway_segments": len(result.cutaway)}
         return state

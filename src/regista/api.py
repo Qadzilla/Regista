@@ -3,30 +3,36 @@
     uvicorn regista.api:app --reload            # http://localhost:8000  (viewer) and /docs (OpenAPI)
     REGISTA_DATA=data/synthetic/sample uvicorn regista.api:app
 
-Read endpoints are open. Write endpoints (uploads, verdicts, reviews, retraining) need the
-``X-Regista-Token`` header when REGISTA_ADMIN_TOKEN is set, and are switched off entirely with
-REGISTA_READONLY=1. Without either (local development) they are open.
+Two pages: the Product at ``/`` (open) and the Studio at ``/studio`` (regista.studio_api). Product reads are open.
+Studio reads (reviewers' data, marked [studio]) need the ``X-Regista-Token`` header with the Studio view key or the
+admin key; writes (marked [write]) need the admin key. REGISTA_READONLY=1 switches writes off entirely. With no key
+configured, a plain local run (development) is open; with REGISTA_READONLY or REGISTA_CLOUD set it fails closed. The rules
+live in regista.access.
 
 Endpoints
 ---------
-GET  /                                          the viewer
+GET  /                                          the Product
+GET  /studio                                    the Studio (data behind the Studio keys; see regista.studio_api)
 GET  /api/health
 GET  /api/matches                               match directories under REGISTA_DATA
 POST /api/matches                               upload events.jsonl (+ tracks.jsonl); runs the Agent Framework workflow       [write]
-GET  /api/matches/{match_id}                    manifest, roster, score
+GET  /api/matches/{match_id}                    roster, score, periods, duration_s, origin, key_moments (goals, for the timeline)
 GET  /api/matches/{match_id}/clips?player=&tag=&min_watchability=&reason=
+GET  /api/matches/{match_id}/reel.mp4?clips=    1 to 12 clips back to back, in the order given; rendered once, cached
+GET  /api/matches/{match_id}/moments.csv?player=&clips=   the given clips in order, or a player's in match order (download)
 GET  /api/matches/{match_id}/search?q=          the Librarian (rule-based, instant)
-POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools
-POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited)
-GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE
+POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools; with its trace
+POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited);
+                                                with its trace
+GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE (sizes, queue, budget: below)
 GET  /api/matches/{match_id}/video.mp4          the whole broadcast, rendered on demand, cached
 GET  /api/matches/{match_id}/report             synthetic realism report (markdown)
-GET  /api/matches/{match_id}/review             the workflow's open review request
+GET  /api/matches/{match_id}/review             the workflow's open review request                                           [studio]
 POST /api/matches/{match_id}/review             answer it; the workflow resumes from its checkpoint                          [write]
 POST /api/matches/{match_id}/clips/{clip_id}/verdict   one verdict from the viewer                                         [write]
-GET  /api/matches/{match_id}/identity-review    open "who's who" questions for a vision match (crops, candidates, team sheets)
+GET  /api/matches/{match_id}/identity-review    open "who's who" questions for a vision match (crops, candidates, team sheets) [studio]
 POST /api/matches/{match_id}/identity-review    answer them; identity is corrected and possession, events, clips recomputed   [write]
-GET  /api/feedback                              verdict counts, the learned model, agreement per scorer
+GET  /api/feedback                              verdict counts, the learned model, agreement per scorer                       [studio]
 POST /api/feedback/train                        retrain the watchability model                                             [write]
 
 The service only reads and writes under REGISTA_DATA, REGISTA_CACHE and REGISTA_FEEDBACK_DIR.
@@ -44,6 +50,7 @@ import tempfile
 import threading
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Literal
@@ -52,18 +59,21 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Reques
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse, PlainTextResponse
 from pydantic import BaseModel, Field, StrictFloat, StrictInt, StringConstraints, model_validator
+from starlette.background import BackgroundTask
 
 from regista import __version__
+from regista.access import StudioReader, Writer, require_studio_reader, require_writer, role_of, write_mode  # noqa: F401
 from regista.agents.roles import default_agents
+from regista.clips import title_word
 from regista.librarian import search_clips
 from regista.schema import iter_jsonl, validate_jsonl
 
 DATA_ROOT = Path(os.environ.get("REGISTA_DATA", "data/synthetic/sample"))
 CACHE_ROOT = Path(os.environ.get("REGISTA_CACHE", "data/clips"))
-STATIC = Path(__file__).resolve().parent / "static"
+STATIC = Path(__file__).resolve().parent / "static"  # product/, studio/, shared/
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SYNC_TTL_S = 30.0
-ID_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,120}$")
+ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.\-]{0,119}$")  # starts alphanumeric: never ".", ".hidden" or "-x"
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
@@ -82,26 +92,44 @@ app = FastAPI(title="Regista", version=__version__, description="Every touch. Ev
               lifespan=_lifespan)
 
 
-# ---------------------------------------------------------------------------- access control
+# Access control (write_mode, require_writer, require_studio_reader) lives in regista.access.
 
-def write_mode() -> str:
-    if os.environ.get("REGISTA_READONLY") == "1":
-        return "read-only"
-    return "token" if os.environ.get("REGISTA_ADMIN_TOKEN") else "open"
-
-
-def require_writer(x_regista_token: Annotated[str | None, Header()] = None) -> None:
-    """Writes are the only way to spend Foundry credit or change what the model learns, so they are guarded."""
-    mode = write_mode()
-    if mode == "read-only":
-        raise HTTPException(403, "this deployment is read-only")
-    if mode == "token":
-        expected = os.environ.get("REGISTA_ADMIN_TOKEN", "")
-        if not x_regista_token or not hmac.compare_digest(x_regista_token.encode(), expected.encode()):
-            raise HTTPException(401, "a valid X-Regista-Token header is required to write")
+# Defence in depth for the key the Studio keeps in sessionStorage: scripts only from this server (both pages load
+# external files and run no inline script), no framing, no plugins. Styles stay inline-able: the pages set style
+# attributes and the timeline injects its own <style>. /docs and /redoc (Swagger UI from a CDN) are left alone.
+CSP = ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; "
+       "media-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none'")
+SECURITY_HEADERS = [(b"content-security-policy", CSP.encode()), (b"x-content-type-options", b"nosniff"),
+                    (b"x-frame-options", b"DENY"), (b"referrer-policy", b"same-origin")]
 
 
-Writer = Depends(require_writer)
+class _Hardening:
+    """Pure ASGI middleware: security headers on every response, and HEAD answered as GET without the body (uptime
+    checkers use HEAD; FastAPI routes are GET-only and would say 405)."""
+
+    def __init__(self, app: Any):
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        path = scope.get("path", "")
+        head = scope["method"] == "HEAD" and not path.startswith("/static/")  # StaticFiles answers HEAD itself
+        if head:
+            scope = {**scope, "method": "GET"}
+        headers = not (path.startswith("/docs") or path.startswith("/redoc"))
+
+        async def wrapped(message: dict) -> None:
+            if message["type"] == "http.response.start" and headers:
+                message = {**message, "headers": [*message.get("headers", []), *SECURITY_HEADERS]}
+            elif message["type"] == "http.response.body" and head:
+                message = {**message, "body": b""}
+            await send(message)
+
+        await self.app(scope, receive, wrapped)
+
+
+app.add_middleware(_Hardening)
 
 
 # ---------------------------------------------------------------------------- request bodies
@@ -345,10 +373,55 @@ def _player_of(clip_id: str) -> str | None:
 # starved its one CPU, and answered 503 (seen on the live app on 2026-10-21). Now each file is rendered once (later
 # requests wait for it), into a temporary name that is renamed into place (a half-written file is never served), and at
 # most REGISTA_RENDER_CONCURRENCY renders run at a time.
+#
+# The render endpoints are public, so anyone can ask for a render. Three more rules keep that from stalling the app or
+# filling its disk (audit J2, 2026-10-21: 46 parallel requests at odd sizes kept /api/health from answering for a minute):
+# - only the sizes the pages use are accepted (RENDER_WIDTHS x RENDER_FPS; anything else is 400), so the cache holds at
+#   most a few files per clip;
+# - renders run on their own small thread pool, so requests waiting for one hold no thread of the pool every other
+#   endpoint runs on, and at most REGISTA_RENDER_QUEUE of them wait at once (more get 503 with Retry-After);
+# - the cache keeps at most REGISTA_CACHE_MAX_MB (default 1024 MB): after each render the least recently served files go
+#   first, never one that is being rendered or served right now.
 RENDER_CONCURRENCY = max(1, int(os.environ.get("REGISTA_RENDER_CONCURRENCY", "1")))
+RENDER_WIDTHS = {640, 1280}       # 1280 is what both pages ask for (the default); 640 a lighter size for slow links
+RENDER_FPS = {25}
+RENDER_QUEUE_MAX = max(1, int(os.environ.get("REGISTA_RENDER_QUEUE", "24")))
+CACHE_MAX_BYTES = max(1, int(os.environ.get("REGISTA_CACHE_MAX_MB", "1024"))) * 1024 * 1024
 _render_slots = threading.BoundedSemaphore(RENDER_CONCURRENCY)
 _render_locks: dict[Path, threading.Lock] = {}
 _render_locks_guard = threading.Lock()
+_render_pool = ThreadPoolExecutor(max_workers=RENDER_CONCURRENCY + 2, thread_name_prefix="regista-render")
+_render_waiting = {"n": 0}        # requests waiting for a render; touched only on the event loop
+_serving: dict[Path, int] = {}    # cached files a response is sending right now, never evicted
+_serving_guard = threading.Lock()
+
+
+def _check_size(fps: float, width: int) -> None:
+    if fps not in RENDER_FPS or width not in RENDER_WIDTHS:
+        raise HTTPException(400, f"videos come at fps {sorted(RENDER_FPS)} and width {sorted(RENDER_WIDTHS)}")
+
+
+def _evict_cache(keep: Path) -> None:
+    """Delete the least recently served videos until the cache fits CACHE_MAX_BYTES. Files being rendered (temporary
+    names start with ".") or served, and ``keep``, stay."""
+    if not CACHE_ROOT.exists():
+        return
+    files = []
+    for f in CACHE_ROOT.glob("*/*.mp4"):
+        try:
+            st = f.stat()
+        except FileNotFoundError:
+            continue
+        files.append((st.st_mtime, st.st_size, f))
+    total = sum(size for _t, size, _f in files)
+    for _t, size, f in sorted(files, key=lambda x: x[0]):
+        if total <= CACHE_MAX_BYTES:
+            break
+        with _serving_guard:
+            if f.name.startswith(".") or f == keep or _serving.get(f) or _render_locks.get(f):
+                continue
+            f.unlink(missing_ok=True)
+        total -= size
 
 
 def _render_once(out: Path, render: Any) -> Path:
@@ -372,6 +445,7 @@ def _render_once(out: Path, render: Any) -> Path:
             finally:
                 for leftover in (tmp, tmp.with_suffix(".gif")):
                     leftover.unlink(missing_ok=True)
+            _evict_cache(keep=out)
     finally:
         with _render_locks_guard:
             if _render_locks.get(out) is lock and not lock.locked():
@@ -379,35 +453,67 @@ def _render_once(out: Path, render: Any) -> Path:
     return out
 
 
+async def _video(out: Path, render: Any, filename: str | None = None) -> FileResponse:
+    """Serve ``out``, rendering it first on the render pool if it is not cached. Marked as served until sent."""
+    if not out.exists():
+        if _render_waiting["n"] >= RENDER_QUEUE_MAX:
+            raise HTTPException(503, "too many videos are rendering right now; try again shortly", headers={"Retry-After": "10"})
+        _render_waiting["n"] += 1
+        try:
+            await asyncio.get_running_loop().run_in_executor(_render_pool, _render_once, out, render)
+        finally:
+            _render_waiting["n"] -= 1
+    with _serving_guard:
+        if not out.exists():  # evicted between the render and now: render it again on the next request
+            raise HTTPException(503, "the video was just evicted from the cache; try again", headers={"Retry-After": "1"})
+        _serving[out] = _serving.get(out, 0) + 1
+        os.utime(out)  # recently served: evicted last
+
+    def done() -> None:
+        with _serving_guard:
+            _serving[out] -= 1
+            if not _serving[out]:
+                del _serving[out]
+
+    return FileResponse(out, media_type="video/mp4", filename=filename or out.name, background=BackgroundTask(done))
+
+
 def _clip_cache_path(match_id: str, clip_id: str, fps: float, width: int) -> Path:
     return CACHE_ROOT / match_id / f"{clip_id}_{int(fps)}fps_{width}.mp4"
 
 
 def _render_clip_cached(d: Path, clip: dict, label: dict | None, fps: float, width: int) -> Path:
-    from regista.render.clips import render_clip
-    from regista.render.draw import Style
-    from regista.render.scene import Scene
+    return _render_once(*_render_clip_job(d, clip, label, fps, width))
 
-    return _render_once(_clip_cache_path(d.name, clip["id"], fps, width),
-                        lambda tmp: render_clip(Scene.load(d), clip, label, tmp, fps, Style(width, round(width * 9 / 16))))
+
+PRERENDER_PROGRESS: dict[str, Any] = {"running": False, "total": 0, "rendered": 0, "failed": 0, "started_at": None, "finished_at": None}
 
 
 def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
     """Render the featured player's clips for every local match, best first, so the first visitor after a deploy finds
-    them cached. Runs in a background thread at startup when REGISTA_PRERENDER=1 (set in the Dockerfile)."""
-    done = []
-    for d in sorted(DATA_ROOT.iterdir()) if DATA_ROOT.exists() else []:
-        manifest = d / "manifest.json"
-        player = json.loads(manifest.read_text()).get("clips_for") if manifest.exists() else None
-        if not player or not (d / "events.jsonl").exists():
-            continue
-        clips, labels = _clips(d, player)
-        for c in sorted((c for c in clips if c["player_id"] == player),
-                        key=lambda c: (-labels.get(c["id"], {}).get("watchability", 0.0), c["t"])):
+    them cached. Runs in a background thread at startup when REGISTA_PRERENDER=1 (set in the Dockerfile). Progress is
+    kept in PRERENDER_PROGRESS for the Studio."""
+    done, todo = [], []
+    PRERENDER_PROGRESS.update(running=True, total=0, rendered=0, failed=0, started_at=time.time(), finished_at=None)
+    try:
+        for d in sorted(DATA_ROOT.iterdir()) if DATA_ROOT.exists() else []:
+            manifest = d / "manifest.json"
+            player = json.loads(manifest.read_text()).get("clips_for") if manifest.exists() else None
+            if not player or not (d / "events.jsonl").exists():
+                continue
+            clips, labels = _clips(d, player)
+            todo += [(d, c, labels.get(c["id"])) for c in sorted((c for c in clips if c["player_id"] == player),
+                                                                  key=lambda c: (-labels.get(c["id"], {}).get("watchability", 0.0), c["t"]))]
+        PRERENDER_PROGRESS["total"] = len(todo)
+        for d, c, label in todo:
             try:
-                done.append(_render_clip_cached(d, c, labels.get(c["id"]), fps, width))
+                done.append(_render_clip_cached(d, c, label, fps, width))
+                PRERENDER_PROGRESS["rendered"] += 1
             except Exception as exc:  # noqa: BLE001  (one bad clip must not stop the rest)
+                PRERENDER_PROGRESS["failed"] += 1
                 print(f"prerender: {d.name}/{c['id']} failed: {exc!r}", flush=True)
+    finally:
+        PRERENDER_PROGRESS.update(running=False, finished_at=time.time())
     return done
 
 
@@ -415,7 +521,7 @@ def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def viewer() -> str:
-    return (STATIC / "viewer.html").read_text(encoding="utf-8")
+    return (STATIC / "product" / "index.html").read_text(encoding="utf-8")
 
 
 @app.get("/api/health")
@@ -434,7 +540,9 @@ def health() -> dict[str, Any]:
 @app.get("/api/matches")
 def list_matches() -> list[dict[str, Any]]:
     """Matches on this replica (``source: local``, full features) and matches only Cosmos DB still holds
-    (``source: cosmos``: clips and labels, no video). ``in_cosmos`` marks local matches the library also holds."""
+    (``source: cosmos``: clips and labels, no video). ``in_cosmos`` marks local matches the library also holds;
+    ``featured`` (from manifest.json) marks the match the Product opens on; ``clip_count`` counts the clips on disk;
+    ``title`` and ``subtitle`` (manifest.json, may be None) name the match for people."""
     library = _library()
     out = []
     if DATA_ROOT.exists():
@@ -442,14 +550,17 @@ def list_matches() -> list[dict[str, Any]]:
             if (d / "events.jsonl").exists():
                 m = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
                 h = _header(d)
+                n_clips = sum(r["type"] == "clip" for r in iter_jsonl(d / "clips.jsonl")) if (d / "clips.jsonl").exists() else 0
                 out.append({"match_id": d.name, "score": m.get("score", h.get("score")), "clips_for": m.get("clips_for"),
                             "teams": _team_summary(h), "video_duration_s": h["video"]["duration_s"], "source": "local",
-                            "video": True, "in_cosmos": d.name in library})
+                            "video": True, "in_cosmos": d.name in library, "featured": bool(m.get("featured")),
+                            "clip_count": n_clips, "title": m.get("title"), "subtitle": m.get("subtitle")})
     local = {m["match_id"] for m in out}
     for mid, h in sorted(library.items()):
         if mid not in local:
             out.append({"match_id": mid, "score": h.get("score"), "clips_for": None, "teams": _team_summary(h),
-                        "video_duration_s": h.get("video", {}).get("duration_s"), "source": "cosmos", "video": False, "in_cosmos": True})
+                        "video_duration_s": h.get("video", {}).get("duration_s"), "source": "cosmos", "video": False, "in_cosmos": True,
+                        "featured": False, "clip_count": None, "title": None, "subtitle": None})
     return out
 
 
@@ -466,21 +577,78 @@ def get_match(match_id: str) -> dict[str, Any]:
     h = _cosmos_match(match_id)
     if h is not None:
         clips, _labels = _feedback_store().clips_for(match_id)
-        source = "cosmos"
+        source, key_moments, manifest = "cosmos", [], {}  # the library keeps the header, not the event stream
+        moments = {}
+        for c in clips:
+            moments[c["player_id"]] = moments.get(c["player_id"], 0) + 1
     else:
         d = _match_dir(match_id)
         h = _header(d)
         clips, _labels = _clips(d)
-        source = "local"
+        source, key_moments = "local", _key_moments(d, h)
+        manifest = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
+        moments = _moment_counts(d, h, clips)
     players_with_clips = sorted({c["player_id"] for c in clips})
     return {"match_id": match_id, "teams": h["teams"], "players": h["players"], "score": h.get("score"), "video": h["video"],
-            "periods": h["periods"], "players_with_clips": players_with_clips, "clip_count": len(clips), "source": source}
+            "periods": h["periods"], "players_with_clips": players_with_clips, "clip_count": len(clips), "source": source,
+            "duration_s": (h.get("video") or {}).get("duration_s"), "origin": h.get("source"),
+            "key_moments": key_moments, "moment_counts": moments, "title": manifest.get("title"), "subtitle": manifest.get("subtitle")}
+
+
+def _moment_counts(d: Path, h: dict[str, Any], clips: list[dict]) -> dict[str, int]:
+    """How many moments each player has, as GET /clips?player= would return them: the persisted clips for players who
+    have them, else the clips derived on the fly. Players with none are left out."""
+    from regista.clips import derive_clips
+
+    counts: dict[str, int] = {}
+    for c in clips:
+        counts[c["player_id"]] = counts.get(c["player_id"], 0) + 1
+    stream = None
+    for p in h["players"]:
+        if p["player_id"] in counts:
+            continue
+        stream = stream if stream is not None else list(iter_jsonl(d / "events.jsonl"))
+        try:
+            n = len(derive_clips(stream, p["player_id"])[0])
+        except ValueError:
+            n = 0
+        if n:
+            counts[p["player_id"]] = n
+    return counts
+
+
+def _match_minute(t: float, r: dict[str, Any], h: dict[str, Any]) -> int:
+    """The minute a fan would say (0:13 is the 1st minute). Vision events carry no clock, so it comes from the periods."""
+    if r.get("clock"):
+        return r["clock"]["minute"] + 1
+    period = next((p for p in reversed(h.get("periods") or []) if p["t"] <= t), None)
+    if period is None:
+        return int(t // 60) + 1
+    return 45 * (period["period"] - 1) + int((t - period["t"]) // 60) + 1
+
+
+def _key_moments(d: Path, h: dict[str, Any]) -> list[dict[str, Any]]:
+    """Goals in match order, for the timeline: {t, kind, player_id, team_id, label}."""
+    players = {p["player_id"]: p for p in h["players"]}
+    out = []
+    for r in iter_jsonl(d / "events.jsonl"):
+        if r["type"] != "event" or r.get("event_type") != "goal":
+            continue
+        p = players.get(r.get("player_id"))
+        who = f"{p['name']} ({p['kit_number']})" if p else "unknown scorer"
+        out.append({"t": r["t"], "kind": "goal", "player_id": r.get("player_id"), "team_id": r.get("team_id"),
+                    "label": f"Goal: {who}, {_match_minute(r['t'], r, h)}'"})
+    return sorted(out, key=lambda m: m["t"])
 
 
 @app.get("/api/matches/{match_id}/clips")
 def get_clips(match_id: str, player: str | None = None, tag: str | None = None, reason: str | None = None,
-              min_watchability: float = Query(0.0, ge=0.0, le=1.0)) -> list[dict[str, Any]]:
+              min_watchability: float = Query(0.0, ge=0.0, le=1.0),
+              x_regista_token: Annotated[str | None, Header()] = None) -> list[dict[str, Any]]:
+    """Clips with labels, best first. Without a Studio key, a verdict says only what was decided, not who decided it."""
     from regista.feedback import needs_review
+
+    studio = role_of(x_regista_token) is not None
 
     cosmos = _cosmos_match(match_id) is not None
     if cosmos:
@@ -499,6 +667,8 @@ def get_clips(match_id: str, player: str | None = None, tag: str | None = None, 
         if lb["watchability"] < min_watchability:
             continue
         verdict = verdicts.get(c["id"])
+        if verdict and not studio:
+            verdict = {"verdict": verdict["verdict"], "keep": verdict["keep"]}
         review = None if verdict else (lb.get("review") or needs_review(lb["watchability"], lb.get("prior_watchability")))
         out.append({**c, "label": lb, "review": review, "verdict": verdict, "source": "cosmos" if cosmos else "local",
                     "video_url": None if cosmos else f"/api/matches/{match_id}/clips/{c['id']}.mp4"})
@@ -515,8 +685,16 @@ def search(match_id: str, q: str = Query(..., min_length=1, max_length=300), lim
     return out
 
 
-@app.get("/api/matches/{match_id}/clips/{clip_id}.mp4")
-def clip_video(match_id: str, clip_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+def _render_clip_job(d: Path, clip: dict, label: dict | None, fps: float, width: int) -> tuple[Path, Any]:
+    from regista.render.clips import render_clip
+    from regista.render.draw import Style
+    from regista.render.scene import Scene
+
+    return (_clip_cache_path(d.name, clip["id"], fps, width),
+            lambda tmp: render_clip(Scene.load(d), clip, label, tmp, fps, Style(width, round(width * 9 / 16))))
+
+
+def _find_clip(match_id: str, clip_id: str) -> tuple[Path, dict, dict | None]:
     d = _match_dir(match_id)
     if not ID_RE.match(clip_id):
         raise HTTPException(400, "bad clip id")
@@ -524,20 +702,134 @@ def clip_video(match_id: str, clip_id: str, fps: float = Query(25.0, gt=0, le=60
     clip = next((c for c in clips if c["id"] == clip_id), None)
     if clip is None:
         raise HTTPException(404, f"no clip {clip_id}")
-    out = _render_clip_cached(d, clip, labels.get(clip_id), fps, width)
-    return FileResponse(out, media_type="video/mp4", filename=out.name)
+    return d, clip, labels.get(clip_id)
+
+
+@app.get("/api/matches/{match_id}/clips/{clip_id}.mp4")
+async def clip_video(match_id: str, clip_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+    _check_size(fps, width)
+    d, clip, label = await run_in_threadpool(_find_clip, match_id, clip_id)
+    return await _video(*_render_clip_job(d, clip, label, fps, width))
 
 
 @app.get("/api/matches/{match_id}/video.mp4")
-def match_video(match_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
-    d = _match_dir(match_id)
+async def match_video(match_id: str, fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+    _check_size(fps, width)
+    d = await run_in_threadpool(_match_dir, match_id)
     from regista.render.draw import Style
     from regista.render.scene import Scene
     from regista.render.video import render_video
 
-    out = _render_once(CACHE_ROOT / match_id / f"broadcast_{int(fps)}fps_{width}.mp4",
-                       lambda tmp: render_video(Scene.load(d), tmp, fps=fps, style=Style(width, round(width * 9 / 16)), end_card_s=3.0))
-    return FileResponse(out, media_type="video/mp4", filename=out.name)
+    return await _video(CACHE_ROOT / match_id / f"broadcast_{int(fps)}fps_{width}.mp4",
+                        lambda tmp: render_video(Scene.load(d), tmp, fps=fps, style=Style(width, round(width * 9 / 16)), end_card_s=3.0))
+
+
+# ---------------------------------------------------------------------------- take-aways: a reel to download, moments to export
+
+MAX_REEL_CLIPS = 12       # a reel renders on the replica's one CPU; twelve clips is about two minutes of video
+MAX_EXPORT_CLIPS = 500
+READABLE_REASONS = {"on_ball_main": "On the ball", "replay_appearance": "Replay", "highlight_appearance": "Highlight",
+                    "closeup_appearance": "Closeup"}
+
+
+def _clip_ids(raw: str, cap: int) -> list[str]:
+    """Comma-separated clip ids, order kept: each must look like an id, none repeated, 1 to ``cap`` of them."""
+    ids = [s.strip() for s in raw.split(",")]
+    if not ids or not all(ID_RE.match(i) for i in ids):
+        raise HTTPException(400, "clips must be comma-separated clip ids")
+    if len(ids) > cap:
+        raise HTTPException(400, f"at most {cap} clips at a time")
+    if len(set(ids)) != len(ids):
+        raise HTTPException(400, "a clip id is repeated")
+    return ids
+
+
+def _clips_by_id(match_id: str, ids: list[str]) -> tuple[list[dict], dict[str, dict]]:
+    """The clips named, in the order given, with their labels; 404 naming any that do not exist. Clips derived on the fly
+    (a player with none on disk) count, as they do for the clip endpoint. Cosmos-only matches read the library."""
+    if _cosmos_match(match_id) is not None:
+        clips, labels = _feedback_store().clips_for(match_id)
+    else:
+        d = _match_dir(match_id)
+        clips, labels = [], {}
+        for player in dict.fromkeys(_player_of(i) for i in ids):
+            more, more_labels = _clips(d, player)
+            clips += more
+            labels.update(more_labels)
+    by_id = {c["id"]: c for c in clips}
+    missing = [i for i in ids if i not in by_id]
+    if missing:
+        raise HTTPException(404, f"no clip(s) {', '.join(missing[:5])} in match {match_id}")
+    return [by_id[i] for i in ids], labels
+
+
+@app.get("/api/matches/{match_id}/reel.mp4")
+async def reel_video(match_id: str, clips: str = Query(..., min_length=1, max_length=2000), fps: float = Query(25.0, gt=0, le=60),
+                     width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
+    """The clips back to back in the order given, each with its title card. Rendered once and cached by its content."""
+    import hashlib
+
+    from regista.render.clips import render_reel
+    from regista.render.draw import Style
+    from regista.render.scene import Scene
+
+    _check_size(fps, width)
+
+    def find() -> tuple[Path, list[str], list[dict], dict[str, dict]]:
+        d = _match_dir(match_id)
+        ids = _clip_ids(clips, MAX_REEL_CLIPS)
+        return (d, ids, *_clips_by_id(match_id, ids))
+
+    d, ids, chosen, labels = await run_in_threadpool(find)
+    key = hashlib.sha256(json.dumps([ids, fps, width]).encode()).hexdigest()[:20]
+    return await _video(CACHE_ROOT / match_id / f"reel_{key}.mp4",
+                        lambda tmp: render_reel(Scene.load(d), chosen, labels, tmp, fps, Style(width, round(width * 9 / 16)), keep_order=True),
+                        filename=f"regista_{match_id}_reel.mp4")
+
+
+def _csv_cell(v: Any) -> Any:
+    """Text a spreadsheet would run as a formula (titles and tags can come from uploads or models) is quoted as text."""
+    return f"'{v}" if isinstance(v, str) and v[:1] in ("=", "+", "-", "@", "\t", "\r") else v
+
+
+@app.get("/api/matches/{match_id}/moments.csv", response_class=PlainTextResponse)
+def moments_csv(match_id: str, player: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9_]{1,40}$")] = None,
+                clips: Annotated[str | None, Query(min_length=1, max_length=20000)] = None) -> PlainTextResponse:
+    """A scout's list: the clips given, in that order, or every clip of ``player`` in match order. ``clips`` wins when
+    both are given. Columns: time, end (m:ss), kind, tags, title, watchability, then time_s, end_s and clip_id."""
+    import csv
+    import io
+
+    _check_id(match_id)
+    if clips:
+        chosen, labels = _clips_by_id(match_id, _clip_ids(clips, MAX_EXPORT_CLIPS))
+    elif player:
+        if _cosmos_match(match_id) is not None:
+            found, labels = _feedback_store().clips_for(match_id, player)
+        else:
+            d = _match_dir(match_id)
+            if player not in {p["player_id"] for p in _header(d)["players"]}:
+                raise HTTPException(404, f"no player {player!r} in match {match_id}")
+            found, labels = _clips(d, player)
+        chosen = sorted((c for c in found if c["player_id"] == player), key=lambda c: (c["t"], c["id"]))
+    else:
+        raise HTTPException(400, "give player= or clips=")
+
+    def mmss(t: float) -> str:
+        return f"{int(t // 60)}:{int(t % 60):02d}"
+
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\n")
+    w.writerow(["time", "end", "kind", "tags", "title", "watchability", "time_s", "end_s", "clip_id"])
+    for c in chosen:
+        lb = labels.get(c["id"]) or {}
+        tags = "; ".join(dict.fromkeys(title_word(t) for t in lb.get("tags", []) if t not in READABLE_REASONS))  # "take-on", "assist"
+        w.writerow([mmss(c["t"]), mmss(c["t_end"]), READABLE_REASONS.get(c["reason"], c["reason"].replace("_", " ")), _csv_cell(tags),
+                    _csv_cell(lb.get("title", "")), "" if lb.get("watchability") is None else round(lb["watchability"], 2),
+                    round(c["t"], 2), round(c["t_end"], 2), c["id"]])
+    name = f"regista_{match_id}_{player if player and not clips else 'selection'}_moments.csv"
+    return PlainTextResponse(buf.getvalue(), media_type="text/csv; charset=utf-8",
+                             headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
 @app.get("/api/matches/{match_id}/report", response_class=PlainTextResponse)
@@ -576,7 +868,7 @@ def _queue_path(d: Path) -> Path:
     return d / "review" / QUEUE_FILE
 
 
-@app.get("/api/matches/{match_id}/identity-review")
+@app.get("/api/matches/{match_id}/identity-review", dependencies=[StudioReader])
 def identity_review(match_id: str) -> dict[str, Any]:
     d = _match_dir(match_id)
     q = _queue_path(d)
@@ -592,7 +884,7 @@ def identity_review(match_id: str) -> dict[str, Any]:
     return {"items": items, "teams": teams, "question": f"{len(items)} call(s) the identity agent is unsure of."}
 
 
-@app.get("/api/matches/{match_id}/identity-review/crops/{name}", include_in_schema=False)
+@app.get("/api/matches/{match_id}/identity-review/crops/{name}", include_in_schema=False, dependencies=[StudioReader])
 def identity_review_crop(match_id: str, name: str) -> FileResponse:
     d = _match_dir(match_id)
     if not CROP_RE.match(name):
@@ -607,17 +899,20 @@ def identity_review_crop(match_id: str, name: str) -> FileResponse:
 async def answer_identity_review(match_id: str, body: IdentityReviewIn) -> dict[str, Any]:
     """Correct identity from a person's answers, then recompute possession, events and clips. The open questions are
     claimed atomically (a second answer gets 409); answers that do not validate change nothing (422)."""
+    from regista.vision.package import work_dir_for
+
     d = _match_dir(match_id)
-    q = _queue_path(d)
-    if not (d / ".vision_work" / "identity.joblib").exists():
+    work = work_dir_for(d)  # d itself for a vision run; for a packaged match, its full output if it is on this machine
+    if work is None:
         raise HTTPException(409, "this match has no identity result to correct (it was not written by the vision layer)")
+    q = _queue_path(work)
     claimed = q.with_name(f"identity_review.claimed-{uuid.uuid4().hex[:8]}.json")
     try:
         os.rename(q, claimed)
     except FileNotFoundError:
         raise HTTPException(409, "no open identity questions (already answered, or none were asked)")
     try:
-        out = await run_in_threadpool(_apply_identity_review, d, claimed, body)
+        out = await run_in_threadpool(_apply_identity_review, work, claimed, body, d)
     except ValueError as exc:
         os.rename(claimed, q)  # nothing was applied; the questions stay open
         raise HTTPException(422, str(exc))
@@ -627,7 +922,8 @@ async def answer_identity_review(match_id: str, body: IdentityReviewIn) -> dict[
     return out
 
 
-def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn) -> dict[str, Any]:
+def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn, served: Path | None = None) -> dict[str, Any]:
+    """Apply answers to the vision output ``d``; when the app serves a package of it (``served``), package it again."""
     import joblib
 
     from regista.feedback import feedback_dir
@@ -644,7 +940,10 @@ def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn) -> di
     changed = apply_answers(ident, items, answers)  # in memory until the recompute has succeeded
     manifest = json.loads((d / "manifest.json").read_text())
     seg_recs = [r for r in iter_jsonl(d / "events.jsonl") if r["type"] == "camera_segment"]
-    summary = refresh_from_identity(d, header, probe(manifest["video"]["path"]), header["match_id"], seg_recs, ident, models_dir=MODELS_DIR)
+    run = d / ".vision_work" / "run.json"  # the models the match was made with, when run_vision recorded them
+    models = Path(json.loads(run.read_text())["models_dir"]) if run.exists() else MODELS_DIR
+    summary = refresh_from_identity(d, header, probe(manifest["video"]["path"]), header["match_id"], seg_recs, ident,
+                                    models_dir=models if models.exists() else MODELS_DIR)
     joblib.dump(ident, d / ".vision_work" / "identity.joblib")
     claimed.rename(claimed.with_name(claimed.name.replace(".claimed-", ".").replace(".json", ANSWERED_SUFFIX)))
     (d / "clips.jsonl").unlink(missing_ok=True)  # clips are derived again from the corrected stream
@@ -654,6 +953,12 @@ def _apply_identity_review(d: Path, claimed: Path, body: IdentityReviewIn) -> di
         path.parent.mkdir(parents=True, exist_ok=True)
         with path.open("a", encoding="utf-8") as fh:
             fh.write("".join(json.dumps(r) + "\n" for r in records))
+    if served is not None and served != d:
+        from regista.vision.package import repackage
+
+        repackage(d, served)  # the corrected match, the answers and the next questions, without machine paths
+        shutil.rmtree(CACHE_ROOT / served.name, ignore_errors=True)
+        librarian_cache.cache_clear()
     return {"answers": len(answers), "annotator": body.annotator, **changed, "record_counts": summary["record_counts"],
             "next_questions": summary.get("review_questions")}
 
@@ -700,20 +1005,34 @@ class AskLimiter:
         with self.lock:
             if self.in_flight >= self.concurrent:
                 return False, 5.0, "busy"
+            for key in (visitor, "*"):  # keep each key's hits for its longest window, so every window counts them
+                longest = max(w for w, _cap, per_visitor in self.rules if per_visitor == (key != "*"))
+                self.hits[key] = [t for t in self.hits.get(key, []) if now - t < longest]
             for window, cap, per_visitor in self.rules:
-                key = visitor if per_visitor else "*"
-                times = [t for t in self.hits.get(key, []) if now - t < window]
-                self.hits[key] = times
+                times = [t for t in self.hits[visitor if per_visitor else "*"] if now - t < window]
                 if len(times) >= cap:
                     return False, round(window - (now - times[0]), 1), f"{cap} per {int(window)}s" + (" per visitor" if per_visitor else "")
             for key in (visitor, "*"):
-                self.hits.setdefault(key, []).append(now)
+                self.hits[key].append(now)
             self.in_flight += 1
             return True, 0.0, ""
 
     def release(self) -> None:
         with self.lock:
             self.in_flight = max(0, self.in_flight - 1)
+
+    def snapshot(self, now: float | None = None) -> dict[str, Any]:
+        """Read-only counts for the Studio: questions from everyone in the last minute, hour and day, against the limits."""
+        now = time.monotonic() if now is None else now
+        with self.lock:
+            everyone = list(self.hits.get("*", []))
+            visitors = sum(1 for k, ts in self.hits.items() if k != "*" and any(now - t < 3600 for t in ts))
+            in_flight = self.in_flight
+        (_, per_min, _), (_, per_hour, _), (_, total_hour, _), (_, total_day, _) = self.rules
+        return {"last_minute": sum(1 for t in everyone if now - t < 60), "last_hour": sum(1 for t in everyone if now - t < 3600),
+                "last_day": sum(1 for t in everyone if now - t < 86400), "visitors_last_hour": visitors, "in_flight": in_flight,
+                "limits": {"per_visitor_per_min": per_min, "per_visitor_per_hour": per_hour, "total_per_hour": total_hour,
+                           "total_per_day": total_day, "concurrent": self.concurrent}}
 
 
 _ask_limiter = AskLimiter.from_env()
@@ -748,14 +1067,19 @@ class AskIn(BaseModel):
 async def ask(match_id: str, body: AskIn, request: Request) -> dict[str, Any]:
     """Ask the Foundry Librarian (Microsoft Agent Framework + Foundry, calling Regista's MCP server and the Azure MCP
     Server). Returns its answer, the clips the search found, and the tools it called. Without Foundry, the rule-based
-    Librarian answers and ``answered_by`` says so."""
+    Librarian answers and ``answered_by`` says so. ``trace`` lists what ran, in order: [{name, kind: step|agent|model|
+    tool, server: regista-mcp|azure-mcp|null, ms}], from the Agent Framework spans of this request; ``trace_note`` says
+    when no spans were recorded and the trace is only the tools called, without timings."""
     from fastapi.responses import JSONResponse
+
+    from regista.conversation import timed_step
 
     d = _match_dir(match_id)
     agent = _librarian_agent()
     if agent is None:
-        out = search_clips(d, body.q, 10)
-        out.update(answer=out["message"], answered_by="rules (Foundry is not configured on this deployment)", tools_used=[])
+        trace: list[dict[str, Any]] = []
+        out = timed_step(trace, "librarian.search_clips", search_clips, d, body.q, 10)
+        out.update(answer=out["message"], answered_by="rules (Foundry is not configured on this deployment)", tools_used=[], trace=trace)
     else:
         ok, wait, which = _ask_limiter.acquire(_visitor(request))
         if not ok:
@@ -773,6 +1097,7 @@ async def ask(match_id: str, body: AskIn, request: Request) -> dict[str, Any]:
             raise HTTPException(504, "the Librarian took too long; try a simpler question")
         out = state["answers"][0]
         out.setdefault("tools_used", [])
+        out.setdefault("trace", [])
     for r in out.get("results", []):
         r["video_url"] = f"/api/matches/{match_id}/clips/{r['clip_id']}.mp4"
     return out
@@ -819,7 +1144,9 @@ async def chat(match_id: str, body: ChatIn, request: Request) -> dict[str, Any]:
     """One turn of a conversation. The search and the merged query are deterministic (``regista.conversation``):
     "his", "now the replays", "second half", "what about Ibarra?", "more", "make that a reel". With
     ``engine=foundry`` a Foundry model writes the reply from the conversation and the results, with the same public
-    tools and limits as /ask; without Foundry, or if it fails, the rule-based reply stands and ``answered_by`` says so."""
+    tools and limits as /ask; without Foundry, or if it fails, the rule-based reply stands and ``answered_by`` says so.
+    ``trace`` lists what ran, in order, as in /ask: the in-process steps of the search, then (Foundry) the agent, model
+    and tool spans of the reply; ``trace_note`` says when Foundry ran but no spans were recorded."""
     from fastapi.responses import JSONResponse
 
     from regista.conversation import chat_turn
@@ -833,17 +1160,25 @@ async def chat(match_id: str, body: ChatIn, request: Request) -> dict[str, Any]:
             return JSONResponse({"detail": f"Too many questions right now ({which}); try again in {wait:.0f}s."}, status_code=429,
                                 headers={"Retry-After": str(max(1, int(wait)))})
 
-        def run() -> tuple[str, list[str], str]:
+        def run() -> tuple[tuple[str, list[str], str], list[Any]]:
+            from regista.cloud.telemetry import capture_spans
+
             try:
-                return _chat_reply_foundry(d, body, out)
+                with capture_spans("regista.chat") as cap:  # the Agent Framework spans of this reply, for its trace
+                    reply = _chat_reply_foundry(d, body, out)
+                return reply, cap.spans
             finally:
                 _ask_limiter.release()
 
         try:
-            from regista.cloud.telemetry import configure_tracing
+            (out["reply"], tools, answered_by), spans = await asyncio.wait_for(run_in_threadpool(run), ASK_TIMEOUT_S)
+            if answered_by.startswith("foundry"):
+                from regista.cloud.foundry import foundry_trace
 
-            configure_tracing()
-            out["reply"], tools, answered_by = await asyncio.wait_for(run_in_threadpool(run), ASK_TIMEOUT_S)
+                steps, note = foundry_trace(spans, tools)
+                out["trace"] = out["trace"] + steps
+                if note:
+                    out["trace_note"] = note
         except asyncio.TimeoutError:
             answered_by = "rules (Foundry took too long)"
         except Exception as exc:  # noqa: BLE001 - the deterministic reply stands
@@ -920,7 +1255,7 @@ async def upload_match(events: UploadFile = File(...), tracks: UploadFile | None
 
 # ---------------------------------------------------------------------------- human in the loop
 
-@app.get("/api/matches/{match_id}/review")
+@app.get("/api/matches/{match_id}/review", dependencies=[StudioReader])
 def pending_review(match_id: str) -> dict[str, Any]:
     """The workflow's open review request for this match, if it paused for a human."""
     d = _match_dir(match_id)
@@ -989,7 +1324,7 @@ async def clip_verdict(match_id: str, clip_id: str, body: VerdictIn) -> dict[str
     return {"annotation": rec, "stored_in_cosmos": bool(stored)}
 
 
-@app.get("/api/feedback")
+@app.get("/api/feedback", dependencies=[StudioReader])
 async def feedback_status() -> dict[str, Any]:
     """How much the system has learned from people: verdict counts, the current model, and agreement per scorer."""
     from regista.feedback import WatchabilityModel, evaluate, latest_per_label, load_annotations, target_of
@@ -1017,3 +1352,13 @@ async def feedback_train() -> dict[str, Any]:
     model.save()
     await run_in_threadpool(_push_model)
     return {"model_name": model.name, "metrics": model.metrics, "evaluation": evaluate(anns, model)}
+
+
+# ---------------------------------------------------------------------------- the Studio and shared static files
+
+from fastapi.staticfiles import StaticFiles  # noqa: E402
+
+from regista.studio_api import router as _studio_router  # noqa: E402
+
+app.include_router(_studio_router)
+app.mount("/static", StaticFiles(directory=STATIC), name="static")  # product/, studio/, shared/: public files, no data

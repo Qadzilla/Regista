@@ -10,7 +10,8 @@ from regista.agents import AgentError, Orchestrator
 from regista.agents.roles import ClipAgent, IngestAgent, PossessionAgent, ValidatorAgent
 from regista.cloud.config import CloudConfig, load_dotenv
 from regista.cloud.cosmos import ClipStore, CosmosPersistAgent
-from regista.cloud.foundry import ALLOWED_TAGS, FoundryLabelAgent, FoundryLibrarianAgent, LabelOut, validate_label
+from regista.cloud.foundry import (ALLOWED_TAGS, CHAT_INSTRUCTIONS, LABEL_INSTRUCTIONS, FoundryLabelAgent, FoundryLibrarianAgent, LabelOut,
+                                   validate_label)
 from regista.synth import generate
 from fakes import FakeContainer  # noqa: E402
 
@@ -104,6 +105,13 @@ def test_clip_prompt_mentions_json_for_json_mode(match_dir):
     json.loads(prompt.split("\n\n")[0])  # the structured part is still valid JSON
 
 
+def test_label_prompt_asks_for_plain_football_words():
+    """Audit J3 S7: Foundry wrote "Scored 0.56 because ... low xG" because the prompt asked for a sentence starting with
+    "Scored". Fans read the explanation: no score, no numbers but the minute, no jargon."""
+    assert "Scored" not in LABEL_INSTRUCTIONS and "no jargon such as xG" in LABEL_INSTRUCTIONS
+    assert "never the watchability" in LABEL_INSTRUCTIONS and 'never "clips"' in CHAT_INSTRUCTIONS
+
+
 def test_validate_label_keeps_reason_and_vocabulary():
     prior = {"title": "p", "tags": ["goal", "on_ball_main"], "watchability": 1.0, "summary": "ps", "explanation": "pe"}
     out, notes = validate_label(LabelOut(title="", tags=["nonsense"], watchability=-1, summary="", explanation=""), prior)
@@ -180,6 +188,7 @@ def test_api_upload_reports_dead_letters(tmp_path, monkeypatch):
     monkeypatch.setattr(api, "DATA_ROOT", tmp_path / "data")
     monkeypatch.setattr(api, "CACHE_ROOT", tmp_path / "cache")
     monkeypatch.setenv("REGISTA_CLOUD", "1")
+    monkeypatch.setenv("REGISTA_ADMIN_TOKEN", "admin-key-for-tests")  # the cloud app never takes a write without one
     monkeypatch.setenv("FOUNDRY_PROJECT_ENDPOINT", "https://invalid.example/api/projects/x")
     monkeypatch.setenv("FOUNDRY_MODEL", "nope")
     monkeypatch.delenv("REGISTA_COSMOS_ENDPOINT", raising=False)
@@ -199,7 +208,8 @@ def test_api_upload_reports_dead_letters(tmp_path, monkeypatch):
     r = generate(seed=7, minutes=0.5)
     events = "\n".join(json.dumps(x) for x in r.stream) + "\n"
     with TestClient(api.app) as client:
-        resp = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")}, params={"player": PLAYER})
+        resp = client.post("/api/matches", files={"events": ("events.jsonl", events, "application/x-ndjson")}, params={"player": PLAYER},
+                           headers={"X-Regista-Token": "admin-key-for-tests"})
     body = resp.json()
     assert resp.status_code == 201 and body["pipeline_ok"] is False
     assert body["dead_letters"] == [{"agent": "label", "error": "AgentError: endpoint unreachable"}]

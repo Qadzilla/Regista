@@ -1,0 +1,20 @@
+/* Shared by the Product (/) and the Studio (/studio): colour tokens and base elements. The look comes later; pages
+   style their own layout on top of these tokens. */
+:root {
+  --bg: #0c0e14; --panel: #161a24; --line: #262c3a; --text: #f3f4f6; --muted: #9aa3b5;
+  --accent: #ffcd28; --replay: #d62028; --ok: #3ccf7a; --warn: #ffb020; --bad: #ff5a5f;
+  --highlight: #4aa8ff; --closeup: #c18cff;  /* clip kinds beside --accent (on the ball) and --replay */
+  --radius: 10px; --gap: 16px;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }  /* a layout rule (display: grid) must never override hidden */
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; }
+a { color: var(--accent); }
+select, input, textarea { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font: inherit; }
+button { background: var(--accent); color: #111; border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; }
+button.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+.muted { color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+.brand { font-size: 18px; margin: 0; letter-spacing: .08em; font-weight: 800; }
+.brand span { color: var(--accent); }

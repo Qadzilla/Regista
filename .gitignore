@@ -17,6 +17,7 @@ local.settings.json
 *.mp3
 data/raw/
 data/clips/
+data/studio/
 footage/
 
 # Model weights and large artifacts
@@ -70,6 +71,9 @@ build/
 # Workflow checkpoints and paused reviews (run state, not source)
 **/agents/checkpoints/
 **/agents/pending_review*.json
+
+# Full vision outputs (identity result, full tracks, video paths); only their packages under data/synthetic/sample are committed
+data/vision/
 
 # Human verdicts and the model learned from them: real people's judgements, kept out of git
 data/feedback/

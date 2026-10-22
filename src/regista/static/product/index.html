@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regista</title>
+<meta name="description" content="Every touch, every replay, every player, found in seconds.">
+<link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
+<link rel="stylesheet" href="/static/shared/regista.css">
+<link rel="stylesheet" href="/static/product/product.css">
+</head>
+<body>
+<header class="top">
+  <p class="brand">REGI<span>STA</span></p>
+  <label class="pick"><span class="pick-label">Match</span><select id="match"></select></label>
+  <label class="pick"><span class="pick-label">Player</span><select id="player"></select></label>
+</header>
+
+<main>
+  <div class="neterr" id="netError" role="alert" hidden><span id="netErrorText"></span><button type="button" class="alt" id="netRetry">Retry</button></div>
+
+  <section class="landing" id="landing" aria-labelledby="promise">
+    <h1 id="promise">Every touch, every replay, every player, found in seconds.</h1>
+    <p class="lede">Regista watched this match and cut every moment each player had the ball, plus every replay and highlight
+      they appear in. Ask for any moment.</p>
+    <div class="examples" id="examples" role="group" aria-label="Try a question"></div>
+  </section>
+
+  <section class="matchline" aria-label="This match">
+    <h2 id="matchTitle"></h2>
+    <p id="matchSub" class="muted" hidden></p>
+    <p id="visionNote" class="vision-note" hidden><span class="badge vision">Cut from video</span> on a moment means the vision layer
+      found it in the pictures: who had the ball, what happened and who is in each replay.</p>
+  </section>
+
+  <section class="ask panel" aria-label="Ask Regista">
+    <div class="log" id="log" aria-live="polite" hidden></div>
+    <form class="askrow" id="askForm">
+      <label class="sr" for="q">Ask for a moment</label>
+      <input id="q" type="search" autocomplete="off" maxlength="300" placeholder='Ask for a moment: "his nutmegs", "now the replays", "second half"'>
+      <div class="engine" role="radiogroup" aria-label="Who answers">
+        <label><input type="radio" name="engine" value="rules" checked><span>Instant</span></label>
+        <label><input type="radio" name="engine" value="foundry"><span>Foundry</span></label>
+      </div>
+      <button id="go" type="submit">Ask</button>
+    </form>
+    <p class="hint" id="engineHint"></p>
+  </section>
+
+  <section class="timeline-wrap" id="timelineWrap" aria-label="The match, kick-off to full time" hidden>
+    <div id="timeline"></div>
+  </section>
+
+  <section class="stage panel" id="stage" aria-label="Now playing">
+    <div class="screen">
+      <video id="stageVideo" controls playsinline preload="none"></video>
+      <div class="novideo" id="stageNoVideo" hidden></div>
+      <div class="loading" id="stageLoading" hidden>Preparing this clip. The first view renders it, which takes a few seconds.</div>
+    </div>
+    <div class="info">
+      <p class="now" id="stageNow"></p>
+      <h2 id="stageTitle">Pick a moment</h2>
+      <div class="tags" id="stageTags"></div>
+      <p class="why" id="stageWhy"></p>
+      <div class="actions">
+        <button id="playReel" type="button">Play reel</button>
+        <a class="btn alt" id="downloadReel" download>Download reel</a>
+        <a class="btn alt" id="exportMoments" download>Export moments</a>
+        <a class="btn ghost" id="fullMatch" target="_blank" rel="noopener">Watch the full match</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="results" aria-labelledby="resultsHead">
+    <div class="results-bar">
+      <h2 id="resultsHead">Moments</h2>
+      <div class="sort" role="group" aria-label="Sort">
+        <button type="button" class="seg" data-sort="best" aria-pressed="true">Best first</button>
+        <button type="button" class="seg" data-sort="time" aria-pressed="false">Match order</button>
+      </div>
+    </div>
+    <div class="tagbar" id="tagbar" role="group" aria-label="Filter the moments by tag" hidden></div>
+    <div class="grid" id="grid"></div>
+    <p class="empty" id="empty" hidden></p>
+    <button type="button" class="alt more" id="more" hidden>Show more</button>
+  </section>
+</main>
+
+<footer>
+  <p id="builtOn" class="muted"></p>
+  <p class="muted">Rendered from synthetic match data; no real footage.</p>
+  <p><button type="button" class="link" id="howOpen">How it works</button> · <a href="/studio">Regista Studio</a></p>
+</footer>
+
+<dialog class="drawer" id="how" aria-labelledby="howTitle">
+  <div class="drawer-head">
+    <h2 id="howTitle">How it works</h2>
+    <button type="button" class="alt" id="howClose">Close</button>
+  </div>
+
+  <h3>Two layers</h3>
+  <div class="layers">
+    <div class="panel">
+      <b>Vision layer</b> <span class="muted">private, runs offline</span>
+      <p>Video in, events out. It finds the cuts between the main camera and replays, follows every player by kit number,
+        team colours and tracking, decides who has the ball, and spots passes, shots, take-ons and nutmegs.
+        The footage never leaves the machine it runs on.</p>
+    </div>
+    <div class="panel">
+      <b>Intelligence layer</b> <span class="muted">this app</span>
+      <p>Events in; clips, labels and answers out. It cuts every moment a player is on the ball in the main camera, plus every
+        replay and highlight they appear in, labels each one, scores how worth watching it is, and finds it when you ask.</p>
+    </div>
+  </div>
+  <p class="muted small">Between them sits one list of match events in a published format. The demo matches come from Regista's
+    own match generator, which writes the same list, so no real footage or data is needed.</p>
+
+  <h3>The agent workflow</h3>
+  <p class="muted small">A Microsoft Agent Framework workflow: each agent has one job and passes what it found to the next. An agent
+    that fails tries again, and anything it still cannot handle is set aside and recorded, so one bad record never stops the
+    whole match.</p>
+  <ol class="flow">
+    <li><b>Ingest</b> reads the event stream and indexes it.</li>
+    <li class="pair"><span><b>Validator</b> checks every event is complete and well formed.</span><span><b>Possession</b> finds each player's time on the ball.</span>
+      <em>in parallel, then joined</em></li>
+    <li><b>Clip</b> cuts on-ball moments, replays and highlights.</li>
+    <li><b>Label</b> names each moment, scores it and says why.</li>
+    <li><b>Review</b> asks a person about the labels it is unsure of.</li>
+    <li><b>Persist</b> stores clips and labels.</li>
+    <li><b>Indexer</b> adds them to the search index. <em>only where Azure AI Search is configured</em></li>
+    <li><b>Librarian</b> answers questions over the labelled clips.</li>
+  </ol>
+
+  <h3>Azure on this deployment</h3>
+  <ul class="services" id="services"><li class="muted">Checking…</li></ul>
+
+  <h3>How real is the data?</h3>
+  <p class="small">The three-minute demo matches are packed on purpose, so a short clip reel has goals, nutmegs and replays in it;
+    their numbers sit above a real match's. With its realistic setting, over eight 30-minute matches, the generator sits inside
+    Premier League ranges per 90 minutes on all 13 measures Regista checks (passes, shots, goals, tackles, nutmegs and more).</p>
+  <p><button type="button" class="link" id="reportToggle" aria-expanded="false" aria-controls="report">Show this match's numbers next to
+    Premier League ranges</button></p>
+  <div class="report" id="report" hidden></div>
+</dialog>
+
+<script src="/static/shared/regista.js"></script>
+<script src="/static/product/timeline.js" defer></script>
+<script src="/static/product/app.js" defer></script>
+</body>
+</html>

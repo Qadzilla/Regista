@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter
+from pathlib import Path
 
 import pytest
 
-from regista.clips import derive_clips
-from regista.schema import SCHEMA_VERSION, clips_validator, events_validator
+from regista.clips import StreamIndex, and_list, cut_clips, derive_clips, label_clips, replay_words, tag_phrase, tag_word, title_word
+from regista.feedback import needs_review
+from regista.schema import SCHEMA_VERSION, clips_validator, events_validator, iter_jsonl
 from regista.synth import generate
 
 PLAYER = "t_home_09"
@@ -203,7 +206,72 @@ def test_labels_match_clips_and_explain_themselves(derived):
     for lb in labels:
         assert lb["clip_id"] in clip_ids
         assert lb["tags"] and 0 <= lb["watchability"] <= 1
-        assert "Scored" in lb["explanation"]
+        assert "Cut because" in lb["explanation"]
+
+
+def test_explanations_read_like_a_person_wrote_them():
+    """Plain football English: no snake_case, no "tag(s)", no score (the UI shows it), at most two sentences,
+    names from the roster and never a gendered pronoun."""
+    pronouns = re.compile(r"\b(he|him|his|she|her|hers)\b", re.I)
+    for seed, profile in ((294, "demo"), (5, "demo"), (77, "realistic")):
+        index = StreamIndex.build(generate(seed=seed, minutes=4.0, track_hz=1.0, profile=profile).stream)
+        for pid, player in index.roster.items():
+            for lb in label_clips(index, cut_clips(index, pid)):
+                ex = lb["explanation"]
+                assert not re.search(r"[a-z]_[a-z]", ex) and "tag(s)" not in ex and "Scored" not in ex, ex
+                assert not re.search(r"\d", ex), ex
+                assert not pronouns.search(ex), ex
+                assert ex.endswith(".") and len(re.findall(r"\.(?:\s|$)", ex)) <= 2, ex
+                assert player["name"] in ex, ex
+
+
+def test_explanation_words():
+    assert tag_phrase("take_on") == "a take-on" and tag_phrase("take_on", definite=True) == "the take-on"
+    assert tag_phrase("interception") == "an interception" and tag_phrase("nutmeg_against", definite=True) == "the nutmeg"
+    assert tag_phrase("offside") == "an offside" and tag_phrase("some_new_tag") == "a some new tag"
+    assert and_list(["a"]) == "a" and and_list(["a", "b"]) == "a and b" and and_list(["a", "b", "c"]) == "a, b and c"
+
+
+def test_titles_read_like_a_person_wrote_them():
+    """Titles in plain words: the player who set up a goal gets "assist", never "goal against"; replays say how they
+    were shown ("half-speed replay from high and wide"), not "replay 0.5x high wide"; one spelling of take-on."""
+    for seed, profile in ((294, "demo"), (5, "demo"), (77, "realistic")):
+        index = StreamIndex.build(generate(seed=seed, minutes=4.0, track_hz=1.0, profile=profile).stream)
+        for pid in index.roster:
+            for lb in label_clips(index, cut_clips(index, pid)):
+                title = lb["title"]
+                assert not re.search(r"_|\bagainst\b|\d(\.\d+)?x\b|high wide|take on|closeup|appearance", title), title
+                assert not re.search(r"take on|_", lb["summary"]), lb["summary"]
+    index = StreamIndex.build(generate(seed=294, minutes=3.0, track_hz=1.0).stream)
+    titles = [lb["title"] for lb in label_clips(index, cut_clips(index, "t_home_10"))]  # Ibarra set up the goal
+    assert "Ivan Ibarra (10): assist · in the highlights" in titles and "Ivan Ibarra (10): assist · half-speed replay from high and wide" in titles
+    assert replay_words({"playback_speed": 0.25, "angle": "behind_goal"}) == "quarter-speed replay from behind the goal"
+    assert replay_words({"playback_speed": 1}) == "replay" and replay_words({"playback_speed": 0.4, "angle": "drone"}) == \
+        "slow-motion replay from the drone angle"
+    assert tag_word("take_on") == "take-on" and title_word("goal_against") == "assist" and title_word("key_pass") == "key pass"
+
+
+def test_committed_sample_labels_are_what_the_labeller_writes():
+    """data/synthetic/sample/syn_0294/clips.jsonl is the Label agent's output on the committed stream, flags included:
+    change the labeller, regenerate it (python -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09)."""
+    sample = Path(__file__).resolve().parents[1] / "data/synthetic/sample/syn_0294"
+    clips, labels = derive_clips(iter_jsonl(sample / "events.jsonl"), PLAYER)
+    for lb in labels:
+        why = needs_review(lb["watchability"], lb.get("prior_watchability"))
+        if why:
+            lb["review"] = why
+    assert clips + labels == list(iter_jsonl(sample / "clips.jsonl"))
+
+
+def test_the_vision_demo_match_explains_in_the_labellers_words():
+    """vis_0201's clips came from the vision layer and stay as they are; their explanations are the rules labeller's
+    current sentences, so the Product reads the same football English on every match."""
+    sample = Path(__file__).resolve().parents[1] / "data/synthetic/sample/vis_0201"
+    rows = list(iter_jsonl(sample / "clips.jsonl"))
+    clips = [r for r in rows if r["type"] == "clip"]
+    index = StreamIndex.build(list(iter_jsonl(sample / "events.jsonl")))
+    want = {lb["clip_id"]: lb["explanation"] for lb in label_clips(index, clips)}
+    assert {r["clip_id"]: r["explanation"] for r in rows if r["type"] == "label"} == want
 
 
 # ----------------------------------------------------------------------------- determinism

@@ -1,0 +1,71 @@
+{
+  "match_id": "vis_0201",
+  "title": "Cut from video by Regista's vision layer",
+  "subtitle": "Regista watched a broadcast it rendered, with no event data, and found the players, the ball and the moments itself.",
+  "source": "vision",
+  "note": "Cut from video by Regista's vision layer, run offline on Regista's own rendered broadcast of development match syn_0201 (seed 201, 640x360, 10 fps, no captions, no name labels or ball-holder ring). Possessions, events, appearances and player identity come from the video, not from the generator; the score counts goals the vision layer spotted. Tracks are downsampled to 1 Hz for size.",
+  "rendering": {
+    "generator_seed": 201,
+    "match_spec": "regista.vision.dataset.TEST_SPECS[0]",
+    "size": [
+      640,
+      360
+    ],
+    "fps": 10,
+    "captions": false,
+    "name_labels": false,
+    "holder_ring": false,
+    "models": "vision v4: shot model, kit-number reader, identity configuration and event spotter, trained on footage without captions, name labels or holder ring"
+  },
+  "score": {
+    "t_home": 0,
+    "t_away": 0
+  },
+  "video": {
+    "video_id": "syn_0201_640x360_10fps_nocap_nolabels",
+    "fps": 10.0,
+    "width": 640,
+    "height": 360,
+    "duration_s": 327.1
+  },
+  "files": {
+    "events.jsonl": 289,
+    "tracks.jsonl": 4618,
+    "clips.jsonl": 14
+  },
+  "tracks_trimmed": {
+    "from": 9236,
+    "to": 4618,
+    "track_hz": 1.0,
+    "how": "regista.vision.package: downsample_tracks, then trim_tracks (what the renderer reads)"
+  },
+  "record_counts": {
+    "match": 1,
+    "camera_segment": 7,
+    "possession": 45,
+    "event": 69,
+    "appearance": 167
+  },
+  "event_type_counts": {
+    "carry": 25,
+    "interception": 8,
+    "pass": 31,
+    "shot": 2,
+    "tackle": 3
+  },
+  "clips_for": "t_home_09",
+  "clip_reasons": {
+    "on_ball_main": 6,
+    "closeup_appearance": 1
+  },
+  "review": {
+    "questions": 3,
+    "kinds": {
+      "cutaway": 2,
+      "track": 1
+    },
+    "crops": 3,
+    "answers": 0,
+    "answered_by": []
+  }
+}

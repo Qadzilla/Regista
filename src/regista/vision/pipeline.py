@@ -106,6 +106,7 @@ def run_vision(video: Path | str, roster: Record, out_dir: Path | str, *, models
 
     (out_dir / ".vision_work").mkdir(parents=True, exist_ok=True)
     joblib.dump(ident, out_dir / ".vision_work" / "identity.joblib")
+    (out_dir / ".vision_work" / "run.json").write_text(json.dumps({"models_dir": str(Path(models_dir).resolve())}) + "\n", encoding="utf-8")
 
     return refresh_from_identity(out_dir, roster, info, match_id, seg_recs, ident, models_dir=models_dir, track_hz=track_hz,
                                  possession_cfg=possession_cfg, event_spotter=event_spotter, timings=timings)

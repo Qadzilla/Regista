@@ -30,6 +30,7 @@ from regista.aio import run_sync
 from regista.agents.roles import LabelAgent, LibrarianAgent, flag_for_review, learned_model
 from regista.clips import REASON_TAGS, TAG_WEIGHTS, StreamIndex, label_clips, match_minute
 from regista.cloud.config import CloudConfig
+from regista.conversation import pick, timed_step
 from regista.librarian import search_clips
 
 Record = dict[str, Any]
@@ -40,12 +41,16 @@ ALLOWED_TAGS = set(TAG_WEIGHTS) | REASON_TAGS | {f"{t}_against" for t in ("goal"
 LABEL_INSTRUCTIONS = """You are Regista's Label Agent, writing for a football broadcast studio.
 For ONE clip you get: the player, why the clip was cut, the match minute, the events the player
 was involved in, and a rule-based prior label. Return JSON only, with keys:
-  title        short on-screen title, at most 70 characters, name and kit number first
+  title        short on-screen title, at most 70 characters, in the prior title's shape: name and kit number,
+               then the moment in plain words and its minute ("Sami Castellanos (9): goal at 1'")
   tags         list drawn ONLY from the allowed vocabulary given to you; keep the reason tag
   watchability number 0 to 1: would a highlights editor keep this clip? goals and nutmegs ~1.0,
                routine passes ~0.2; use the prior as a guide but judge the events
   summary      one sentence a commentator could read
-  explanation  one sentence starting with "Scored" that states why the watchability is what it is
+  explanation  one or two plain football sentences a fan would understand: what happens in the clip and why it is
+               worth watching (or not), using the player's name
+The title, summary and explanation are read by fans: no numbers other than the minute (never the watchability, which
+is shown beside them, and no distances, speeds or probabilities), and no jargon such as xG.
 Never invent events that are not listed. Never mention that you are a model."""
 
 LIBRARIAN_INSTRUCTIONS = """You are Regista's Librarian for a football broadcast desk. The user asks for clips of a player
@@ -55,7 +60,7 @@ in plain English. Tools:
 - Azure MCP Server, when attached: cosmos_database_container_item_query runs a read-only SELECT on the Cosmos DB library
   (account, database "regista", containers matches / clips / labels / annotations, partition key match_id) for counts and
   history; search_index_query queries the Azure AI Search index "regista-clips".
-Answer in at most two sentences: say how many clips matched and name the best one or two by title and minute. If nothing
+Answer in at most two sentences: say how many moments matched and name the best one or two by title and minute. If nothing
 matched, say what the tool reported and suggest the nearest thing it offered. Never invent clips a tool did not return."""
 
 
@@ -118,6 +123,33 @@ def azure_mcp_tool(cloud: CloudConfig, namespaces: tuple[str, ...] | None = None
         return None
     return MCPStdioTool(name="azure", command=exe, args=args, env=azure_mcp_env(), allowed_tools=allowed, load_prompts=False,
                         approval_mode="never_require")
+
+
+REGISTA_MCP_TOOLS = ("search_clips", "search_library", "list_matches", "derive_clips", "validate_stream", "render_clip")
+
+
+def tool_server(name: str) -> str | None:
+    """Which MCP server a tool the Librarian called lives on: Regista's own, or Microsoft's Azure MCP Server."""
+    if name in REGISTA_MCP_TOOLS:
+        return "regista-mcp"
+    if name.startswith(("cosmos_", "search_index_")) or any(name in tools for tools in AZURE_MCP_TOOLS.values()):
+        return "azure-mcp"
+    return None
+
+
+TRACE_FALLBACK_NOTE = ("No spans were recorded for this run, so the trace lists the tools the model called, in order, "
+                       "without timings.")
+
+
+def foundry_trace(spans: list[Any], tools: list[str]) -> tuple[list[Record], str | None]:
+    """The answer trace of one Foundry run: its Agent Framework spans (agent, model calls, tool calls, with durations),
+    or, when none were recorded, the tools it called in order without timings and a note saying so."""
+    from regista.cloud.telemetry import spans_to_trace
+
+    steps = spans_to_trace(spans, tool_server)
+    if steps:
+        return steps, None
+    return [{"name": t, "kind": "tool", "server": tool_server(t), "ms": None} for t in tools], TRACE_FALLBACK_NOTE
 
 
 def tools_used(result: Any) -> list[str]:
@@ -304,20 +336,28 @@ class FoundryLibrarianAgent(LibrarianAgent):
         if self.answerer is None and not cloud.foundry_enabled:
             raise AgentError("Foundry is not configured (FOUNDRY_PROJECT_ENDPOINT, FOUNDRY_MODEL)", retryable=False)
         from regista import librarian as lib
+        from regista.cloud.telemetry import capture_spans
 
         lib._load.cache_clear()
         answers = []
         for q in state["queries"]:
-            structured = search_clips(state["match_dir"], q, self.config.get("limit", 10))
+            trace: list[Record] = []
+            structured = timed_step(trace, "librarian.search_clips", search_clips, state["match_dir"], q, self.config.get("limit", 10))
             try:
                 self.last_tools_used = []
-                text = run_sync(self._answer(cloud, state["match_dir"], q))
+                with capture_spans("regista.librarian.answer") as cap:  # the Agent Framework spans of this answer, for its trace
+                    text = run_sync(self._answer(cloud, state["match_dir"], q))
                 structured["answer"] = text
                 structured["answered_by"] = f"foundry:{cloud.foundry_model}" if self.answerer is None else "foundry:test"
                 structured["tools_used"] = list(self.last_tools_used)
+                steps, note = foundry_trace(cap.spans, self.last_tools_used)
+                trace += steps
+                if note:
+                    structured["trace_note"] = note
             except Exception as exc:  # noqa: BLE001
                 structured["answer"] = structured["message"]
                 structured["answered_by"] = f"rules (foundry fallback: {type(exc).__name__})"
+            structured["trace"] = trace
             answers.append(structured)
         state["answers"] = answers
         return state
@@ -377,8 +417,8 @@ async def open_librarian_tools(stack: Any, cloud: CloudConfig, config: dict[str,
 CHAT_INSTRUCTIONS = """You are Regista's Librarian in a conversation with a football producer who is building clips and reels.
 Each user turn arrives with two notes from Regista: how it understood the whole conversation so far (player, moments,
 angles, minutes), and the clips its search found for that, best first, with titles and minutes. Reply in at most two
-sentences: say how many clips there are and name the best one or two by title and minute; if the search found nothing,
-say what is available instead (the note lists it). Follow the conversation: "he", "his", "those" refer to what was
+sentences: say how many moments there are and name the best one or two by title and minute (once each); if the search
+found nothing, say what is available instead (the note lists it). Say "moments", never "clips" or "clip(s)". Follow the conversation: "he", "his", "those" refer to what was
 discussed. You may call your tools for detail the note lacks (search_library for other matches). Never invent clips,
 players or moments that the notes or your tools did not give you. Never mention the notes themselves."""
 
@@ -393,7 +433,7 @@ async def foundry_chat_reply(cloud: CloudConfig, match_dir: str, history: list[d
     from agent_framework.foundry import FoundryChatClient
     from azure.identity.aio import DefaultAzureCredential
 
-    found = "; ".join(f"{r['title']} ({r['minute']}')" for r in results[:6]) or "none"
+    found = "; ".join(pick(r) for r in results[:6]) or "none"
     note = (f"[Regista understood the conversation as: {understood}. Search results ({len(results)} shown): {found}. "
             f"If none: {fallback}. match_dir: {match_dir}]")
     async with DefaultAzureCredential() as credential, AsyncExitStack() as stack:

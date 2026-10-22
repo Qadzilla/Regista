@@ -7,6 +7,9 @@
 data/**/agents/
 data/clips/
 data/feedback/
+data/studio/
+data/vision/
+**/.vision_work/
 docs/demo/
 models/
 build/

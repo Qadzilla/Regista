@@ -37,11 +37,21 @@ log() { printf '\n\033[1;33m== %s\033[0m\n' "$*"; }
 ENV_VARS=("REGISTA_CLOUD=1" "FOUNDRY_PROJECT_ENDPOINT=${FOUNDRY_PROJECT_ENDPOINT:-}" "FOUNDRY_MODEL=${FOUNDRY_MODEL:-}"
           "REGISTA_COSMOS_ENDPOINT=${REGISTA_COSMOS_ENDPOINT:-}" "REGISTA_COSMOS_DATABASE=${REGISTA_COSMOS_DATABASE:-regista}"
           "REGISTA_SEARCH_ENDPOINT=${REGISTA_SEARCH_ENDPOINT:-}")
-SECRETS=()
-if [[ -n "${REGISTA_ADMIN_TOKEN:-}" ]]; then
-  # Writes (uploads, verdicts, reviews, retraining) on the public URL need this token; reads stay open.
-  SECRETS+=("admin-token=$REGISTA_ADMIN_TOKEN")
-  ENV_VARS+=("REGISTA_ADMIN_TOKEN=secretref:admin-token")
+# Writes (uploads, verdicts, reviews, retraining) on the public URL need the admin key; it also opens the Studio. The app
+# fails closed without it (REGISTA_CLOUD=1, no key: Studio closed, writes off), but a deploy that silently drops the key
+# is still a mistake, so refuse it.
+if [[ -z "${REGISTA_ADMIN_TOKEN:-}" ]]; then
+  echo "REGISTA_ADMIN_TOKEN is not set in .env: refusing to deploy without the admin key (infra/provision.sh writes one)" >&2
+  exit 1
+fi
+SECRETS=("admin-token=$REGISTA_ADMIN_TOKEN")
+ENV_VARS+=("REGISTA_ADMIN_TOKEN=secretref:admin-token")
+if [[ -n "${REGISTA_STUDIO_VIEW_TOKEN:-}" ]]; then
+  # The Studio view key: the whole Studio, read-only (for judges, and for Claude reading the live Studio).
+  SECRETS+=("studio-view-token=$REGISTA_STUDIO_VIEW_TOKEN")
+  ENV_VARS+=("REGISTA_STUDIO_VIEW_TOKEN=secretref:studio-view-token")
+else
+  echo "warning: REGISTA_STUDIO_VIEW_TOKEN is not set in .env: the Studio opens only with the admin key (no key for judges)" >&2
 fi
 if [[ -n "${APPLICATIONINSIGHTS_CONNECTION_STRING:-}" ]]; then
   # The tracing connection string goes in as a Container Apps secret, referenced by the env var.
@@ -90,7 +100,7 @@ fi
 
 log "Updating $ACA_APP to $IMAGE (pulled with the app's identity), with its settings and secrets"
 az containerapp registry set -n "$ACA_APP" -g "$RG" --server "$ACR_LOGIN_SERVER" --identity system -o none
-[[ ${#SECRETS[@]} -gt 0 ]] && az containerapp secret set -n "$ACA_APP" -g "$RG" --secrets "${SECRETS[@]}" -o none
+az containerapp secret set -n "$ACA_APP" -g "$RG" --secrets "${SECRETS[@]}" -o none
 # One replica: uploaded matches and paused reviews live on the replica's disk.
 az containerapp update -n "$ACA_APP" -g "$RG" --image "$IMAGE" --set-env-vars "${ENV_VARS[@]}" --min-replicas 1 --max-replicas 1 \
   --revision-suffix "$(revision_suffix)" -o none

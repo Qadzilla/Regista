@@ -1,0 +1,145 @@
+{
+ "items": [
+  {
+   "item_id": "cw_cs_v00006",
+   "kind": "cutaway",
+   "segment_id": "cs_v00006",
+   "segment_kind": "highlight",
+   "t": 314.2,
+   "t0": 304.2,
+   "t1": 324.2,
+   "current": [],
+   "candidates": [
+    {
+     "player_id": "t_away_09",
+     "name": "Amari Brennan",
+     "kit_number": 9,
+     "team": "WES",
+     "p": 0.25
+    },
+    {
+     "player_id": "t_home_06",
+     "name": "Idris Toure",
+     "kit_number": 6,
+     "team": "EAS",
+     "p": 0.069
+    },
+    {
+     "player_id": "t_away_06",
+     "name": "Amari Vargas",
+     "kit_number": 6,
+     "team": "WES",
+     "p": 0.056
+    },
+    {
+     "player_id": "t_home_11",
+     "name": "Yusuf Novak",
+     "kit_number": 11,
+     "team": "EAS",
+     "p": 0.042
+    },
+    {
+     "player_id": "t_away_10",
+     "name": "Femi Quinn",
+     "kit_number": 10,
+     "team": "WES",
+     "p": 0.042
+    }
+   ],
+   "question": "Who is in this highlight?",
+   "image": "cw_cs_v00006.jpg"
+  },
+  {
+   "item_id": "tr_37",
+   "kind": "track",
+   "track_index": 37,
+   "team_id": "t_away",
+   "is_gk": false,
+   "segment_id": "cs_v00001",
+   "t0": 100.2,
+   "t1": 102.0,
+   "t": 100.4,
+   "u": 623.5,
+   "v": 207.5,
+   "r": 6.218213451909983,
+   "current": null,
+   "confidence": 0.0,
+   "candidates": [
+    {
+     "player_id": "t_away_04",
+     "name": "Dario Vargas",
+     "kit_number": 4,
+     "team": "WES",
+     "p": 1.0
+    },
+    {
+     "player_id": "t_away_06",
+     "name": "Amari Vargas",
+     "kit_number": 6,
+     "team": "WES",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_away_08",
+     "name": "Femi Castellanos",
+     "kit_number": 8,
+     "team": "WES",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is this WES player?",
+   "image": "tr_37.jpg"
+  },
+  {
+   "item_id": "cw_cs_v00002",
+   "kind": "cutaway",
+   "segment_id": "cs_v00002",
+   "segment_kind": "replay",
+   "t": 202.9,
+   "t0": 198.9,
+   "t1": 206.9,
+   "current": [
+    "t_away_10"
+   ],
+   "candidates": [
+    {
+     "player_id": "t_away_10",
+     "name": "Femi Quinn",
+     "kit_number": 10,
+     "team": "WES",
+     "p": 0.833
+    },
+    {
+     "player_id": "t_home_01",
+     "name": "Emeka Fontaine",
+     "kit_number": 1,
+     "team": "EAS",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_away_07",
+     "name": "Pavel Valente",
+     "kit_number": 7,
+     "team": "WES",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_home_07",
+     "name": "Owen Weber",
+     "kit_number": 7,
+     "team": "EAS",
+     "p": 0.0
+    },
+    {
+     "player_id": "t_away_04",
+     "name": "Dario Vargas",
+     "kit_number": 4,
+     "team": "WES",
+     "p": 0.0
+    }
+   ],
+   "question": "Who is in this replay?",
+   "image": "cw_cs_v00002.jpg"
+  }
+ ]
+}
