@@ -12,6 +12,7 @@
 <body>
 <header class="top">
   <p class="brand">REGI<span>STA</span></p>
+  <nav class="views" aria-label="Views"><a href="/" aria-current="page">Clips</a><a href="/scout">Scout</a></nav>
   <label class="pick"><span class="pick-label">Match</span><select id="match"></select></label>
   <label class="pick"><span class="pick-label">Player</span><select id="player"></select></label>
 </header>
@@ -29,6 +30,7 @@
   <section class="matchline" aria-label="This match">
     <h2 id="matchTitle"></h2>
     <p id="matchSub" class="muted" hidden></p>
+    <p class="scout-link" id="scoutLinkLine" hidden><a id="scoutLink"></a></p>
     <p id="visionNote" class="vision-note" hidden><span class="badge vision">Cut from video</span> on a moment means the vision layer
       found it in the pictures: who had the ball, what happened and who is in each replay.</p>
   </section>

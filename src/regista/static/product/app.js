@@ -21,6 +21,7 @@
     reel: null,              // clip ids of the last "make a reel" reply, if any
     tag: null,               // the tag chip filtering the grid, or null for all
     sort: 'best', selected: null, health: null,
+    picked: null,            // the moment last picked by a click or a link: the clip= of the page's URL
   };
   const chat = { state: null, history: [], busy: false };
 
@@ -97,6 +98,43 @@
   }
   const hideNetError = () => { $('netError').hidden = true; };
 
+  // ------------------------------------------------------------------ links into the page
+
+  // /?match={id}&player={per-match player id}&clip={clip id}&t={seconds}: the Scout pages link to a moment this way.
+  // Values that do not look like ids are dropped here; ids no match has fall back quietly to the featured match.
+  const LINK_ID = /^[A-Za-z0-9][A-Za-z0-9_.\-]{0,119}$/;
+  function readLink() {
+    const q = new URLSearchParams(location.search);
+    const id = (k) => { const v = q.get(k); return v && LINK_ID.test(v) && !v.includes('..') ? v : null; };
+    const t = Number(q.get('t'));
+    return { match: id('match'), player: id('player'), clip: id('clip'), t: q.get('t') !== null && Number.isFinite(t) && t >= 0 ? t : null };
+  }
+  const playerOfClip = (cid) => /^cl_(.+)_\d{6}$/.exec(cid || '')?.[1] || null;  // clip ids are cl_{player id}_{number}
+
+  // The URL follows what is on screen (match, player, the moment picked), so it can be shared. replaceState: switching
+  // matches does not fill the back button.
+  function syncUrl() {
+    if (!state.match || !window.history?.replaceState) return;
+    const q = new URLSearchParams({ match: state.match });
+    if (state.player) q.set('player', state.player);
+    if (state.picked) q.set('clip', state.picked);
+    const url = `${location.pathname}?${q}`;
+    if (url !== location.pathname + location.search) history.replaceState(null, '', url);
+  }
+
+  // The moment a link asked for: the clip itself, else the moment nearest to t (among the linked player's moments when
+  // the link names one, else anyone's, picking its player), with the full-match video set to start at t.
+  async function openLinked(link) {
+    if (link.clip && state.all.has(link.clip)) return select(link.clip, true, true);
+    if (link.t === null) return;
+    const dist = (c) => c.t <= link.t && link.t <= c.t_end ? 0 : Math.min(Math.abs(c.t - link.t), Math.abs(c.t_end - link.t));
+    const mine = link.player === state.player ? [...state.all.values()].filter(c => c.player_id === state.player) : [];
+    const near = (mine.length ? mine : [...state.all.values()]).reduce((a, c) => (!a || dist(c) < dist(a) ? c : a), null);
+    if (near && near.player_id !== state.player && player(near.player_id)) { $('player').value = near.player_id; await pickPlayer(near.player_id); }
+    $('fullMatch').href = `${matchUrl('/video.mp4')}#t=${Math.round(link.t)}`;
+    if (near) select(near.id, true, true);
+  }
+
   // ------------------------------------------------------------------ loading
 
   async function init() {
@@ -109,9 +147,51 @@
       return fatal(`Regista could not list its matches: ${detail(e)}`);
     }
     hideNetError();
-    if (!state.matches.length) return fatal('There are no matches on this server yet.');
-    $('match').innerHTML = state.matches.map(m => `<option value="${esc(m.match_id)}">${esc(matchName(m))}</option>`).join('');
-    await loadMatch(featured().match_id);
+    const link = readLink();
+    if (!state.matches.length && !link.match) return fatal('There are no matches on this server yet.');
+    // The featured match first, then the others as the server lists them; the league's matches join later (loadSeason).
+    const first = state.matches.length ? featured() : null;
+    $('match').innerHTML = [first, ...state.matches.filter(m => m !== first)].filter(Boolean)
+      .map(m => `<option value="${esc(m.match_id)}">${esc(matchName(m))}</option>`).join('');
+    loadSeason();  // not awaited: the first paint never waits for the league
+    if (link.match && await loadMatch(link.match, { player: link.player || playerOfClip(link.clip), quiet: true })) {
+      await openLinked(link);
+      return syncUrl();
+    }
+    if (location.search && window.history?.replaceState) history.replaceState(null, '', location.pathname);  // a link that led nowhere
+    if (!first) return fatal('There are no matches on this server yet.');
+    await loadMatch(first.match_id);
+  }
+
+  // The Regista League's matches, in round order, in their own group under the matches above. Season matches are
+  // ordinary matches to the API, so nothing else on the page treats them differently. No league on this server, or no
+  // answer: the picker keeps what it has.
+  async function loadSeason() {
+    let s;
+    try { s = await R.api('/api/season'); } catch (e) { return; }
+    const ms = (s.rounds || []).flatMap(r => r.matches || []);
+    if (!ms.length) return;
+    const sel = $('match'), keep = sel.value;
+    const g = seasonGroup();
+    g.label = [s.league, s.season].filter(Boolean).join(' ') || g.label;
+    g.innerHTML = ms.map(m => `<option value="${esc(m.match_id)}">${esc(m.title || `Round ${m.round}: ${m.home_name} v ${m.away_name}`)}</option>`).join('');
+    if (keep) sel.value = keep;
+  }
+
+  function seasonGroup() {
+    let g = $('seasonGroup');
+    if (!g) {
+      g = Object.assign(document.createElement('optgroup'), { id: 'seasonGroup', label: 'Regista League 2026/27' });
+      $('match').appendChild(g);
+    }
+    return g;
+  }
+
+  // A match opened by a link before the league's list arrived (or one not listed at all) still gets its option.
+  function ensureOption(id, info) {
+    if ([...$('match').options].some(o => o.value === id)) return;
+    const o = Object.assign(document.createElement('option'), { value: id, textContent: matchName(info) });
+    (id.startsWith('rl_') ? seasonGroup() : $('match')).appendChild(o);
   }
 
   // The match the page opens on: the one the server marks featured, else the one with video and the most clips.
@@ -130,7 +210,8 @@
 
   // A switch loads everything first and only then replaces what is on screen: if it fails, the picker goes back to the
   // match still shown, so the page never mixes two matches.
-  async function loadMatch(id) {
+  // quiet: a link's match, which falls back to the featured one if it fails, so a failure here says nothing.
+  async function loadMatch(id, { player: wanted = null, quiet = false } = {}) {
     const previous = state.info ? state.match : null;
     $('match').disabled = true;
     if (!previous) showEmpty('Loading the match…');
@@ -140,26 +221,32 @@
     } catch (e) {
       $('match').disabled = false;
       if (previous) $('match').value = previous;
+      if (quiet && !previous) return false;
       if (offline(e)) return showNetError(OFFLINE, () => loadMatch(id));
       if (previous) return showNetError(`That match could not be loaded: ${detail(e)}`, () => loadMatch(id));
       return fatal(`This match could not be loaded: ${detail(e)}`);
     }
     $('match').disabled = false;
     hideNetError();
-    state.match = id; state.info = info; $('match').value = id;
+    ensureOption(id, info);
+    state.match = id; state.info = info; state.picked = null; $('match').value = id;
     state.all = new Map(clips.map(c => [c.id, { ...c, title: c.label?.title }]));
     state.loaded = new Set(info.players_with_clips || []);
     $('stage').hidden = false;
     const listed = state.matches.find(m => m.match_id === id);
     showMatchLine(listed || info);
-    fillPlayers(listed?.clips_for);
+    fillPlayers(wanted || listed?.clips_for);
     $('fullMatch').href = matchUrl('/video.mp4');
     $('fullMatch').hidden = state.info.source === 'cosmos';
+    // A league match runs 30 minutes: its first full view renders the whole video, which takes minutes, so the link says so.
+    const long = (state.info.duration_s || 0) > 600;
+    $('fullMatch').textContent = long ? 'Watch the full match (the first view takes a few minutes)' : 'Watch the full match';
     report.loaded = null; $('report').hidden = true; $('reportToggle').setAttribute('aria-expanded', 'false');
     const cosmosOnly = state.info.source === 'cosmos';
     $('q').disabled = cosmosOnly; $('go').disabled = cosmosOnly;
     await newConversation();
     if (cosmosOnly) $('engineHint').textContent = 'This match is read from Cosmos DB without its event stream, so it cannot answer questions here. Its moments are below.';
+    return true;
   }
 
   function showMatchLine(m) {
@@ -207,7 +294,9 @@
       return showNetError(offline(e) ? OFFLINE : `That player's moments could not be loaded: ${detail(e)}`, () => { $('player').value = pid; pickPlayer(pid); });
     }
     hideNetError();
+    state.picked = null;
     await newConversation();
+    syncUrl();
   }
 
   // ------------------------------------------------------------------ the conversation
@@ -441,7 +530,8 @@
     state.selected = null;
     const ids = out.state?.player_ids || [];
     if (ids.length === 1 && ids[0] !== state.player && player(ids[0])) {
-      state.player = ids[0]; $('player').value = ids[0];
+      state.player = ids[0]; $('player').value = ids[0]; state.picked = null;
+      scoutLink(); syncUrl();
       loadPlayerClips(ids[0]).then(() => { renderTimeline(); }).catch(() => {});
     }
     $('resultsHead').innerHTML = `${esc(plural(state.total, 'moment'))} <span class="muted">· ${esc(out.understood || '')}</span>`;
@@ -486,8 +576,19 @@
 
   // ------------------------------------------------------------------ the result set: grid, timeline, stage
 
+  // On a Regista League match each player has a season profile in the Scout view; players outside the league have none.
+  function scoutLink() {
+    const p = player(state.player), gid = p?.global_player_id;
+    const ok = typeof gid === 'string' && /^pl_[a-z0-9_]{1,40}$/.test(gid);
+    $('scoutLinkLine').hidden = !ok;
+    if (!ok) return $('scoutLink').removeAttribute('href');
+    $('scoutLink').href = `/players/${enc(gid)}`;
+    $('scoutLink').textContent = `See ${String(p.name)}'s Scout profile`;  // text, never markup
+  }
+
   function showPlayerMoments() {
     const p = player(state.player);
+    scoutLink();
     state.fromQuestion = false; state.reel = null; state.selected = null; state.tag = null;
     state.results = [...state.all.values()].filter(c => c.player_id === state.player).map(row);
     state.total = state.results.length;
@@ -589,10 +690,12 @@
     }
   }
 
-  function select(id, play) {
-    state.selected = id;
+  // fromLink: a link put this moment on the stage, before anyone touched the page; browsers only let it start muted.
+  function select(id, play, fromLink = false) {
+    state.selected = id; state.picked = id;
     stopReel();
-    renderStage(play);
+    renderStage(play, '', fromLink);
+    syncUrl();
     for (const c of $('grid').querySelectorAll('.card')) c.classList.toggle('on', c.dataset.id === id);
     if (play) $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
@@ -602,7 +705,7 @@
     return rows.find(r => r.id === state.selected) || (state.selected && state.all.has(state.selected) ? row(state.all.get(state.selected)) : rows[0]);
   }
 
-  function renderStage(play = false, prefix = '') {
+  function renderStage(play = false, prefix = '', fromLink = false) {
     const r = current();
     const v = $('stageVideo');
     reelLinks();
@@ -629,7 +732,7 @@
       v.src = r.video_url;
       v.preload = play ? 'auto' : 'metadata';
     }
-    if (play) v.play().catch(() => {});
+    if (play) v.play().catch(() => { if (fromLink) { v.muted = true; v.play().catch(() => {}); } });
   }
 
   // Loading text while a clip renders on first view; an error says so instead of a blank player.
@@ -784,7 +887,7 @@
   function wire() {
     $('askForm').addEventListener('submit', (e) => { e.preventDefault(); send(); });
     for (const r of document.querySelectorAll('input[name="engine"]')) r.addEventListener('change', engineHint);
-    $('match').onchange = () => loadMatch($('match').value);
+    $('match').onchange = async () => { if (await loadMatch($('match').value)) syncUrl(); };
     $('player').onchange = () => pickPlayer($('player').value);
     for (const b of document.querySelectorAll('.seg')) b.onclick = () => { setSort(b.dataset.sort); render($('empty').innerHTML); };
     $('more').onclick = () => send('more');
