@@ -123,6 +123,35 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 - **Broadcasters and studios** needing instant replay packages per player.
 - **Fans** who want a personalised reel of their favourite player.
 
+### 2.5 Two views: Clips and Scout (decided 2026-10-22, part of the Oct 27 submission)
+
+> One pipeline, two jobs: **Clips** finds any moment in a match; **Scout** turns every match a player is seen in into a
+> verified profile scouts can search.
+
+| Route | View | For |
+|---|---|---|
+| `/` | **Clip view** (the Product as built) | creators, broadcasters, fans: ask anything, get clips and reels; a header switch to Scout |
+| `/scout` | **Scout view** | scouts: filter, ask the Scout agent, shortlist, compare players across the season |
+| `/players/{id}` | **Player profile** | one player across every match: reel, per-90 stats, touch map, matches, Foundry summary, "Add a match" |
+| `/studio` | **Studio** (as built) | the operator; adds a Claims tab ("that's me" confirmations) |
+
+- **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 8 minutes, generator
+  profile `realistic`, fixed squads of 18 with **global player ids** (`pl_…`) on every roster entry. The league definition
+  (`data/season/league.json`: clubs, squads, fixtures, seeds) is committed; matches regenerate deterministically from it
+  on the server (0.2 s each) and are not committed.
+- **Profiles** are aggregated from the event streams: appearances, minutes, counts and per-90 rates, a touch map (attack
+  left to right), best moments across matches, and every stat links to the moments it came from ("verified by Regista").
+  The **Profile agent** refreshes a profile when a match is added and has Foundry write a summary whose claims cite clips.
+- **Scout agent** (Foundry) over new MCP tools `search_players`, `get_profile`, `compare_players`, plus the clip tools.
+- **Add a match / claims:** on the live app a player adds a match as the vision layer's output (events + tracks, as
+  uploads do today) and claims "that's me" (kit number + team); the claim is a human annotation confirmed in the Studio.
+  On the operator's laptop the same flow accepts a video file and runs the vision layer locally first. Cloud video
+  processing is **planned**, not built (scope: models in Azure, video storage, a job runner).
+- **No real players' profiles for now.** Zaid's recorded match can appear in the Clip view (with consent) but gets no
+  profiles. Profiles are synthetic players only.
+- **Out of scope:** accounts and sign-in, footage-rights handling (post-hackathon), messaging, payments. **Microsoft
+  Fabric** fits season analytics but is **planned**, not built.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
