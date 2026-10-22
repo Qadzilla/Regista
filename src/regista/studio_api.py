@@ -26,7 +26,7 @@ overview  {generated_at, role, capabilities, health, todo, usage, data, cache}
   health  /api/health plus {image, revision}: IMAGE_TAG and CONTAINER_APP_REVISION from the environment, or null
   todo    [{kind, match_id, count, detail, link, api}], most urgent first. kind is one of
           failed_run (last run failed or dead-lettered), workflow_review (a paused run waits for verdicts),
-          whos_who (unanswered identity questions), unsure_clips (flagged clips with no verdict),
+          whos_who (unanswered identity questions), pending_claims ("that's me" claims waiting; regista.claims_api), unsure_clips (flagged clips with no verdict),
           stale_model (verdicts since the watchability model was trained; match_id null).
           link is a Studio anchor (/studio#runs/<id>, #review/<id>, #whos-who/<id>, #training); api is where the detail is.
 run       {match_id, has_run, status: none|ok|paused|failed, kind: intelligence|vision|null, finished_at, source: local|cosmos,

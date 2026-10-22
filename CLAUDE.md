@@ -174,6 +174,12 @@ src/regista/season/          the Regista League (Scout view data): league.py (6 
                              robin, seeds; committed as data/season/league.json), build.py (regenerates each match folder on demand,
                              tracks only when video needs them), profiles.py (per-90 rates, percentiles, touch map, moments, evidence)
 src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
+src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
+                             Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
+src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
+                             on the claimed match, whose profiles executor (the Profile agent, after persist) refreshes the profile
+src/regista/static/player/add-match.js  "Add a match" on a profile: upload events + tracks (or, locally, a video through a vision-run
+                             job), then "which one is you?" (team + kit number) as a claim; the Studio's Claims tab decides
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
 src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
                              /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline

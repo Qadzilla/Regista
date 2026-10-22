@@ -6,6 +6,11 @@ players in the same position, a touch map oriented so the player's team attacks 
 moments across matches, and for every stat the events it was counted from, with the clip each event sits in
 ("verified by Regista": a number you can watch). Nothing here calls a model; the Foundry summary is the Profile
 agent's job (planned in the Scout view work).
+
+Besides the league's fixtures, a profile counts the matches of its confirmed claims (``regista.season.claims``): an
+uploaded match in which the Studio confirmed that a player is this league player. Only the claimed player counts there,
+under their global id; such matches have ``source: claim`` (and the ``claim_id``) in the profile's match list, league
+fixtures ``source: league``. The league table counts fixtures only.
 """
 
 from __future__ import annotations
@@ -68,11 +73,15 @@ class Season:
     profiles: dict[str, Record] = field(default_factory=dict)
     matches: list[Record] = field(default_factory=list)
     table: list[Record] = field(default_factory=list)
+    extra: list[Record] = field(default_factory=list)    # confirmed claims' matches: {match_id, match_dir, players, claims}
+    claimed: list[Record] = field(default_factory=list)  # the claimed matches that were counted, for the API and the trace
 
     # ------------------------------------------------------------------ build
     @classmethod
-    def build(cls, league: Record, root: Path | str) -> Season:
-        s = cls(league, Path(root))
+    def build(cls, league: Record, root: Path | str, claimed: list[Record] | None = None) -> Season:
+        """The season from the league's fixtures, plus the matches of ``claimed`` (``regista.season.claims.claimed_matches``:
+        one row per confirmed claim)."""
+        s = cls(league, Path(root), extra=_group_claims(claimed or []))
         s._aggregate()
         return s
 
@@ -87,51 +96,17 @@ class Season:
             stream = list(iter_jsonl(d / "events.jsonl"))
             header = stream[0]
             score = header.get("score", {})
-            minutes = sum(p["t_end"] - p["t"] for p in header.get("periods", [])) / 60.0
-            ltr = {p["period"]: p["left_to_right_team_id"] for p in header.get("periods", [])}
             local_to_global = {p["player_id"]: p.get("global_player_id") for p in header["players"]}
             team_club = {t["team_id"]: t.get("club_id") for t in header["teams"]}
-            opp = {header["home_team_id"]: fx["away"], header["away_team_id"]: fx["home"]}
+            opp = {header["home_team_id"]: clubs[fx["away"]]["name"], header["away_team_id"]: clubs[fx["home"]]["name"]}
             self._table_row(table, fx, score)
             self.matches.append({"match_id": fx["match_id"], "round": fx["round"], "date": fx["date"], "home": fx["home"],
                                  "away": fx["away"], "score": score, "title": _manifest_title(d)})
-            clip_of_event, moments = _clips_and_moments(d, local_to_global)
-            for p in header["players"]:
-                gid = p.get("global_player_id")
-                if gid and p["starter"] and gid in acc:
-                    a = acc[gid]
-                    a["appearances"] += 1
-                    a["minutes"] += minutes
-                    a["matches"].append({"match_id": fx["match_id"], "round": fx["round"], "date": fx["date"],
-                                         "player_id": p["player_id"], "club_id": team_club[p["team_id"]],
-                                         "opponent": clubs[opp[p["team_id"]]]["name"],
-                                         "home": p["team_id"] == header["home_team_id"],
-                                         "score": f"{score.get('t_home', 0)}–{score.get('t_away', 0)}"})
-            for rec in stream:
-                if rec["type"] != "event" or not rec.get("player_id"):
-                    continue
-                gid = local_to_global.get(rec["player_id"])
-                if not gid or gid not in acc:
-                    continue
-                a = acc[gid]
-                for key, (_label, test) in STATS.items():
-                    if test(rec):
-                        a["counts"][key] += 1
-                        if len(a["evidence"][key]) < MAX_EVIDENCE:
-                            a["evidence"][key].append({"match_id": fx["match_id"], "player_id": rec["player_id"], "event_id": rec["id"], "t": rec["t"],
-                                                       "clip_id": clip_of_event.get((rec["player_id"], rec["id"]))})
-                pt = rec.get("pitch")
-                if pt and rec["event_type"] in ("touch", "pass", "cross", "carry", "take_on", "shot", "tackle", "interception",
-                                                "recovery", "clearance"):
-                    period = (rec.get("clock") or {}).get("period", 1)
-                    team_ltr = ltr.get(period, header["home_team_id"]) == rec["team_id"]
-                    x, y = (pt["x"], pt["y"]) if team_ltr else (PITCH_L - pt["x"], PITCH_W - pt["y"])
-                    gx = min(GRID_X - 1, max(0, int(x / PITCH_L * GRID_X)))
-                    gy = min(GRID_Y - 1, max(0, int(y / PITCH_W * GRID_Y)))
-                    a["grid"][gy][gx] += 1
-            for gid, ms in moments.items():
-                if gid in acc:
-                    acc[gid]["moments"] += ms
+            _add_match(acc, d, stream, local_to_global, round_no=fx["round"], date=fx["date"],
+                       entry=lambda p: {"club_id": team_club[p["team_id"]], "opponent": opp[p["team_id"]], "source": "league"},
+                       counts=lambda p: bool(p["starter"]))
+        for e in self.extra:
+            self._add_claimed(acc, e)
         for gid, a in acc.items():
             self.profiles[gid] = _finish(a)
         _percentiles(self.profiles)
@@ -139,6 +114,31 @@ class Season:
         for i, r in enumerate(self.table, start=1):
             r["position"] = i
             r["goal_difference"] = r["goals_for"] - r["goals_against"]
+
+    def _add_claimed(self, acc: dict[str, Record], e: Record) -> None:
+        """A confirmed claim's match: only the claimed players count, their per-match ids mapped to their global ids.
+        The league table is untouched (the match is not a league fixture). A claimed player is counted for the whole
+        match: the vision layer's team sheet says who was on the pitch, not when they came on."""
+        d = Path(e["match_dir"])
+        stream = list(iter_jsonl(d / "events.jsonl"))
+        header = stream[0]
+        local_to_global = {pid: gid for pid, gid in e["players"].items() if gid in acc}
+        if not local_to_global:
+            return
+        teams = {t["team_id"]: t for t in header.get("teams", [])}
+        other = {header.get("home_team_id"): header.get("away_team_id"), header.get("away_team_id"): header.get("home_team_id")}
+        date = (header.get("meta") or {}).get("date")
+        manifest = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
+        self.claimed.append({"match_id": e["match_id"], "players": local_to_global, "claims": e["claims"], "date": date,
+                             "title": manifest.get("title"), "score": header.get("score", {})})
+
+        def entry(p: Record) -> Record:
+            gid = local_to_global[p["player_id"]]
+            return {"club_id": acc[gid]["club_id"], "opponent": teams.get(other.get(p["team_id"]), {}).get("name"),
+                    "team": teams.get(p["team_id"], {}).get("name"), "source": "claim", "claim_id": e["claims"].get(p["player_id"])}
+
+        _add_match(acc, d, stream, local_to_global, round_no=None, date=date, entry=entry,
+                   counts=lambda p: p["player_id"] in local_to_global, derive_for=list(local_to_global))
 
     @staticmethod
     def _table_row(table: dict[str, Record], fx: Record, score: dict[str, int]) -> None:
@@ -180,6 +180,65 @@ class Season:
         return [card(p) for p in rows[:limit]]
 
 
+def _group_claims(claimed: list[Record]) -> list[Record]:
+    """One row per claimed match: {match_id, match_dir, players: {player_id: global_id}, claims: {player_id: claim_id}}."""
+    by: dict[str, Record] = {}
+    for c in claimed:
+        m = by.setdefault(c["match_id"], {"match_id": c["match_id"], "match_dir": c["match_dir"], "players": {}, "claims": {}})
+        if c["player_id"] not in m["players"] and c["global_id"] not in m["players"].values():
+            m["players"][c["player_id"]] = c["global_id"]
+            m["claims"][c["player_id"]] = c["claim_id"]
+    return [by[k] for k in sorted(by)]
+
+
+TOUCH_MAP_EVENTS = ("touch", "pass", "cross", "carry", "take_on", "shot", "tackle", "interception", "recovery", "clearance")
+
+
+def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_global: dict[str, str | None], *,
+               round_no: int | None, date: str | None, entry: Any, counts: Any, derive_for: list[str] | None = None) -> None:
+    """Add one match to the accumulators: appearances and minutes (players ``counts`` accepts), stat counts with their
+    evidence, the touch map, and the labelled moments. ``entry`` gives the per-match row's club and opponent."""
+    header = stream[0]
+    match_id = d.name  # the folder is the match id the API serves (an upload may be stored under a new one)
+    score = header.get("score", {})
+    minutes = sum(p["t_end"] - p["t"] for p in header.get("periods", [])) / 60.0
+    ltr = {p["period"]: p.get("left_to_right_team_id") for p in header.get("periods", [])}
+    clip_of_event, moments = _clips_and_moments(d, local_to_global, stream=stream, round_no=round_no, derive_for=derive_for)
+    for p in header["players"]:
+        gid = local_to_global.get(p["player_id"])
+        if gid and gid in acc and counts(p):
+            a = acc[gid]
+            a["appearances"] += 1
+            a["minutes"] += minutes
+            a["matches"].append({"match_id": match_id, "round": round_no, "date": date, "player_id": p["player_id"],
+                                 **entry(p), "home": p["team_id"] == header.get("home_team_id"),
+                                 "score": f"{score.get('t_home', 0)}–{score.get('t_away', 0)}"})
+    for rec in stream:
+        if rec["type"] != "event" or not rec.get("player_id"):
+            continue
+        gid = local_to_global.get(rec["player_id"])
+        if not gid or gid not in acc:
+            continue
+        a = acc[gid]
+        for key, (_label, test) in STATS.items():
+            if test(rec):
+                a["counts"][key] += 1
+                if len(a["evidence"][key]) < MAX_EVIDENCE:
+                    a["evidence"][key].append({"match_id": match_id, "player_id": rec["player_id"], "event_id": rec["id"], "t": rec["t"],
+                                               "clip_id": clip_of_event.get((rec["player_id"], rec["id"]))})
+        pt = rec.get("pitch")
+        if pt and rec["event_type"] in TOUCH_MAP_EVENTS:
+            period = (rec.get("clock") or {}).get("period", 1)
+            team_ltr = (ltr.get(period) or header.get("home_team_id")) == rec["team_id"]
+            x, y = (pt["x"], pt["y"]) if team_ltr else (PITCH_L - pt["x"], PITCH_W - pt["y"])
+            gx = min(GRID_X - 1, max(0, int(x / PITCH_L * GRID_X)))
+            gy = min(GRID_Y - 1, max(0, int(y / PITCH_W * GRID_Y)))
+            a["grid"][gy][gx] += 1
+    for gid, ms in moments.items():
+        if gid in acc:
+            acc[gid]["moments"] += ms
+
+
 def _sort_key(p: Record, sort: str) -> Any:
     if sort == "name":
         return p["name"]
@@ -214,7 +273,8 @@ def _finish(a: Record) -> Record:
     a["per90"] = {k: round(v * 90.0 / m, 2) if m else 0.0 for k, v in a["counts"].items()}
     a["ratios"] = {k: (round(a["counts"][num] / a["counts"][den], 3) if a["counts"][den] else None) for k, (_l, num, den) in RATIOS.items()}
     a["stat_labels"] = {k: lbl for k, (lbl, _t) in STATS.items()} | {k: lbl for k, (lbl, _n, _d) in RATIOS.items()}
-    a["moments"].sort(key=lambda r: (-r["watchability"], r["round"], r["t"]))
+    # A claimed match has no round: it sorts after the league's rounds at equal watchability.
+    a["moments"].sort(key=lambda r: (-r["watchability"], r["round"] is None, r["round"] or 0, r["t"]))
     a["moments"] = a["moments"][:MOMENTS_KEPT]
     a["percentiles"] = {}
     return a
@@ -240,18 +300,34 @@ def _manifest_title(d: Path) -> str | None:
     return json.loads(m.read_text()).get("title") if m.exists() else None
 
 
-def _clips_and_moments(d: Path, local_to_global: dict[str, str | None]) -> tuple[dict[tuple[str, str], str], dict[str, list[Record]]]:
+def _clips_and_moments(d: Path, local_to_global: dict[str, str | None], *, stream: list[Record] | None = None,
+                       round_no: int | None = None, derive_for: list[str] | None = None,
+                       ) -> tuple[dict[tuple[str, str], str], dict[str, list[Record]]]:
     """(player id, event id) -> that player's on-ball clip the event sits in, and global id -> the player's labelled
-    moments in this match. Keyed by player too: another player's clip of the same possession is not this one's evidence."""
+    moments in this match. Keyed by player too: another player's clip of the same possession is not this one's evidence.
+    Players in ``derive_for`` who have no clips on disk (a claimed player in an upload cut for someone else) get theirs
+    cut now by the clip rule, as GET /clips?player= does."""
     clips, labels = {}, {}
     p = d / "clips.jsonl"
     if p.exists():
         for r in iter_jsonl(p):
             (clips.__setitem__(r["id"], r) if r["type"] == "clip" else labels.__setitem__(r["clip_id"], r))
+    missing = [pid for pid in (derive_for or []) if pid not in {c["player_id"] for c in clips.values()}]
+    if missing:
+        from regista.clips import derive_clips
+
+        for pid in missing:
+            try:
+                new_clips, new_labels = derive_clips(stream if stream is not None else list(iter_jsonl(d / "events.jsonl")), pid)
+            except ValueError:
+                continue
+            clips.update({c["id"]: c for c in new_clips})
+            labels.update({lb["clip_id"]: lb for lb in new_labels})
     clip_of_event: dict[tuple[str, str], str] = {}
     moments: dict[str, list[Record]] = {}
     match_id = d.name
-    round_no = json.loads((d / "manifest.json").read_text()).get("round") if (d / "manifest.json").exists() else None
+    if round_no is None and (d / "manifest.json").exists():
+        round_no = json.loads((d / "manifest.json").read_text()).get("round")
     for cid, c in clips.items():
         for eid in c.get("event_ids", []):
             if c["reason"] == "on_ball_main":
@@ -272,14 +348,43 @@ _cache: dict[tuple[str, str], Season] = {}
 _cache_lock = threading.Lock()
 
 
-def load_season(league_path: Path | str, root: Path | str) -> Season:
-    """The season for this league file and match folder, built once per process (rebuilt if the league file changes)."""
+def load_season(league_path: Path | str, root: Path | str, claimed: list[Record] | None = None) -> Season:
+    """The season for this league file, match folder and confirmed claims (``regista.season.claims.claimed_matches``),
+    built once per process: rebuilt when the league file changes or a claim is confirmed or withdrawn."""
+    from regista.season.claims import fingerprint
+
     league_path, root = Path(league_path), Path(root)
-    key = (str(league_path.resolve()), str(league_path.stat().st_mtime_ns))
+    claimed = list(claimed or [])
+    key = (str(league_path.resolve()), str(league_path.stat().st_mtime_ns), fingerprint(claimed))
     with _cache_lock:
         s = _cache.get(key)
         if s is None:
-            s = Season.build(load_league(league_path), root)
+            s = Season.build(load_league(league_path), root, claimed)
             _cache.clear()
             _cache[key] = s
         return s
+
+
+def invalidate() -> None:
+    """Forget the built season, so the next read rebuilds it (the Profile agent calls this when it refreshes)."""
+    with _cache_lock:
+        _cache.clear()
+
+
+def refresh(league_path: Path | str, root: Path | str, claimed: list[Record], global_ids: list[str]) -> Record:
+    """Rebuild the season now (league fixtures plus confirmed claims) and say what each of ``global_ids`` looks like
+    afterwards: the Profile agent's job when a match with global ids or confirmed claims goes through the workflow."""
+    league_path = Path(league_path)
+    if not league_path.exists():
+        return {"skipped": f"no league at {league_path}", "profiles": []}
+    invalidate()
+    s = load_season(league_path, root, claimed)
+    out = []
+    for gid in dict.fromkeys(global_ids):
+        p = s.player(gid)
+        if p is None:
+            out.append({"global_id": gid, "known": False})
+            continue
+        out.append({"global_id": gid, "known": True, "name": p["name"], "appearances": p["appearances"], "minutes": p["minutes"],
+                    "claimed_matches": [m["match_id"] for m in p["matches"] if m.get("source") == "claim"]})
+    return {"profiles": out, "league_matches": len(s.matches), "claimed_matches": len(s.claimed)}

@@ -30,6 +30,7 @@
     <a href="#overview" data-tab="overview">Overview</a>
     <a href="#review" data-tab="review">Review queue <span class="count" id="nReview"></span></a>
     <a href="#whos-who" data-tab="whos-who">Who's who <span class="count" id="nWhos"></span></a>
+    <a href="#claims" data-tab="claims">Claims <span class="count" id="nClaims"></span></a>
     <a href="#training" data-tab="training">Training</a>
     <a href="#runs" data-tab="runs">Runs <span class="count" id="nRuns"></span></a>
     <a href="#jobs" data-tab="jobs">Jobs <span class="count" id="nJobs"></span></a>
@@ -89,6 +90,22 @@
       <p class="muted small">The identity agent's least certain calls. Answers correct identity frame by frame, recompute possession,
         events and clips, and become training data for the kit-number reader (Training &rarr; Learn from Who's who answers).</p>
       <div id="wwBody"></div>
+    </section>
+
+    <section data-view="claims" hidden>
+      <div class="bar">
+        <h2>Claims</h2>
+        <label class="small">Show <select id="clStatus"><option value="pending">Pending</option><option value="">All</option>
+          <option value="confirmed">Confirmed</option><option value="rejected">Rejected</option></select></label>
+        <label class="small">Decided by <input id="clAnnotator" value="zaid" maxlength="40" size="10" pattern="[A-Za-z0-9_ .\-]{1,40}"></label>
+        <button class="alt small" id="clRefresh" type="button">Refresh</button>
+      </div>
+      <p class="muted small">"That's me": someone added a match on a player's profile and said which player in it they are. Confirm
+        and Regista runs the workflow on that match for the claimed player (clips, labels, then the Profile agent adds the match
+        to the profile); reject and it never counts. Synthetic league players only. Check the kit number and the team against
+        the league player, and watch a clip before you confirm.</p>
+      <p class="small" id="clCounts"></p>
+      <div id="clList"></div>
     </section>
 
     <section data-view="training" hidden>

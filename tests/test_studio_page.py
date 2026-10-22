@@ -135,7 +135,7 @@ def test_the_page_loads_the_shared_helpers_then_its_own_files(page):
 
 
 def test_every_tab_has_a_link_a_view_and_a_loader(page, script):
-    tabs = ["overview", "review", "whos-who", "training", "runs", "jobs", "console"]
+    tabs = ["overview", "review", "whos-who", "claims", "training", "runs", "jobs", "console"]
     for tab in tabs:
         assert f'href="#{tab}" data-tab="{tab}"' in page, tab
         assert f'data-view="{tab}"' in page, tab
@@ -144,11 +144,11 @@ def test_every_tab_has_a_link_a_view_and_a_loader(page, script):
 
 
 def test_the_overview_links_land_on_a_tab():
-    """The to-do links the Studio API writes (/studio#runs/<id>, #review/<id>, #whos-who/<id>, #training) are routes here."""
+    """The to-do links the Studio API writes (/studio#runs/<id>, #review/<id>, #whos-who/<id>, #claims/<id>, #training) are routes here."""
     facts = (ROOT / "src/regista/studio/facts.py").read_text()
     script = (STUDIO / "studio.js").read_text()
     links = set(re.findall(r'/studio#([a-z-]+)', facts))
-    assert links == {"runs", "review", "whos-who", "training"}
+    assert links == {"runs", "review", "whos-who", "claims", "training"}
     for tab in links:
         assert re.search(rf"\b'?{tab}'?: load", script), tab
 
@@ -236,7 +236,8 @@ def test_every_write_control_is_gated_on_the_admin_key(page, script):
     assert "const canWrite = () => S.caps.writes !== 'read-only' && (S.role === 'admin' || S.role === 'open');" in script
     assert "Needs the admin key: the view key can read but not write." in script
     # Keep, Drop, resume a paused review, save Who's who answers, retrain, start a job: each rendered with ${w()}.
-    for control in ('data-v="keep"${w()}', 'data-v="drop"${w()}', 'data-act="resume"${w()}', 'id="trRetrain"${w()}'):
+    for control in ('data-v="keep"${w()}', 'data-v="drop"${w()}', 'data-act="resume"${w()}', 'id="trRetrain"${w()}',
+                    'data-decide="confirm"${w()}', 'data-decide="reject"${w()}'):
         assert control in script, control
     # Who's who: the save button, the candidates and the "someone else" list need the admin key and the identity result
     assert "const canAnswer = (mid) => canWrite() && !S.noIdentity.has(mid);" in script
@@ -248,7 +249,7 @@ def test_every_write_control_is_gated_on_the_admin_key(page, script):
     assert sorted(set(writes)) == sorted({"/api/matches/${enc(card.dataset.match)}/clips/${enc(card.dataset.clip)}/verdict",
                                           "/api/matches/${enc(box.dataset.match)}/review",
                                           "/api/matches/${enc(mid)}/identity-review", "/api/feedback/train",
-                                          "/api/studio/jobs"})
+                                          "/api/studio/jobs", "/api/claims/${enc(card.dataset.claim)}/decision"})
 
 
 def test_fresh_evaluations_carry_a_warning_and_a_confirmation(script):

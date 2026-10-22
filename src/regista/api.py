@@ -32,6 +32,9 @@ POST /api/matches/{match_id}/review             answer it; the workflow resumes 
 POST /api/matches/{match_id}/clips/{clip_id}/verdict   one verdict from the viewer                                         [write]
 GET  /api/matches/{match_id}/identity-review    open "who's who" questions for a vision match (crops, candidates, team sheets) [studio]
 POST /api/matches/{match_id}/identity-review    answer them; identity is corrected and possession, events, clips recomputed   [write]
+GET  /api/claims                                "that's me" claims: uploaded-match players linked to league players     [studio]
+POST /api/claims                                claim one (pending until the Studio decides; regista.claims_api)          [write]
+POST /api/claims/{claim_id}/decision            confirm (runs the workflow; the Profile agent refreshes) or reject        [write]
 GET  /api/feedback                              verdict counts, the learned model, agreement per scorer                       [studio]
 POST /api/feedback/train                        retrain the watchability model                                             [write]
 
@@ -358,13 +361,19 @@ def _pipeline_agents():
     return default_agents()
 
 
+def _profile_refresh():
+    from regista.claims_api import _profile_refresh as bound
+
+    return bound()
+
+
 def _run_summary(mid: str, players: list[str], result) -> dict[str, Any]:
     labels = result.state.get("labels", {})
     out = {"match_id": mid, "players": players, "clips": {p: len(c) for p, c in result.state.get("clips", {}).items()},
            "pipeline_ok": result.ok, "statuses": result.statuses, "engine": "microsoft-agent-framework-workflow",
            "label_models": sorted({lb.get("model", "") for ls in labels.values() for lb in ls}),
            "cosmos": result.state.get("cosmos"), "search_index": result.state.get("search_index"),
-           "review_log": result.state.get("review_log"),
+           "review_log": result.state.get("review_log"), "profiles": result.state.get("profiles_refreshed"),
            "dead_letters": [{"agent": d["agent"], "error": d["error"]} for d in result.dead_letters]}
     if getattr(result, "paused", False):
         out["paused"] = True
@@ -1277,7 +1286,8 @@ async def upload_match(events: UploadFile = File(...), tracks: UploadFile | None
         await run_in_threadpool(_sync_feedback, True)
         from regista.agents.workflow import WorkflowPipeline
 
-        pipeline = WorkflowPipeline(_pipeline_agents(), dest / "agents", checkpoint_dir=dest / "agents" / "checkpoints" if review else None)
+        pipeline = WorkflowPipeline(_pipeline_agents(), dest / "agents", checkpoint_dir=dest / "agents" / "checkpoints" if review else None,
+                                    profile_refresh=_profile_refresh())
         result = await pipeline.start({"match_dir": str(dest), "player_ids": players, "queries": [], "review": review, "annotator": annotator})
         return _run_summary(mid, players, result)
     finally:
@@ -1317,7 +1327,8 @@ async def answer_review(match_id: str, body: ReviewIn) -> dict[str, Any]:
     except FileNotFoundError:
         raise HTTPException(409, "this review is already being answered")
     await run_in_threadpool(_sync_feedback, True)
-    pipeline = WorkflowPipeline(_pipeline_agents(), d / "agents", checkpoint_dir=d / "agents" / "checkpoints")
+    pipeline = WorkflowPipeline(_pipeline_agents(), d / "agents", checkpoint_dir=d / "agents" / "checkpoints",
+                                profile_refresh=_profile_refresh())
     answer = ReviewVerdicts(verdicts=[v.model_dump(exclude={"annotator"}, exclude_none=True) for v in body.verdicts], annotator=body.annotator)
     try:
         result = await pipeline.resume({match["request_id"]: answer}, checkpoint_id=match.get("checkpoint_id"))
@@ -1389,9 +1400,11 @@ async def feedback_train() -> dict[str, Any]:
 
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
+from regista.claims_api import router as _claims_router  # noqa: E402
 from regista.season_api import router as _season_router  # noqa: E402
 from regista.studio_api import router as _studio_router  # noqa: E402
 
 app.include_router(_season_router)
+app.include_router(_claims_router)
 app.include_router(_studio_router)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")  # product/, studio/, shared/: public files, no data

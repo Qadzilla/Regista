@@ -40,7 +40,7 @@ def test_workflow_runs_end_to_end_and_matches_the_orchestrator(match_dir, tmp_pa
     q = [f"find me {_surname(match_dir)} doing a nutmeg"]
     wf = WorkflowPipeline(state_dir=match_dir / "agents", feedback_dir=tmp_path / "fb").run(_req(match_dir, queries=q))
     assert wf.ok, (wf.statuses, wf.dead_letters)
-    assert set(wf.statuses) == {"ingest", "validator", "possession", "clip", "label", "review", "persist", "librarian"}
+    assert set(wf.statuses) == {"ingest", "validator", "possession", "clip", "label", "review", "persist", "profiles", "librarian"}
     # Same work as the hand-written orchestrator: same clips, same labels, same answer.
     ref = Orchestrator(default_agents(), tmp_path / "ref").run(_req(match_dir, queries=q))
     assert [c["id"] for c in wf.state["clips"][PLAYER]] == [c["id"] for c in ref.state["clips"][PLAYER]]
@@ -90,7 +90,7 @@ def test_permanent_failure_routes_to_dead_letter_and_skips_the_rest(match_dir, t
     wf = WorkflowPipeline(agents, tmp_path / "s", max_retries=2, feedback_dir=tmp_path / "fb").run(_req(match_dir, queries=["goal"]))
     assert not wf.ok and wf.output and wf.output.failed_role == "label"
     assert [r["status"] for r in wf.trace if r["agent"] == "label"] == ["retry", "retry", "failed"]
-    assert wf.statuses["review"] == wf.statuses["persist"] == wf.statuses["librarian"] == "skipped"
+    assert wf.statuses["review"] == wf.statuses["persist"] == wf.statuses["profiles"] == wf.statuses["librarian"] == "skipped"
     dead = [json.loads(l) for l in (tmp_path / "s" / "dead_letter.jsonl").read_text().splitlines()]
     assert dead[0]["agent"] == "label" and dead[0]["attempts"] == 3 and dead[0]["error"] == "RuntimeError: labeller crashed"
     assert wf.state["clips"][PLAYER], "work done before the failure survives"
@@ -164,7 +164,7 @@ def test_runs_inside_a_running_event_loop(match_dir, tmp_path):
 def test_graph_renders_to_mermaid(tmp_path):
     m = WorkflowPipeline(state_dir=tmp_path / "s").mermaid()
     assert m.startswith("flowchart TD")
-    for node in ("ingest", "validator", "possession", "clip", "label", "review", "persist", "librarian", "finish", "dead_letter"):
+    for node in ("ingest", "validator", "possession", "clip", "label", "review", "persist", "profiles", "librarian", "finish", "dead_letter"):
         assert node in m
     assert "fan-in" in m
 

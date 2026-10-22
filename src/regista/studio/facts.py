@@ -167,7 +167,19 @@ def todo() -> list[dict[str, Any]]:
         if n:
             unsure.append(_todo("unsure_clips", mid, n, f"{_n(n, 'clip')} flagged unsure {'has' if n == 1 else 'have'} no verdict yet", f"/studio#review/{mid}",
                                 f"/api/matches/{mid}/clips"))
-    return failed + reviews + whos + unsure + model_todo()
+    return failed + reviews + whos + claims_todo() + unsure + model_todo()
+
+
+def claims_todo() -> list[dict[str, Any]]:
+    """"That's me" claims waiting for the operator, one row per match (regista.season.claims)."""
+    from regista.season.claims import all_claims
+
+    per: dict[str, int] = {}
+    for c in all_claims():
+        if c["status"] == "pending":
+            per[c["match_id"]] = per.get(c["match_id"], 0) + 1
+    return [_todo("pending_claims", mid, n, f"{_n(n, 'claim')} (\"that's me\") waiting for a decision", f"/studio#claims/{mid}",
+                  f"/api/claims?match_id={mid}") for mid, n in sorted(per.items())]
 
 
 def model_todo() -> list[dict[str, Any]]:
