@@ -30,7 +30,7 @@ cloud = [
 ]
 vision = [
   "opencv-python-headless>=4.10",
-  "scikit-learn>=1.4",
+  "scikit-learn>=1.7,<1.8",  # the trained vision models are pickled with 1.7.2; 1.8 cannot load them (seen in the Azure job)
   "scipy>=1.11",
   "joblib>=1.3",
 ]
