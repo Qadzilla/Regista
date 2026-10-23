@@ -7,6 +7,7 @@
 <meta name="description" content="Every player in the Regista League, searchable: per-90 rates, percentiles and the moments behind them.">
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
+<link rel="stylesheet" href="/static/shared/dashboard.css">
 <link rel="stylesheet" href="/static/scout/scout.css">
 </head>
 <body>
@@ -15,118 +16,217 @@
 </header>
 
 <div class="shell">
-<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" aria-current="page">Scout</a></nav>
+<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find">Find players</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
 <div class="shell-main">
 
-<main>
+<main class="pf sc" id="main">
   <div class="neterr" id="netError" role="alert" hidden><span id="netErrorText"></span><button type="button" class="alt" id="netRetry">Retry</button></div>
 
-  <section class="intro" aria-labelledby="promise">
-    <h1 id="promise">Every player in the league, every number backed by a moment.</h1>
-    <p class="lede">Filter, sort and shortlist players by what they do per 90 minutes, then compare them side by side. Each
-      profile links every stat to the clips it was counted from.</p>
+  <!-- Overview -->
+  <div class="pv" data-panel="overview">
+    <header class="pf-head panel">
+      <div class="mx-av sc-me" aria-hidden="true">ML</div>
+      <div class="pf-who"><p class="pf-hi muted">Your dashboard</p><h1>Maya Lindqvist</h1>
+        <p class="pf-line">Chief scout · Fairhaven FC <span class="mx-ver">&#10003; Verified scout</span></p></div>
+      <a class="pf-btn" href="/scout#find">Find players</a>
+    </header>
+    <section class="panel" aria-labelledby="ovNeedsHead"><h2 id="ovNeedsHead">Needs you</h2><div class="ov-needs" id="ovNeeds"></div></section>
+    <section class="panel" aria-labelledby="ovShortHead"><div class="pf-bar"><h2 id="ovShortHead">Your shortlist</h2><a href="/scout#shortlist" class="small-link">Open the shortlist</a></div>
+      <div class="sc-stagesum" id="ovStages"></div></section>
+    <section class="panel" aria-labelledby="ovActHead"><h2 id="ovActHead">Recent activity</h2><ol class="ov-activity" id="ovActivity"></ol></section>
+  </div>
+
+  <!-- Find players: the Scout agent, the filters and every player's card, the league table -->
+  <div class="pv" data-panel="find" hidden>
+    <div class="pv-title"><h1 id="promise">Find players</h1>
+      <p class="small muted">Every player in the league, every number backed by a moment.</p></div>
     <p class="synthetic"><span class="badge">Synthetic</span> These are synthetic players and clubs from Regista's generated
       league, not real people.</p>
-  </section>
 
-  <section class="league panel" aria-labelledby="leagueHead">
-    <div class="league-head">
-      <h2 id="leagueHead">The league</h2>
-      <p id="leagueSub" class="muted"></p>
-    </div>
-    <div class="tablewrap">
-      <table class="table" id="table">
-        <caption class="sr">League table. Pick a club to show only its players.</caption>
-        <thead>
-          <tr><th scope="col"><abbr title="Position">#</abbr></th><th scope="col" class="club-col">Club</th>
-            <th scope="col"><abbr title="Played">P</abbr></th><th scope="col"><abbr title="Won">W</abbr></th>
-            <th scope="col"><abbr title="Drawn">D</abbr></th><th scope="col"><abbr title="Lost">L</abbr></th>
-            <th scope="col"><abbr title="Goal difference">GD</abbr></th><th scope="col"><abbr title="Points">Pts</abbr></th></tr>
-        </thead>
-        <tbody id="tableBody"><tr><td colspan="8" class="muted">Loading the league…</td></tr></tbody>
-      </table>
-    </div>
-  </section>
-
-  <section class="agent panel" aria-labelledby="agentHead">
-    <h2 id="agentHead">Ask the Scout agent</h2>
-    <form class="askrow" id="scoutAskForm">
-      <label class="sr" for="scoutAsk">Ask the Scout agent</label>
-      <input id="scoutAsk" type="search" autocomplete="off" maxlength="300"
-             placeholder='"A forward who wins take-ons and shoots a lot"'>
-      <div class="engine" role="radiogroup" aria-label="Who answers">
-        <label><input type="radio" name="scoutEngine" value="rules" checked><span>Instant</span></label>
-        <label><input type="radio" name="scoutEngine" value="foundry"><span>Foundry</span></label>
-      </div>
-      <button type="submit" id="scoutAskGo">Ask</button>
-    </form>
-    <p class="hint" id="scoutAskHint">Instant: Regista's own rules read the question and rank the players, with no AI model.
-      Foundry: a Microsoft Foundry agent answers through Regista's player tools (MCP), from the same numbers.</p>
-    <div class="answer" id="scoutAnswer" aria-live="polite"></div>
-  </section>
-
-  <section class="compare panel" id="compare" aria-labelledby="compareHead" hidden>
-    <div class="compare-head">
-      <h2 id="compareHead" tabindex="-1">Compare</h2>
-      <button type="button" class="alt" id="compareClose">Close</button>
-    </div>
-    <p class="muted small">Every rate per 90 minutes, and the share of attempts that worked. The highest in each row is
-      marked. Percentiles rank a player among others in the same position.</p>
-    <div class="tablewrap" id="compareBody"></div>
-  </section>
-
-  <div class="layout">
-    <section class="filters panel" aria-labelledby="filtersHead">
-      <h2 id="filtersHead" class="sr">Filters</h2>
-      <form id="filterForm" class="filter-grid">
-        <label class="field"><span>Position</span>
-          <select id="fPosition">
-            <option value="">All positions</option>
-            <option value="GK">Goalkeepers</option>
-            <option value="DF">Defenders</option>
-            <option value="MF">Midfielders</option>
-            <option value="FW">Forwards</option>
-          </select>
-        </label>
-        <label class="field"><span>Club</span>
-          <select id="fClub"><option value="">All clubs</option></select>
-        </label>
-        <label class="field"><span>Name</span>
-          <input id="fName" type="search" autocomplete="off" maxlength="80" placeholder="Search players">
-        </label>
-        <label class="field"><span>Minimum minutes</span>
-          <input id="fMinutes" type="number" inputmode="numeric" min="0" max="10000" step="30" value="0">
-        </label>
-        <label class="field wide"><span>Sort by</span>
-          <select id="fSort">
-            <option value="minutes">Minutes played</option>
-            <option value="name">Name</option>
-          </select>
-        </label>
-        <button type="button" class="alt" id="fReset">Reset</button>
+    <section class="panel agent" aria-labelledby="agentHead">
+      <h2 id="agentHead">Ask the Scout agent</h2>
+      <form class="sc-ask" id="scoutAskForm" role="search">
+        <label class="sr" for="scoutAsk">Ask the Scout agent</label>
+        <input id="scoutAsk" type="search" autocomplete="off" maxlength="200" placeholder="Ask about the league's players">
+        <button type="submit" id="scoutAskGo">Ask</button>
       </form>
+      <div class="sc-askopts">
+        <div class="pf-seg engine" role="radiogroup" aria-label="Who answers">
+          <span class="sc-seglabel muted">Who answers</span>
+          <label><input type="radio" name="scoutEngine" value="rules" checked><span>Data Search</span></label>
+          <label><input type="radio" name="scoutEngine" value="foundry"><span>Foundry</span></label>
+        </div>
+        <div class="sc-examples" id="scExamples"></div>
+      </div>
+      <p class="hint" id="scoutAskHint">Data Search: Regista's own rules read the question and rank the players, with no AI model.
+        Foundry: a Microsoft Foundry agent answers through Regista's player tools (MCP), from the same numbers.</p>
+      <div class="sc-answer" id="scoutAnswer" aria-live="polite"></div>
     </section>
 
-    <aside class="shortlist panel" aria-labelledby="shortHead">
-      <div class="short-head">
-        <h2 id="shortHead">Shortlist <span class="muted" id="shortCount"></span></h2>
-      </div>
-      <p class="muted small" id="shortEmpty">Star a player to keep them here. Pick two or three to compare.</p>
-      <p class="muted small" id="shortStore" hidden>This browser is not keeping the shortlist, so it lasts until you leave the page.</p>
-      <ul class="short-list" id="shortList"></ul>
-      <div class="short-actions" id="shortActions" hidden>
-        <button type="button" id="compareGo" disabled>Compare</button>
-        <span class="muted small" id="compareHint">Pick two or three.</span>
-      </div>
-    </aside>
+    <div class="sc-findgrid">
+      <section class="panel sc-results" aria-labelledby="resultsHead">
+        <div class="pf-bar"><h2 id="resultsHead">Players</h2><p class="muted small" id="resultsSub"></p></div>
+        <form id="filterForm" class="sc-filters">
+          <label class="pf-field"><span>Name</span>
+            <input id="fName" type="search" autocomplete="off" maxlength="80" placeholder="Search players"></label>
+          <label class="pf-field"><span>Position</span>
+            <select id="fPosition">
+              <option value="">All positions</option>
+              <option value="FW">Forwards</option>
+              <option value="MF">Midfielders</option>
+              <option value="DF">Defenders</option>
+              <option value="GK">Goalkeepers</option>
+            </select></label>
+          <label class="pf-field"><span>Club</span>
+            <select id="fClub"><option value="">All clubs</option></select></label>
+          <label class="pf-field"><span>Minimum minutes</span>
+            <input id="fMinutes" type="number" inputmode="numeric" min="0" max="10000" step="30" value="0"></label>
+          <label class="pf-field"><span>Sort by</span>
+            <select id="fSort">
+              <option value="minutes">Minutes played</option>
+              <option value="name">Name</option>
+            </select></label>
+          <button type="button" class="alt sc-reset" id="fReset">Reset</button>
+        </form>
+        <div class="sc-cards" id="cards" aria-busy="true"></div>
+        <p class="empty" id="empty" hidden></p>
+      </section>
 
-    <section class="results" aria-labelledby="resultsHead">
-      <div class="results-bar">
-        <h2 id="resultsHead">Players</h2>
-        <p class="muted small" id="resultsSub"></p>
+      <section class="panel league" aria-labelledby="leagueHead">
+        <div class="pf-bar"><h2 id="leagueHead">The league</h2><p id="leagueSub" class="muted small"></p></div>
+        <div class="tablewrap">
+          <table class="table" id="table">
+            <caption class="sr">League table. Pick a club to show only its players.</caption>
+            <thead>
+              <tr><th scope="col"><abbr title="Position">#</abbr></th><th scope="col" class="club-col">Club</th>
+                <th scope="col"><abbr title="Played">P</abbr></th><th scope="col"><abbr title="Won">W</abbr></th>
+                <th scope="col"><abbr title="Drawn">D</abbr></th><th scope="col"><abbr title="Lost">L</abbr></th>
+                <th scope="col"><abbr title="Goal difference">GD</abbr></th><th scope="col"><abbr title="Points">Pts</abbr></th></tr>
+            </thead>
+            <tbody id="tableBody"><tr><td colspan="8" class="muted">Loading the league…</td></tr></tbody>
+          </table>
+        </div>
+        <p class="muted small sc-tablehint">Pick a club to show only its players.</p>
+      </section>
+    </div>
+  </div>
+
+  <!-- Shortlist: stages and compare -->
+  <div class="pv" data-panel="shortlist" hidden>
+    <div class="pv-title"><h1>Shortlist</h1><button type="button" id="compareGo" disabled>Compare</button>
+      <p class="muted small" id="compareHint">Tick two or three players to compare them.</p></div>
+    <p class="muted" id="shortEmpty" hidden>Nobody on your shortlist yet. Star a player in <a href="/scout#find">Find players</a> to keep them here.</p>
+    <div class="sc-board" id="scBoard"></div>
+    <section class="panel sc-compare" id="compare" aria-labelledby="compareHead" hidden>
+      <div class="pf-bar"><h2 id="compareHead" tabindex="-1">Compare</h2><button type="button" class="alt" id="compareClose">Close</button></div>
+      <p class="muted small">Every rate per 90 minutes this season, and the share of attempts that worked. The highest in each row
+        is marked; percentiles rank a player among others in the same position. Pick a number to see the moments behind it.</p>
+      <div class="tablewrap" id="compareBody"></div>
+      <div class="sc-cev" id="compareEv" hidden></div>
+    </section>
+  </div>
+
+  <!-- Reports -->
+  <div class="pv" data-panel="reports" hidden>
+    <div class="pv-title"><h1>Reports</h1><button type="button" id="newReport" aria-expanded="false" aria-controls="newReportBox">New report</button>
+      <p class="muted small">Write a report from any player's profile, or here. Each section can cite the moments it is about.</p></div>
+    <div class="sc-newmsg panel" id="newReportBox" hidden>
+      <label class="pf-field"><span>A report on</span><select id="newReportFor"></select></label>
+      <div class="pf-addbar"><button type="button" id="newReportStart">Start the report</button><button type="button" class="alt" id="newReportCancel">Cancel</button></div>
+    </div>
+    <div class="sc-reports">
+      <ol class="sc-rlist panel" id="reportList" aria-label="Your reports"></ol>
+      <article class="panel sc-report" id="report" aria-live="polite"></article>
+    </div>
+    <p class="muted small sc-local">Messages, notes and reports are kept in this browser only.</p>
+  </div>
+
+  <!-- Messages: scouts start conversations -->
+  <div class="pv" data-panel="messages" hidden>
+    <div class="pv-title"><h1>Messages</h1><button type="button" class="alt" id="newMsg" aria-expanded="false" aria-controls="newMsgBox">New message</button>
+      <p class="muted small">Start a conversation from any player's profile, or here.</p></div>
+    <div class="sc-newmsg panel" id="newMsgBox" hidden>
+      <label class="pf-field"><span>To</span><select id="newMsgTo"></select></label>
+      <div class="pf-addbar"><button type="button" id="newMsgStart">Start conversation</button><button type="button" class="alt" id="newMsgCancel">Cancel</button></div>
+    </div>
+    <div class="mx panel" id="mx">
+      <ol class="mx-list" id="mxList" aria-label="Conversations"></ol>
+      <div class="mx-thread">
+        <header class="mx-head" id="mxHead"></header>
+        <ol class="mx-msgs" id="mxMsgs" aria-live="polite"></ol>
+        <form class="mx-compose" id="mxCompose">
+          <label class="sr" for="mxText">Your message</label>
+          <input id="mxText" type="text" autocomplete="off" maxlength="2000" placeholder="Write a message">
+          <button type="submit" id="mxSend">Send</button>
+        </form>
+        <p class="small muted sc-mxstatus" id="mxStatus" role="status"></p>
+        <button type="button" class="link mx-back" id="mxBack">&larr; All conversations</button>
       </div>
-      <div class="cards" id="cards" aria-busy="true"></div>
-      <p class="empty" id="empty" hidden></p>
+    </div>
+    <p class="muted small sc-local">Messages, notes and reports are kept in this browser only.</p>
+  </div>
+
+  <!-- Team: Fairhaven's needs and squad -->
+  <div class="pv" data-panel="team" hidden>
+    <div class="pv-title"><h1>Team</h1></div>
+    <section class="panel">
+      <div class="tm-club"><div class="tm-crest" id="crest" aria-hidden="true"></div>
+        <div><h2 id="clubHead">Fairhaven FC</h2><p class="muted small" id="clubLine"></p></div></div>
+    </section>
+    <section class="panel" aria-labelledby="needsHead">
+      <div class="pf-bar"><h2 id="needsHead">What we are looking for</h2><button type="button" class="alt" id="addNeed" aria-expanded="false" aria-controls="needForm">Add a need</button></div>
+      <p class="muted small">Each need lists the league's players who fit it, from their numbers this season.</p>
+      <form class="sc-needform" id="needForm" hidden>
+        <label class="pf-field"><span>We need</span><input id="needTitle" type="text" maxlength="60" placeholder="e.g. A winger who beats players"></label>
+        <label class="pf-field"><span>Position</span><select id="needPos"><option value="FW">Forward</option><option value="MF">Midfielder</option><option value="DF">Defender</option><option value="GK">Goalkeeper</option></select></label>
+        <label class="pf-field"><span>Judged on</span><select id="needStat"></select></label>
+        <label class="pf-field"><span>Better than</span><select id="needPct"><option value="90">90% of the position</option><option value="75" selected>75% of the position</option><option value="50">50% of the position</option></select></label>
+        <div class="pf-addbar"><button type="submit">Add</button><button type="button" class="alt" id="needCancel">Cancel</button></div>
+      </form>
+      <div class="sc-needs" id="needs"></div>
+    </section>
+    <section class="panel" aria-labelledby="squadHead"><h2 id="squadHead">Our squad</h2><ol class="tm-squad" id="squad"></ol></section>
+  </div>
+
+  <!-- Settings -->
+  <div class="pv" data-panel="settings" hidden>
+    <div class="pv-title"><h1>Settings</h1></div>
+    <section class="panel st" aria-labelledby="stAccount">
+      <h2 id="stAccount">Account</h2>
+      <div class="st-row"><div><b>Email</b><p class="muted small" id="stEmail"></p></div><button type="button" class="alt" id="stEmailEdit" aria-expanded="false" aria-controls="stEmailForm">Change</button></div>
+      <form class="sc-emailform" id="stEmailForm" hidden>
+        <label class="pf-field"><span>New email</span><input id="stEmailInput" type="email" autocomplete="off" maxlength="120"></label>
+        <div class="pf-addbar"><button type="submit">Save</button><button type="button" class="alt" id="stEmailCancel">Cancel</button></div>
+      </form>
+      <div class="st-row"><div><b>Password</b><p class="muted small">Regista has no sign-in yet.</p></div></div>
+    </section>
+    <section class="panel st" aria-labelledby="stClub">
+      <h2 id="stClub">Club and role</h2>
+      <div class="st-row"><div><b>Fairhaven FC · Chief scout</b><p class="muted small"><span class="mx-ver">&#10003; Verified scout</span> · confirmed by the club</p></div></div>
+    </section>
+    <section class="panel st" aria-labelledby="stNotify">
+      <h2 id="stNotify">Notifications</h2>
+      <label class="st-toggle"><input type="checkbox" data-notify="reply"><span>A player replies</span></label>
+      <label class="st-toggle"><input type="checkbox" data-notify="match"><span>A shortlisted player adds a match</span></label>
+      <label class="st-toggle"><input type="checkbox" data-notify="fit"><span>A new player fits one of our needs</span></label>
+      <label class="st-toggle"><input type="checkbox" data-notify="weekly"><span>A weekly summary of the league</span></label>
+    </section>
+    <section class="panel st" aria-labelledby="stPrivacy">
+      <h2 id="stPrivacy">Privacy</h2>
+      <fieldset class="st-choice"><legend>Who can see your shortlist, notes and reports</legend>
+        <label><input type="radio" name="scPrivacy" value="me"><span>Only me</span></label>
+        <label><input type="radio" name="scPrivacy" value="club"><span>Fairhaven FC's scouts</span></label>
+      </fieldset>
+    </section>
+    <section class="panel st" aria-labelledby="stDemo">
+      <h2 id="stDemo">This browser</h2>
+      <p class="muted small">Messages, notes and reports are kept in this browser only.</p>
+      <div class="st-out"><button type="button" class="alt" id="stReset">Reset this demo</button>
+        <p class="small muted" id="stResetNote" role="status"></p></div>
+    </section>
+    <section class="panel st st-out">
+      <button type="button" class="alt" id="stOut">Sign out</button>
+      <p class="small muted" id="stOutNote" role="status"></p>
     </section>
   </div>
 </main>
@@ -139,6 +239,8 @@
 </div>
 
 <script src="/static/shared/regista.js"></script>
+<script src="/static/shared/demo.js"></script>
+<script src="/static/player/profile-view.js" defer></script>
 <script src="/static/scout/scout.js" defer></script>
 </body>
 </html>

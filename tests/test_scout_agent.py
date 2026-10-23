@@ -45,6 +45,7 @@ def _top(season, position, key):
     ("a winger with the most take-ons", "FW", "take_ons_won"),
     ("midfielders who win the ball back", "MF", "recoveries"),
     ("the best finisher", None, "goals"),
+    ("forwards who score the most", "FW", "goals"),
     ("defenders who play forward passes", "DF", "forward_passes"),  # "forward passes" is a stat, not forwards
     ("which striker shoots the most?", "FW", "shots"),
     ("keeper with the most saves", "GK", "saves"),

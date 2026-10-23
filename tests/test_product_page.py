@@ -141,6 +141,11 @@ def test_grid_videos_load_lazily(script):
 # ---------------------------------------------------------------------------- the Clip view beside the Scout view
 
 VIEWS = [("/", "Home"), ("/me", "Player profile"), ("/scout", "Scout")]
+# A dashboard's sections, indented under its link in the left panel (shared/regista.css .subviews, shared/regista.js
+# sections()); /players/{id} shows Scout's. Home has none. A page listed in SECTIONS_REQUIRED must have them.
+SECTIONS = {"/me": ["overview", "profile", "matches", "messages", "team", "settings"],
+            "/scout": ["overview", "find", "shortlist", "reports", "messages", "team", "settings"]}
+SECTIONS_REQUIRED = {"player/index.html", "me/index.html", "scout/index.html"}
 
 
 @pytest.mark.parametrize("page_file, current", [("product/index.html", "/"), ("scout/index.html", "/scout"),
@@ -149,15 +154,32 @@ def test_every_view_has_the_same_left_panel_with_its_own_view_current(page_file,
     html = (PRODUCT.parent / page_file).read_text()
     header = re.search(r'<header class="top">(.*?)</header>', html, flags=re.S).group(1)
     assert "<nav" not in header and '<p class="brand">REGI<span>STA</span></p>' in header  # the views left the header
-    navs = re.findall(r'<nav class="views" aria-label="Views">(.*?)</nav>', html)
+    navs = re.findall(r'<nav class="views" aria-label="Views">(.*?)</nav>', html, flags=re.S)
     assert len(navs) == 1
-    mark = ' aria-current="page"'
+    nav = navs[0]
+    sub = re.search(r'<div class="subviews" role="group" aria-label="[^"]+ sections">(.*?)</div>', nav, flags=re.S)
+    assert sub or page_file not in SECTIONS_REQUIRED, "the dashboard's sections are missing from the left panel"
+    if current == "/":
+        assert sub is None  # Home's panel is the three views, unchanged
+    mark = ' class="parent" aria-current="page"' if sub else ' aria-current="page"'
     links = "".join(f'<a href="{h}"{mark if h == current else ""}>{t}</a>' for h, t in VIEWS)
-    assert navs[0] == links
+    assert re.sub(r'<div class="subviews".*?</div>', "", nav, flags=re.S) == links
+    if sub:
+        # Right after the current view's link: one link per section, to that view's #section, at most one marked.
+        assert nav.index(sub.group(0)) == nav.index(f'<a href="{current}"') + len(f'<a href="{current}"{mark}>') + len(dict(VIEWS)[current]) + len("</a>")
+        found = re.findall(rf'<a href="{re.escape(current)}#([a-z]+)" data-section="([a-z]+)"', sub.group(1))
+        assert [a for a, _b in found] == [b for _a, b in found] == SECTIONS[current]
+        assert sub.group(1).count('aria-current="true"') <= 1 and 'aria-current="page"' not in sub.group(1)
     # The panel sits beside the page's content: shell > nav + shell-main > main ... footer
     shell = html[html.index('<div class="shell">'):]
     assert shell.index('<nav class="views"') < shell.index('<div class="shell-main">') < shell.index("<main")
     assert shell.index("</footer>") < shell.index("</div>\n</div>")
+
+
+def test_the_profile_page_marks_find_players_under_scout():
+    html = (PRODUCT.parent / "player/index.html").read_text()
+    assert '<a href="/scout#find" data-section="find" aria-current="true">Find players</a>' in html
+    assert '<span class="count" data-count="messages"></span>' in html
 
 
 def test_the_left_panel_is_styled_once_for_every_page():
@@ -170,6 +192,13 @@ def test_the_left_panel_is_styled_once_for_every_page():
         assert ".views" not in (PRODUCT.parent / css).read_text(), css  # one rule, shared by every view
     js = (PRODUCT.parent / "shared/regista.js").read_text()
     assert "--top-h" in js and "--top-h" in shared  # the panel sticks below headers of any height
+    # A dashboard's sections: indented under the view, the one on screen in yellow, the view's own link steps back,
+    # a second row of tabs on phones; styled here only (dashboard.css styles no part of the panel either).
+    assert '.views .subviews a[aria-current="true"] { background: var(--accent); color: #111;' in shared
+    assert '.views a.parent[aria-current="page"] { background: transparent; color: var(--text); }' in shared
+    assert ".subviews { flex-basis: 100%; flex-direction: row; order: 1;" in phone
+    assert ".views" not in (PRODUCT.parent / "shared/dashboard.css").read_text()
+    assert "function sections(" in js and "aria-current', 'true'" in js and "hashchange" in js
 
 
 def test_league_matches_join_the_picker_lazily_after_the_featured_match(script):
@@ -381,7 +410,7 @@ def test_the_realism_report_is_offered_only_in_the_match_view(page, script):
 
 
 @pytest.mark.parametrize("page_file, words", [("me/index.html", '<a href="/">Home</a>'), ("player/index.html", '<a href="/">Home</a>'),
-                                              ("scout/index.html", '<a href="/">Home</a>'), ("player/player.js", ">Watch on Home<"),
+                                              ("scout/index.html", '<a href="/">Home</a>'), ("player/profile-view.js", ">Watch on Home<"),
                                               ("me/me.js", "'Open the match on Home'"), ("me/me.js", "'Read it on Home'"),
                                               ("studio/studio.js", ">see it on Home<")])
 def test_other_pages_call_the_first_view_home(page_file, words):

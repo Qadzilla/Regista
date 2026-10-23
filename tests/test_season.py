@@ -160,6 +160,17 @@ def test_season_and_players_endpoints(client, built):
     assert client.get("/api/compare", params={"ids": f"{gid},{gid}"}).status_code == 422
 
 
+def test_season_lists_each_clubs_squad_from_the_league_file(client, built):
+    # The dashboards' Team sections show a club's squad: /api/season carries it, read-only, exactly as league.json has it.
+    small, _root, _ = built
+    clubs = client.get("/api/season").json()["clubs"]
+    assert [c["club_id"] for c in clubs] == [c["club_id"] for c in small["clubs"]]
+    for got, want in zip(clubs, small["clubs"]):
+        assert got["squad"] == [{k: p[k] for k in ("global_id", "name", "kit_number", "position", "starter")} for p in want["squad"]]
+        assert len(got["squad"]) == 18 and all(p["global_id"].startswith("pl_") for p in got["squad"])
+        assert set(got) == {"club_id", "name", "short_name", "kit", "ground", "squad"}
+
+
 def test_a_season_match_opens_like_any_match(client, built):
     small, _root, _ = built
     mid = small["fixtures"][2]["match_id"]

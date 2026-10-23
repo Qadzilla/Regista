@@ -1,165 +1,169 @@
-/* The Scout view (/scout): layout on top of the shared tokens in /static/shared/regista.css. Phone first: everything
-   stacks at 375 px, nothing scrolls sideways; from 980 px the shortlist sits beside the player cards. */
-.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* The Scout dashboard (/scout): what this page adds on top of the shared tokens (shared/regista.css) and the dashboards'
+   shared look (shared/dashboard.css): the header, the error banner, player cards with a star, the league table, the
+   Scout agent's options and trace, the comparison table, report citations, and the phone layout. Phone first: everything
+   stacks at 375 px and nothing scrolls sideways (wide tables scroll inside their own box). */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 html { -webkit-text-size-adjust: 100%; }
 body { overflow-x: hidden; }
 h1, h2, h3 { overflow-wrap: anywhere; }
-.small { font-size: 12.5px; }
 
-/* Header: the brand (the views are in the shared left panel, shared/regista.css) */
+/* Header: the brand (the views are in the shared left panel) */
 .top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
        position: sticky; top: 0; z-index: 5; }
 .top .brand { margin-right: auto; }
-
-main { padding: 16px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
-
-.intro { padding: 14px 0 0; }
-.intro h1 { font-size: clamp(22px, 4.2vw, 34px); line-height: 1.15; margin: 0 0 12px; letter-spacing: -.01em; }
-.lede { margin: 0 0 10px; color: var(--muted); max-width: 66ch; }
-.synthetic { margin: 0; font-size: 13.5px; max-width: 80ch; }
-.badge { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 7px; background: #2c2440; color: #c9b4ff; margin-right: 4px;
-         text-transform: uppercase; letter-spacing: .05em; }
 
 .neterr { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid var(--bad); border-radius: var(--radius);
           padding: 10px 14px; background: #2a1518; }
 .neterr span { flex: 1 1 240px; }
 
+.synthetic { margin: -6px 0 0; font-size: 13.5px; max-width: 80ch; color: var(--muted); }
+.pf .synthetic .badge { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 7px; background: #2c2440; color: #c9b4ff; margin-right: 4px;
+                        text-transform: uppercase; letter-spacing: .05em; }
+.pf .sc-local { margin: 0; }
+
+/* Find players: the Scout agent */
+.sc-askopts { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin-top: 10px; }
+.sc-askopts .sc-examples { margin-top: 0; }
+.pf-seg .sc-seglabel { font-size: 12.5px; margin-right: 4px; padding: 0; border: 0; border-radius: 0; font-weight: 400; }
+.hint { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; max-width: 90ch; }
+.sc-answer:empty { display: none; }
+.sc-answer > p { margin: 0 0 6px; }
+.sc-answer .sc-reply { border-left: 3px solid var(--accent); padding: 2px 0 2px 11px; overflow-wrap: anywhere; margin-bottom: 8px; }
+.sc-answer .sc-cards { margin-top: 10px; }
+.sc-answer .how .plain { margin: 6px 0 4px; padding-left: 20px; }
+.sc-answer .how .tech { margin-top: 6px; }
+.sc-answer .how .tech summary { font-size: 12px; }
+.pf .sc-about { margin: 0; color: var(--accent); font-weight: 600; }
+
+/* Find players: cards beside the league table from 1100 px; the table first on narrower screens (six short rows) */
+.sc-findgrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "league" "results"; align-items: start; }
+.sc-results { grid-area: results; display: flex; flex-direction: column; gap: 12px; }
+.league { grid-area: league; }
+@media (min-width: 1100px) {
+  .sc-findgrid { grid-template-columns: minmax(0, 1fr) 330px; grid-template-areas: "results league"; }
+  .league { position: sticky; top: calc(var(--top-h) + 12px); }
+}
+.sc-results .pf-bar { margin-bottom: 0; flex-wrap: wrap; justify-content: flex-start; gap: 4px 12px; }
+.sc-results .pf-bar .small { margin: 0; }
+.sc-filters { align-items: end; }
+.sc-filters .pf-field { flex: 1 1 150px; }
+.sc-filters input, .sc-filters select { width: 100%; height: 40px; }
+.pf .sc-reset { flex: 0 0 auto; height: 40px; }
+
+/* A player's card: the name's link covers the card, the star sits above it */
+.sc-pcard { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--line); border-radius: 12px;
+            background: var(--bg); min-width: 0; }
+.sc-pcard:hover { border-color: #3a4256; }
+.sc-pcard:focus-within { border-color: var(--accent); }
+.pf .sc-pcard .small { margin: 0; }
+.sc-pcard .sc-chead { align-items: flex-start; }
+.sc-pcard .who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pf .sc-pcard a.name { color: var(--text); font-weight: 700; font-size: 15.5px; text-decoration: none; overflow-wrap: anywhere; }
+.sc-pcard a.name::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
+.sc-pcard a.name:hover { text-decoration: underline; }
+.sc-pcard a.name:focus-visible { outline: none; }
+.sc-pcard a.name:focus-visible::after { outline: 2px solid var(--accent); outline-offset: 2px; }
+.sc-stagebox:empty { display: none; }
+.sc-stagebox { margin-top: 4px; }
+.pf button.star { position: relative; z-index: 1; background: none; color: var(--muted); font-size: 22px; line-height: 1; padding: 2px 4px; font-weight: 400;
+                  border-radius: 6px; }
+.pf button.star:hover, .pf button.star[aria-pressed="true"] { color: var(--accent); }
+.rates { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.rates li { display: flex; flex-direction: column; gap: 3px; font-size: 13px; color: var(--muted); }
+.rates b { color: var(--text); font-size: 14px; font-variant-numeric: tabular-nums; }
+.rates .pct { font-size: 11.5px; }
+.rates .bar { height: 3px; background: #2b3140; border-radius: 2px; overflow: hidden; }
+.rates .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.pf .sc-pcard .best { margin: 0; font-size: 12.5px; overflow-wrap: anywhere; border-top: 1px solid var(--line); padding-top: 8px; }
+.sc-pcard .best .muted { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600; }
+.empty { color: var(--muted); padding: 32px 8px; text-align: center; margin: 0; }
+
 /* The league table */
-.league-head { display: flex; align-items: baseline; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; margin-bottom: 8px; }
-.league-head h2 { margin: 0; font-size: 17px; }
-.league-head p { margin: 0; font-size: 13px; }
-.tablewrap { overflow-x: auto; }
+.league .pf-bar { flex-wrap: wrap; justify-content: flex-start; gap: 2px 12px; margin-bottom: 6px; }
+.league .pf-bar .small { margin: 0; }
+.pf .sc-tablehint { margin: 8px 0 0; }
 .table { border-collapse: collapse; width: 100%; font-size: 13.5px; font-variant-numeric: tabular-nums; }
-.table th, .table td { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+.table th, .table td { padding: 6px 5px; border-bottom: 1px solid var(--line); text-align: right; }
 .table thead th { color: var(--muted); font-weight: 600; font-size: 12px; }
 .table abbr { text-decoration: none; }
 .table .club-col { text-align: left; width: 100%; }
 .table tbody tr:last-child > * { border-bottom: 0; }
+.table tr.ours > * { background: rgba(255, 205, 40, .06); }
 .table .pts { font-weight: 800; }
-button.club { background: none; color: var(--text); border: 0; padding: 2px 0; font-weight: 600; display: inline-flex; align-items: center;
-              gap: 8px; text-align: left; border-radius: 4px; }
-button.club:hover .full, button.club:hover .short { color: var(--accent); text-decoration: underline; }
+.pf button.club { background: none; color: var(--text); border: 0; padding: 2px 0; font-weight: 600; display: inline-flex; align-items: center;
+                  gap: 8px; text-align: left; border-radius: 4px; }
+.pf button.club:hover .full, .pf button.club:hover .short, .pf button.club[aria-pressed="true"] .full, .pf button.club[aria-pressed="true"] .short { color: var(--accent); }
+.pf button.club[aria-pressed="true"] .full, .pf button.club[aria-pressed="true"] .short { text-decoration: underline; }
 .table .short { display: none; }
 .kit { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 2px solid var(--line); background: var(--muted);
        flex: 0 0 auto; vertical-align: -1px; }
 
-/* The Scout agent's slot */
-.agent h2 { margin: 0 0 8px; font-size: 16px; }
-.askrow { display: flex; gap: 8px; flex-wrap: wrap; }
-.askrow input { flex: 1 1 180px; min-width: 0; font-size: 16px; }  /* 16 px: phones do not zoom into the field */
-.hint { margin: 8px 0 0; color: var(--muted); font-size: 12.5px; }
-.answer:empty { display: none; }
-.answer { margin-top: 10px; display: flex; flex-direction: column; gap: 10px; }
-.answer .reply { margin: 0; border-left: 3px solid var(--accent); padding: 2px 0 2px 11px; overflow-wrap: anywhere; }
-.answer > p { margin: 0; }
-
-/* Filters, shortlist and cards: stacked on phones, the shortlist on the right from 980 px */
-.layout { display: grid; gap: var(--gap); grid-template-columns: minmax(0, 1fr);
-          grid-template-areas: "filters" "shortlist" "results"; }
-.filters { grid-area: filters; }
-.shortlist { grid-area: shortlist; }
-.results { grid-area: results; min-width: 0; }
-@media (min-width: 980px) {
-  .layout { grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: "filters shortlist" "results shortlist"; align-items: start; }
-  .shortlist { position: sticky; top: 72px; }
-}
-
-.filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); gap: 10px; align-items: end; }
-.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
-.field > span { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.field select, .field input { width: 100%; min-width: 0; font-size: 16px; height: 40px; }
-.field.wide { grid-column: span 2; }
-@media (max-width: 420px) { .field.wide { grid-column: auto; } }
-
-.short-head h2 { margin: 0 0 6px; font-size: 16px; }
-.short-head h2 .muted { font-weight: 400; }
-.shortlist p { margin: 0 0 6px; }
-.short-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.short-list li { display: grid; grid-template-columns: auto auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 4px 0;
-                 border-bottom: 1px solid var(--line); }
-.short-list li:last-child { border-bottom: 0; }
-.short-list .pick { display: flex; }
-.short-list input[type="checkbox"] { width: 18px; height: 18px; margin: 0; accent-color: var(--accent); }
-.sl-who { display: flex; flex-direction: column; min-width: 0; font-size: 13.5px; }
-.sl-who a { color: var(--text); font-weight: 600; overflow-wrap: anywhere; }
-.sl-who .muted { font-size: 12px; }
-button.x { background: none; color: var(--muted); padding: 2px 8px; font-size: 18px; line-height: 1; font-weight: 400; }
-button.x:hover { color: var(--bad); }
-.short-actions { display: flex; align-items: center; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
-
-.results-bar { display: flex; align-items: baseline; gap: 4px 12px; flex-wrap: wrap; margin-bottom: 12px; }
-.results-bar h2 { margin: 0; font-size: 16px; }
-.results-bar p { margin: 0; }
-
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 14px; }
-.card { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px;
-        display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.card:hover { border-color: #3a4256; }
-.card:focus-within { border-color: var(--accent); }
-.card-top { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; }
-.who { min-width: 0; }
-.card .name { margin: 0; font-size: 16px; line-height: 1.25; }
-/* The name's link covers the whole card; the star sits above it */
-.card .name a { color: var(--text); text-decoration: none; }
-.card .name a::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius); }
-.card .name a:hover { text-decoration: underline; }
-.card .name a:focus-visible { outline: none; }
-.card .name a:focus-visible::after { outline: 2px solid var(--accent); outline-offset: 2px; }
-.card .sub { margin: 2px 0 0; font-size: 12.5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.shirt { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 8px; border: 2px solid var(--line);
-         background: var(--line); color: var(--text); font-weight: 800; font-size: 16px; font-variant-numeric: tabular-nums; flex: 0 0 auto; }
-.shirt.sm { width: 26px; height: 26px; border-radius: 6px; font-size: 12px; border-width: 1px; }
-button.star { position: relative; z-index: 1; background: none; color: var(--muted); font-size: 22px; line-height: 1; padding: 2px 6px;
-              font-weight: 400; }
-button.star:hover { color: var(--accent); }
-button.star[aria-pressed="true"] { color: var(--accent); }
-.per { margin: 0; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.rates { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.rates li { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; font-size: 13.5px; }
-.rates .val { font-weight: 800; font-variant-numeric: tabular-nums; text-align: right; }
-.rates .pct { grid-column: 1 / -1; font-size: 11.5px; }
-.rates .bar { grid-column: 1 / -1; height: 4px; background: #2b3140; border-radius: 2px; overflow: hidden; margin-top: 2px; }
-.rates .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
-.best { margin: 0; font-size: 12.5px; overflow-wrap: anywhere; border-top: 1px solid var(--line); padding-top: 8px; }
-.best .muted { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; font-weight: 600; }
-.empty { color: var(--muted); padding: 32px 8px; text-align: center; margin: 0; }
+/* Shortlist: a player the scout bar just sent here */
+.sc-item.flash { border-color: var(--accent); animation: sc-flash 1.6s ease-out 1; }
+.sc-item:focus { outline: none; }
+@keyframes sc-flash { from { box-shadow: 0 0 0 4px rgba(255, 205, 40, .45); } to { box-shadow: 0 0 0 0 rgba(255, 205, 40, 0); } }
+@media (prefers-reduced-motion: reduce) { .sc-item.flash { animation: none; } }
+.pf .sc-cmp input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
 
 /* Compare */
-.compare-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.compare-head h2 { margin: 0; font-size: 17px; }
-.compare-head h2:focus { outline: none; }
-.compare > p { margin: 6px 0 10px; }
-.ctable { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; table-layout: fixed; }
-.ctable th, .ctable td { padding: 6px 6px; border-bottom: 1px solid var(--line); text-align: right; vertical-align: top; overflow-wrap: anywhere; }
-.ctable thead th { vertical-align: bottom; text-align: right; font-weight: 600; }
+.sc-compare > .small { margin: 0 0 10px; }
+.sc-compare h2:focus { outline: none; }
+.ctable { table-layout: fixed; font-size: 13.5px; }
+.ctable th, .ctable td { vertical-align: top; overflow-wrap: anywhere; padding: 7px 8px; }
+.ctable thead th { text-align: right; font-weight: 600; }
+.ctable thead td { border-top: 0; }
 .ctable thead th > * { display: block; margin-left: auto; width: fit-content; }
-.ctable thead th > .shirt { display: grid; }
-.ctable thead th a { color: var(--text); margin: 4px 0 0 auto; }
-.ctable thead th .muted { font-size: 11.5px; font-weight: 400; }
-.ctable tbody th { text-align: left; font-weight: 400; color: var(--muted); }
+.ctable thead th .sc-shirt { display: grid; }
 .ctable thead td:first-child, .ctable tbody th[scope="row"] { width: 34%; }
 .ctable tr.group th { color: var(--text); font-weight: 700; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; padding-top: 14px; }
-.ctable td.best { color: var(--accent); font-weight: 800; }
-.ctable td.best::before { content: "▲ "; font-size: 9px; vertical-align: 1px; }
+.ctable td.best button, .ctable td.best { color: var(--accent); font-weight: 800; }
+.ctable td.best::before { content: "▲ "; font-size: 9px; vertical-align: 1px; color: var(--accent); }
+.ctable td button.link { font-variant-numeric: tabular-nums; }
 .ctable .pc { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
+.sc-cev .pf-bar { margin-bottom: 8px; }
+.sc-cev h3:focus { outline: none; }
+.pf .sc-cev .pf-bar button { padding: 5px 11px; font-size: 13px; }
+.pf .sc-cevgrid .small { margin: 6px 0 0; }
+
+/* Reports */
+.pf .sc-rnone { padding: 10px; margin: 0; }
+.sc-citewrap { display: inline-flex; align-items: center; gap: 2px; }
+.pf .sc-uncite { background: none; color: var(--muted); padding: 2px 6px; font-size: 16px; line-height: 1; font-weight: 400; }
+.pf .sc-uncite:hover { color: var(--bad); }
+.sc-report .mx-picker button.link:disabled { color: var(--muted); text-decoration: none; }
+.sc-rverdict { margin-top: 10px; }
+.pf .sc-report > .small { margin: 0 0 6px; }
+
+/* Messages */
+.pf .sc-mxstatus { margin: 0; padding: 0 16px; }
+.pf .sc-mxstatus:empty { display: none; }
+.pf .sc-mxnone { padding: 10px; margin: 0; }
+.mx-compose input:disabled { opacity: .6; }
+
+/* Team */
+.pf .tm-squad a { color: var(--text); text-decoration: none; }
+.pf .tm-squad a:hover { color: var(--accent); text-decoration: underline; }
+
+/* Settings */
+.sc-emailform { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; padding: 4px 0 8px; }
+.sc-emailform .pf-field { flex: 1 1 260px; }
+.sc-emailform .pf-field input { width: 100%; }
+.sc-emailform .pf-addbar { margin: 0; }
+.st .st-out { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 
 footer { color: var(--muted); font-size: 12.5px; text-align: center; padding: 24px 16px 40px; }
 footer p { margin: 4px 0; }
 
-@media (max-width: 600px) {
+@media (max-width: 720px) {
   .top { position: static; }
+  .sc-askopts { align-items: flex-start; flex-direction: column; }
+  .pv-title > button { width: 100%; }
+}
+@media (max-width: 600px) {
   .table .full { display: none; }
   .table .short { display: inline; }
   .table th, .table td { padding: 6px 4px; }
   .ctable { font-size: 12px; }
   .ctable th, .ctable td { padding: 5px 3px; }
+  .ctable thead td:first-child, .ctable tbody th[scope="row"] { width: 30%; }
 }
-
-/* Who answers the Scout agent's question (same look as the Product's toggle) */
-.engine { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
-.engine label { display: flex; cursor: pointer; }
-.engine input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.engine span { padding: 8px 12px; color: var(--muted); font-weight: 600; }
-.engine input:checked + span { background: var(--line); color: var(--text); }
-.engine input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }

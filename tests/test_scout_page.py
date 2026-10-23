@@ -1,19 +1,24 @@
-"""The Scout page (/scout): served by the app, loading only same-origin scripts and no inline script (the CSP allows
-``script-src 'self'`` only), with the hooks other Scout sessions build on.
+"""The Scout dashboard (/scout): served by the app, loading only same-origin scripts and no inline script (the CSP allows
+``script-src 'self'`` only), with its seven sections in the left panel and the hooks other pages build on.
 
-The page's behaviour in a browser (desktop and 375 px) is checked by hand against a local run; see the PR that
-introduced it.
+What is live comes from the API (the league, the players and their filters, the Scout agent, compare, profiles);
+what is the visitor's own (messages, shortlist stages and notes, reports, needs, settings) goes through Regista.demo
+(shared/demo.js) and stays in the browser. The page's behaviour in a browser (desktop and 375 px) is checked by hand
+against a local offline run; see docs/redesign/dashboards/scout.md.
 """
 
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
 
 SCOUT = Path(__file__).resolve().parents[1] / "src/regista/static/scout"
+SECTIONS = ["overview", "find", "shortlist", "reports", "messages", "team", "settings"]
 
 
 @pytest.fixture(scope="module")
@@ -38,7 +43,23 @@ def script() -> str:
 def test_scout_serves_the_page_not_the_placeholder(page):
     assert page == (SCOUT / "index.html").read_text()
     assert "This page is being built" not in page
-    assert '<nav class="views"' in page and 'href="/scout" aria-current="page"' in page and 'href="/"' in page
+    assert '<nav class="views"' in page and 'href="/scout" class="parent" aria-current="page"' in page and 'href="/"' in page
+
+
+def test_the_left_panel_lists_the_seven_scout_sections(page):
+    nav = re.search(r'<nav class="views" aria-label="Views">(.*?)</nav>', page, flags=re.S).group(1)
+    sub = re.search(r'<div class="subviews" role="group" aria-label="Scout sections">(.*?)</div>', nav, flags=re.S)
+    assert sub, "the Scout sections are missing from the left panel"
+    assert nav.index(sub.group(0)) == nav.index('<a href="/scout" class="parent" aria-current="page">Scout</a>') + len(
+        '<a href="/scout" class="parent" aria-current="page">Scout</a>')
+    found = re.findall(r'<a href="/scout#([a-z]+)" data-section="([a-z]+)"', sub.group(1))
+    assert [a for a, _b in found] == [b for _a, b in found] == SECTIONS
+    assert 'aria-current="true"' not in sub.group(1)  # the script marks the section on screen
+    assert '<span class="count" data-count="messages"></span>' in sub.group(1)
+    # every section has its panel, and only the first shows before the script runs
+    for s in SECTIONS:
+        assert re.search(rf'<div class="pv" data-panel="{s}"( hidden)?>', page), s
+    assert '<div class="pv" data-panel="overview">' in page
 
 
 def test_the_page_loads_only_same_origin_scripts_and_no_inline_script(page):
@@ -50,14 +71,16 @@ def test_the_page_loads_only_same_origin_scripts_and_no_inline_script(page):
         assert body.strip() == ""
         assert src.group(1).startswith("/") and not src.group(1).startswith("//"), src.group(1)
     assert not re.search(r"\son[a-z]+\s*=", page), "inline event handler"
+    assert not re.search(r'\sstyle\s*=', page), "style attribute"
     srcs = [re.search(r'src="([^"]+)"', a).group(1) for a, _ in scripts]
-    assert srcs == ["/static/shared/regista.js", "/static/scout/scout.js"]
+    # the shared helpers, the per-visitor store, the shared profile renderer's helpers, then the page
+    assert srcs == ["/static/shared/regista.js", "/static/shared/demo.js", "/static/player/profile-view.js", "/static/scout/scout.js"]
 
 
 def test_the_files_the_page_loads_are_served(client, page):
     for path in re.findall(r'(?:src|href)="(/static/[^"]+)"', page):
         assert client.get(path).status_code == 200, path
-    assert "/static/scout/scout.css" in page
+    assert "/static/scout/scout.css" in page and "/static/shared/dashboard.css" in page
 
 
 def test_the_page_says_its_players_are_synthetic(page):
@@ -66,16 +89,71 @@ def test_the_page_says_its_players_are_synthetic(page):
 
 def test_the_scout_agent_is_wired(page, script):
     assert 'id="scoutAsk"' in page and 'id="scoutAnswer"' in page and 'name="scoutEngine"' in page
+    assert 'value="rules" checked><span>Data Search</span>' in page and 'value="foundry"><span>Foundry</span>' in page
+    assert 'maxlength="200"' in page  # what the API accepts (ScoutAskIn.q), and what the 422 message says
     assert "coming in this build" not in page + script
     assert "function renderScoutAnswer(json)" in script and "R.api('/api/scout/ask', { method: 'POST', body: { q, engine } })" in script
-    # who answered is always said, and a Foundry fallback to the rules shows its reason
+    assert "window.RegistaScout = { renderScoutAnswer }" in script
+    # who answered is always said, and a Foundry fallback to the rules shows its reason; the steps it took open on demand
     assert "Answered by Microsoft Foundry" in script and "Answered by Regista's rules" in script
+    assert "How the Scout agent answered" in script and "json.trace_note" in script
 
 
 def test_numbers_come_from_the_api_and_text_is_escaped(script):
-    for endpoint in ("/api/season", "/api/players?", "/api/compare?ids="):
+    for endpoint in ("/api/season", "/api/players?", "/api/compare?ids=", "/api/players/${enc(gid)}"):
         assert endpoint in script
     assert "const esc = R.esc" in script
     # No raw stat keys in what people read: labels come from the API's stat catalogue.
     assert "per90" not in (SCOUT / "index.html").read_text()
-    assert "localStorage" in script and "try {" in script
+    # the CSP: widths and colours are set after rendering, never as style attributes in markup
+    assert "style=" not in script and "element.style" in script
+
+
+def test_the_visitors_own_things_stay_in_this_browser_through_the_shared_store(page, script):
+    # Messages, the shortlist, compare picks, reports, needs and settings go through Regista.demo, which keeps them in
+    # this browser (Regista.store, every access guarded); scout.js itself touches no storage and sends none of it.
+    assert "localStorage" not in script and "sessionStorage" not in script
+    assert "const demo = R.demo" in script
+    for call in ("demo.forScout(demo.SCOUT)", "demo.send(state.openConvo, 'scout', text)", "demo.startConversation(demo.SCOUT, gid",
+                 "demo.setStage(", "demo.toggleCompare(", "demo.draftReport(", "demo.saveReport(", "demo.saveNeeds(",
+                 "demo.saveSettings('scout'", "demo.reset()", "demo.markRead("):
+        assert call in script, call
+    assert not re.search(r"method: 'POST'(?!, body: \{ q, engine \})", script), "the only write is the Scout agent's question"
+    # one quiet line in Messages and Settings (and Reports), and Settings can restore the seeds
+    assert page.count("Messages, notes and reports are kept in this browser only.") == 3
+    assert ">Reset this demo<" in page
+
+
+def test_the_scout_bar_links_open_their_section_with_the_player(script):
+    # /scout#messages/<id>, #shortlist/<id>, #reports/<id> (player/player.js writes first; the hash alone is enough)
+    assert "R.sections({ fallback: 'overview', onChange: show })" in script
+    assert "if (section === 'shortlist') openShortlist(gid);" in script
+    assert "if (section === 'reports') openReports(gid);" in script
+    assert "if (section === 'messages') openMessages(gid);" in script
+    assert "const GID = /^pl_[a-z0-9_]{1,40}$/;" in script
+
+
+def test_clips_are_known_by_match_and_clip_and_play_only_api_urls(script):
+    assert "PV.key(" in script and "demo.refKey" in script  # match_id|clip_id, never the clip id alone
+    assert "const VIDEO = /^\\/api\\/" in script
+
+
+def test_the_page_styles_no_part_of_the_left_panel():
+    assert ".views" not in (SCOUT / "scout.css").read_text()
+
+
+@pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
+def test_the_script_parses():
+    subprocess.run(["node", "--check", str(SCOUT / "scout.js")], check=True)
+
+
+def test_the_needs_and_the_squad_come_from_the_live_league(client):
+    # Team: Fairhaven's squad comes from /api/season, and the needs are matched against /api/players' headline numbers.
+    s = client.get("/api/season").json()
+    fair = next(c for c in s["clubs"] if c["club_id"] == "cl_fairhaven")
+    assert fair["name"] == "Fairhaven FC" and len(fair["squad"]) == 18
+    cards = client.get("/api/players?sort=name&limit=200").json()["players"]
+    headline = {st["key"] for st in s["stats"] if st["kind"] == "per90" and st["headline"]}
+    for need_stat in ("goals", "recoveries", "interceptions"):  # the seeded needs (shared/demo.js)
+        assert need_stat in headline
+        assert all(need_stat in p["headline"] for p in cards)
