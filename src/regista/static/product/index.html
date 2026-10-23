@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Regista</title>
-<meta name="description" content="Every touch, every replay, every player, found in seconds.">
+<meta name="description" content="Every moment. Every highlight. Every player. Found in seconds.">
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
 <link rel="stylesheet" href="/static/product/product.css">
@@ -12,8 +12,6 @@
 <body>
 <header class="top">
   <p class="brand">REGI<span>STA</span></p>
-  <label class="pick"><span class="pick-label">Match</span><select id="match"></select></label>
-  <label class="pick"><span class="pick-label">Player</span><select id="player"></select></label>
 </header>
 
 <div class="shell">
@@ -65,7 +63,13 @@
       <section class="matchview" id="matchView" aria-label="This match" hidden>
         <p class="backline"><button type="button" class="link back" id="backToResults" hidden>&larr; Back to results</button></p>
         <section class="matchline" aria-label="Match">
-          <h2 id="matchTitle"></h2>
+          <div class="titleline">
+            <h2 id="matchTitle"></h2>
+            <div class="picks">
+              <label class="pick"><span class="pick-label">Match</span><select id="match"></select></label>
+              <label class="pick"><span class="pick-label">Player</span><select id="player"></select></label>
+            </div>
+          </div>
           <p class="scout-link" id="scoutLinkLine" hidden><a id="scoutLink"></a></p>
           <p id="visionNote" class="vision-note" hidden><span class="badge vision">Cut from video</span> on a moment means the vision layer
             found it in the pictures: who had the ball, what happened and who is in each replay.</p>
@@ -207,7 +211,7 @@
   <p class="small">The three-minute demo matches are packed on purpose, so a short clip reel has goals, nutmegs and replays in it;
     their numbers sit above a real match's. With its realistic setting, over eight 30-minute matches, the generator sits inside
     Premier League ranges per 90 minutes on all 13 measures Regista checks (passes, shots, goals, tackles, nutmegs and more).</p>
-  <p><button type="button" class="link" id="reportToggle" aria-expanded="false" aria-controls="report">Show this match's numbers next to
+  <p id="reportLine" hidden><button type="button" class="link" id="reportToggle" aria-expanded="false" aria-controls="report">Show this match's numbers next to
     Premier League ranges</button></p>
   <div class="report" id="report" hidden></div>
 </dialog>

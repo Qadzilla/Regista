@@ -8,9 +8,6 @@ body { overflow-x: hidden; }
 .top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
        position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
 .top .brand { margin-right: auto; }
-.top .pick { min-width: 0; flex: 1 1 260px; max-width: 480px; display: flex; align-items: center; gap: 8px; }
-.pick-label { min-width: 48px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
-.top select { flex: 1; min-width: 0; width: 100%; text-overflow: ellipsis; }
 
 main { padding: 16px; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
 
@@ -151,6 +148,7 @@ a.cite:hover, a.cite.on { color: var(--accent); text-decoration-color: var(--acc
 .card .novideo { display: grid; place-items: center; color: var(--muted); font-size: 12.5px; padding: 0 16px; text-align: center; }
 .card .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
 .card .title { font-weight: 700; overflow-wrap: anywhere; }
+.card .from { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* results: which match */
 .reason { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
 .reason.replay { color: #ff6b70; }  /* --replay is 3.3:1 on the panel at 11 px; this is 6.3:1 */
 .meta { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12.5px; }
@@ -198,6 +196,11 @@ footer p { margin: 4px 0; }
   .convo { position: static; max-height: none; order: -1; }
   .rtop { order: -2; }   /* the results' bar stays on top; the panel comes after it, before the grid */
   .convo .log { max-height: 360px; }
+  /* The match view: the panel comes right after the clip (the stage), before the recap and the moments. Its wrappers
+     step aside so the panel can sit between their children. */
+  .work.with-convo.in-match .work-main, .work.with-convo.in-match .matchview { display: contents; }
+  .work.in-match .convo { order: 0; }
+  .work.in-match .matchview > .stage ~ * { order: 1; }
 }
 
 @media (max-width: 760px) {
@@ -210,7 +213,8 @@ footer p { margin: 4px 0; }
   .engine.pill.inline { width: 100%; }
   .engine.pill.inline label { flex: 1; }
   .engine.pill.inline span { flex: 1; text-align: center; }
-  .top .pick { flex-basis: 100%; max-width: none; }
+  .pick { flex-basis: 100%; max-width: none; }
+  .pick select { font-size: 16px; }   /* 16 px: phones do not zoom into the field */
   .askrow .engine { flex: 1 1 auto; }
   .engine label { flex: 1; }
   .engine span { flex: 1; text-align: center; }
@@ -219,8 +223,13 @@ footer p { margin: 4px 0; }
   .flow li.pair { grid-template-columns: 1fr; }
 }
 
-/* The match line, errors with a way out, tag chips, card previews */
-.matchline h2 { margin: 0; font-size: 17px; line-height: 1.3; }
+/* The match line (the title, then the Match and Player pickers), errors with a way out, tag chips, card previews */
+.titleline { display: flex; align-items: center; gap: 8px 16px; flex-wrap: wrap; }
+.matchline h2 { margin: 0; font-size: 17px; line-height: 1.3; flex: 0 1 auto; min-width: 0; overflow-wrap: anywhere; }   /* one line when it fits */
+.picks { display: flex; gap: 8px 12px; flex: 1 1 412px; flex-wrap: wrap; justify-content: flex-end; min-width: 0; }
+.pick { min-width: 0; flex: 1 1 200px; max-width: 360px; display: flex; align-items: center; gap: 8px; }
+.pick-label { min-width: 48px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.pick select { flex: 1; min-width: 0; width: 100%; text-overflow: ellipsis; padding: 6px 8px; font-size: 13.5px; }
 .matchline p { margin: 3px 0 0; font-size: 13px; }
 .vision-note { color: var(--text); max-width: 80ch; }
 .matchline .scout-link { margin-top: 6px; font-size: 14px; }

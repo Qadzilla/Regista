@@ -29,6 +29,7 @@
     picked: null,            // the moment last picked by a click or a link: the clip= of the page's URL
     head: 'Moments', emptyHtml: '',
     season: [],              // the Regista League's matches (GET /api/season), in round order
+    clubs: new Map(),        // club id -> short name ("ASH"), for the match line on result cards
     view: 'landing',         // 'landing' | 'results' | 'match'
   };
   // The match view's conversation (as before: the query so far for this match). history is the whole conversation, for
@@ -130,7 +131,11 @@
 
   // One view at a time. The moments section (heading, sort, tag chips, grid) moves under the results or under the
   // match; the conversation panel shows in the match view, and on the results when Microsoft Foundry answers.
-  function showView(v, { sync = true } = {}) {
+  // push: a step people take (landing to results, results to a match) gets its own history entry, so Back returns.
+  function showView(v, { sync = true, push = false } = {}) {
+    if (push && v !== state.view && window.history?.pushState) {
+      try { history.pushState({ view: v, from: state.view }, '', location.pathname); } catch (e) { /* the page still works */ }
+    }
     state.view = v;
     $('landing').hidden = v !== 'landing';
     $('work').hidden = v === 'landing';
@@ -141,6 +146,9 @@
     if ($('resultsSection').parentElement !== slot) slot.appendChild($('resultsSection'));
     if (v !== 'match') { stopReel(); $('stageVideo').pause(); }
     $('backToResults').hidden = !(v === 'match' && search.asked);
+    // The realism report is about one match, so it is offered only where that match is on screen.
+    $('reportLine').hidden = v !== 'match';
+    if (v !== 'match') { $('report').hidden = true; $('reportToggle').setAttribute('aria-expanded', 'false'); }
     layoutPanel();
     if (v === 'results' || (v === 'match' && state.info)) render();
     if (sync) syncUrl();
@@ -150,6 +158,7 @@
     const on = state.view === 'match' || (state.view === 'results' && engine() === 'foundry');
     $('convo').hidden = !on;
     $('work').classList.toggle('with-convo', on);
+    $('work').classList.toggle('in-match', state.view === 'match');
     // The panel's box asks this match in the match view, every match on the results.
     const here = state.view === 'match';
     const text = here ? 'Ask about this match' : 'Ask a follow-up across every match';
@@ -173,19 +182,42 @@
   }
   const playerOfClip = (cid) => /^cl_(.+)_\d{6}$/.exec(cid || '')?.[1] || null;  // clip ids are cl_{player id}_{number}
 
-  // The URL follows what is on screen (match, player, the moment picked), so it can be shared. replaceState: switching
-  // matches does not fill the back button. Home's landing and results have no match, so their URL is plain /.
+  // The URL follows what is on screen (match, player, the moment picked), so it can be shared. Within a view it is
+  // replaced: picking moments, players or matches does not fill the back button; moving between views pushes an entry
+  // (showView), so Back goes from a match to the results and from the results to the landing. Each entry keeps what
+  // it showed, for popstate. Home's landing and results have no match, so their URL is plain /.
   function syncUrl() {
     if (!window.history?.replaceState) return;
-    if (state.view !== 'match' || !state.match) {
-      if (location.search) history.replaceState(null, '', location.pathname);
-      return;
+    let url = location.pathname;
+    const entry = { view: state.view, from: history.state?.from || null };  // from: the view this entry was pushed from
+    if (state.view === 'match' && state.match) {
+      const q = new URLSearchParams({ match: state.match });
+      if (state.player) q.set('player', state.player);
+      if (state.picked) q.set('clip', state.picked);
+      url = `${location.pathname}?${q}`;
+      Object.assign(entry, { match: state.match, player: state.player, clip: state.picked });
     }
-    const q = new URLSearchParams({ match: state.match });
-    if (state.player) q.set('player', state.player);
-    if (state.picked) q.set('clip', state.picked);
-    const url = `${location.pathname}?${q}`;
-    if (url !== location.pathname + location.search) history.replaceState(null, '', url);
+    try { history.replaceState(entry, '', url); } catch (e) { /* the page still works */ }
+  }
+
+  // Back and Forward: show the view the entry was, as it was left. Results that are gone (a "start over") show the
+  // landing instead.
+  async function onPopState(e) {
+    const s = e.state || {};
+    if (s.view === 'match' && s.match) {
+      showView('match', { sync: false });
+      if (s.match !== state.match || !state.info) {
+        if (!(await loadMatch(s.match, { player: s.player, quiet: true }))) return showView(search.asked ? 'results' : 'landing');
+      } else if (s.player && s.player !== state.player && player(s.player)) {
+        $('player').value = s.player; await pickPlayer(s.player);
+      }
+      if (s.clip && state.all.has(s.clip)) { state.selected = s.clip; state.picked = s.clip; renderStage(false); markPlaying(s.clip); }
+      return syncUrl();
+    }
+    const v = s.view === 'results' && search.asked ? 'results' : 'landing';
+    showView(v);
+    window.scrollTo(0, 0);
+    $(v === 'results' ? 'rq' : 'q').focus({ preventScroll: true });
   }
 
   // The moment a link asked for: the clip itself, else the moment nearest to t (among the linked player's moments when
@@ -232,7 +264,7 @@
       }
     }
     showView('landing');
-    if (location.search && window.history?.replaceState) history.replaceState(null, '', location.pathname);  // a link that led nowhere
+    if (location.search && window.history?.replaceState) history.replaceState({ view: 'landing' }, '', location.pathname);  // a link that led nowhere
     if (!first) {
       await seasonReady;
       if (!state.season.length) return fatal('There are no matches on this server yet.');
@@ -250,6 +282,7 @@
     const ms = (s.rounds || []).flatMap(r => r.matches || []);
     if (!ms.length) return;
     state.season = ms;
+    state.clubs = new Map((s.clubs || []).map(c => [c.club_id, c.short_name]));
     const sel = $('match'), keep = sel.value;
     const g = seasonGroup();
     g.label = [s.league, s.season].filter(Boolean).join(' ') || g.label;
@@ -383,7 +416,7 @@
   // Example prompts type themselves into the empty search box and back out, one after another. They pause while the
   // box has focus or text in it, and stay still for people who prefer less motion. Tab fills in the prompt showing.
   const PROMPTS = [
-    'Find me shots from outside the box this season',
+    'Find me the best saves this season',
     'Show me every header this season',
     'Find me all the nutmegs',
     'Show me take-ons in the final third',
@@ -492,11 +525,19 @@
       seen.add(m.match_id);
       if (m.source === 'cosmos') { skipped++; continue; }
       list.push({ id: m.match_id, name: m.home_name ? (m.title || `Round ${m.round}: ${m.home_name} v ${m.away_name}`) : matchName(m),
-                  library: !m.home_name, idx: list.length });
+                  card: cardLine(m), library: !m.home_name, idx: list.length });
     }
     return { list, skipped };
   }
   const nameOf = (mid) => searchList().list.find(m => m.id === mid)?.name || 'a match';
+
+  // The short line on a result card that says which match it comes from: "Round 2 · EAS v ASH" for a league match,
+  // the match's own name for the library's.
+  function cardLine(m) {
+    if (!m.home_name) return matchName(m);
+    const short = (club, name) => state.clubs.get(club) || name;
+    return `Round ${m.round} · ${short(m.home, m.home_name)} v ${short(m.away, m.away_name)}`;
+  }
 
   // Runs fn over items, at most n at a time; the results keep the items' order.
   async function pool(items, n, fn) {
@@ -536,7 +577,7 @@
     if (fresh) { search.states = new Map(); search.names = null; }
     const before = new Map(search.states);
     const eng = engine();
-    showView('results');
+    showView('results', { push: true });
     if (message !== 'more') $('rq').value = message;
     addMsg('me', esc(message));
     const wait = addMsg('bot wait', eng === 'foundry' ? 'Searching every match, then asking Microsoft Foundry to write the reply…' : 'Searching every match…');
@@ -775,10 +816,11 @@
   // part: open with this match's share of the results instead (a reel asked for on the results).
   async function openResult(mid, id, { part = null } = {}) {
     const pid = playerOfClip(id);
-    showView('match', { sync: false });  // the URL changes once the moment is on the stage
+    const pushed = state.view !== 'match';
+    showView('match', { sync: false, push: true });  // the URL changes once the moment is on the stage
     window.scrollTo(0, 0);
     if (mid !== state.match || !state.info) {
-      if (!(await loadMatch(mid, { player: pid }))) { if (search.asked) showView('results'); return; }
+      if (!(await loadMatch(mid, { player: pid }))) { if (pushed && history.state?.view === 'match') history.back(); else if (search.asked) showView('results'); return; }
     } else if (pid && pid !== state.player && player(pid)) {
       $('player').value = pid; await pickPlayer(pid);
     }
@@ -1072,11 +1114,13 @@
     $('more').textContent = `Show more (${s.total - shown} more)`;
     renderTagBar();
     const vision = (r) => visionOf(s === search ? search.infos.get(r.mid) : state.info);
+    const cards = s === search ? new Map(searchList().list.map(m => [m.id, m.card])) : null;  // results: which match
     $('grid').innerHTML = rows.map(r => `
       <button type="button" class="card" data-id="${esc(r.id)}" data-mid="${esc(r.mid)}" aria-label="Play ${esc(r.title)}">
         ${r.video_url ? `<span class="thumb"><video muted playsinline preload="none" src="${esc(r.video_url)}"></video><span class="prep">Preparing…</span></span>`
           : `<span class="novideo">Read from Cosmos DB. The labels and timings are stored there; this server does not hold the match's video.</span>`}
         <span class="body">
+          ${cards ? `<span class="from">${esc(cards.get(r.mid) || '')}</span>` : ''}
           <span class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${esc(R.reasonLabel(r.reason))} · ${esc(R.fmtTime(r.t))}</span>
           <span class="title">${esc(r.title)}</span>
           <span class="bar" title="How worth watching, from 0 to 1: ${esc(Number(r.watchability).toFixed(2))}"><i data-w="${esc(Math.round(r.watchability * 100))}"></i></span>
@@ -1498,7 +1542,11 @@
       searchEvery(message, { focus: 'fq' });
     });
     for (const r of document.querySelectorAll('input[name="engine"], input[name="rengine"], input[name="fengine"]')) r.addEventListener('change', () => setEngine(r.value));
-    $('backToResults').onclick = () => { showView('results'); window.scrollTo(0, 0); $('rq').focus(); };
+    $('backToResults').onclick = () => {
+      if (history.state?.from === 'results') { history.back(); return; }  // popstate shows the results
+      showView('results', { push: true }); window.scrollTo(0, 0); $('rq').focus();
+    };
+    window.addEventListener('popstate', onPopState);
     $('match').onchange = async () => { showView('match'); if (await loadMatch($('match').value)) syncUrl(); };
     $('player').onchange = () => { showView('match'); pickPlayer($('player').value); };
     for (const b of document.querySelectorAll('.seg')) b.onclick = () => { setSort(b.dataset.sort); render(); };

@@ -353,7 +353,7 @@
         <h3 class="title">${esc(m.title)}</h3>
         ${tags.length ? `<p class="tagwords">${tags.map((t) => esc(tagLabel(t))).join(' · ')}</p>` : ''}
         <p class="meta"><span>${esc(match ? roundText(match) : `Round ${m.round ?? '?'}`)}${match ? ` · ${esc(where(match))}` : ''}</span>
-          <a href="${esc(clipHref(m.match_id, m.player_id, m.clip_id))}">Open in Clips</a></p>
+          <a href="${esc(clipHref(m.match_id, m.player_id, m.clip_id))}">Watch on Home</a></p>
       </div>
     </article>`;
   }
@@ -386,7 +386,7 @@
         <span class="md muted">${esc(fmtDate(m.date))}</span>
         <span class="mo">${esc(m.home ? 'v' : 'at')} ${esc(m.opponent)} <span class="muted">(${m.home ? 'home' : 'away'})</span></span>
         <span class="ms">${esc(m.score)}${r ? ` <span class="res res-${r[0]}" title="${r[1]}"><span class="sr">${r[1]}</span><span aria-hidden="true">${r[0]}</span></span>` : ''}</span>
-        <span class="mgo">Open in Clips</span></a>
+        <span class="mgo">Watch on Home</span></a>
         <a class="mrecap" href="${esc(recapHref(m))}" aria-label="Recap of the match ${esc(m.home ? 'v' : 'at')} ${esc(m.opponent)}, told from this player's side">Recap</a></li>`;
     }).join('') || '<li class="muted">No matches yet.</li>';
   }

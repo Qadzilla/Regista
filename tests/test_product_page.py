@@ -76,7 +76,9 @@ def test_any_player_can_be_picked_and_dead_ends_offer_a_way_out(script):
 def test_the_landing_has_typing_prompts_and_no_example_buttons_and_tag_filters_stay(script, page):
     # Decided: no pitch copy and no example buttons on the landing; six prompts type in and out of the box instead.
     assert "const ASKS = [" not in script and 'id="examples"' not in page and 'class="lede"' not in page
-    for prompt in ("Find me shots from outside the box this season", "Show me every header this season", "Find me all the nutmegs",
+    # "Shots from outside the box" left the prompts: the search has no distance filter, so it answered "any shot".
+    assert "outside the box" not in script
+    for prompt in ("Find me the best saves this season", "Show me every header this season", "Find me all the nutmegs",
                    "Show me take-ons in the final third", "Find me every assist, best first", "Show me Femi Toure\\'s goals, assists and shots"):
         assert prompt in script, prompt
     assert "e.key === 'Tab'" in script and "q.value = PROMPTS[typing.p]" in script  # Tab fills the prompt showing
@@ -192,7 +194,7 @@ def test_deep_links_open_a_match_player_and_moment_and_fall_back_quietly(script)
     init = script[script.index("async function init()"):script.index("async function loadSeason()")]
     assert "await loadMatch(link.match, { player: link.player || playerOfClip(link.clip), quiet: true })" in init
     assert "await loadMatch(first.match_id)" in init  # a link that fails lands on the featured match ...
-    assert "history.replaceState(null, '', location.pathname)" in init  # ... with the bad link cleared from the address
+    assert "history.replaceState({ view: 'landing' }, '', location.pathname)" in init  # ... with the bad link cleared from the address
     assert "if (quiet && !previous) return false;" in script  # and says nothing about it
     linked = script[script.index("async function openLinked("):script.index("// ------------------------------------------------------------------ loading")]
     assert "state.all.has(link.clip)" in linked and "select(link.clip, true, true)" in linked
@@ -201,8 +203,10 @@ def test_deep_links_open_a_match_player_and_moment_and_fall_back_quietly(script)
 
 
 def test_the_url_follows_the_match_player_and_moment_with_replace_state(script):
-    sync = script[script.index("function syncUrl()"):script.index("// The moment a link asked for")]
-    assert "history.replaceState(null, '', url)" in sync and "pushState" not in script
+    sync = script[script.index("function syncUrl()"):script.index("// Back and Forward")]
+    assert "history.replaceState(entry, '', url)" in sync  # within a view the entry is replaced, never pushed
+    assert "pushState" not in sync
+    assert "Object.assign(entry, { match: state.match, player: state.player, clip: state.picked })" in sync  # for popstate
     assert "q.set('player', state.player)" in sync and "q.set('clip', state.picked)" in sync
     assert "if (await loadMatch($('match').value)) syncUrl();" in script
     pick = script[script.index("async function pickPlayer("):script.index("// ------------------------------------------------------------------ the conversation")]
@@ -310,5 +314,65 @@ def test_the_match_view_has_no_explainer_line_a_folded_recap_and_actions_in_one_
 
 def test_cards_open_their_match_and_the_url_follows_only_the_match_view(script):
     assert "openResult(card.dataset.mid, card.dataset.id)" in script and 'data-mid="${esc(r.mid)}"' in script
-    sync = script[script.index("function syncUrl()"):script.index("// The moment a link asked for")]
-    assert "state.view !== 'match'" in sync  # the landing and the results are plain /
+    sync = script[script.index("function syncUrl()"):script.index("// Back and Forward")]
+    assert "let url = location.pathname;" in sync and "if (state.view === 'match' && state.match)" in sync  # the landing and the results are plain /
+
+
+# ---------------------------------------------------------------------------- decisions on PR #32 (Zaid, 2026-10-23)
+
+def test_back_moves_between_the_landing_the_results_and_a_match(script):
+    show = script[script.index("function showView("):script.index("function layoutPanel()")]
+    assert "history.pushState({ view: v, from: state.view }, '', location.pathname)" in show and "v !== state.view" in show
+    assert "showView('results', { push: true })" in script  # the first search from the landing
+    open_ = script[script.index("async function openResult("):script.index("// ------------------------------------------------------------------ the match view's conversation")]
+    assert "showView('match', { sync: false, push: true })" in open_  # a card opens its match as a new entry
+    pop = script[script.index("async function onPopState("):script.index("// The moment a link asked for")]
+    assert "loadMatch(s.match, { player: s.player, quiet: true })" in pop and "search.asked ? 'results' : 'landing'" in pop
+    assert "window.addEventListener('popstate', onPopState)" in script
+    assert "history.state?.from === 'results'" in script and "history.back()" in script  # Back to results is the browser's Back
+
+
+def test_the_pickers_live_in_the_match_view_and_the_landing_is_logo_and_search(page):
+    header = re.search(r'<header class="top">(.*?)</header>', page, flags=re.S).group(1)
+    assert "<select" not in header and "pick" not in header
+    match = page[page.index('<section class="matchline"'):page.index("</section>", page.index('<section class="matchline"'))]
+    assert match.index('id="matchTitle"') < match.index('<select id="match">') < match.index('<select id="player">')
+    css = (PRODUCT / "product.css").read_text()
+    assert ".top .pick" not in css and ".titleline {" in css and ".pick select {" in css
+
+
+def test_the_meta_description_is_the_tagline(page):
+    assert '<meta name="description" content="Every moment. Every highlight. Every player. Found in seconds.">' in page
+    assert "Every touch, every replay" not in page
+
+
+def test_result_cards_say_which_match_they_come_from(script):
+    line = script[script.index("function cardLine(m)"):script.index("// Runs fn over items")]
+    assert "`Round ${m.round} · ${short(m.home, m.home_name)} v ${short(m.away, m.away_name)}`" in line
+    assert "if (!m.home_name) return matchName(m);" in line  # a library match: its own name
+    assert "state.clubs = new Map((s.clubs || []).map(c => [c.club_id, c.short_name]))" in script
+    render = script[script.index("  function render(emptyHtml)"):script.index("const visionOf")]
+    assert "s === search ? new Map(searchList().list.map(m => [m.id, m.card])) : null" in render  # results only
+    assert '<span class="from">${esc(cards.get(r.mid) || \'\')}</span>' in render
+
+
+def test_on_phones_the_panel_comes_right_after_the_clip_in_the_match_view(script):
+    css = (PRODUCT / "product.css").read_text()
+    narrow = css[css.index("@media (max-width: 1100px)"):css.index("@media (max-width: 760px)")]
+    assert ".work.with-convo.in-match .work-main, .work.with-convo.in-match .matchview { display: contents; }" in narrow
+    assert ".work.in-match .convo { order: 0; }" in narrow and ".work.in-match .matchview > .stage ~ * { order: 1; }" in narrow
+    assert "$('work').classList.toggle('in-match', state.view === 'match')" in script
+
+
+def test_the_realism_report_is_offered_only_in_the_match_view(page, script):
+    assert '<p id="reportLine" hidden>' in page
+    assert "$('reportLine').hidden = v !== 'match';" in script
+
+
+@pytest.mark.parametrize("page_file, words", [("me/index.html", '<a href="/">Home</a>'), ("player/index.html", '<a href="/">Home</a>'),
+                                              ("scout/index.html", '<a href="/">Home</a>'), ("player/player.js", ">Watch on Home<"),
+                                              ("me/me.js", "'Open the match on Home'"), ("me/me.js", "'Read it on Home'"),
+                                              ("studio/studio.js", ">see it on Home<")])
+def test_other_pages_call_the_first_view_home(page_file, words):
+    text = (PRODUCT.parent / page_file).read_text()
+    assert words in text and "in Clips" not in text and '<a href="/">Clips</a>' not in text and "the Product</a>" not in text

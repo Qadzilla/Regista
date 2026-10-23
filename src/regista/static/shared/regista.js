@@ -48,8 +48,8 @@
 
   const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
-  // The views panel (nav.views, shared/regista.css) sticks just below the page's header. Headers differ in height (the
-  // Clips page's wraps its pickers) and some pages let theirs scroll away on narrow screens, so measure it: --top-h is
+  // The views panel (nav.views, shared/regista.css) sticks just below the page's header. Headers can differ in height and
+  // some pages let theirs scroll away on narrow screens, so measure it: --top-h is
   // the header's height while it is sticky, 0 otherwise. Without this script the CSS default (52 px) applies.
   function trackHeader() {
     const head = document.querySelector('header.top');
