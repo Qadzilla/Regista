@@ -11,6 +11,7 @@ from regista.schema import iter_jsonl, validate_match_dir
 from regista.season.build import ensure_tracks, fingerprint, is_current, materialise
 from regista.season.league import generate_kwargs, new_league, people, save_league
 from regista.season.profiles import STATS, Season
+from regista.season_api import MAX_PROFILE_REEL
 from regista.synth.generator import generate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -195,3 +196,47 @@ def test_a_profile_reel_joins_moments_from_different_matches(client, built):
     r = client.get(f"/api/players/{p['global_id']}/reel.mp4", params={"n": 4, "width": 640}, timeout=120)
     assert r.status_code == 200 and r.headers["content-type"] == "video/mp4" and len(r.content) > 10_000
     assert client.get("/api/players/pl_nobody_99/reel.mp4").status_code == 404
+
+
+def test_a_goal_reel_can_take_each_goal_once_in_match_order(client, built, monkeypatch):
+    """reason=on_ball_main keeps a goal's own clip and drops its replays and highlights; order=match plays by round, then
+    time. Rendering is stubbed: each part is its (match, clip) and the reel is the parts in the order they were joined."""
+    from regista import api
+    from regista.render import video
+
+    _small, _root, season = built
+    p, tag = next((q, t) for q in season.profiles.values() for t in ("goal", "shot", "pass")
+                  if len({m["reason"] for m in q["moments"] if t in m["tags"]}) > 1
+                  and sum(m["reason"] == "on_ball_main" for m in q["moments"] if t in m["tags"]) > 1)
+    own = [m for m in p["moments"] if tag in m["tags"] and m["reason"] == "on_ball_main"][:MAX_PROFILE_REEL]
+
+    def fake_part(d, clip, label, fps, width):
+        out = api.CACHE_ROOT / "parts" / f"{d.name}_{clip['id']}.mp4"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(f"{d.name}|{clip['id']}\n")
+        return out
+
+    monkeypatch.setattr(api, "_render_clip_cached", fake_part)
+    monkeypatch.setattr(video, "concat_mp4", lambda parts, out: out.write_text("".join(x.read_text() for x in parts)))
+    r = client.get(f"/api/players/{p['global_id']}/reel.mp4",
+                   params={"tag": tag, "reason": "on_ball_main", "order": "match", "n": len(own)})
+    assert r.status_code == 200
+    played = r.text.split()
+    assert sorted(played) == sorted(f"{m['match_id']}|{m['clip_id']}" for m in own)  # each on-ball moment once, no replays
+    by_key = {f"{m['match_id']}|{m['clip_id']}": m for m in own}
+    assert [(by_key[k]["round"], by_key[k]["t"]) for k in played] == sorted((m["round"], m["t"]) for m in own)
+    best = [m for m in p["moments"] if tag in m["tags"]][:MAX_PROFILE_REEL]  # without the options: the best, replays too
+    mixed = client.get(f"/api/players/{p['global_id']}/reel.mp4", params={"tag": tag, "n": MAX_PROFILE_REEL}).text.split()
+    assert mixed == [f"{m['match_id']}|{m['clip_id']}" for m in best]
+
+
+def test_the_reel_options_are_validated(client, built):
+    _small, _root, season = built
+    gid = next(iter(season.profiles))
+    url = f"/api/players/{gid}/reel.mp4"
+    assert client.get(url, params={"reason": "on_ball"}).status_code == 422
+    assert client.get(url, params={"reason": "ON_BALL_MAIN"}).status_code == 422
+    assert client.get(url, params={"order": "worst"}).status_code == 422
+    assert client.get(url, params={"n": 9}).status_code == 422
+    r = client.get(url, params={"tag": "nutmeg_of_the_year", "reason": "on_ball_main"})
+    assert r.status_code == 404 and "with reason on_ball_main" in r.json()["detail"]

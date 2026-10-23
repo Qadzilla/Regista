@@ -128,7 +128,10 @@ def test_links_into_the_clip_view_and_the_reel(script, view):
     assert "/?match=${encodeURIComponent(matchId)}&t=" in view
     assert "/?match=${encodeURIComponent(m.match_id)}&player=${encodeURIComponent(m.player_id)}" in view
     assert "${matchHref(m)}&recap=1" in view
-    assert "/reel.mp4?n=${REEL_N}" in view and "&tag=${encodeURIComponent(tag)}" in view
+    assert "/reel.mp4?n=${n}" in view and "&tag=${encodeURIComponent(tag)}" in view
+    # The Goal reel plays each goal once (no replays), in match order, as many as the endpoint allows
+    assert "const ONCE_TAGS = new Set(['goal']);" in view and "'&reason=on_ball_main&order=match'" in view
+    assert "m.reason === 'on_ball_main'" in view and "const REEL_MAX = 8;" in view
     assert "e.status === 404" in script and "showMissing" in script
 
 

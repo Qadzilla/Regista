@@ -33,6 +33,10 @@
   const REEL_TAGS = ['goal', 'assist', 'nutmeg', 'take_on', 'skill_move', 'key_pass', 'shot', 'save', 'tackle', 'interception',
                      'ball_won', 'cross'];
   const REEL_N = 6;
+  const REEL_MAX = 8;  // what /api/players/{id}/reel.mp4 accepts (MAX_PROFILE_REEL)
+  // Kinds whose reel plays each moment once, in match order: a goal's replays and highlights show the same goal again, so
+  // these reels take only the moments on the ball in the main view (reason=on_ball_main), up to REEL_MAX of them.
+  const ONCE_TAGS = new Set(['goal']);
   const BEST_N = 8;
   const MOMENTS_STEP = 9;
   // Tags that say nothing to a person.
@@ -61,7 +65,8 @@
   const timeHref = (matchId, t) => `/?match=${encodeURIComponent(matchId)}&t=${Math.max(0, Math.floor(t))}`;
   const matchHref = (m) => `/?match=${encodeURIComponent(m.match_id)}&player=${encodeURIComponent(m.player_id)}`;
   const recapHref = (m) => `${matchHref(m)}&recap=1`;
-  const reelUrl = (gid, tag) => `/api/players/${encodeURIComponent(gid)}/reel.mp4?n=${REEL_N}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`;
+  const reelUrl = (gid, tag, n = REEL_N) => `/api/players/${encodeURIComponent(gid)}/reel.mp4?n=${n}${tag ? `&tag=${encodeURIComponent(tag)}` : ''}`
+    + (ONCE_TAGS.has(tag) ? '&reason=on_ball_main&order=match' : '');
   const result = (m) => {
     const [h, a] = String(m.score || '').split(/[–-]/).map(Number);
     if (isNaN(h) || isNaN(a)) return null;
@@ -272,14 +277,20 @@
     function playReel(tag) {
       reelTag = tag;
       for (const b of q('chips').querySelectorAll('.chip')) b.setAttribute('aria-pressed', String(b.dataset.tag === tag));
-      video.src = reelUrl(P.global_id, tag);
+      const once = ONCE_TAGS.has(tag);
+      const pool = once ? moments.filter((m) => (m.tags || []).includes(tag) && m.reason === 'on_ball_main')
+        : tag ? moments.filter((m) => (m.tags || []).includes(tag)) : moments;
+      const n = Math.min(once ? REEL_MAX : REEL_N, pool.length);
+      video.src = reelUrl(P.global_id, tag, once ? Math.max(1, n) : REEL_N);
       video.preload = 'auto';
       waiting = `Putting the reel together${tag ? ` (${tagLabel(tag).toLowerCase()})` : ''}. The first time renders each moment, which takes a few seconds.`;
       busy(waiting);
-      const n = Math.min(REEL_N, tag ? moments.filter((m) => (m.tags || []).includes(tag)).length : moments.length);
       q('now').className = 'reason';
-      q('now').textContent = `Reel · the best ${n === 1 ? '' : `${n} `}${tag ? `${tagLabel(tag).toLowerCase()} ` : ''}${n === 1 ? 'moment' : 'moments'}, back to back`;
-      q('title').textContent = tag ? `${tagLabel(tag)}: the best of the season` : 'The best of the season';
+      const kind = tagLabel(tag || '').toLowerCase();
+      q('now').textContent = once
+        ? (n < pool.length ? `Reel · ${n} of ${pool.length} ${kind}s, in match order, each once` : `Reel · ${n === 1 ? `the ${kind}` : `all ${n} ${kind}s`}, in match order, each once`)
+        : `Reel · the best ${n === 1 ? '' : `${n} `}${tag ? `${kind} ` : ''}${n === 1 ? 'moment' : 'moments'}, back to back`;
+      q('title').textContent = once && n === pool.length ? `Every ${kind} of the season` : tag ? `${tagLabel(tag)}: the best of the season` : 'The best of the season';
       q('tags').innerHTML = '';
       q('onhome').hidden = true;
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.remove('on');

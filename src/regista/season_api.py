@@ -6,7 +6,8 @@ GET  /api/players                      profile cards; filters position, club, q,
 GET  /api/players/{global_id}          one profile: per-90 rates, percentiles, touch map, moments, matches, evidence,
                                        and the Profile agent's summary (every sentence citing its sources)
 GET  /api/players/{global_id}/moments  the player's moments across the season, best first; tag= filters
-GET  /api/players/{global_id}/reel.mp4 the player's best moments across matches, back to back (cached)
+GET  /api/players/{global_id}/reel.mp4 the player's best moments across matches, back to back (cached); tag=, reason=
+                                       (on_ball_main: each goal once, without its replays), order=best|match
 GET  /api/compare?ids=a,b[,c]          two or three profiles side by side (cards plus every per-90 rate)
 POST /api/scout/ask                    the Scout agent: a plain question in, players out (rules, or Foundry: rate-limited)
 GET  /scout, /players/{global_id}      the Scout view and the player profile pages (static files under static/)
@@ -35,6 +36,7 @@ router = APIRouter()
 STATIC = Path(__file__).resolve().parent / "static"
 GID_PATTERN = r"^pl_[a-z0-9_]{1,40}$"
 MAX_PROFILE_REEL = 8
+REASON_PATTERN = "^(on_ball_main|replay_appearance|highlight_appearance|closeup_appearance)$"  # a clip's reason (the clips schema)
 SQUAD_FIELDS = ("global_id", "name", "kit_number", "position", "starter")  # each club's squad in /api/season, from league.json
 WARM = {"state": "idle", "error": None}
 _warm_lock = threading.Lock()
@@ -145,17 +147,24 @@ async def player_moments(gid: str, tag: Annotated[str | None, Query(pattern=r"^[
 
 @router.get("/api/players/{gid}/reel.mp4")
 async def player_reel(gid: str, n: int = Query(6, ge=1, le=MAX_PROFILE_REEL), tag: Annotated[str | None, Query(pattern=r"^[a-z_]{1,30}$")] = None,
+                      reason: Annotated[str | None, Query(pattern=REASON_PATTERN)] = None,
+                      order: Literal["best", "match"] = "best",
                       fps: float = Query(25.0, gt=0, le=60), width: int = Query(1280, ge=160, le=1920)) -> FileResponse:
-    """The player's best ``n`` moments across the season (or the best with ``tag``), each with its title card."""
+    """The player's best ``n`` moments across the season (or the best with ``tag``), each with its title card.
+    ``reason=on_ball_main`` keeps only the moments on the ball in the main view, so a goal plays once instead of with its
+    replays and highlights; ``order=match`` plays the chosen moments in match order (round, then time) instead of best first."""
     from regista import api
     from regista.render.video import concat_mp4
 
     _check_gid(gid)
     api._check_size(fps, width)
     p = await run_in_threadpool(_profile, gid)
-    chosen = [m for m in p["moments"] if not tag or tag in m["tags"]][:n]
+    chosen = [m for m in p["moments"] if (not tag or tag in m["tags"]) and (not reason or m["reason"] == reason)][:n]
     if not chosen:
-        raise HTTPException(404, f"{p['name']} has no moments{f' tagged {tag}' if tag else ''} to put in a reel")
+        what = " ".join(x for x in (f"tagged {tag}" if tag else "", f"with reason {reason}" if reason else "") if x)
+        raise HTTPException(404, f"{p['name']} has no moments{f' {what}' if what else ''} to put in a reel")
+    if order == "match":
+        chosen.sort(key=lambda m: (m["round"] is None, m["round"] or 0, m["match_id"], m["t"]))
 
     def resolve(m: dict[str, Any]) -> tuple[Any, dict[str, Any], dict[str, Any] | None]:
         d = api._match_dir(m["match_id"])
