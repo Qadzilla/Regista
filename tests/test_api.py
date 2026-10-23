@@ -372,3 +372,28 @@ def test_viewer_escapes_everything_it_renders():
     # Replies and the Foundry Librarian's words are model output; tool and step names come from MCP servers: all escaped.
     assert "esc(out.reply)" in html and "esc(out.understood" in html and "esc(by)" in html
     assert "esc(s.name)" in html and "esc(s.kind)" in html and "esc(t)}</span>" in html
+
+
+def test_health_says_whether_container_apps_and_azure_storage_run_this_app(client, monkeypatch):
+    """The landing's "Running on" row shows Container Apps and Storage only when health says so."""
+    monkeypatch.delenv("CONTAINER_APP_NAME", raising=False)
+    monkeypatch.delenv("REGISTA_STORAGE_ACCOUNT", raising=False)
+    h = client.get("/api/health").json()
+    assert h["container_apps"] is False and h["storage"] is False
+    monkeypatch.setenv("CONTAINER_APP_NAME", "regista-api")      # set by Azure Container Apps on every replica
+    monkeypatch.setenv("REGISTA_STORAGE_ACCOUNT", "registast")    # the Player store then uses Azure Storage
+    h = client.get("/api/health").json()
+    assert h["container_apps"] is True and h["storage"] is True
+
+
+def test_the_running_on_icons_are_served_and_packaged(client):
+    from pathlib import Path
+    import tomllib
+    icons = sorted(p.name for p in (Path(__file__).parents[1] / "src/regista/static/product/icons").glob("*.svg"))
+    assert icons == ["agent-framework.svg", "ai-search.svg", "app-insights.svg", "container-apps.svg", "cosmos-db.svg",
+                     "foundry.svg", "mcp.svg", "storage.svg"]
+    for name in icons:
+        r = client.get(f"/static/product/icons/{name}")
+        assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg+xml"), name
+    data = tomllib.loads((Path(__file__).parents[1] / "pyproject.toml").read_text())["tool"]["setuptools"]["package-data"]["regista"]
+    assert "static/*/icons/*.svg" in data  # the image installs the package, so the icons must be package data

@@ -1455,24 +1455,41 @@
 
   async function loadHealth() {
     let h;
-    try { h = await R.api('/api/health'); } catch (e) { $('builtOn').textContent = ''; $('services').innerHTML = '<li class="muted">Health is not available right now.</li>'; return; }
+    try { h = await R.api('/api/health'); } catch (e) { $('stack').hidden = true; $('services').innerHTML = '<li class="muted">Health is not available right now.</li>'; return; }
     state.health = h;
     engineHint();
-    // Only what this deployment says is running.
-    const on = [h.cloud.foundry ? `Microsoft Foundry${h.cloud.model ? ` (${h.cloud.model})` : ''}` : null, 'Microsoft Agent Framework',
-      h.azure_mcp ? 'Azure MCP Server' : null, h.cloud.cosmos ? 'Azure Cosmos DB' : null, h.cloud.search ? 'Azure AI Search' : null,
-      h.tracing ? 'Application Insights' : null].filter(Boolean);
-    $('builtOn').textContent = `Built on ${on.join(' · ')}`;
+    runningOn(h);
     const services = [
       ['Microsoft Foundry', h.cloud.foundry, `A ${h.cloud.model || 'Foundry'} model labels uploaded matches and writes the Foundry replies.`],
       ['Azure Cosmos DB', h.cloud.cosmos, 'Stores matches, clips, labels and reviewers\' verdicts.'],
       ['Azure AI Search', h.cloud.search, 'Indexes every labelled clip for the Foundry Librarian.'],
       ['Azure MCP Server', h.azure_mcp, 'The Foundry Librarian\'s tool for querying the search index.'],
       ['Application Insights', h.tracing, 'Receives the Agent Framework traces, shown in Foundry tracing.'],
+      ['Azure Container Apps', h.container_apps, 'Runs this app, and the vision job that processes uploaded footage.'],
+      ['Azure Storage', h.storage, 'Holds uploaded footage and the queue that hands it to the vision job.'],
     ];
     $('services').innerHTML = services.map(([name, ok, what]) =>
       `<li><span class="tick ${ok ? 'on' : 'off'}" aria-hidden="true">${ok ? '✓' : '–'}</span><b>${esc(name)}</b>`
       + `<span class="what">${ok ? 'On this server. ' : 'Not configured on this server. '}${esc(what)}</span></li>`).join('');
+  }
+
+  // "Running on", under the landing's search: only what this deployment says is running (Agent Framework is the code
+  // itself, so it is always there). Icon first, the full service name under it; a tile opens How it works.
+  function runningOn(h) {
+    const tiles = [
+      ['foundry', 'Microsoft Foundry', h.cloud.foundry, `Writes the Foundry replies and labels uploaded matches${h.cloud.model ? ` (${h.cloud.model})` : ''}`],
+      ['agent-framework', 'Microsoft Agent Framework', true, 'Runs the agent workflows: ingest, clips, labels, review, recap'],
+      ['mcp', 'Azure MCP Server', h.azure_mcp, 'The Foundry Librarian\'s tool for the search index'],
+      ['cosmos-db', 'Azure Cosmos DB', h.cloud.cosmos, 'Stores matches, clips, labels and reviewers\' verdicts'],
+      ['ai-search', 'Azure AI Search', h.cloud.search, 'Indexes every labelled clip'],
+      ['container-apps', 'Azure Container Apps', h.container_apps, 'Runs this app and the vision job'],
+      ['storage', 'Azure Storage', h.storage, 'Holds uploaded footage and the vision job queue'],
+      ['app-insights', 'Application Insights', h.tracing, 'Receives the agents\' traces'],
+    ].filter(t => t[2]);
+    $('stackList').innerHTML = tiles.map(([icon, name, , what]) => `<li><button type="button" class="tile" title="${esc(what)}">`
+      + `<img src="/static/product/icons/${esc(icon)}.svg" alt="" width="40" height="40"><span>${esc(name)}</span></button></li>`).join('');
+    for (const b of $('stackList').querySelectorAll('.tile')) b.onclick = () => $('howOpen').click();
+    $('stack').hidden = tiles.length < 2;  // the code alone (no Azure configured) is not worth a row
   }
 
   // The realism report is Markdown (GET /report). It is shown here as a page: escaped first, then a small subset of

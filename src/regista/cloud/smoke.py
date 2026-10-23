@@ -22,8 +22,8 @@ from regista.cloud.config import CloudConfig
 
 
 # What the two dashboards load, relative to regista/static, and the matches the image serves.
-STATIC_FILES = ("product/index.html", "product/app.js", "product/timeline.js", "studio/index.html", "shared/regista.js",
-                "shared/regista.css")
+STATIC_FILES = ("product/index.html", "product/app.js", "product/timeline.js", "product/icons/foundry.svg", "studio/index.html",
+                "shared/regista.js", "shared/regista.css")
 SAMPLE_MATCHES = ("syn_0141", "syn_0142", "syn_0294", "vis_0201")
 MATCH_FILES = ("events.jsonl", "clips.jsonl", "manifest.json")
 
