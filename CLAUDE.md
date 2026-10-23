@@ -149,7 +149,8 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
   processing is **planned**, not built (scope: models in Azure, video storage, a job runner).
 - **No real players' profiles for now.** Zaid's recorded match can appear in the Clip view (with consent) but gets no
   profiles. Profiles are synthetic players only.
-- **Out of scope:** accounts and sign-in, footage-rights handling (post-hackathon), messaging, payments. **Microsoft
+- **Out of scope:** accounts and sign-in, footage-rights handling (post-hackathon), payments. Messaging exists only
+  per visitor in the browser (§2.9). **Microsoft
   Fabric** fits season analytics but is **planned**, not built.
 
 ### 2.6 The third view: Player (decided 2026-10-22, part of the Oct 27 submission)
@@ -197,6 +198,26 @@ packages), scouts (Scout: profiles where every stat opens its moment), players (
   "where it goes next", never as working.
 - `docs/demo-storyboard.md` is written to this structure (2026-10-23). UI/UX work continues in the sandbox
   (`ux/sandbox`); its small wins (yellow current view, centred nav, search-first Home) fold into the app later.
+
+### 2.9 The Player and Scout dashboards (decided 2026-10-23)
+
+Designed in the sandbox (`ux/sandbox`, `sandbox/`), ported by PR (branch `ux/dashboards`; reports in
+`docs/redesign/dashboards/`).
+- **One profile page, two audiences.** What a scout sees for a player (`/players/{id}`, with a scout bar: shortlist stage,
+  Message, Compare, Notes, Write a report) is exactly the player's own "My profile"; one renderer,
+  `static/player/profile-view.js`.
+- **Player dashboard `/me`** (opens on Femi Toure, Switch player): Overview, My profile, Matches & videos (real uploads,
+  agent steps, "Is this you?"), Messages, Team (my details; my club's squad, results, table), Settings.
+- **Scout dashboard `/scout`** (as Maya Lindqvist, chief scout, Fairhaven FC, a synthetic persona): Overview, Find players
+  (the real Scout agent, both engines), Shortlist (Watching, Contacted, Trial, Offer; compare), Reports (each point cites a
+  moment), Messages (scouts start conversations; players reply, mute, block), Team (the club's needs, each listing the
+  players who fit, computed live), Settings.
+- **Live vs per visitor:** profiles, moments, numbers, uploads, the Scout agent, compare and claims are live. Messages,
+  stages, notes, reports, needs, details and settings are kept **in the visitor's browser only** (`Regista.store`,
+  prefix `regista.demo.v1.`, seeds in `static/shared/demo.js`, "Reset this demo" in Settings); one shared conversation
+  store, so both sides see the same thread in one browser. Nothing of it reaches the server; no sign-in.
+- The left panel shows a dashboard's sections under its parent link (second row of tabs on phones). `/api/season` lists
+  each club's squad (read-only, from `league.json`).
 
 ---
 
