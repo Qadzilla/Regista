@@ -61,9 +61,43 @@ Uploads still pass no questions to the Librarian.
 
 **The Profile agent's summaries** (`src/regista/season/summaries.py`): two or three sentences per player (what kind of player, what else stands out, the best moment), each sentence listing the facts it rests on (`S…` a stat with its rank among the position, `M…` a moment with its clip, `P1` the season). `python -m regista.season summarise` writes them with rules; with `--cloud` a Foundry model writes them from the same numbered facts, and an answer is refused (one retry, then the rules summary) when a sentence cites nothing, cites a fact that does not exist, uses a number its cited facts do not hold, or uses a gendered pronoun. The committed `data/season/summaries.json` records each summary's `model` and a fingerprint of the numbers it was written from; `GET /api/players/{id}` serves the stored summary only while the profile still has those numbers and otherwise writes the rules one on the spot (`model: "rules-v0 (live)"`).
 
-## Two dashboards
+## The views
 
-Live since 2026-10-22 (plan: `docs/plan-two-dashboards.md`). One FastAPI app serves both, with the same code locally and on Azure.
+Four views, one FastAPI app, the same code locally and on Azure (all live since 2026-10-22):
+
+| View | Route | For | Built on |
+|---|---|---|---|
+| **Clips** (the Product) | `/` | creators, broadcasters, fans: ask for any moment | the Librarian, Chat, the match recap |
+| **Scout** | `/scout`, `/players/{id}` | scouts: find a player across the season | the Regista League, profiles, the Scout and Profile agents |
+| **Player** | `/me` | a player: upload my footage, check it's me, publish | Blob storage, a Storage queue, a Container Apps Job running the vision workflow |
+| **Studio** | `/studio` | the operator | review, Who's who, training, claims, runs |
+
+**Scout data: the Regista League** (`src/regista/season/`, CLAUDE.md §2.5). Six synthetic clubs with fixed squads, a
+double round robin of 30 thirty-minute matches. Only `data/season/league.json` is committed; matches regenerate from it
+deterministically (built into the image, tracks only when video needs them). Every roster entry carries a global player
+id (`pl_bro_09`), so profiles aggregate across matches: per-90 rates, percentiles by position, a touch map, best
+moments, and for every stat the events and clips it was counted from.
+
+**The Player view's cloud path** (`src/regista/player/`, `src/regista/player_api.py`, CLAUDE.md §2.6):
+
+```
+/me ──upload (admin token)──▶ Blob: uploads/{id}/video.mp4 + record.json
+                         └──▶ Storage queue vision-jobs ──▶ Container Apps Job regista-vision (KEDA queue scaler,
+                                                            one execution per message, the job's own identity)
+                                                              │  models from Blob: models/vision/
+                                                              │  vision workflow (Agent Framework): shots → identity →
+                                                              │  is-this-you questions → possession → events → writer
+                                                              ▼  clips for every starter, stage times into record.json
+                              Blob: matches/pv_{id}/ ──▶ the app fetches it on first use: Clips, profile, "Is this you?"
+```
+
+The footage is synthetic (`regista.player.film`: a friendly between two league clubs in the vision layer's format), and
+the roster is both clubs' league squads (`roster_for`), so the match it writes carries global ids and joins the
+uploader's profile with no mapping. Keyless throughout: shared-key login is off on the storage account; the app holds
+Storage Blob Data Contributor and Queue Data Message Sender, the job Blob and Queue Data Contributor and AcrPull.
+Verified end to end in Azure on 2026-10-22: a 3-minute upload took 3 min 5 s and joined the player's profile.
+
+The two original dashboards in detail (plan: `docs/plan-two-dashboards.md`):
 
 - **The Product (`/`, `src/regista/static/product/`)**, open to everyone: a match and player picker that opens on the featured match (`"featured": true` in its `manifest.json`), one ask box with the Instant / Foundry switch (both through `/chat`), the "How Regista answered" panel under every reply, a timeline of the whole match (`timeline.js`; periods and goals from `GET /api/matches/{id}`), the stage with Play reel, Download reel (`/reel.mp4`, up to 12 clips, rendered once and cached) and Export moments (`/moments.csv`), a Best first / Match order switch, plain-English labels and badges ("Labelled by Microsoft Foundry", "Cut from video"), and How it works.
 - **The Studio (`/studio`, `src/regista/studio_api.py`, `src/regista/studio/`)**, behind a key: Overview, Review queue, Who's who, Training, Runs, Jobs (local only) and Console. `capabilities` says what a deployment can do, so on the live app the local-only parts say so instead of failing. `python3 -m regista.studio status` prints the overview from a local app or the live one.
@@ -107,8 +141,8 @@ Any MCP host can drive Regista with these. The Foundry Librarian attaches this s
 
 | Stage | Running today | Planned next |
 |---|---|---|
-| Ingest | file read of `events.jsonl`; API upload on Container Apps (**running**) | Blob Storage for feeds; Functions + Event Grid triggers; AI Video Indexer for scene cuts |
-| Interpret | vision layer v0 (`regista.vision`, local): shot, identity, and possession agents as a second Agent Framework workflow, trained and measured only on Regista's own rendered broadcast (`docs/vision.md`); the synthetic generator for the public demo | Azure AI Vision kit-number OCR (a stub backend raises `NotImplementedError` today); models hosted in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
+| Ingest | file read of `events.jsonl`; API upload on Container Apps; Player-view footage into **Blob Storage** and a **Storage queue** (**running**) | Functions + Event Grid triggers for broadcast feeds; AI Video Indexer for scene cuts |
+| Interpret | vision layer v0 (`regista.vision`): shot, identity, possession and event agents as a second Agent Framework workflow, trained and measured only on Regista's own rendered broadcast (`docs/vision.md`); runs in an event-driven **Container Apps Job** for Player-view uploads (**running**) and locally; the synthetic generator for the public demo | Azure AI Vision kit-number OCR (a stub backend raises `NotImplementedError` today); models hosted in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
 | Explain | `FoundryLabelAgent`: `gpt-5-mini` on **Microsoft Foundry** via **Agent Framework**, the learned watchability model or rules-v0 as prior and fallback (**running**) | Foundry evaluations against human annotations from the review tool |
 | Render | `regista.render` inside the Container Apps service, on-demand with a local cache (**running**) | Container Apps jobs for batch renders; Blob + CDN for the cache |
 | Review | `ReviewExecutor`: the workflow pauses with `request_info` on clips the Label agent is unsure about; verdicts become human annotations and retrain the watchability model (**running**) | Foundry evaluations scoring each labeller against the human verdicts |

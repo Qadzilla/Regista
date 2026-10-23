@@ -8,6 +8,29 @@ Regista is an AI system for the Microsoft × Premier League **Inside the Game: D
 
 > "Find me Pogba doing a nutmeg."
 
+## Four views, one app
+
+**Live: https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io** (synthetic matches and players throughout)
+
+| View | Open | What it does |
+|---|---|---|
+| **Clips** | [`/`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/) | Ask for any moment ("his nutmegs", "now the replays"), watch it, take it away as a reel or a list; read the **match recap**, told from your player's side |
+| **Scout** | [`/scout`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/scout) | Every player in a synthetic season, filtered, compared and asked about; each profile's numbers link to the moments they came from |
+| **Player** | [`/me`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/me?player=pl_bro_09) | A player uploads their own footage; Regista's vision agents find them in it, in the cloud, and add the match to their profile |
+| **Studio** | [`/studio`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/studio) | The operator's dashboard: review, "who's who", training, claims, runs (needs a key) |
+
+**A two-minute tour for judges**
+1. On `/`, press **Make a reel of Sami Castellanos's best moments**, then switch the ask box to **Foundry** and ask
+   "every nutmeg in the library": "How Regista answered" shows the Foundry agent and each MCP tool it called.
+2. Open **Recap**: every sentence plays its moment.
+3. On `/scout`, ask the Scout agent "midfielders who win the ball back", then open a player: pick any number to see the
+   events behind it.
+4. On `/me?player=pl_bro_09`, see an upload that Regista's vision agents processed in Azure, agent by agent.
+5. Open `/studio` with the view-only key from the submission: it shows everything and changes nothing. Uploads and
+   other writes need the operator's key.
+
+How each judging criterion is met, with where to check: **[docs/criteria.md](docs/criteria.md)**.
+
 ## Who it is for
 
 - **Content creators** building highlight reels and edits.
@@ -86,7 +109,9 @@ One app serves two dashboards, locally and on Azure:
 
 **Learning from people.** When the Label agent is unsure (its rules prior and the model disagree, or a score sits on the keep/drop line) the workflow pauses and asks. Verdicts come from Keep/Drop in the app (the Studio's review queue), the `--review` terminal prompt, or the review API, and are stored as human annotations. A watchability model is retrained from them and becomes the Label agent's prior. This is learning from human feedback, not reinforcement learning.
 
-**Planned, not wired:** Microsoft Fabric (needs a work or school tenant), Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator. GitHub Copilot Agent Mode is not used; the project is built with Claude Code.
+**Microsoft Fabric.** The season and the Player-view uploads land in a Fabric lakehouse as Delta tables in OneLake (keyless), and a Fabric notebook recomputes the league leaders so Regista can check they match its own numbers: 756 of 756 rows on 2026-10-23 (`python -m regista.season.fabric setup|push|check`, `docs/architecture.md`).
+
+**Planned, not wired:** Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator (the app is English only). GitHub Copilot Agent Mode is not used; the project is built with Claude Code.
 
 ## Quickstart
 
@@ -113,7 +138,8 @@ The generator also does two halves (`--periods 2`), custom clubs (`--home "Name,
 
 ## Status
 
-As of 2026-10-21. Runs locally with no cloud dependency: the event-stream contract (schema 0.1.1, validated), a synthetic generator with a demo profile and a realistic profile that sits inside Premier League per-90 bands, the clip rule and labeller, a 2D broadcast renderer and clip cutter, the Librarian, an MCP server, the Agent Framework workflow with human review and a watchability model learned from verdicts, the FastAPI service with the Product and the Studio, and the vision layer v0 on rendered footage. In Azure: Foundry labelling and Q&A through Agent Framework (the Librarian using Microsoft's Azure MCP Server beside Regista's own), Cosmos DB, AI Search, Application Insights tracing, and the service on Container Apps (see the table above; `python3 -m regista.agents … --cloud` runs the cloud pipeline locally against the same resources). See `docs/architecture.md` for how each piece maps to Azure, `docs/gap-analysis.md` for what changed against the judging criteria, and `docs/demo-storyboard.md` for the video plan. Not yet: the vision layer on real broadcast footage, the Azure AI Vision OCR backend, real human verdicts from Zaid to train the watchability model on, and the demo video itself.
+As of 2026-10-23: four views live on Azure (Clips, Scout, Player, Studio), deployed by CI from `main`; the match recap
+and Microsoft Fabric added; 595 tests. What is planned rather than built is listed in [docs/criteria.md](docs/criteria.md).
 
 ## Licence
 
