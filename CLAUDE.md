@@ -426,7 +426,15 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-23.** `main` is at the latest pushed commit; CI is green. Live since PR #31 on revision `regista-api--d1023055523` (the vision job on the same image): the four views plus **match recaps** (rules and Foundry; verified on the live app for a sample, a league and an uploaded match, and one Foundry recap with all 6 sentences kept and no unchecked numbers). **Microsoft Fabric**: the season and uploads in the `regista_league` lakehouse on Zaid's trial (capacity 9c9f2c26…, until about 2026-12-22); the notebook cross-check matched 756 of 756 rows. Docs: README opens with the four views and a judges' tour; `docs/criteria.md`. 595 tests pass. Left: the demo video (storyboard to update for Scout, Player and recaps), the pitch, making the repo public, submitting.
+**As of 2026-10-23 (afternoon).** The redesigned Home (PR #32, merge 7afd88b) is live on revision
+`regista-api--d1023155334`, deployed by CI: a left views panel on every page; Home is logo plus one search box across
+every match (Data Search or Ask Microsoft Foundry); results grid with each card's match line; the match view (title line
+with the Match and Player pickers, timeline, stage, folded recap); Back and Forward between landing, results and match.
+Zaid's 13 decisions are in docs/redesign/decisions.md. Checked read-only on the live app: search, card line, match view,
+Back and Forward, no console errors. The first search on a fresh revision takes about 25 s (league matches build on demand).
+618 tests pass.
+
+**Earlier, 2026-10-23.** `main` is at the latest pushed commit; CI is green. Live since PR #31 on revision `regista-api--d1023055523` (the vision job on the same image): the four views plus **match recaps** (rules and Foundry; verified on the live app for a sample, a league and an uploaded match, and one Foundry recap with all 6 sentences kept and no unchecked numbers). **Microsoft Fabric**: the season and uploads in the `regista_league` lakehouse on Zaid's trial (capacity 9c9f2c26…, until about 2026-12-22); the notebook cross-check matched 756 of 756 rows. Docs: README opens with the four views and a judges' tour; `docs/criteria.md`. 595 tests pass. Left: the demo video (storyboard to update for Scout, Player and recaps), the pitch, making the repo public, submitting.
 
 **Earlier, 2026-10-22 (afternoon).** `main` is at the latest pushed commit; CI is green. Live: Clips (`/`), Studio (`/studio`), Scout (`/scout`, `/players/{id}`) and, since PR #28, the **Player view** (`/me`, §2.6) on revision `regista-api--d1022150227` (after CI's deploy, `deploy-app.sh` gave the app `REGISTA_STORAGE_ACCOUNT` and its storage roles); the vision job `regista-vision` runs main's image. Verified read-only on the live app: `/me`, the processed upload's match and profile, uploads refused without the token. 551 tests pass.
 
