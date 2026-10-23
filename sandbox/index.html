@@ -23,6 +23,10 @@
     <form class="search" role="search">
       <label class="sr" for="q">Ask for any moment, from any match this season</label>
       <input id="q" type="search" autocomplete="off" placeholder="Ask for any moment, from any match this season">
+      <div class="engine" role="radiogroup" aria-label="Who answers">
+        <label><input type="radio" name="engine" value="rules" checked><span>Instant</span></label>
+        <label><input type="radio" name="engine" value="foundry"><span>Microsoft Foundry</span></label>
+      </div>
       <button type="submit">Search</button>
     </form>
   </section>
