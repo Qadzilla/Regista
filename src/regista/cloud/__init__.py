@@ -1,4 +1,4 @@
-"""Azure wiring for Regista: Microsoft Foundry behind the Label and Librarian agents, Cosmos DB behind
+"""Azure wiring for Regista: Microsoft Foundry behind the Label, Recap and Librarian agents, Cosmos DB behind
 Persist, Azure AI Search behind the indexer role, and Application Insights for tracing (``telemetry``).
 
 Nothing here is required to run Regista locally. Each piece reads its configuration from the
@@ -20,9 +20,10 @@ def agents_for(config: CloudConfig | None = None, *, require: bool = False):
         raise RuntimeError("no cloud configuration found; set FOUNDRY_PROJECT_ENDPOINT/FOUNDRY_MODEL and/or REGISTA_COSMOS_ENDPOINT (see .env.example)")
     agents = default_agents()
     if config.foundry_enabled:
-        from regista.cloud.foundry import FoundryLabelAgent, FoundryLibrarianAgent
+        from regista.cloud.foundry import FoundryLabelAgent, FoundryLibrarianAgent, FoundryRecapAgent
 
-        agents = [FoundryLabelAgent(cloud=config) if a.role == "label" else FoundryLibrarianAgent(cloud=config) if a.role == "librarian" else a for a in agents]
+        swap = {"label": FoundryLabelAgent, "librarian": FoundryLibrarianAgent, "recap": FoundryRecapAgent}
+        agents = [swap[a.role](cloud=config) if a.role in swap else a for a in agents]
     if config.cosmos_enabled:
         from regista.cloud.cosmos import CosmosPersistAgent
 

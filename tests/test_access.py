@@ -45,6 +45,7 @@ ACCESS = {
     "GET /api/matches/{match_id}/report": "public",
     "POST /api/matches/{match_id}/ask": "public",
     "POST /api/matches/{match_id}/chat": "public",
+    "GET /api/matches/{match_id}/recap": "public",  # reads only; Foundry behind the Ask limits, no tools
     "GET /studio": "public",  # the page itself holds no data
     # Studio reads (view key or admin key)
     "GET /api/matches/{match_id}/identity-review": "studio",

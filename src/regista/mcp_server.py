@@ -12,6 +12,8 @@ Tools
 - ``validate_stream(path)``                     schema-validate a match directory or a single JSONL file
 - ``render_clip(match_dir, clip_id, out_dir)``  cut one clip to MP4 with its title card
 - ``list_matches(root)``                        the match directories available under a folder
+- ``match_recap(match_dir, player_id)``         the match recap (rules engine): headline, paragraphs whose every sentence
+                                                cites a clip or an event, and the recap reel; from a player's side if given
 - ``search_players(position, club, q, sort, order, limit, min_minutes)``
                                                 the Regista League's players filtered and ranked by any stat per 90
 - ``get_profile(player)``                       one player's season (by global id or name), without the evidence lists
@@ -44,7 +46,8 @@ server = FastMCP(
         "Regista finds every on-ball moment, replay, and highlight of a football player in a match and "
         "labels them. Use search_clips for natural-language questions like 'find me Castellanos doing a "
         "nutmeg'. Use derive_clips to list a player's clips, validate_stream to check data, render_clip "
-        "to produce a video. Paths are match directories containing events.jsonl (and clips.jsonl). For the "
+        "to produce a video, match_recap for a written recap of a match (or of one player's match). Paths are "
+        "match directories containing events.jsonl (and clips.jsonl). For the "
         "synthetic Regista League's players across the season use search_players, get_profile and compare_players."
     ),
 )
@@ -125,6 +128,19 @@ def list_matches(root: str = "data/synthetic/sample") -> list[dict[str, Any]]:
                 manifest = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
             out.append({"match_dir": str(d), "match_id": d.name, "score": manifest.get("score"), "clips_for": manifest.get("clips_for"),
                         "video_duration_s": manifest.get("video_duration_s")})
+    return out
+
+
+@server.tool()
+def match_recap(match_dir: str, player_id: str | None = None) -> dict[str, Any]:
+    """A short written recap of one match: a headline and three or four short paragraphs (the score, the goals with
+    scorer, assister and minute, the best chances and saves, who stood out), every sentence citing the clip or event it
+    comes from, plus a reel of the recap's best clips. With player_id (a per-match id like t_home_09) it is told from
+    that player's side: their part in the goals, their best moments, the replays they appear in."""
+    from regista.recap import recap
+
+    out = recap(match_dir, player_id=player_id or None)
+    out.pop("trace", None)
     return out
 
 

@@ -2,7 +2,7 @@
 
 Ingest reads the stream and indexes it. Validator checks it against the schema. Possession
 finds the on-ball windows per player. Clip applies the clip rule. Label tags, titles, scores
-and explains. Librarian answers questions over the labels. Identity (the vision-layer role
+and explains. Recap (``regista.recap.RecapAgent``) writes the match recap. Librarian answers questions over the labels. Identity (the vision-layer role
 that tracks a player through the footage) is not here: it lives in the private vision layer,
 and the synthetic generator plays its part for the demo.
 """
@@ -171,4 +171,6 @@ class LibrarianAgent(Agent):
 
 
 def default_agents() -> list[Agent]:
-    return [IngestAgent(), ValidatorAgent(), PossessionAgent(), ClipAgent(), LabelAgent(), PersistAgent(), LibrarianAgent()]
+    from regista.recap import RecapAgent  # the Recap role lives with the recap (regista.recap)
+
+    return [IngestAgent(), ValidatorAgent(), PossessionAgent(), ClipAgent(), LabelAgent(), RecapAgent(), PersistAgent(), LibrarianAgent()]

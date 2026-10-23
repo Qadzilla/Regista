@@ -242,7 +242,7 @@
     { key: 'possession', label: 'Possession', roles: ['possession_vision'], what: 'Decides who is on the ball, moment by moment.' },
     { key: 'events', label: 'Events', roles: ['events_vision'], what: 'Spots passes, shots, take-ons, nutmegs and tackles.' },
     { key: 'writer', label: 'Writer', roles: ['vision_writer'], what: 'Writes the match as Regista’s event stream.' },
-    { key: 'clips', label: 'Clips', roles: ['ingest', 'validator', 'possession', 'clip', 'clips', 'label', 'persist', 'indexer', 'profiles', 'profile'],
+    { key: 'clips', label: 'Clips', roles: ['ingest', 'validator', 'possession', 'clip', 'clips', 'label', 'recap', 'persist', 'indexer', 'profiles', 'profile'],
       what: 'Cuts every moment you are on the ball, plus your replays, and labels them.' },
     { key: 'done', label: 'Done', roles: [], what: 'The match is in your profile.' },
   ];
@@ -490,6 +490,49 @@
       h('div', { class: 'links' },
         h('a', { class: 'btn solid', href: href(links.clip_view) }, 'Open the match in Clips'),
         h('a', { class: 'btn alt', href: href(links.profile) }, 'See your updated profile')));
+    const mid = u.rec.match && u.rec.match.match_id;
+    if (mid && pid) {
+      const box = h('section', { class: 'recap', 'aria-label': 'Your match recap' }, h('p', { class: 'muted small' }, 'Writing your match recap…'));
+      u.parts.res.append(box);
+      loadRecap(box, mid, pid, href(links.clip_view));
+    }
+  }
+
+  // "Your match recap": the match told from the player's side (GET /recap, the Instant engine). Every sentence opens its
+  // moment in the Clip view; the recap reel plays here.
+  async function loadRecap(box, mid, pid, clipView) {
+    let r;
+    try { r = await R.api(`/api/matches/${enc(mid)}/recap?player=${enc(pid)}`); } catch (e) {
+      swap(box, h('p', { class: 'muted small' }, `The recap could not be written: ${errText(e)}`));
+      return;
+    }
+    const at = (s) => (s.cites || []).find((c) => c.clip_id);
+    const sentence = (s) => {
+      const c = at(s);
+      return c ? h('a', { href: `/?match=${enc(mid)}&player=${enc(c.player_id || pid)}&clip=${enc(c.clip_id)}` }, s.text) : h('span', {}, s.text);
+    };
+    const reelUrl = typeof r.reel_url === 'string' && r.reel_url.startsWith('/api/matches/') ? r.reel_url : null;
+    const video = h('video', { controls: true, playsinline: true, preload: 'none' });
+    video.hidden = true;
+    const play = reelUrl ? h('button', { type: 'button', class: 'alt' }, `Play your recap reel (${r.reel.length})`) : null;
+    if (play) {
+      play.addEventListener('click', () => {
+        play.textContent = 'Cutting the reel… the first view takes a little while';
+        play.disabled = true;
+        video.src = reelUrl;
+        video.hidden = false;
+        video.addEventListener('playing', () => play.remove(), { once: true });
+        video.addEventListener('error', () => { play.textContent = 'The reel could not be played. Try again.'; play.disabled = false; }, { once: true });
+        video.play().catch(() => {});
+      });
+    }
+    swap(box,
+      h('h3', {}, 'Your match recap'),
+      h('p', { class: 'headline' }, r.headline || ''),
+      (r.paragraphs || []).map((p) => h('p', {}, (p.sentences || []).flatMap((s, i) => (i ? [' ', sentence(s)] : [sentence(s)])))),
+      h('p', { class: 'muted small' }, 'Written by Regista from the match events. Each sentence opens its moment in the Clip view.'),
+      video,
+      h('div', { class: 'links' }, play, h('a', { class: 'btn alt', href: clipView === '#' ? '#' : `${clipView}&recap=1` }, 'Read it in Clips')));
   }
 
   function moment(c) {
