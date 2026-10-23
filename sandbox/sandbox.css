@@ -9,9 +9,12 @@
 html { -webkit-text-size-adjust: 100%; }
 body { margin: 0; min-height: 100vh; background: var(--bg); color: var(--text); font: 15px/1.45 -apple-system, "Helvetica Neue", Helvetica, Arial, sans-serif; }
 
-.top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
-       position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
-.brand { font-size: 18px; margin: 0; letter-spacing: .08em; font-weight: 800; margin-right: auto; }
+/* Three columns: the brand on the left, the views switch centred on the page, an empty column on the right that
+   balances the brand so the switch sits at the true centre. */
+.top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; padding: 12px 16px;
+       border-bottom: 1px solid var(--line); background: var(--panel); position: sticky; top: 0; z-index: 5; }
+.brand { font-size: 18px; margin: 0; letter-spacing: .08em; font-weight: 800; justify-self: start; }
+.top .views { justify-self: center; }
 .brand span { color: var(--accent); }
 
 .views { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; flex: 0 0 auto; }
