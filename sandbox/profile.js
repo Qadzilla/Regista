@@ -20,7 +20,7 @@
   // Clip ids are numbered per match (Femi is t_away_09 in every away match), so a clip is known by match and clip id.
   const key = (m) => `${m.match_id}|${m.clip_id}`;
 
-  let P = null, U = [], C = null, APP = '';
+  let P = null, U = [], C = null, APP = '', meView = null;
   const clipOf = new Map();
   const me = { name: '', position: '', kit: 0 };  // what Team > My details has saved (on this page only)
 
@@ -64,7 +64,7 @@
     if (cur && sub.scrollWidth > sub.clientWidth) sub.scrollLeft = cur.offsetLeft - sub.offsetLeft - 12;
     for (const v of $$('.pv')) v.hidden = v.dataset.sub !== sec;
     if (!P) return;
-    if (sec !== 'me') $('pfVideo').pause();
+    if (sec !== 'me' && meView) meView.pause();
     if (sec !== 'overview') $('ovVideo').pause();
     if (sec === 'matches' && parts[2] === 'add') toggleAdd(true);
     if (sec === 'messages') { convos.find(c => c.id === open).unread = 0; paintMessages(); }
@@ -75,8 +75,8 @@
   route();
 
   function paintAll() {
+    meView = window.PF.render($('pvMeBody'), P, { app: APP });
     paintIdentity();
-    paintSummary(); paintStrip(); play('pfVideo', key(best()[0]), false); paintNumbers(); paintPitch();
     paintMatches(); paintUploads(); paintQuestions();
     paintMessages();  // also paints the Overview, whose "Needs you" counts unread messages
     paintTeam();
@@ -93,31 +93,24 @@
   };
   const shirtSvg = (num) => `<svg viewBox="0 0 64 60" width="72" height="68"><path d="M20 4 L8 10 L2 24 L11 28 L14 22 L14 56 L50 56 L50 22 L53 28 L62 24 L56 10 L44 4 C42 9 37 12 32 12 C27 12 22 9 20 4 Z" fill="${esc(P.kit.primary)}" stroke="rgba(255,255,255,.25)" stroke-width="1"/>`
     + `<text x="32" y="44" text-anchor="middle" font-size="22" font-weight="800" fill="${esc(P.kit.secondary)}" font-family="-apple-system, Helvetica, Arial, sans-serif">${esc(num)}</text></svg>`;
-  function paintIdentity() {
-    for (const el of $$('.shirt')) el.innerHTML = shirtSvg(me.kit);
-    for (const el of $$('.js-name')) el.textContent = me.name;
-    for (const el of $$('.js-line')) el.textContent = `${POS[me.position] || me.position} · ${P.club} · Number ${me.kit}`;
-    for (const el of $$('.js-apps')) el.textContent = `${P.appearances} matches · ${Math.round(P.minutes)} minutes`;
+  function paintIdentity() {  // the dashboard's own header, and My profile's (what scouts see)
+    const root = $('pv-overview');
+    for (const el of $$('.shirt', root)) el.innerHTML = shirtSvg(me.kit);
+    for (const el of $$('.js-name', root)) el.textContent = me.name;
+    for (const el of $$('.js-line', root)) el.textContent = `${POS[me.position] || me.position} · ${P.club} · Number ${me.kit}`;
+    if (meView) meView.identity(me.name, me.position, me.kit);
   }
   function best() {
     const seen = new Set();
     return [...P.moments].sort((a, b) => (b.watchability - a.watchability) || ((a.reason !== 'on_ball_main') - (b.reason !== 'on_ball_main')))
       .filter(m => !seen.has(key(m)) && seen.add(key(m))).slice(0, 8);
   }
-  const reel = { on: false, ids: [], i: 0 };
+  // The Overview's best moment (My profile's player lives in profile-view.js).
   function play(videoId, clipId, start = true) {
     const m = clipOf.get(clipId);
     if (!m) return;
     const v = $(videoId), src = APP + m.video_url;
     if (v.getAttribute('src') !== src) { v.src = src; v.preload = start ? 'auto' : 'none'; }
-    if (videoId === 'pfVideo') {
-      $('pfNow').className = 'reason' + (m.reason === 'replay_appearance' ? ' replay' : '');
-      $('pfNow').textContent = `${reel.on ? `Reel · clip ${reel.i} of ${reel.ids.length} · ` : ''}${REASONS[m.reason] || m.reason} · ${roundName(m)} · ${fmtTime(m.t)}`;
-      $('pfTitle').textContent = short(m.title);
-      $('pfTags').innerHTML = (m.tags || []).filter(t => !INTERNAL.test(t)).map(t => `<span>${esc(tagLabel(t))}</span>`).join('');
-      for (const b of $$('.pf-clip')) b.classList.toggle('on', b.dataset.clip === clipId);
-      if (start) v.closest('.pf-best').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
     if (start) v.play().catch(() => {});
   }
 
@@ -148,63 +141,6 @@
       ...last.map(r => ['match', new Date(r.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), `Round ${r.round}: ${r.home} ${r.score} ${r.away}`, 'me']),
     ];
     $('ovActivity').innerHTML = act.map(([k, w, t, sec]) => `<li><span class="ov-dot k-${k}" aria-hidden="true"></span><a href="#profile/${sec}">${esc(t)}</a><span class="muted small">${esc(w)}</span></li>`).join('');
-  }
-
-  // ------------------------------------------------------------------ My profile (what scouts see)
-  function paintSummary() {
-    const S = new Map((P.summary.sources || []).map(s => [s.id, s]));
-    $('pfSummary').innerHTML = P.summary.sentences.map(x => {
-      const src = (x.sources || []).map(id => S.get(id)).filter(Boolean)[0];
-      if (!src) return `<span>${esc(x.text)}</span>`;
-      const data = src.type === 'moment' ? `data-clip="${esc(key(src))}"` : `data-stat="${esc(src.key)}"`;
-      return `<a href="#profile/me" class="cite" ${data}>${esc(x.text)}</a>`;
-    }).join(' ');
-    $('pfSumBy').textContent = String(P.summary.model || '').startsWith('foundry') ? 'Written by Microsoft Foundry from his numbers.'
-      : 'Written by Regista from his numbers. Pick a sentence to see where it comes from.';
-  }
-  function paintStrip() {
-    $('pfStrip').innerHTML = best().map(m => `<li><button type="button" class="pf-clip" data-clip="${esc(key(m))}">
-      <span class="reason ${m.reason === 'replay_appearance' ? 'replay' : ''}">${esc(REASONS[m.reason] || m.reason)} · ${esc(roundName(m))}</span>
-      <span class="pf-ctitle">${esc(short(m.title))}</span><span class="pf-cmatch">${esc(vsLine(matchOf(m.match_id)))}</span></button></li>`).join('');
-  }
-  $('pfReel').onclick = () => { Object.assign(reel, { on: true, ids: best().map(key), i: 1 }); play('pfVideo', reel.ids[0]); };
-  $('pfVideo').addEventListener('ended', () => {
-    if (!reel.on) return;
-    if (reel.i >= reel.ids.length) { reel.on = false; return; }
-    reel.i++; play('pfVideo', reel.ids[reel.i - 1]);
-  });
-  const pctText = (p) => p >= 100 ? 'Best of the league\'s forwards' : `Higher than ${p}% of the league's forwards`;
-  function paintNumbers() {
-    $('pfTiles').innerHTML = HEADLINE.map(k => `<button type="button" class="pf-tile" data-stat="${esc(k)}" aria-pressed="false">
-      <span class="pf-n">${esc(P.counts[k])}</span><span class="pf-k">${esc(P.stat_labels[k] || k)}</span>
-      <span class="pf-rate">${esc(P.per90[k].toFixed(2))} per 90 minutes</span>
-      <span class="pf-pbar"><i style="width:${Math.max(3, P.percentiles[k])}%"></i></span><span class="pf-pct">${esc(pctText(P.percentiles[k]))}</span></button>`).join('');
-    const r = P.ratios;
-    $('pfRatios').innerHTML = [['passes completed', r.pass_accuracy], ['shots on target', r.shot_accuracy], ['take-ons won', r.take_on_success]]
-      .map(([k, v]) => `<span><b>${esc(Math.round(v * 100))}%</b> ${esc(k)}</span>`).join('');
-  }
-  function openStat(key, toggle) {
-    const box = $('pfEvidence');
-    const closing = toggle && box.dataset.stat === key && !box.hidden;
-    for (const t of $$('.pf-tile')) t.setAttribute('aria-pressed', String(t.dataset.stat === key && !closing));
-    if (closing) { box.hidden = true; box.dataset.stat = ''; return; }
-    const ev = P.evidence[key] || [];
-    box.dataset.stat = key; box.hidden = false;
-    box.innerHTML = `<h3>${esc(P.counts[key])} ${esc((P.stat_labels[key] || key).toLowerCase())}, verified by Regista</h3><ol>${ev.map(e => {
-      const m = matchOf(e.match_id), c = e.clip_id && clipOf.get(key(e));
-      const where = `${roundName(m)} · ${vsLine(m)} · ${fmtTime(e.t)}`;
-      return c ? `<li><button type="button" class="link" data-clip="${esc(key(e))}">${esc(short(c.title))}</button> <span class="muted">${esc(where)}</span></li>`
-        : `<li><span>${esc(where)}</span> <span class="muted">· in the match, no clip of its own</span></li>`;
-    }).join('')}</ol>`;
-    box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-  }
-  function paintPitch() {
-    const g = P.grid, max = Math.max(1, ...g.flat());
-    const cells = g.map((row, y) => row.map((n, x) => `<i style="grid-row:${y + 1};grid-column:${x + 1};opacity:${n ? (0.12 + 0.88 * n / max).toFixed(2) : 0}" title="${n} touches"></i>`).join('')).join('');
-    $('pfPitch').innerHTML = `<div class="heat">${cells}</div><svg viewBox="0 0 120 80" preserveAspectRatio="none" aria-hidden="true">
-      <rect x="0.5" y="0.5" width="119" height="79"/><line x1="60" y1="0" x2="60" y2="80"/><circle cx="60" cy="40" r="9"/>
-      <rect x="0.5" y="22" width="16" height="36"/><rect x="103.5" y="22" width="16" height="36"/>
-      <rect x="0.5" y="32" width="5.5" height="16"/><rect x="114" y="32" width="5.5" height="16"/></svg><span class="pitch-dir">Attacking &rarr;</span>`;
   }
 
   // ------------------------------------------------------------------ Matches & videos
@@ -350,10 +286,4 @@
   // ------------------------------------------------------------------ Settings
   $('stOut').onclick = () => { $('stNote').textContent = 'Sandbox: there is no sign-in yet, so there is nothing to sign out of.'; };
 
-  // ------------------------------------------------------------------ clicks inside My profile
-  $('pv-me').addEventListener('click', (e) => {
-    const c = e.target.closest('[data-clip]'), s = e.target.closest('[data-stat]');
-    if (c) { e.preventDefault(); reel.on = false; play('pfVideo', c.dataset.clip); return; }
-    if (s) { e.preventDefault(); openStat(s.dataset.stat, s.classList.contains('pf-tile')); }
-  });
 })();

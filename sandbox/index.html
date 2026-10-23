@@ -22,7 +22,16 @@
     <a href="#profile/team" data-sub="team">Team</a>
     <a href="#profile/settings" data-sub="settings">Settings</a>
   </div>
-  <a href="#scout" data-view="scout">Scout</a>
+  <a href="#scout/overview" data-view="scout">Scout</a>
+  <div class="subnav" id="scSub" aria-label="Scout sections" hidden>
+    <a href="#scout/overview" data-sub="overview">Overview</a>
+    <a href="#scout/find" data-sub="find">Find players</a>
+    <a href="#scout/shortlist" data-sub="shortlist">Shortlist</a>
+    <a href="#scout/reports" data-sub="reports">Reports</a>
+    <a href="#scout/messages" data-sub="messages">Messages <span class="count" id="scUnread"></span></a>
+    <a href="#scout/team" data-sub="team">Team</a>
+    <a href="#scout/settings" data-sub="settings">Settings</a>
+  </div>
 </nav>
 <main>
   <section id="home" data-view="home" aria-label="Home">
@@ -142,48 +151,10 @@
         </section>
       </div>
 
-      <!-- My profile: what scouts see -->
+      <!-- My profile: what scouts see (profile-view.js renders it, the same page the Scout dashboard opens) -->
       <div class="pv" id="pv-me" data-sub="me" hidden>
         <p class="pf-scouts">This is what scouts see when they open your profile.</p>
-        <header class="pf-head panel">
-          <div class="shirt" aria-hidden="true"></div>
-          <div class="pf-who"><h1 class="js-name"></h1><p class="pf-line js-line"></p><p class="pf-line muted js-apps"></p></div>
-        </header>
-        <section class="pf-summary panel" aria-labelledby="pfSumHead">
-          <h2 id="pfSumHead">Summary</h2>
-          <p id="pfSummary"></p>
-          <p class="muted small" id="pfSumBy"></p>
-        </section>
-        <section class="pf-best panel" aria-labelledby="pfBestHead">
-          <div class="pf-bar"><h2 id="pfBestHead">Best moments</h2><button type="button" id="pfReel">Play reel</button></div>
-          <div class="pf-bestgrid">
-            <div class="pf-stage">
-              <div class="pf-screen"><video id="pfVideo" controls playsinline preload="none"></video></div>
-              <p class="reason" id="pfNow"></p>
-              <h3 id="pfTitle"></h3>
-              <span class="tags" id="pfTags"></span>
-            </div>
-            <ol class="pf-strip" id="pfStrip"></ol>
-          </div>
-        </section>
-        <div class="pf-two">
-          <section class="pf-numbers panel" aria-labelledby="pfNumHead">
-            <h2 id="pfNumHead">Numbers</h2>
-            <p class="muted small">This season, against the league's other forwards. Pick a number to see the moments behind it.</p>
-            <div class="pf-tiles" id="pfTiles"></div>
-            <div class="pf-ratios" id="pfRatios"></div>
-            <div class="pf-evidence" id="pfEvidence" hidden></div>
-          </section>
-          <section class="pf-map panel" aria-labelledby="pfMapHead">
-            <h2 id="pfMapHead">Where he plays</h2>
-            <p class="muted small">Every touch this season, attacking left to right.</p>
-            <div class="pitch" id="pfPitch"></div>
-          </section>
-        </div>
-        <section class="panel" aria-labelledby="pfMatchHead">
-          <h2 id="pfMatchHead">Matches</h2>
-          <ol class="pf-mlist js-matches"></ol>
-        </section>
+        <div class="pv" id="pvMeBody"></div>
       </div>
 
       <!-- Matches & videos -->
@@ -317,10 +288,162 @@
 
     </div>
   </section>
-  <section id="scout" data-view="scout" aria-label="Scout" hidden></section>
+  <!-- Scout: Maya Lindqvist's dashboard (chief scout, Fairhaven FC). Seven sections (#scout/<section>). Real league data in
+       scout.json (players, profiles, the Scout agent's answers, Fairhaven's squad, the table); messages, notes, stages,
+       reports, needs and settings are mocks. scout.js fills it. -->
+  <section id="scout" data-view="scout" aria-label="Scout" hidden>
+    <div class="pf sc">
+
+      <!-- Overview -->
+      <div class="pv" data-sc="overview" hidden>
+        <header class="pf-head panel">
+          <div class="mx-av sc-me" aria-hidden="true">ML</div>
+          <div class="pf-who"><p class="pf-hi muted">Your dashboard</p><h1>Maya Lindqvist</h1>
+            <p class="pf-line">Chief scout · Fairhaven FC <span class="mx-ver">&#10003; Verified scout</span></p></div>
+          <a class="pf-btn" href="#scout/find">Find players</a>
+        </header>
+        <section class="panel"><h2>Needs you</h2><div class="ov-needs" id="scNeeds"></div></section>
+        <section class="panel"><div class="pf-bar"><h2>Your shortlist</h2><a href="#scout/shortlist" class="small-link">Open the shortlist</a></div>
+          <div class="sc-stagesum" id="scStageSum"></div></section>
+        <section class="panel"><h2>Recent activity</h2><ol class="ov-activity" id="scActivity"></ol></section>
+      </div>
+
+      <!-- Find players -->
+      <div class="pv" data-sc="find" hidden>
+        <div class="pv-title"><h1>Find players</h1></div>
+        <section class="panel">
+          <h2>Ask the Scout agent</h2>
+          <form class="sc-ask" id="scAsk" role="search">
+            <label class="sr" for="scQ">Ask about the league's players</label>
+            <input id="scQ" type="search" autocomplete="off" placeholder="Ask about the league's players">
+            <button type="submit">Ask</button>
+          </form>
+          <div class="sc-examples" id="scExamples"></div>
+          <div class="sc-answer" id="scAnswer" hidden></div>
+        </section>
+        <section class="panel">
+          <div class="sc-filters">
+            <label class="pf-field"><span>Name or club</span><input id="scName" type="search" autocomplete="off" placeholder="Search"></label>
+            <label class="pf-field"><span>Position</span><select id="scPos"><option value="">Any</option><option value="FW">Forwards</option><option value="MF">Midfielders</option><option value="DF">Defenders</option><option value="GK">Goalkeepers</option></select></label>
+            <label class="pf-field"><span>Sort by</span><select id="scSort"></select></label>
+          </div>
+          <p class="muted small" id="scCount"></p>
+          <div class="sc-cards" id="scCards"></div>
+        </section>
+      </div>
+
+      <!-- One player, opened from anywhere: the profile scouts see, with the scout bar on top -->
+      <div class="pv" data-sc="player" hidden>
+        <button type="button" class="link sc-backlink" id="scBack">&larr; Back</button>
+        <div class="sc-bar panel" id="scBar"></div>
+        <div class="sc-note panel" id="scNoteBox" hidden>
+          <label class="pf-field"><span>Your notes on this player (private to Fairhaven FC)</span><textarea id="scNote" rows="3"></textarea></label>
+          <div class="pf-addbar"><button type="button" id="scNoteSave">Save note</button></div>
+        </div>
+        <div class="pv" id="scPlayerBody"></div>
+      </div>
+
+      <!-- Shortlist: stages and compare -->
+      <div class="pv" data-sc="shortlist" hidden>
+        <div class="pv-title"><h1>Shortlist</h1><button type="button" id="scCompareGo" disabled>Compare</button>
+          <p class="muted small">Tick two or three players to compare them.</p></div>
+        <div class="sc-board" id="scBoard"></div>
+        <section class="panel sc-compare" id="scCompare" hidden></section>
+      </div>
+
+      <!-- Reports -->
+      <div class="pv" data-sc="reports" hidden>
+        <div class="pv-title"><h1>Reports</h1><button type="button" id="scNewReport">New report</button></div>
+        <div class="sc-reports">
+          <ol class="sc-rlist panel" id="scRList"></ol>
+          <article class="panel sc-report" id="scReport"></article>
+        </div>
+      </div>
+
+      <!-- Messages: scouts start conversations -->
+      <div class="pv" data-sc="messages" hidden>
+        <div class="pv-title"><h1>Messages</h1><button type="button" class="alt" id="scNewMsg">New message</button>
+          <p class="muted small">Start a conversation from any player's profile, or here.</p></div>
+        <div class="sc-newmsg panel" id="scNewMsgBox" hidden>
+          <label class="pf-field"><span>To</span><select id="scNewTo"></select></label>
+          <div class="pf-addbar"><button type="button" id="scNewStart">Start conversation</button><button type="button" class="alt" id="scNewCancel">Cancel</button></div>
+        </div>
+        <div class="mx panel" id="scMx">
+          <ol class="mx-list" id="scMxList" aria-label="Conversations"></ol>
+          <div class="mx-thread">
+            <header class="mx-head" id="scMxHead"></header>
+            <ol class="mx-msgs" id="scMxMsgs" aria-live="polite"></ol>
+            <form class="mx-compose" id="scMxCompose">
+              <label class="sr" for="scMxText">Your message</label>
+              <input id="scMxText" type="text" autocomplete="off" placeholder="Write a message">
+              <button type="submit">Send</button>
+            </form>
+            <button type="button" class="link mx-back" id="scMxBack">&larr; All conversations</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team: my club's needs -->
+      <div class="pv" data-sc="team" hidden>
+        <div class="pv-title"><h1>Team</h1></div>
+        <section class="panel">
+          <div class="tm-club"><div class="tm-crest" id="scCrest" aria-hidden="true"></div>
+            <div><h2 id="scClubHead"></h2><p class="muted small" id="scClubLine"></p></div></div>
+        </section>
+        <section class="panel">
+          <div class="pf-bar"><h2>What we are looking for</h2><button type="button" class="alt" id="scAddNeed">Add a need</button></div>
+          <p class="muted small">Each need lists the league's players who fit it, from their numbers this season.</p>
+          <form class="sc-needform" id="scNeedForm" hidden>
+            <label class="pf-field"><span>We need</span><input id="scNeedTitle" type="text" maxlength="60" placeholder="e.g. A winger who beats players"></label>
+            <label class="pf-field"><span>Position</span><select id="scNeedPos"><option value="FW">Forward</option><option value="MF">Midfielder</option><option value="DF">Defender</option><option value="GK">Goalkeeper</option></select></label>
+            <label class="pf-field"><span>Judged on</span><select id="scNeedStat"></select></label>
+            <label class="pf-field"><span>Better than</span><select id="scNeedPct"><option value="90">90% of the position</option><option value="75" selected>75% of the position</option><option value="50">50% of the position</option></select></label>
+            <div class="pf-addbar"><button type="submit">Add</button><button type="button" class="alt" id="scNeedCancel">Cancel</button></div>
+          </form>
+          <div class="sc-needs" id="scNeeds2"></div>
+        </section>
+        <section class="panel"><h2>Our squad</h2><ol class="tm-squad" id="scSquad"></ol></section>
+      </div>
+
+      <!-- Settings -->
+      <div class="pv" data-sc="settings" hidden>
+        <div class="pv-title"><h1>Settings</h1></div>
+        <section class="panel st">
+          <h2>Account</h2>
+          <div class="st-row"><div><b>Email</b><p class="muted small">maya.lindqvist@fairhaven-fc.example</p></div><button type="button" class="alt">Change</button></div>
+          <div class="st-row"><div><b>Password</b><p class="muted small">Last changed 3 weeks ago</p></div><button type="button" class="alt">Change</button></div>
+        </section>
+        <section class="panel st">
+          <h2>Club and role</h2>
+          <div class="st-row"><div><b>Fairhaven FC · Chief scout</b><p class="muted small"><span class="mx-ver">&#10003; Verified scout</span> · confirmed by the club</p></div><button type="button" class="alt">Change</button></div>
+        </section>
+        <section class="panel st">
+          <h2>Notifications</h2>
+          <label class="st-toggle"><input type="checkbox" checked><span>A player replies</span></label>
+          <label class="st-toggle"><input type="checkbox" checked><span>A shortlisted player adds a match</span></label>
+          <label class="st-toggle"><input type="checkbox" checked><span>A new player fits one of our needs</span></label>
+          <label class="st-toggle"><input type="checkbox"><span>A weekly summary of the league</span></label>
+        </section>
+        <section class="panel st">
+          <h2>Privacy</h2>
+          <fieldset class="st-choice"><legend>Who can see your shortlist, notes and reports</legend>
+            <label><input type="radio" name="scpriv"><span>Only me</span></label>
+            <label><input type="radio" name="scpriv" checked><span>Fairhaven FC's scouts</span></label>
+          </fieldset>
+        </section>
+        <section class="panel st st-out">
+          <button type="button" class="alt" id="scOut">Sign out</button>
+          <p class="small muted" id="scOutNote" role="status"></p>
+        </section>
+      </div>
+
+    </div>
+  </section>
 </main>
 </div>
 <script src="sandbox.js"></script>
+<script src="profile-view.js"></script>
 <script src="profile.js"></script>
+<script src="scout.js"></script>
 </body>
 </html>
