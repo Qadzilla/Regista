@@ -29,6 +29,20 @@
       <label><input type="radio" name="engine" value="rules" checked><span>Data Search</span></label>
       <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
     </div>
+    <!-- What runs behind the search, as the live app's /api/health reports it today (2026-10-23). In the app the list
+         comes from /api/health, so a service shows only while it is on, and each chip opens How it works.
+         Plain text chips: Microsoft's icon terms allow its product icons in diagrams and documentation, not app UI. -->
+    <div class="stack" aria-label="Running on this server">
+      <span class="stack-label">Running now</span>
+      <ul>
+        <li title="Writes the Foundry replies and labels uploaded matches"><i aria-hidden="true"></i>Microsoft Foundry · gpt-5-mini</li>
+        <li title="Runs the agent workflow: ingest, clips, labels, review, recap"><i aria-hidden="true"></i>Microsoft Agent Framework</li>
+        <li title="The Foundry Librarian's tool for the search index"><i aria-hidden="true"></i>Azure MCP Server</li>
+        <li title="Stores matches, clips, labels and reviewers' verdicts"><i aria-hidden="true"></i>Azure Cosmos DB</li>
+        <li title="Indexes every labelled clip"><i aria-hidden="true"></i>Azure AI Search</li>
+        <li title="Receives the agents' traces"><i aria-hidden="true"></i>Application Insights</li>
+      </ul>
+    </div>
   </section>
   <section id="results" aria-label="Results" hidden>
     <div class="rbar">
