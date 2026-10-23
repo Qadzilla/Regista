@@ -23,89 +23,128 @@
 <main>
   <div class="neterr" id="netError" role="alert" hidden><span id="netErrorText"></span><button type="button" class="alt" id="netRetry">Retry</button></div>
 
+  <!-- Home: the logo, the tagline, one search box across every match, and who answers. -->
   <section class="landing" id="landing" aria-labelledby="promise">
-    <h1 id="promise">Every touch, every replay, every player, found in seconds.</h1>
-    <p class="lede">Regista watched this match and cut every moment each player had the ball, plus every replay and highlight
-      they appear in. Ask for any moment.</p>
-    <div class="examples" id="examples" role="group" aria-label="Try a question"></div>
-  </section>
-
-  <section class="matchline" aria-label="This match">
-    <h2 id="matchTitle"></h2>
-    <p id="matchSub" class="muted" hidden></p>
-    <p class="scout-link" id="scoutLinkLine" hidden><a id="scoutLink"></a></p>
-    <p id="visionNote" class="vision-note" hidden><span class="badge vision">Cut from video</span> on a moment means the vision layer
-      found it in the pictures: who had the ball, what happened and who is in each replay.</p>
-  </section>
-
-  <section class="ask panel" aria-label="Ask Regista">
-    <div class="log" id="log" aria-live="polite" hidden></div>
-    <form class="askrow" id="askForm">
-      <label class="sr" for="q">Ask for a moment</label>
-      <input id="q" type="search" autocomplete="off" maxlength="300" placeholder='Ask for a moment: "his nutmegs", "now the replays", "second half"'>
-      <div class="engine" role="radiogroup" aria-label="Who answers">
-        <label><input type="radio" name="engine" value="rules" checked><span>Instant</span></label>
-        <label><input type="radio" name="engine" value="foundry"><span>Foundry</span></label>
-      </div>
-      <button id="go" type="submit">Ask</button>
+    <h1 class="logo" id="promise"><span aria-hidden="true">REGI<span>STA</span></span><span class="sr">Regista</span></h1>
+    <p class="tagline">Every moment. Every highlight. Every player. Found in seconds.</p>
+    <form class="search" id="homeForm" role="search">
+      <label class="sr" for="q">Ask for any moment, from any match</label>
+      <input id="q" type="search" autocomplete="off" maxlength="300">
+      <button type="submit" id="homeGo">Search</button>
     </form>
-    <p class="hint" id="engineHint"></p>
+    <div class="engine pill" role="radiogroup" aria-label="Who answers">
+      <label><input type="radio" name="engine" value="rules" checked><span>Data Search</span></label>
+      <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
+    </div>
+    <p class="empty" id="landingNote" hidden></p>
   </section>
 
-  <section class="timeline-wrap" id="timelineWrap" aria-label="The match, kick-off to full time" hidden>
-    <div id="timeline"></div>
-  </section>
+  <div class="work" id="work" hidden>
+    <div class="work-main">
+      <!-- Results: the search across every match, the compact bar on top. -->
+      <section class="resultsview" id="resultsView" aria-label="Results" hidden>
+        <div class="rbar">
+          <form class="search compact" id="barForm" role="search">
+            <label class="sr" for="rq">Search every match</label>
+            <input id="rq" type="search" autocomplete="off" maxlength="300" placeholder="Search every match">
+            <button type="submit" id="barGo">Search</button>
+          </form>
+          <div class="engine pill inline" role="radiogroup" aria-label="Who answers">
+            <label><input type="radio" name="rengine" value="rules" checked><span>Data Search</span></label>
+            <label><input type="radio" name="rengine" value="foundry"><span>Ask Microsoft Foundry</span></label>
+          </div>
+        </div>
+        <p class="searchnote" id="searchNote" hidden></p>
+        <div class="slot" id="resultsSlotSearch"></div>
+      </section>
 
-  <section class="stage panel" id="stage" aria-label="Now playing">
-    <div class="screen">
-      <video id="stageVideo" controls playsinline preload="none"></video>
-      <div class="novideo" id="stageNoVideo" hidden></div>
-      <div class="loading" id="stageLoading" hidden>Preparing this clip. The first view renders it, which takes a few seconds.</div>
-    </div>
-    <div class="info">
-      <p class="now" id="stageNow"></p>
-      <h2 id="stageTitle">Pick a moment</h2>
-      <div class="tags" id="stageTags"></div>
-      <p class="why" id="stageWhy"></p>
-      <div class="actions">
-        <button id="playReel" type="button">Play reel</button>
-        <a class="btn alt" id="downloadReel" download>Download reel</a>
-        <a class="btn alt" id="exportMoments" download>Export moments</a>
-        <a class="btn ghost" id="fullMatch" target="_blank" rel="noopener">Watch the full match</a>
-      </div>
-    </div>
-  </section>
+      <!-- The match view: the clicked moment on the stage, this match's timeline, the recap folded away. -->
+      <section class="matchview" id="matchView" aria-label="This match" hidden>
+        <p class="backline"><button type="button" class="link back" id="backToResults" hidden>&larr; Back to results</button></p>
+        <section class="matchline" aria-label="Match">
+          <h2 id="matchTitle"></h2>
+          <p class="scout-link" id="scoutLinkLine" hidden><a id="scoutLink"></a></p>
+          <p id="visionNote" class="vision-note" hidden><span class="badge vision">Cut from video</span> on a moment means the vision layer
+            found it in the pictures: who had the ball, what happened and who is in each replay.</p>
+        </section>
 
-  <section class="recap panel" id="recap" aria-labelledby="recapHead" hidden>
-    <div class="recap-bar">
-      <h2 id="recapHead">Recap</h2>
-      <div class="engine" role="radiogroup" aria-label="Who writes the recap">
-        <label><input type="radio" name="recapEngine" value="rules" checked><span>Instant</span></label>
-        <label><input type="radio" name="recapEngine" value="foundry"><span>Foundry</span></label>
-      </div>
-    </div>
-    <p class="hint" id="recapWho"></p>
-    <div class="recap-body" id="recapBody" aria-live="polite"></div>
-    <p class="hint" id="recapBy"></p>
-    <div class="actions">
-      <button id="recapReel" type="button">Play recap reel</button>
-      <a class="btn alt" id="recapReelDl" download>Download recap reel</a>
-    </div>
-  </section>
+        <section class="timeline-wrap" id="timelineWrap" aria-label="The match, kick-off to full time" hidden>
+          <div id="timeline"></div>
+        </section>
 
-  <section class="results" aria-labelledby="resultsHead">
-    <div class="results-bar">
-      <h2 id="resultsHead">Moments</h2>
-      <div class="sort" role="group" aria-label="Sort">
-        <button type="button" class="seg" data-sort="best" aria-pressed="true">Best first</button>
-        <button type="button" class="seg" data-sort="time" aria-pressed="false">Match order</button>
-      </div>
+        <section class="stage panel" id="stage" aria-label="Now playing">
+          <div class="screen">
+            <video id="stageVideo" controls playsinline preload="none"></video>
+            <div class="novideo" id="stageNoVideo" hidden></div>
+            <div class="loading" id="stageLoading" hidden>Preparing this clip. The first view renders it, which takes a few seconds.</div>
+          </div>
+          <div class="info">
+            <p class="now" id="stageNow"></p>
+            <h2 id="stageTitle">Pick a moment</h2>
+            <div class="tags" id="stageTags"></div>
+            <p class="why" id="stageWhy"></p>
+          </div>
+          <div class="actions">
+            <button id="playReel" type="button">Play reel</button>
+            <a class="btn alt" id="downloadReel" download>Download reel</a>
+            <a class="btn alt" id="exportMoments" download>Export moments</a>
+            <a class="btn ghost" id="fullMatch" target="_blank" rel="noopener">Watch the full match</a>
+          </div>
+        </section>
+
+        <details class="recap panel" id="recap" hidden>
+          <summary id="recapHead">Match recap</summary>
+          <div class="recap-bar">
+            <p class="hint" id="recapWho"></p>
+            <div class="engine" role="radiogroup" aria-label="Who writes the recap">
+              <label><input type="radio" name="recapEngine" value="rules" checked><span>Instant</span></label>
+              <label><input type="radio" name="recapEngine" value="foundry"><span>Foundry</span></label>
+            </div>
+          </div>
+          <div class="recap-body" id="recapBody" aria-live="polite"></div>
+          <p class="hint" id="recapBy"></p>
+          <div class="actions">
+            <button id="recapReel" type="button">Play recap reel</button>
+            <a class="btn alt" id="recapReelDl" download>Download recap reel</a>
+          </div>
+        </details>
+
+        <div class="slot" id="resultsSlotMatch"></div>
+      </section>
+
+      <!-- The moments: one section, shown under the results or under the match (app.js moves it). -->
+      <section class="results" id="resultsSection" aria-labelledby="resultsHead">
+        <div class="results-bar">
+          <h2 id="resultsHead">Moments</h2>
+          <div class="sort" role="group" aria-label="Sort">
+            <button type="button" class="seg" data-sort="best" aria-pressed="true">Best first</button>
+            <button type="button" class="seg" data-sort="time" aria-pressed="false">Match order</button>
+          </div>
+        </div>
+        <div class="tagbar" id="tagbar" role="group" aria-label="Filter the moments by tag" hidden></div>
+        <div class="grid" id="grid"></div>
+        <div class="empty" id="empty" hidden></div>
+        <button type="button" class="alt more" id="more" hidden>Show more</button>
+      </section>
     </div>
-    <div class="tagbar" id="tagbar" role="group" aria-label="Filter the moments by tag" hidden></div>
-    <div class="grid" id="grid"></div>
-    <p class="empty" id="empty" hidden></p>
-    <button type="button" class="alt more" id="more" hidden>Show more</button>
-  </section>
+
+    <!-- The whole conversation: every question, its answer, and how each was answered. -->
+    <aside class="convo panel" id="convo" aria-labelledby="convoHead" hidden>
+      <div class="convo-head"><span class="dot" aria-hidden="true"></span><h2 id="convoHead">Conversation</h2></div>
+      <div class="log" id="log" aria-live="polite"></div>
+      <p class="hint log-empty" id="logEmpty">Ask for a moment to start.</p>
+      <form class="askrow" id="askForm">
+        <label class="sr" for="fq" id="fqLabel">Ask a follow-up</label>
+        <input id="fq" type="search" autocomplete="off" maxlength="300" placeholder="Ask a follow-up">
+        <div class="engine pill small" role="radiogroup" aria-label="Who answers">
+          <label><input type="radio" name="fengine" value="rules" checked><span>Data Search</span></label>
+          <label><input type="radio" name="fengine" value="foundry"><span>Ask Microsoft Foundry</span></label>
+        </div>
+        <button id="go" type="submit">Ask</button>
+      </form>
+      <p class="hint" id="engineHint"></p>
+    </aside>
+  </div>
 </main>
 
 <footer>

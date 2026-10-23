@@ -12,16 +12,56 @@ body { overflow-x: hidden; }
 .pick-label { min-width: 48px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
 .top select { flex: 1; min-width: 0; width: 100%; text-overflow: ellipsis; }
 
-main { padding: 16px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
+main { padding: 16px; max-width: 1320px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
 
-.landing { padding: 18px 0 2px; }
-.landing h1 { font-size: clamp(22px, 4.2vw, 34px); line-height: 1.15; margin: 0 0 14px; letter-spacing: -.01em; }
-.examples { display: flex; flex-wrap: wrap; gap: 8px; }
-.example { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font-weight: 600;
-           text-align: left; max-width: 100%; }
-.example:hover { border-color: var(--accent); color: var(--accent); }
+/* Home's landing (the sandbox's #home, branch ux/sandbox): the logo, the tagline, one search box, who answers. */
+.landing { width: 100%; max-width: 760px; margin: 0 auto; padding: max(24px, calc(40vh - 200px)) 8px 48px; }
+.logo { font-size: clamp(48px, 14vw, 88px); line-height: 1; margin: 0 0 16px; letter-spacing: .08em; font-weight: 800; text-align: center; }
+.logo span span { color: var(--accent); }
+.tagline { margin: 0 0 48px; text-align: center; color: var(--muted); font-size: 18px; letter-spacing: .01em; }
+.search { display: flex; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px; }
+.search:focus-within { border-color: var(--accent); }
+.search input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font-size: 18px; padding: 10px 16px; outline: none; }
+.search input::placeholder { color: var(--muted); }
+.search button { border-radius: 999px; padding: 10px 20px; flex: 0 0 auto; }
+.landing .empty { padding: 24px 8px 0; }
+/* Who answers: Data Search or Ask Microsoft Foundry, the choice in Regista yellow. */
+.engine.pill { display: flex; width: max-content; max-width: 100%; margin: 14px auto 0; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; }
+.engine.pill span { padding: 6px 12px; border-radius: 999px; font-size: 13px; white-space: nowrap; }
+.engine.pill label:hover span { color: var(--text); }
+.engine.pill input:checked + span { background: var(--accent); color: #111; }
+.engine.pill input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-.ask { display: flex; flex-direction: column; gap: 10px; }
+/* Results and the match view: the content, and the conversation panel on the right when it shows. */
+.work { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.work.with-convo { grid-template-columns: minmax(0, 1fr) 360px; }
+.work-main { min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+.resultsview, .matchview { display: flex; flex-direction: column; gap: var(--gap); }
+.rbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.search.compact { flex: 1 1 420px; max-width: 720px; padding: 4px; }
+.search.compact input { font-size: 16px; padding: 8px 14px; }  /* 16 px: phones do not zoom into the field */
+.search.compact button { padding: 8px 16px; }
+.engine.pill.inline { margin: 0; }
+.searchnote { margin: -6px 0 0; color: var(--muted); font-size: 12.5px; }
+.backline { margin: 0; }
+.back { font-size: 13.5px; text-decoration: none; color: var(--muted); }
+.back:hover { color: var(--text); }
+
+.convo { display: flex; flex-direction: column; padding: 0; position: sticky; top: calc(var(--top-h) + 16px); max-height: calc(100vh - var(--top-h) - 32px); min-width: 0; }
+.convo-head { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--line); }
+.convo-head h2 { margin: 0; font-size: 15px; }
+.convo .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.convo .log { flex: 1 1 auto; max-height: none; padding: 12px 14px; min-height: 0; }
+.convo .log-empty { padding: 12px 14px; }
+.convo .askrow { padding: 10px 12px; border-top: 1px solid var(--line); }
+.convo .askrow input { flex: 1 1 100%; }
+.convo .engine.pill { margin: 0; flex: 1 1 auto; }
+.convo .engine.pill label { flex: 1; }
+.convo .engine.pill span { flex: 1; text-align: center; padding: 6px 8px; font-size: 12.5px; }
+.convo #engineHint { padding: 0 14px 12px; }
+.msg .where { display: block; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 2px; }
+.msg .scope { display: block; margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+
 .askrow { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; }
 .askrow input { flex: 1 1 280px; min-width: 0; font-size: 16px; }  /* 16 px: phones do not zoom into the field */
 .engine { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
@@ -58,6 +98,8 @@ details.how dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .timeline-wrap { min-height: 24px; }
 
 .stage { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; padding: 12px; }
+.stage > .actions { grid-column: 1 / -1; margin-top: 0; padding-top: 0; }   /* the stage's actions in one row under the clip */
+.stage > .actions button, .stage > .actions .btn { padding: 7px 12px; font-size: 13px; white-space: nowrap; }
 .screen { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
 .screen video { width: 100%; height: 100%; display: block; background: #000; }
 .screen .novideo, .screen .loading { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 0 24px; color: var(--muted); font-size: 13.5px; }
@@ -72,9 +114,12 @@ details.how dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .btn.ghost { color: var(--muted); border: 1px solid var(--line); }
 .btn[aria-disabled="true"] { opacity: .45; pointer-events: none; }
 
-.recap { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; }
+/* The recap, folded into "Match recap"; its own Instant / Foundry switch inside. */
+.recap { padding: 12px 16px; }
+.recap > summary { cursor: pointer; font-weight: 700; font-size: 16px; width: fit-content; }
+.recap[open] > summary { margin-bottom: 10px; }
+.recap > * + * { margin-top: 8px; }
 .recap-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.recap-bar h2 { margin: 0; font-size: 16px; }
 .recap-body h3 { margin: 4px 0 2px; font-size: 19px; line-height: 1.3; overflow-wrap: anywhere; }
 .recap-body p { margin: 6px 0; line-height: 1.55; overflow-wrap: anywhere; }
 .recap-body .wait { color: var(--muted); font-style: italic; }
@@ -94,7 +139,6 @@ a.cite:hover, a.cite.on { color: var(--accent); text-decoration-color: var(--acc
 .card { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; padding: 0;
         display: flex; flex-direction: column; text-align: left; font-weight: 400; cursor: pointer; }
 .card:hover { border-color: #3a4256; }
-.card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .card.dim { opacity: .55; }
 .card video, .card .novideo { width: 100%; aspect-ratio: 16 / 9; background: #000; display: block; pointer-events: none; }
 .card .novideo { display: grid; place-items: center; color: var(--muted); font-size: 12.5px; padding: 0 16px; text-align: center; }
@@ -112,6 +156,7 @@ a.cite:hover, a.cite.on { color: var(--accent); text-decoration-color: var(--acc
 .badge.vision { background: #2c2440; color: #c9b4ff; }
 .card .why { font-size: 12.5px; }
 .empty { color: var(--muted); padding: 32px 8px; text-align: center; margin: 0; }
+.empty .wayout { margin: 12px auto 0; display: block; }
 .more { margin: 14px auto 0; display: block; }
 
 footer { color: var(--muted); font-size: 12.5px; text-align: center; padding: 24px 16px 40px; }
@@ -140,8 +185,23 @@ footer p { margin: 4px 0; }
 .services .tick.off { color: var(--muted); }
 .services .what { grid-column: 2; color: var(--muted); font-size: 12.5px; }
 
+/* Narrow: the conversation first, then the content (as in the sandbox); it no longer sticks. */
+@media (max-width: 1100px) {
+  .work.with-convo { grid-template-columns: minmax(0, 1fr); }
+  .convo { position: static; max-height: none; order: -1; }
+  .convo .log { max-height: 360px; }
+}
+
 @media (max-width: 760px) {
   .stage { grid-template-columns: 1fr; padding: 10px; }
+  .stage > .actions button, .stage > .actions .btn { white-space: normal; }
+  .tagline { font-size: 16px; margin-bottom: 32px; }
+  .search input { font-size: 16px; padding: 8px 12px; }
+  .search button { padding: 8px 14px; }
+  .search.compact { flex-basis: 100%; }
+  .engine.pill.inline { width: 100%; }
+  .engine.pill.inline label { flex: 1; }
+  .engine.pill.inline span { flex: 1; text-align: center; }
   .top .pick { flex-basis: 100%; max-width: none; }
   .askrow .engine { flex: 1 1 auto; }
   .engine label { flex: 1; }
@@ -152,7 +212,6 @@ footer p { margin: 4px 0; }
 }
 
 /* The match line, errors with a way out, tag chips, card previews */
-.lede { margin: 0 0 14px; color: var(--muted); max-width: 62ch; }
 .matchline h2 { margin: 0; font-size: 17px; line-height: 1.3; }
 .matchline p { margin: 3px 0 0; font-size: 13px; }
 .vision-note { color: var(--text); max-width: 80ch; }
