@@ -175,3 +175,12 @@ def test_find_players_and_compare_follow_the_approved_layout_in_plain_words(page
     # card wording: the house sentence as it is, and a Scout agent rank says among whom
     assert "replace(\"the league's \"" not in script
     assert "of ${s.of_players} ${GROUP[p.position]" in script
+
+
+def test_a_closed_more_filters_never_hides_an_active_filter(script):
+    # Club and Minimum minutes sit behind "More filters": closed, the link counts the ones that are on, and the results
+    # line and the empty state name them, so a filter is never on without anything on screen saying so.
+    assert "`More filters (${on})`" in script
+    assert "` at ${club}`" in script and "` with at least ${fmtMinutes(f.min_minutes)}`" in script
+    assert "Try a lower minimum or another position" not in script
+    assert script.count("syncMore();") >= 3  # moreFilters, setFilter and Reset

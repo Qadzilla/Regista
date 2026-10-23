@@ -244,10 +244,21 @@
   }
 
   // Club and Minimum minutes sit behind "More filters", under the sandbox's three (Name or club, Position, Sort by).
+  // Closed, the link counts the filters it hides that are on ("More filters (1)"), so a hidden Club or minimum is never silent.
   function moreFilters(open) {
     $('fMoreBox').hidden = !open;
     $('fMore').setAttribute('aria-expanded', String(open));
-    $('fMore').textContent = open ? 'Fewer filters' : 'More filters';
+    syncMore();
+  }
+  function syncMore() {
+    const f = state.filters;
+    const on = (f.club ? 1 : 0) + (f.min_minutes ? 1 : 0);
+    $('fMore').textContent = !$('fMoreBox').hidden ? 'Fewer filters' : on ? `More filters (${on})` : 'More filters';
+  }
+  // The club's name as the Club select shows it.
+  function clubName(id) {
+    const o = [...$('fClub').options].find(x => x.value === id);
+    return o ? o.textContent : '';
   }
   $('fMore').addEventListener('click', () => {
     const open = $('fMoreBox').hidden;
@@ -271,6 +282,7 @@
     Object.assign(state.filters, patch);
     writeUrl();
     syncClubButtons();
+    syncMore();
     loadPlayers();
   }
 
@@ -295,6 +307,7 @@
     $('fPosition').value = ''; $('fClub').value = ''; $('fName').value = ''; $('fMinutes').value = '0'; $('fSort').value = 'minutes';
     writeUrl();
     syncClubButtons();
+    syncMore();
     loadPlayers();
   });
 
@@ -383,7 +396,10 @@
     const f = state.filters;
     const n = state.players.length;
     const sortWords = f.sort === 'name' ? 'by name' : f.sort === 'minutes' ? 'by minutes played' : `by ${labelOf(f.sort).toLowerCase()}`;
-    $('resultsSub').textContent = n ? `${plural(n, 'player')}, sorted ${sortWords}${statOf(f.sort)?.kind === 'per90' ? ' per 90 minutes' : ''}` : '';
+    // The line names the Club and minimum when they are on, since both can sit behind a closed "More filters".
+    const club = f.club ? clubName(f.club) : '';
+    const scope = `${club ? ` at ${club}` : ''}${f.min_minutes ? ` with at least ${fmtMinutes(f.min_minutes)}` : ''}`;
+    $('resultsSub').textContent = n ? `${plural(n, 'player')}${scope}, sorted ${sortWords}${statOf(f.sort)?.kind === 'per90' ? ' per 90 minutes' : ''}` : '';
     const st = statOf(f.sort);
     if (st && st.kind === 'per90' && !st.headline) {
       $('resultsSub').textContent += `. Cards do not show ${st.label.toLowerCase()}; each player's profile does.`;
@@ -391,7 +407,15 @@
     $('cards').innerHTML = state.players.map(p => cardHtml(p)).join('');
     paint($('cards'));
     $('empty').hidden = n > 0;
-    if (!n) $('empty').textContent = 'No players match these filters. Try a lower minimum or another position.';
+    if (!n) {
+      const tries = [];
+      if (f.q) tries.push('another name');
+      if (f.position) tries.push('another position');
+      if (club) tries.push(`a club other than ${club}`);
+      if (f.min_minutes) tries.push(`a minimum below ${fmtMinutes(f.min_minutes)}`);
+      const said = tries.length > 1 ? `${tries.slice(0, -1).join(', ')} or ${tries[tries.length - 1]}` : tries[0];
+      $('empty').textContent = `No players match these filters.${said ? ` Try ${said}.` : ''}`;
+    }
   }
 
   // A star adds a player to the shortlist (Watching) or takes them off it.
