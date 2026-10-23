@@ -113,14 +113,25 @@ def test_reel_and_moments_use_the_export_endpoints(page, script):
     assert "Play reel" in page and "Download reel" in page and "Export moments" in page
 
 
-def test_the_footer_names_only_what_health_reports(script):
-    start = script.index("const on = [")
-    built = script[start:script.index("$('builtOn')", start)]
-    for service, flag in (("Microsoft Foundry", "h.cloud.foundry"), ("Azure MCP Server", "h.azure_mcp"), ("Azure Cosmos DB", "h.cloud.cosmos"),
-                          ("Azure AI Search", "h.cloud.search"), ("Application Insights", "h.tracing")):
-        assert re.search(re.escape(flag) + r" \? `?'?" + re.escape(service), built), service
-    assert "Container Apps" not in built  # health does not report hosting, so the footer does not claim it
-    assert "Copilot" not in script
+def test_running_on_shows_only_what_health_reports(page, script):
+    fn = script[script.index("function runningOn(h)"):script.index("// The realism report is Markdown")]
+    for icon, service, flag in (("foundry", "Microsoft Foundry", "h.cloud.foundry"), ("mcp", "Azure MCP Server", "h.azure_mcp"),
+                                ("cosmos-db", "Azure Cosmos DB", "h.cloud.cosmos"), ("ai-search", "Azure AI Search", "h.cloud.search"),
+                                ("container-apps", "Azure Container Apps", "h.container_apps"), ("storage", "Azure Storage", "h.storage"),
+                                ("app-insights", "Application Insights", "h.tracing")):
+        assert f"['{icon}', '{service}', {flag}," in fn, service
+        assert (PRODUCT / "icons" / f"{icon}.svg").is_file(), icon
+    assert "['agent-framework', 'Microsoft Agent Framework', true," in fn  # the code itself: always there
+    assert ".filter(t => t[2])" in fn and "$('stack').hidden = tiles.length < 2;" in fn
+    # Icon first, the full service name under it (Microsoft's icon terms: the name always beside the icon)
+    assert fn.index("<img src=\"/static/product/icons/${esc(icon)}.svg\" alt=\"\"") < fn.index("<span>${esc(name)}</span>")
+    assert "$('howOpen').click()" in fn  # a tile opens How it works
+    landing = page[page.index('<section class="landing"'):page.index('<div class="work"')]
+    assert landing.index('class="engine pill"') < landing.index('id="stack"')  # under the search and its switch
+    assert 'id="builtOn"' not in page and "builtOn" not in script  # it replaces the footer's "Built on" line
+    for svg in (PRODUCT / "icons").glob("*.svg"):
+        text = svg.read_text()
+        assert "<script" not in text and "javascript:" not in text, svg.name
 
 
 def test_grid_videos_load_lazily(script):

@@ -586,7 +586,11 @@ def health() -> dict[str, Any]:
                       "search": cfg.search_enabled},
             "librarian": f"foundry:{cfg.foundry_model}" if cfg.foundry_enabled else "rules",
             "azure_mcp": bool(shutil.which("azmcp")),
-            "tracing": bool(os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING"))}
+            "tracing": bool(os.environ.get("APPLICATIONINSIGHTS_CONNECTION_STRING")),
+            # Azure Container Apps sets CONTAINER_APP_NAME on every replica it runs; the Player store uses Azure Storage
+            # (Blob and the vision-jobs queue) exactly when REGISTA_STORAGE_ACCOUNT is set (regista.player.store).
+            "container_apps": bool(os.environ.get("CONTAINER_APP_NAME")),
+            "storage": bool(os.environ.get("REGISTA_STORAGE_ACCOUNT"))}
 
 
 @app.get("/api/matches")

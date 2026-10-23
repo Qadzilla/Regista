@@ -35,6 +35,13 @@
       <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
     </div>
     <p class="empty" id="landingNote" hidden></p>
+    <!-- What this server runs on, from /api/health (app.js fills it): official icons, unaltered, each beside its full
+         service name. Azure icons: Microsoft's Azure Architecture Center (V24). MCP mark: the Model Context Protocol
+         project. Agent Framework icon: microsoft/agent-framework (its white background square removed). -->
+    <section class="stack" id="stack" aria-labelledby="stackHead" hidden>
+      <h2 class="stack-label" id="stackHead">Running on</h2>
+      <ul id="stackList"></ul>
+    </section>
   </section>
 
   <div class="work" id="work" hidden>
@@ -157,7 +164,6 @@
 </main>
 
 <footer>
-  <p id="builtOn" class="muted"></p>
   <p class="muted">Rendered from synthetic match data; no real footage.</p>
   <p><button type="button" class="link" id="howOpen">How it works</button> · <a href="/studio">Regista Studio</a></p>
 </footer>
