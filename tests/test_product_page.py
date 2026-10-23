@@ -1,7 +1,8 @@
-"""The Product page (/): one ask box through /chat, the stage, the grid, How it works; nothing from the Studio.
+"""Home (/): the landing search, results across every match through each match's /chat, the match view with the stage,
+the folded recap and the conversation panel, How it works; nothing from the Studio.
 
 Static checks on the page and its script, plus the files it loads being served. The page's behaviour in a browser
-(desktop and 375 px, both engines) is checked by hand; see the PR that introduced it.
+(desktop and 375 px, both engines) is checked by hand; see docs/redesign/home.md and the PR that introduced it.
 """
 
 from __future__ import annotations
@@ -36,7 +37,9 @@ def test_the_files_the_page_loads_are_served():
     from regista import api
 
     c = TestClient(api.app)
-    assert "Every touch, every replay, every player, found in seconds." in c.get("/").text
+    html = c.get("/").text
+    assert "Every moment. Every highlight. Every player. Found in seconds." in html  # the landing's tagline
+    assert '<h1 class="logo" id="promise">' in html and "Every touch, every replay, every player" not in html.split("<body>")[1]
     for path in ("/static/shared/regista.css", "/static/shared/regista.js", "/static/product/product.css", "/static/product/app.js"):
         assert c.get(path).status_code == 200, path
 
@@ -70,8 +73,16 @@ def test_any_player_can_be_picked_and_dead_ends_offer_a_way_out(script):
     assert "Can\\'t reach Regista right now." in script and "Retry" in script
 
 
-def test_example_chips_and_tag_filters_come_from_the_moments_themselves(script, page):
-    assert "const ASKS = [" in script and "tags.has(tag)" in script
+def test_the_landing_has_typing_prompts_and_no_example_buttons_and_tag_filters_stay(script, page):
+    # Decided: no pitch copy and no example buttons on the landing; six prompts type in and out of the box instead.
+    assert "const ASKS = [" not in script and 'id="examples"' not in page and 'class="lede"' not in page
+    for prompt in ("Find me shots from outside the box this season", "Show me every header this season", "Find me all the nutmegs",
+                   "Show me take-ons in the final third", "Find me every assist, best first", "Show me Femi Toure\\'s goals, assists and shots"):
+        assert prompt in script, prompt
+    assert "e.key === 'Tab'" in script and "q.value = PROMPTS[typing.p]" in script  # Tab fills the prompt showing
+    assert "prefers-reduced-motion: reduce" in script  # still for people who prefer less motion
+    landing = page[page.index('<section class="landing"'):page.index("</section>", page.index('<section class="landing"'))]
+    assert landing.index('id="q"') < landing.index(">Data Search<") < landing.index(">Ask Microsoft Foundry<")  # the switch under the box
     assert 'id="tagbar"' in page and "renderTagBar" in script
 
 
@@ -244,3 +255,60 @@ def test_matches_outside_the_league_have_no_global_ids():
 
     m = TestClient(api.app).get("/api/matches/syn_0294").json()
     assert not any(p.get("global_player_id") for p in m["players"])
+
+
+# ---------------------------------------------------------------------------- Home: results across every match
+
+def test_search_covers_every_match_through_each_matchs_own_chat(script):
+    every = script[script.index("async function searchEvery("):script.index("function resetSearch()")]
+    assert "matchUrl('/chat', m.id)" in every and "engine: 'rules'" in every  # the existing per-match search, no model
+    assert "pool(list, PARALLEL" in every and "const PARALLEL = 6;" in script  # a few requests at a time, not all at once
+    listing = script[script.index("function searchList()"):script.index("const nameOf")]
+    assert "state.matches" in listing and "state.season" in listing  # the library and the league
+    assert "m.source === 'cosmos'" in listing  # a match without its event stream cannot answer: left out, and said
+    assert "await seasonReady" in every  # the league's list is in before a search starts
+    assert "sorted(search.results, { sort: 'best' })" in every  # merged best first
+    assert "Searching every match…" in every  # a visible loading state with progress
+
+
+def test_ask_microsoft_foundry_writes_one_reply_from_the_best_match_and_says_so(script):
+    every = script[script.index("async function searchEvery("):script.index("function resetSearch()")]
+    assert "matchUrl('/chat', topMid)" in every and "engine: 'foundry'" in every and "history: chat.history" in every
+    assert every.count("engine: 'foundry'") == 1  # one model call per question, never one per match
+    assert "the match with the best result" in every and "The moments in the grid come from every match." in every
+
+
+def test_a_name_means_one_player_across_matches(script):
+    fn = script[script.index("function namesIn("):script.index("const resolved")]
+    assert "every(w => said.has(w))" in fn  # the full name first, then the surname
+    assert "search.names.has(c.player)" in script and "where a name in the question meant another player" in script
+
+
+def test_the_conversation_lives_in_the_right_panel(page, script):
+    aside = page[page.index('<aside class="convo panel" id="convo"'):page.index("</aside>")]
+    for part in ('id="log"', 'id="askForm"', 'id="fq"', 'id="engineHint"', ">Data Search<", ">Ask Microsoft Foundry<"):
+        assert part in aside, part
+    assert page.count('id="log"') == 1  # the whole conversation, in the panel only
+    layout = script[script.index("function layoutPanel()"):script.index("// ------------------------------------------------------------------ links into the page")]
+    assert "state.view === 'match' || (state.view === 'results' && engine() === 'foundry')" in layout
+    assert "How Regista answered · ${short} · ${esc(plural(plain.length, 'step'))}" in script  # one line per answer
+    assert "Details: step names and times" in script  # steps and timings on demand
+
+
+def test_the_match_view_has_no_explainer_line_a_folded_recap_and_actions_in_one_row(page, script):
+    assert 'id="matchSub"' not in page and "subtitle" not in script  # the match's explainer line is gone
+    recap = page[page.index('<details class="recap panel" id="recap"'):page.index("</details>", page.index('id="recap"'))]
+    assert '<summary id="recapHead">Match recap</summary>' in recap
+    assert 'name="recapEngine" value="rules"' in recap and ">Instant<" in recap and ">Foundry<" in recap  # its own switch, inside
+    stage = page[page.index('<section class="stage panel" id="stage"'):page.index("</section>", page.index('id="stage"'))]
+    assert stage.index('<div class="info">') < stage.index("</div>\n          <div class=\"actions\">")  # actions under the clip, not in .info
+    css = (PRODUCT / "product.css").read_text()
+    assert ".stage > .actions { grid-column: 1 / -1;" in css
+    assert ".card.on {" not in css  # no yellow outline on the playing card
+    assert "openRecap()" in script and "recapView.wanted" in script  # recap=1 opens the folded recap
+
+
+def test_cards_open_their_match_and_the_url_follows_only_the_match_view(script):
+    assert "openResult(card.dataset.mid, card.dataset.id)" in script and 'data-mid="${esc(r.mid)}"' in script
+    sync = script[script.index("function syncUrl()"):script.index("// The moment a link asked for")]
+    assert "state.view !== 'match'" in sync  # the landing and the results are plain /
