@@ -116,13 +116,36 @@ def test_grid_videos_load_lazily(script):
 
 # ---------------------------------------------------------------------------- the Clip view beside the Scout view
 
-def test_the_views_switch_marks_clips_as_current_and_is_styled_once_for_every_page(page):
-    nav = re.search(r'<nav class="views" aria-label="Views">(.*?)</nav>', page).group(1)
-    assert re.findall(r'<a href="([^"]+)"', nav) == ["/", "/scout", "/me"]
-    assert '<a href="/" aria-current="page">Clips</a>' in nav and ">Scout</a>" in nav
+VIEWS = [("/", "Home"), ("/me", "Player profile"), ("/scout", "Scout")]
+
+
+@pytest.mark.parametrize("page_file, current", [("product/index.html", "/"), ("scout/index.html", "/scout"),
+                                                ("player/index.html", "/scout"), ("me/index.html", "/me")])
+def test_every_view_has_the_same_left_panel_with_its_own_view_current(page_file, current):
+    html = (PRODUCT.parent / page_file).read_text()
+    header = re.search(r'<header class="top">(.*?)</header>', html, flags=re.S).group(1)
+    assert "<nav" not in header and '<p class="brand">REGI<span>STA</span></p>' in header  # the views left the header
+    navs = re.findall(r'<nav class="views" aria-label="Views">(.*?)</nav>', html)
+    assert len(navs) == 1
+    mark = ' aria-current="page"'
+    links = "".join(f'<a href="{h}"{mark if h == current else ""}>{t}</a>' for h, t in VIEWS)
+    assert navs[0] == links
+    # The panel sits beside the page's content: shell > nav + shell-main > main ... footer
+    shell = html[html.index('<div class="shell">'):]
+    assert shell.index('<nav class="views"') < shell.index('<div class="shell-main">') < shell.index("<main")
+    assert shell.index("</footer>") < shell.index("</div>\n</div>")
+
+
+def test_the_left_panel_is_styled_once_for_every_page():
     shared = (PRODUCT.parent / "shared/regista.css").read_text()
-    assert ".views {" in shared and '.views a[aria-current="page"]' in shared
-    assert ".views" not in (PRODUCT / "product.css").read_text()  # one rule, shared by the Scout and profile pages
+    assert ".shell {" in shared and ".views {" in shared and "position: sticky" in shared
+    assert '.views a[aria-current="page"] { background: var(--accent); color: #111; }' in shared  # Regista yellow
+    phone = shared[shared.index("@media (max-width: 720px)"):]
+    assert "flex-direction: row" in phone and "overflow-x: auto" in phone  # a row of tabs on phones
+    for css in ("product/product.css", "scout/scout.css", "player/player.css", "me/me.css"):
+        assert ".views" not in (PRODUCT.parent / css).read_text(), css  # one rule, shared by every view
+    js = (PRODUCT.parent / "shared/regista.js").read_text()
+    assert "--top-h" in js and "--top-h" in shared  # the panel sticks below headers of any height
 
 
 def test_league_matches_join_the_picker_lazily_after_the_featured_match(script):

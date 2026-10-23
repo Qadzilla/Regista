@@ -12,10 +12,13 @@
 <body>
 <header class="top">
   <p class="brand">REGI<span>STA</span></p>
-  <nav class="views" aria-label="Views"><a href="/" aria-current="page">Clips</a><a href="/scout">Scout</a><a href="/me">Player</a></nav>
   <label class="pick"><span class="pick-label">Match</span><select id="match"></select></label>
   <label class="pick"><span class="pick-label">Player</span><select id="player"></select></label>
 </header>
+
+<div class="shell">
+<nav class="views" aria-label="Views"><a href="/" aria-current="page">Home</a><a href="/me">Player profile</a><a href="/scout">Scout</a></nav>
+<div class="shell-main">
 
 <main>
   <div class="neterr" id="netError" role="alert" hidden><span id="netErrorText"></span><button type="button" class="alt" id="netRetry">Retry</button></div>
@@ -110,6 +113,8 @@
   <p class="muted">Rendered from synthetic match data; no real footage.</p>
   <p><button type="button" class="link" id="howOpen">How it works</button> · <a href="/studio">Regista Studio</a></p>
 </footer>
+</div>
+</div>
 
 <dialog class="drawer" id="how" aria-labelledby="howTitle">
   <div class="drawer-head">
