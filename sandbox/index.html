@@ -29,18 +29,21 @@
       <label><input type="radio" name="engine" value="rules" checked><span>Data Search</span></label>
       <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
     </div>
-    <!-- What runs behind the search, as the live app's /api/health reports it today (2026-10-23). In the app the list
-         comes from /api/health, so a service shows only while it is on, and each chip opens How it works.
-         Plain text chips: Microsoft's icon terms allow its product icons in diagrams and documentation, not app UI. -->
-    <div class="stack" aria-label="Running on this server">
-      <span class="stack-label">Running now</span>
+    <!-- What Regista runs on, live (the app reads /api/health, so a service shows only while it is on). Official icons,
+         unaltered, each beside its full service name: Azure icons from Microsoft's Azure Architecture Center (V24),
+         the MCP mark from the Model Context Protocol project, the Agent Framework icon from microsoft/agent-framework
+         (its white background square removed for the dark page). -->
+    <div class="stack" aria-label="Running on">
+      <span class="stack-label">Running on</span>
       <ul>
-        <li title="Writes the Foundry replies and labels uploaded matches"><i aria-hidden="true"></i>Microsoft Foundry · gpt-5-mini</li>
-        <li title="Runs the agent workflow: ingest, clips, labels, review, recap"><i aria-hidden="true"></i>Microsoft Agent Framework</li>
-        <li title="The Foundry Librarian's tool for the search index"><i aria-hidden="true"></i>Azure MCP Server</li>
-        <li title="Stores matches, clips, labels and reviewers' verdicts"><i aria-hidden="true"></i>Azure Cosmos DB</li>
-        <li title="Indexes every labelled clip"><i aria-hidden="true"></i>Azure AI Search</li>
-        <li title="Receives the agents' traces"><i aria-hidden="true"></i>Application Insights</li>
+        <li title="Writes the Foundry replies and labels uploaded matches (gpt-5-mini)"><img src="icons/foundry.svg" alt="" width="20" height="20">Microsoft Foundry</li>
+        <li title="Runs the agent workflow: ingest, clips, labels, review, recap"><img src="icons/agent-framework.svg" alt="" width="20" height="20">Microsoft Agent Framework</li>
+        <li title="The Foundry Librarian's tool for the search index"><img src="icons/mcp.svg" alt="" width="20" height="20">Azure MCP Server</li>
+        <li title="Stores matches, clips, labels and reviewers' verdicts"><img src="icons/cosmos-db.svg" alt="" width="20" height="20">Azure Cosmos DB</li>
+        <li title="Indexes every labelled clip"><img src="icons/ai-search.svg" alt="" width="20" height="20">Azure AI Search</li>
+        <li title="Hosts the app and the vision job"><img src="icons/container-apps.svg" alt="" width="20" height="20">Azure Container Apps</li>
+        <li title="Holds uploaded footage and the vision job queue"><img src="icons/storage.svg" alt="" width="20" height="20">Azure Storage</li>
+        <li title="Receives the agents' traces"><img src="icons/app-insights.svg" alt="" width="20" height="20">Application Insights</li>
       </ul>
     </div>
   </section>
