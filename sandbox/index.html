@@ -99,10 +99,85 @@
       <aside class="foundry convo" id="convo" aria-label="Conversation"></aside>
     </div>
   </section>
-  <section id="profile" data-view="profile" aria-label="Player profile" hidden></section>
+  <!-- Player profile: the player's own view of the profile scouts see (Femi Toure, real data from the live app in
+       profile.json), plus the owner's tools: Add a match and Your uploads. profile.js fills it. -->
+  <section id="profile" data-view="profile" aria-label="Player profile" hidden>
+    <div class="pf">
+      <header class="pf-head panel">
+        <div class="shirt" id="pfShirt" aria-hidden="true"></div>
+        <div class="pf-who">
+          <h1 id="pfName"></h1>
+          <p class="pf-line" id="pfLine"></p>
+          <p class="pf-line muted" id="pfApps"></p>
+        </div>
+        <button type="button" class="pf-add" id="pfAddBtn" aria-expanded="false" aria-controls="pfAdd">Add a match</button>
+      </header>
+
+      <form class="pf-addform panel" id="pfAdd" hidden>
+        <h2>Add a match</h2>
+        <p class="muted small">Upload footage of a match you played. Regista's vision agents find you in it, cut every moment you
+          are on the ball, and add the match to your profile.</p>
+        <div class="pf-fields">
+          <label class="pf-field"><span>Video (MP4, up to 300 MB)</span><input type="file" accept="video/mp4,.mp4"></label>
+          <label class="pf-field"><span>Against</span><select id="pfOpp"></select></label>
+          <fieldset class="pf-side"><legend>You played</legend>
+            <label><input type="radio" name="pfside" value="home" checked><span>At home</span></label>
+            <label><input type="radio" name="pfside" value="away"><span>Away</span></label>
+          </fieldset>
+        </div>
+        <div class="pf-addbar"><button type="submit">Upload and start</button><button type="button" class="alt" id="pfAddCancel">Cancel</button></div>
+        <p class="small pf-addnote" id="pfAddNote" role="status"></p>
+      </form>
+
+      <section class="pf-summary panel" aria-labelledby="pfSumHead">
+        <h2 id="pfSumHead">Summary</h2>
+        <p id="pfSummary"></p>
+        <p class="muted small" id="pfSumBy"></p>
+      </section>
+
+      <section class="pf-best panel" aria-labelledby="pfBestHead">
+        <div class="pf-bar"><h2 id="pfBestHead">Best moments</h2><button type="button" id="pfReel">Play reel</button></div>
+        <div class="pf-bestgrid">
+          <div class="pf-stage">
+            <div class="pf-screen"><video id="pfVideo" controls playsinline preload="none"></video></div>
+            <p class="reason" id="pfNow"></p>
+            <h3 id="pfTitle"></h3>
+            <span class="tags" id="pfTags"></span>
+          </div>
+          <ol class="pf-strip" id="pfStrip"></ol>
+        </div>
+      </section>
+
+      <div class="pf-two">
+        <section class="pf-numbers panel" aria-labelledby="pfNumHead">
+          <h2 id="pfNumHead">Numbers</h2>
+          <p class="muted small">This season, against the league's other forwards. Pick a number to see the moments behind it.</p>
+          <div class="pf-tiles" id="pfTiles"></div>
+          <div class="pf-ratios" id="pfRatios"></div>
+          <div class="pf-evidence" id="pfEvidence" hidden></div>
+        </section>
+        <section class="pf-map panel" aria-labelledby="pfMapHead">
+          <h2 id="pfMapHead">Where he plays</h2>
+          <p class="muted small">Every touch this season, attacking left to right.</p>
+          <div class="pitch" id="pfPitch"></div>
+        </section>
+      </div>
+
+      <section class="pf-matches panel" aria-labelledby="pfMatchHead">
+        <h2 id="pfMatchHead">Matches</h2>
+        <ol class="pf-mlist" id="pfMatches"></ol>
+      </section>
+
+      <section class="pf-uploads panel" aria-labelledby="pfUpHead">
+        <h2 id="pfUpHead">Your uploads</h2>
+        <div id="pfUploads"></div>
+      </section>
+    </div>
+  </section>
   <section id="scout" data-view="scout" aria-label="Scout" hidden></section>
 </main>
 </div>
 <script src="sandbox.js"></script>
+<script src="profile.js"></script>
 </body>
 </html>

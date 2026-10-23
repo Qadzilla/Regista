@@ -156,3 +156,129 @@ main { min-width: 0; }
   .stack img { width: 32px; height: 32px; }
   .stack li span { font-size: 11px; }
 }
+
+/* ---- Player profile: the player's own view of the profile scouts see, plus Add a match and Your uploads */
+.pf { max-width: 1180px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.pf .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.pf h2 { margin: 0 0 6px; font-size: 16px; }
+.pf .muted { color: var(--muted); }
+.pf .small { font-size: 12.5px; margin: 0 0 12px; }
+.pf button { background: var(--accent); color: #111; border: 0; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 700; cursor: pointer; }
+.pf button.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.pf button.link { background: none; border: 0; padding: 0; color: var(--text); font-weight: 600; text-decoration: underline; text-decoration-color: var(--muted); text-underline-offset: 3px; }
+.pf button.link:hover { color: var(--accent); }
+.pf a { color: var(--accent); }
+.pf .badge.filmed { background: rgba(255, 205, 40, .14); color: var(--accent); margin-left: 6px; vertical-align: 2px; }
+
+/* header */
+.pf-head { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.shirt { flex: 0 0 auto; width: 72px; height: 68px; }
+.pf-who { flex: 1 1 260px; min-width: 0; }
+.pf-who h1 { margin: 0; font-size: 30px; line-height: 1.15; letter-spacing: .01em; }
+.pf-line { margin: 4px 0 0; font-size: 14.5px; }
+.pf-add { padding: 10px 18px; }
+
+/* add a match */
+.pf-addform h2 { margin-bottom: 4px; }
+.pf-fields { display: flex; gap: 14px; flex-wrap: wrap; align-items: end; }
+.pf-field { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; color: var(--muted); flex: 1 1 220px; min-width: 0; }
+.pf-field input, .pf-field select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 14px; min-width: 0; }
+.pf-side { border: 0; padding: 0; margin: 0; display: flex; gap: 4px; flex-wrap: wrap; align-items: center; font-size: 13px; }
+.pf-side legend { font-size: 12.5px; color: var(--muted); margin-bottom: 5px; padding: 0; }
+.pf-side label { display: flex; cursor: pointer; }
+.pf-side input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.pf-side span { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-weight: 600; }
+.pf-side input:checked + span { background: var(--accent); color: #111; border-color: var(--accent); }
+.pf-side input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+.pf-addbar { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.pf-addnote { margin: 10px 0 0; color: var(--muted); }
+
+/* summary */
+.pf-summary p#pfSummary { margin: 4px 0 8px; font-size: 15.5px; line-height: 1.6; max-width: 90ch; }
+.pf .cite { color: var(--text); text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.pf .cite:hover { color: var(--accent); text-decoration-color: var(--accent); }
+.pf-summary .small { margin: 0; }
+
+/* best moments */
+.pf-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.pf-bar h2 { margin: 0; }
+.pf-bestgrid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.pf-stage { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pf-screen { aspect-ratio: 16 / 9; background: #000; border-radius: 10px; overflow: hidden; }
+.pf-screen video { width: 100%; height: 100%; display: block; }
+.pf-stage .reason { margin-top: 6px; }
+.pf-stage h3 { margin: 0; font-size: 19px; }
+.pf-strip { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 420px; overflow-y: auto; }
+.pf .pf-clip { width: 100%; text-align: left; background: transparent; color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px;
+               display: flex; flex-direction: column; gap: 2px; font-weight: 400; }
+.pf .pf-clip:hover { border-color: #3a4256; }
+.pf .pf-clip.on { background: rgba(255, 205, 40, .08); border-color: rgba(255, 205, 40, .45); }
+.pf-ctitle { font-weight: 700; }
+.pf-cmatch { font-size: 12.5px; color: var(--muted); }
+
+/* numbers and where he plays */
+.pf-two { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; align-items: start; }
+.pf-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.pf .pf-tile { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 10px; padding: 12px; text-align: left;
+               display: flex; flex-direction: column; gap: 3px; font-weight: 400; }
+.pf .pf-tile:hover { border-color: #3a4256; }
+.pf .pf-tile[aria-pressed="true"] { border-color: var(--accent); }
+.pf-n { font-size: 30px; font-weight: 800; line-height: 1.05; }
+.pf-k { font-weight: 700; font-size: 14px; }
+.pf-rate { font-size: 12.5px; color: var(--muted); }
+.pf-pbar { height: 5px; background: #2b3140; border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.pf-pbar i { display: block; height: 100%; background: var(--accent); }
+.pf-pct { font-size: 11.5px; color: var(--muted); }
+.pf-ratios { display: flex; gap: 8px 22px; flex-wrap: wrap; margin-top: 14px; font-size: 13.5px; color: var(--muted); }
+.pf-ratios b { color: var(--text); font-size: 16px; margin-right: 2px; }
+.pf-evidence { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.pf-evidence h3 { margin: 0 0 8px; font-size: 14.5px; }
+.pf-evidence ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 5px; font-size: 13.5px; }
+.pitch { position: relative; aspect-ratio: 3 / 2; background: #10301f; border-radius: 8px; overflow: hidden; }
+.pitch .heat { position: absolute; inset: 0; display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: repeat(8, 1fr); }
+.pitch .heat i { background: var(--accent); }
+.pitch svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pitch svg * { fill: none; stroke: rgba(255, 255, 255, .45); stroke-width: .6; vector-effect: non-scaling-stroke; }
+.pitch-dir { position: absolute; right: 8px; bottom: 6px; font-size: 11px; color: rgba(255, 255, 255, .7); }
+
+/* matches */
+.pf-mlist { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; }
+.pf-mlist a { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto auto; gap: 14px; align-items: center; padding: 10px 6px;
+              border-top: 1px solid var(--line); color: var(--text); text-decoration: none; }
+.pf-mlist li:first-child a { border-top: 0; }
+.pf-mlist a:hover { background: rgba(255, 255, 255, .03); }
+.pf-round { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+.pf-mm { font-size: 12.5px; }
+.pf-open { font-size: 12.5px; color: var(--accent); white-space: nowrap; }
+
+/* your uploads */
+.pf-up { border: 1px solid var(--line); border-radius: 10px; padding: 14px; background: var(--bg); }
+.pf-uphead { display: flex; justify-content: space-between; gap: 12px; align-items: start; flex-wrap: wrap; }
+.pf-uphead h3 { margin: 0 0 3px; font-size: 15.5px; }
+.pf-uphead .small { margin: 0; }
+.pf-status { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.pf-status.ok { color: #3ccf7a; border-color: rgba(60, 207, 122, .4); }
+.pf-steps { list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.pf-steps li { display: grid; grid-template-columns: 20px 130px minmax(0, 1fr) auto; gap: 10px; align-items: baseline; font-size: 13.5px; }
+.pf-tick { color: #3ccf7a; font-weight: 800; }
+.pf-steps li.bad .pf-tick { color: #ff5a5f; }
+.pf-sname { font-weight: 600; }
+.pf-snote { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.pf-sms { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf-upres { margin: 12px 0 0; font-size: 13.5px; }
+
+@media (max-width: 900px) {
+  .pf-bestgrid, .pf-two { grid-template-columns: minmax(0, 1fr); }
+  .pf-strip { max-height: none; }
+}
+@media (max-width: 720px) {
+  .pf { padding: 16px; gap: 12px; }
+  .pf-who h1 { font-size: 24px; }
+  .pf-add { width: 100%; }
+  .pf-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pf-mlist a { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; }
+  .pf-mlist .pf-round { grid-column: 1 / -1; }
+  .pf-mlist .pf-mm { grid-column: 1; }
+  .pf-steps li { grid-template-columns: 20px minmax(0, 1fr) auto; }
+  .pf-steps .pf-snote { grid-column: 2 / -1; grid-row: 2; }
+}
