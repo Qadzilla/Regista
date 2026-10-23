@@ -53,6 +53,7 @@
     `/?match=${encodeURIComponent(matchId)}&player=${encodeURIComponent(playerId)}&clip=${encodeURIComponent(clipId)}`;
   const timeHref = (matchId, t) => `/?match=${encodeURIComponent(matchId)}&t=${Math.max(0, Math.floor(t))}`;
   const matchHref = (m) => `/?match=${encodeURIComponent(m.match_id)}&player=${encodeURIComponent(m.player_id)}`;
+  const recapHref = (m) => `${matchHref(m)}&recap=1`;  // the Clip view opens on the match's recap, told from this player's side
   const result = (m) => {
     const [h, a] = String(m.score || '').split(/[–-]/).map(Number);
     if (isNaN(h) || isNaN(a)) return null;
@@ -380,12 +381,13 @@
       : m.source === 'claim' ? '<span class="badge" title="The player said “that’s me”; the operator confirmed it">Claimed</span>' : `Round ${esc(m.round)}`);
     $('matchList').innerHTML = ms.map((m) => {
       const r = result(m);
-      return `<li><a href="${esc(matchHref(m))}">
+      return `<li><a class="mrow" href="${esc(matchHref(m))}">
         <span class="mr">${badge(m)}</span>
         <span class="md muted">${esc(fmtDate(m.date))}</span>
         <span class="mo">${esc(m.home ? 'v' : 'at')} ${esc(m.opponent)} <span class="muted">(${m.home ? 'home' : 'away'})</span></span>
         <span class="ms">${esc(m.score)}${r ? ` <span class="res res-${r[0]}" title="${r[1]}"><span class="sr">${r[1]}</span><span aria-hidden="true">${r[0]}</span></span>` : ''}</span>
-        <span class="mgo">Open in Clips</span></a></li>`;
+        <span class="mgo">Open in Clips</span></a>
+        <a class="mrecap" href="${esc(recapHref(m))}" aria-label="Recap of the match ${esc(m.home ? 'v' : 'at')} ${esc(m.opponent)}, told from this player's side">Recap</a></li>`;
     }).join('') || '<li class="muted">No matches yet.</li>';
   }
 

@@ -39,7 +39,10 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     env:
-      PUSH: ${{ github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != '' }}
+      # main pushes as the deploy identity; a feature branch pushes a branch image only when the build identity trusts
+      # it (one federated credential per branch; the list in PUSH names them). Other branches are tested, built and
+      # smoke-tested, and push nothing.
+      PUSH: ${{ github.event_name != 'pull_request' && vars.AZURE_CLIENT_ID != '' && (github.ref == 'refs/heads/main' || contains(fromJSON('["feature/player-view"]'), github.ref_name)) }}
       MAIN: ${{ github.ref == 'refs/heads/main' }}
     steps:
       - uses: actions/checkout@v4

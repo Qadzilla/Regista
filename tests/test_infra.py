@@ -143,3 +143,5 @@ def test_feature_branches_build_images_but_never_deploy():
     assert "github.ref == 'refs/heads/main'" in wf["jobs"]["deploy"]["if"]
     s = _text(".github/workflows/build-image.yml")
     assert "vars.AZURE_BUILD_CLIENT_ID" in s and 'tags="branch-${{ github.sha }}"' in s  # a branch image is never latest
+    # a branch pushes only when the build identity has a federated credential for it; others just build
+    assert "contains(fromJSON('[\"feature/player-view\"]'), github.ref_name)" in s

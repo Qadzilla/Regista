@@ -24,6 +24,8 @@ GET  /api/matches/{match_id}/search?q=          the Librarian (rule-based, insta
 POST /api/matches/{match_id}/ask                the Foundry Librarian with its MCP tools; open, rate-limited, read-only tools; with its trace
 POST /api/matches/{match_id}/chat               a conversation with the Librarian: follow-ups refine the search (rules, or Foundry: rate-limited);
                                                 with its trace
+GET  /api/matches/{match_id}/recap?player=&engine=   the match recap, told from a player's side if asked: every sentence cites its
+                                                moment, a reel of its best clips (rules, or Foundry: rate-limited, checked, cached)
 GET  /api/matches/{match_id}/clips/{clip_id}.mp4   rendered on demand, cached under REGISTA_CACHE (sizes, queue, budget: below)
 GET  /api/matches/{match_id}/video.mp4          the whole broadcast, rendered on demand, cached
 GET  /api/matches/{match_id}/report             synthetic realism report (markdown)
@@ -1240,6 +1242,94 @@ async def chat(match_id: str, body: ChatIn, request: Request) -> dict[str, Any]:
     history = [t.model_dump() for t in body.history] + [{"role": "user", "text": body.message}, {"role": "assistant", "text": out["reply"][:600]}]
     return {**out, "reel": [{"clip_id": c, "video_url": f"/api/matches/{match_id}/clips/{c}.mp4"} for c in out["reel"]],
             "answered_by": answered_by, "tools_used": tools, "history": history[-12:]}
+
+
+# ---------------------------------------------------------------------------- the match recap
+
+def _recap_writer():
+    """The Foundry Recap agent on this deployment, or None when Foundry is not configured (tests replace this)."""
+    from regista.recap import foundry_writer
+
+    return foundry_writer()
+
+
+def _recap_cache_path(match_id: str, player: str | None) -> Path:
+    return CACHE_ROOT / match_id / f"recap_{player or 'match'}.json"
+
+
+def _cached_recap(d: Path, match_id: str, player: str | None, basis: str) -> dict[str, Any] | None:
+    """A Foundry recap already written from these same facts: cached on this replica, or the workflow's recap.json."""
+    for path, who in ((_recap_cache_path(match_id, player), player), (d / "recap.json", None)):
+        if who != player or not path.exists():
+            continue
+        try:
+            out = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if out.get("basis") == basis and out.get("player_id") == player and str(out.get("answered_by", "")).startswith("foundry:"):
+            return out
+    return None
+
+
+def _recap_out(match_id: str, out: dict[str, Any]) -> dict[str, Any]:
+    out = dict(out)
+    out["clips"] = {cid: {**c, "video_url": f"/api/matches/{match_id}/clips/{cid}.mp4"} for cid, c in out.get("clips", {}).items()}
+    out["reel_url"] = f"/api/matches/{match_id}/reel.mp4?clips={','.join(out['reel'])}" if out.get("reel") else None
+    return out
+
+
+@app.get("/api/matches/{match_id}/recap")
+async def match_recap(match_id: str, request: Request, player: Annotated[str | None, Query(pattern=r"^[A-Za-z0-9_]{1,40}$")] = None,
+                      engine: Literal["rules", "foundry"] = "rules") -> dict[str, Any]:
+    """The match recap (regista.recap): ``{headline, paragraphs: [{text, cites, sentences: [{text, cites}]}], reel, reel_url,
+    clips, answered_by, trace, checked}``, told from ``player``'s side when given. Every sentence cites a clip or an
+    event (``{t, clip_id?, event_id?}``); ``clips`` holds the cited and reel clips with their video. With
+    ``engine=foundry`` a Foundry agent writes it from the same facts, under the Ask limits; sentences that cite nothing,
+    use numbers the facts do not hold, or use jargon are dropped and ``checked`` lists them. A Foundry recap is cached on
+    this replica for as long as the facts it was written from hold. Without Foundry, over the limits, slow or failing,
+    the rules recap stands and ``answered_by`` says why (never a 429)."""
+    from regista.recap import prepare, write
+
+    d = _match_dir(match_id)
+    try:
+        prepared = await run_in_threadpool(prepare, d, player)
+    except ValueError as exc:
+        raise HTTPException(404, str(exc))
+    if engine == "rules":
+        return _recap_out(match_id, await run_in_threadpool(write, prepared, "rules"))
+    cached = await run_in_threadpool(_cached_recap, d, match_id, player, prepared.basis)
+    if cached is not None:
+        return _recap_out(match_id, {**cached, "cached": True})
+    writer = _recap_writer()
+    if writer is None:
+        out = await run_in_threadpool(write, prepared, "rules")
+        return _recap_out(match_id, {**out, "engine": "foundry", "answered_by": "rules (Foundry is not configured on this deployment)"})
+    ok, wait, which = _ask_limiter.acquire(_visitor(request))
+    if not ok:
+        out = await run_in_threadpool(write, prepared, "rules")
+        return _recap_out(match_id, {**out, "engine": "foundry",
+                                     "answered_by": f"rules (Foundry is busy: {which}; try again in {max(1, int(wait))}s)"})
+
+    def run() -> dict[str, Any]:
+        try:  # the slot frees when the work ends, even if the request has already timed out
+            return write(prepared, "foundry", writer)
+        finally:
+            _ask_limiter.release()
+
+    try:
+        out = await asyncio.wait_for(run_in_threadpool(run), ASK_TIMEOUT_S)
+    except asyncio.TimeoutError:
+        out = {**await run_in_threadpool(write, prepared, "rules"), "engine": "foundry", "answered_by": "rules (Foundry took too long)"}
+    if str(out.get("answered_by", "")).startswith("foundry:"):
+        path = _recap_cache_path(match_id, player)
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(f".{uuid.uuid4().hex[:8]}.tmp")
+            tmp.write_text(json.dumps(out, ensure_ascii=False), encoding="utf-8")
+            tmp.replace(path)
+        except OSError:
+            pass  # a cache miss next time, nothing worse
+    return _recap_out(match_id, out)
 
 
 # ---------------------------------------------------------------------------- uploads

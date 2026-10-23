@@ -133,7 +133,7 @@ The committed sample match (`syn_0294`) ships inside the image. There were no re
 
 ## 7. Afterwards
 
-- Update the docs that name the old environment (README, CLAUDE.md §4.1, docs/architecture.md, docs/gap-analysis.md):
+- Update the docs that name the old environment (README, CLAUDE.md §4.1, docs/architecture.md, docs/criteria.md):
   the new URL, resource names and revision. The old app may keep serving an older version until its trial ends (about
   2026-11-19); nothing should link to it.
 - Remove the old registry secrets from GitHub: `gh secret delete ACR_LOGIN_SERVER`, `ACR_USERNAME`, `ACR_PASSWORD`.

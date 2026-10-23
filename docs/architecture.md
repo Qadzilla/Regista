@@ -39,6 +39,7 @@ These are the roles from the product design (CLAUDE.md §3.1). Identity is not a
 | **Clip** | `index`, `player_ids`, `on_ball` → `clips` | the clip rule (`regista.clips`) | same |
 | **Label** | `index`, `clips` → `labels` | tags, titles, explanation, watchability: the model learned from human verdicts (`regista.feedback`) when one has been trained, else the `rules-v0` table; flags clips it is unsure about | `FoundryLabelAgent`: `gpt-5-mini` on Microsoft Foundry through Agent Framework, with the learned model or `rules-v0` as the prior and the fallback |
 | **Review** | `labels` → verdicts, `review_log` | with `--review` (or `review=true` on upload) the workflow pauses with `request_info` on flagged clips; verdicts are stored as human `annotation` records and retrain the watchability model; checkpointed, so a paused review resumes after a restart | same; in the API service, verdicts and the learned model are also kept in Cosmos DB `annotations` so they survive restarts |
+| **Recap** | `match_dir`, `index`, `clips`, `labels` → `recap` | writes `recap.json`: headline, short paragraphs whose every sentence cites a clip or an event, a reel of the recap's best clips (`regista.recap`, rules) | `FoundryRecapAgent`: `gpt-5-mini` writes it from the same facts; sentences that cite nothing, use a number the facts do not hold, or use jargon are dropped; the rules recap is the fallback |
 | **Persist** | `match_dir`, `clips`, `labels` → `clips_path` | writes `clips.jsonl` | `CosmosPersistAgent`: also upserts to Cosmos DB (`matches`, `clips`, `labels`, partition `match_id`) |
 | **Indexer** | `match`, `clips`, `labels` → `search_index` | not in the graph | `SearchIndexAgent`: every labelled clip into the Azure AI Search index `regista-clips` |
 | **Librarian** | `clips_path`, `queries` → `answers` | rule-based parser and ranking (`regista.librarian`) | `FoundryLibrarianAgent`: `gpt-5-mini` calling Regista's MCP server and, when `azmcp` is installed, Microsoft's Azure MCP Server; falls back to the rule-based answer on error |
@@ -56,11 +57,47 @@ Uploads still pass no questions to the Librarian.
 
 **The Scout agent** (`POST /api/scout/ask`, `src/regista/season/scout.py`; the Scout view) answers questions about the Regista League's players: "a winger with the most take-ons", "midfielders who win the ball back", "the best finisher". The rules engine always reads the question first, into filters and a sort (roles map to positions, winger and striker are FW; phrases map to stats; "fewest" reverses; "top 3" limits), runs the `search_players` tool, writes the reply from its numbers, and says in `understood` what it heard. With the Foundry engine (the default when Foundry is configured) a `gpt-5-mini` agent on Microsoft Foundry, through Agent Framework, then calls Regista's MCP server, limited to the three read-only player tools, and answers with the names and numbers they returned. The cards come from running its last player tool call again in-process, `understood` names that call, and `checked` lists any number in its reply that no tool result holds. It shares Ask Foundry's limiter and timeout; over the limits, on a timeout or an error, the rules answer stands and `answered_by` says why. The answer carries the same `trace`.
 
+**The match recap** (`GET /api/matches/{id}/recap?player=&engine=`, `src/regista/recap.py`; CLAUDE.md §2.7): a headline and three or four short paragraphs, told from one player's side when a player is given, and a reel of its 4 to 6 best clips. One set of facts is read from the event stream and the labelled clips (the score; goals with scorer, assister and minute; the best chances that did not go in and who saved them; who stood out; for a player, their part in the goals, their best moments and the replays they appear in), each fact with a ref (`G1`, `C1`, `S1`, `M1`, `P1`, `R1`) that resolves to real clips and events. The rules engine writes sentences from them; with the Foundry engine a `gpt-5-mini` agent (Agent Framework, no tools) writes JSON sentences that list their refs, and Regista keeps only the sentences that cite a known ref, use only numbers the facts hold (the Scout agent's check) and contain no jargon or ids; `checked` lists what was left out and why. Every sentence's `cites` are `{t, clip_id?, event_id?}`; the Clip view plays the cited clip on the stage. Foundry recaps share Ask Foundry's limiter and timeout (over them: the rules recap, never a 429) and are cached on the replica per (match, player) for as long as the facts they were written from hold. The Recap step in the workflow writes `recap.json` after the review, before persist.
+
 **The Profile agent's summaries** (`src/regista/season/summaries.py`): two or three sentences per player (what kind of player, what else stands out, the best moment), each sentence listing the facts it rests on (`S…` a stat with its rank among the position, `M…` a moment with its clip, `P1` the season). `python -m regista.season summarise` writes them with rules; with `--cloud` a Foundry model writes them from the same numbered facts, and an answer is refused (one retry, then the rules summary) when a sentence cites nothing, cites a fact that does not exist, uses a number its cited facts do not hold, or uses a gendered pronoun. The committed `data/season/summaries.json` records each summary's `model` and a fingerprint of the numbers it was written from; `GET /api/players/{id}` serves the stored summary only while the profile still has those numbers and otherwise writes the rules one on the spot (`model: "rules-v0 (live)"`).
 
-## Two dashboards
+## The views
 
-Live since 2026-10-22 (plan: `docs/plan-two-dashboards.md`). One FastAPI app serves both, with the same code locally and on Azure.
+Four views, one FastAPI app, the same code locally and on Azure (all live since 2026-10-22):
+
+| View | Route | For | Built on |
+|---|---|---|---|
+| **Clips** (the Product) | `/` | creators, broadcasters, fans: ask for any moment | the Librarian, Chat, the match recap |
+| **Scout** | `/scout`, `/players/{id}` | scouts: find a player across the season | the Regista League, profiles, the Scout and Profile agents |
+| **Player** | `/me` | a player: upload my footage, check it's me, publish | Blob storage, a Storage queue, a Container Apps Job running the vision workflow |
+| **Studio** | `/studio` | the operator | review, Who's who, training, claims, runs |
+
+**Scout data: the Regista League** (`src/regista/season/`, CLAUDE.md §2.5). Six synthetic clubs with fixed squads, a
+double round robin of 30 thirty-minute matches. Only `data/season/league.json` is committed; matches regenerate from it
+deterministically (built into the image, tracks only when video needs them). Every roster entry carries a global player
+id (`pl_bro_09`), so profiles aggregate across matches: per-90 rates, percentiles by position, a touch map, best
+moments, and for every stat the events and clips it was counted from.
+
+**The Player view's cloud path** (`src/regista/player/`, `src/regista/player_api.py`, CLAUDE.md §2.6):
+
+```
+/me ──upload (admin token)──▶ Blob: uploads/{id}/video.mp4 + record.json
+                         └──▶ Storage queue vision-jobs ──▶ Container Apps Job regista-vision (KEDA queue scaler,
+                                                            one execution per message, the job's own identity)
+                                                              │  models from Blob: models/vision/
+                                                              │  vision workflow (Agent Framework): shots → identity →
+                                                              │  is-this-you questions → possession → events → writer
+                                                              ▼  clips for every starter, stage times into record.json
+                              Blob: matches/pv_{id}/ ──▶ the app fetches it on first use: Clips, profile, "Is this you?"
+```
+
+The footage is synthetic (`regista.player.film`: a friendly between two league clubs in the vision layer's format), and
+the roster is both clubs' league squads (`roster_for`), so the match it writes carries global ids and joins the
+uploader's profile with no mapping. Keyless throughout: shared-key login is off on the storage account; the app holds
+Storage Blob Data Contributor and Queue Data Message Sender, the job Blob and Queue Data Contributor and AcrPull.
+Verified end to end in Azure on 2026-10-22: a 3-minute upload took 3 min 5 s and joined the player's profile.
+
+The two original dashboards in detail (plan: `docs/plan-two-dashboards.md`):
 
 - **The Product (`/`, `src/regista/static/product/`)**, open to everyone: a match and player picker that opens on the featured match (`"featured": true` in its `manifest.json`), one ask box with the Instant / Foundry switch (both through `/chat`), the "How Regista answered" panel under every reply, a timeline of the whole match (`timeline.js`; periods and goals from `GET /api/matches/{id}`), the stage with Play reel, Download reel (`/reel.mp4`, up to 12 clips, rendered once and cached) and Export moments (`/moments.csv`), a Best first / Match order switch, plain-English labels and badges ("Labelled by Microsoft Foundry", "Cut from video"), and How it works.
 - **The Studio (`/studio`, `src/regista/studio_api.py`, `src/regista/studio/`)**, behind a key: Overview, Review queue, Who's who, Training, Runs, Jobs (local only) and Console. `capabilities` says what a deployment can do, so on the live app the local-only parts say so instead of failing. `python3 -m regista.studio status` prints the overview from a local app or the live one.
@@ -94,6 +131,7 @@ Live since 2026-10-22 (plan: `docs/plan-two-dashboards.md`). One FastAPI app ser
 | `search_players(position, club, q, sort, order, limit, min_minutes)` | the Regista League's players filtered and ranked by any stat per 90 or ratio, each with its rank among the position |
 | `get_profile(player)` | one player's season by global id or full name, without the per-event evidence lists |
 | `compare_players(players)` | two or three players side by side |
+| `match_recap(match_dir, player_id)` | the match recap (rules engine): headline, paragraphs with a citation on every sentence, the recap reel; from one player's side when given |
 
 Any MCP host can drive Regista with these. The Foundry Librarian attaches this server, and beside it Microsoft's Azure MCP Server (`azmcp`, from the `msmcp-azure` package), started read-only with only the Cosmos DB namespace, plus the Search namespace when Search is configured; the tools allowed are `cosmos_database_container_item_query`, `cosmos_list`, and `search_index_query` (`src/regista/cloud/foundry.py`). Calls to the Cosmos DB query tool have been seen from local CLI runs. Inside the container (public Ask Foundry, AI Search namespace only), `search_index_query` was verified on 2026-10-21 (revision `regista-api--d1021183822`); the Cosmos DB tools are not offered there by design.
 
@@ -103,8 +141,8 @@ Any MCP host can drive Regista with these. The Foundry Librarian attaches this s
 
 | Stage | Running today | Planned next |
 |---|---|---|
-| Ingest | file read of `events.jsonl`; API upload on Container Apps (**running**) | Blob Storage for feeds; Functions + Event Grid triggers; AI Video Indexer for scene cuts |
-| Interpret | vision layer v0 (`regista.vision`, local): shot, identity, and possession agents as a second Agent Framework workflow, trained and measured only on Regista's own rendered broadcast (`docs/vision.md`); the synthetic generator for the public demo | Azure AI Vision kit-number OCR (a stub backend raises `NotImplementedError` today); models hosted in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
+| Ingest | file read of `events.jsonl`; API upload on Container Apps; Player-view footage into **Blob Storage** and a **Storage queue** (**running**) | Functions + Event Grid triggers for broadcast feeds; AI Video Indexer for scene cuts |
+| Interpret | vision layer v0 (`regista.vision`): shot, identity, possession and event agents as a second Agent Framework workflow, trained and measured only on Regista's own rendered broadcast (`docs/vision.md`); runs in an event-driven **Container Apps Job** for Player-view uploads (**running**) and locally; the synthetic generator for the public demo | Azure AI Vision kit-number OCR (a stub backend raises `NotImplementedError` today); models hosted in Foundry; Event Hubs → Fabric Eventstream → Lakehouse |
 | Explain | `FoundryLabelAgent`: `gpt-5-mini` on **Microsoft Foundry** via **Agent Framework**, the learned watchability model or rules-v0 as prior and fallback (**running**) | Foundry evaluations against human annotations from the review tool |
 | Render | `regista.render` inside the Container Apps service, on-demand with a local cache (**running**) | Container Apps jobs for batch renders; Blob + CDN for the cache |
 | Review | `ReviewExecutor`: the workflow pauses with `request_info` on clips the Label agent is unsure about; verdicts become human annotations and retrain the watchability model (**running**) | Foundry evaluations scoring each labeller against the human verdicts |
@@ -139,8 +177,55 @@ Provision with `infra/provision.sh` (idempotent; creates the Foundry resource, p
 
 **What the live app serves.** The Product and the Studio described above, with the four sample matches in the image, and the library in Cosmos DB and Azure AI Search, with tracing. The vision layer runs only from the repository (README, "What's live"). The matches in the image with everything (`syn_0141`, `syn_0142`, `syn_0294`, `vis_0201`), plus every match Cosmos DB holds (`source: cosmos` in `/api/matches`): teams, players, clips and labels read back from Cosmos, skipping the stale pre-0.1.1 documents. Uploaded matches are written to the container's local disk and lose their event stream on a restart or new revision, so their video, search, and verdicts are unavailable from then on (the API answers 409 and says why). `/api/health` names what the deployment runs (`librarian`, `azure_mcp`, `tracing`), and the page's footer shows it. Agent Framework spans start with the app whenever the Application Insights connection string is set.
 
+## Microsoft Fabric: the season in OneLake, cross-checked
+
+The Regista League (30 matches, 108 players) and the Player view's uploads live in a **Fabric lakehouse** as Delta
+tables, and a **Fabric notebook** recomputes the league leaders on its own so Regista can check its profiles against it.
+
+```
+Fabric trial capacity (Zaid's own; the tenant is Northeastern's and holds other people's trials, never used)
+└── workspace "Regista"
+    ├── lakehouse regista_league   OneLake: abfss://<workspace>@onelake.dfs.fabric.microsoft.com/<lakehouse>/Tables/
+    │     clubs, players (global ids), matches (played_s), lineups (per-match id -> global id, starter),
+    │     events (every league event with its player's global id), clips, labels,
+    │     player_season (Regista's profile numbers: one row per player and stat), uploads (Player-view uploads),
+    │     leaders_check (written by the notebook)
+    └── notebook regista_leaders_check   Spark SQL over events, lineups, matches, players -> leaders_check
+```
+
+`python -m regista.season.fabric setup | push | check` (`src/regista/cloud/fabric.py`, `fabric_tables.py`,
+`fabric_notebook.py`):
+
+- **setup** lists capacities through the Fabric API and their admins through the Power BI API, and picks only an active
+  trial capacity whose admins include the signed-in user and on which that user holds the Admin right
+  (`choose_capacity`). It creates or reuses the workspace "Regista" on that capacity and the lakehouse in it. A
+  "Regista" workspace on any other capacity is left alone. The ids go into `.env` (`REGISTA_FABRIC_WORKSPACE_ID`,
+  `REGISTA_FABRIC_LAKEHOUSE_ID`).
+- **push** writes the tables with delta-rs (`deltalake`) straight into OneLake, overwriting each one (data and
+  schema), so a push can be repeated. Uploads are read from the Player view's store (Azure Blob Storage when
+  `REGISTA_STORAGE_ACCOUNT` is set). For a finished upload, the uploader's minutes and headline counts are added.
+- **check** creates or updates the notebook through the Items API (its definition is generated from
+  `fabric_notebook.py`, so it lives in the repo) and runs it on demand through the Job Scheduler API. When the run ends
+  it reads `leaders_check` back from OneLake and compares it, row by row, with `player_season`. The notebook re-derives
+  goals, assists, shots, key passes, take-ons won, tackles won and interceptions from the event contract in SQL; it does
+  not reuse Regista's Python. For each stat it computes appearances, minutes, count, per-90 rate and the percentile
+  within the position. Counts, appearances and percentiles must be equal; minutes and per-90 rates may differ only by
+  rounding (Python and Spark round halves differently).
+
+Keyless: `DefaultAzureCredential` with the Fabric API scope, the Power BI scope (capacity admins) and the storage scope
+(OneLake). The notebook recreates `leaders_check` each run without deletion vectors, which Fabric turns on for new
+tables and which delta-rs cannot read yet. Tests (`tests/test_fabric.py`) use a fake Fabric API and a local folder in
+place of OneLake; they never reach Fabric.
+
+**First run, 2026-10-23** (workspace `b45d50d0-…`, lakehouse `1926e0bf-…`, trial capacity FTL64 in Central US):
+`push` wrote clubs 6, players 108, matches 30, lineups 1,080, events 55,890, clips 11,881, labels 11,881,
+player_season 2,376 and uploads 1 rows in 31 s. `check` ran the notebook in 52 s, and its `leaders_check` agreed with
+Regista on all 756 rows checked (108 players x 7 stats; 462 of them carry a percentile, the rest belong to players
+below the minutes bar or on the bench). The first run failed before any comparison: `leaders_check` had deletion vectors
+on. That was fixed in the notebook.
+
 ## What is deliberately not here
 
 - No real footage, anywhere. The vision layer v0 is trained and measured only on Regista's own rendered broadcast; its evaluation matches were used during development, so they are a development set, not a held-out test. `docs/vision.md` has the numbers and what changes for real footage.
-- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry. Microsoft Fabric, Azure AI Vision, Video Indexer, Speech, Translator, Blob Storage, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
+- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above). Azure AI Vision, Video Indexer, Speech, Translator, Blob Storage, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.

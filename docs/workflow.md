@@ -10,6 +10,7 @@ flowchart TD
   clip["clip"];
   label["label"];
   review["review"];
+  recap["recap"];
   persist["persist"];
   profiles["profiles"];
   librarian["librarian"];
@@ -23,7 +24,8 @@ flowchart TD
   ingest --> possession;
   clip --> label;
   label --> review;
-  review --> persist;
+  review --> recap;
+  recap --> persist;
   persist --> profiles;
   profiles --> librarian;
   librarian --> finish;
@@ -32,6 +34,7 @@ flowchart TD
   possession --> dead_letter;
   clip --> dead_letter;
   label --> dead_letter;
+  recap --> dead_letter;
   persist --> dead_letter;
   librarian --> dead_letter;
   review --> dead_letter;
@@ -49,6 +52,7 @@ flowchart TD
   clip["clip"];
   label["label"];
   review["review"];
+  recap["recap"];
   persist["persist"];
   indexer["indexer"];
   profiles["profiles"];
@@ -63,7 +67,8 @@ flowchart TD
   ingest --> possession;
   clip --> label;
   label --> review;
-  review --> persist;
+  review --> recap;
+  recap --> persist;
   persist --> indexer;
   indexer --> profiles;
   profiles --> librarian;
@@ -73,6 +78,7 @@ flowchart TD
   possession --> dead_letter;
   clip --> dead_letter;
   label --> dead_letter;
+  recap --> dead_letter;
   persist --> dead_letter;
   indexer --> dead_letter;
   librarian --> dead_letter;
@@ -83,6 +89,10 @@ flowchart TD
 The second graph was generated from the same `WorkflowPipeline.mermaid()` with the agents from
 `regista.cloud.agents_for(CloudConfig(search_endpoint=...))`; building it contacts no Azure service.
 `--graph docs/workflow.md` rewrites this file with the first graph only.
+
+`recap` is the Recap agent (`regista.recap.RecapAgent`): after the review, it writes `recap.json` next to the match, a
+headline and short paragraphs whose every sentence cites a clip or an event, and the recap reel. With the cloud agents a
+Foundry model writes it (`FoundryRecapAgent`), checked sentence by sentence, with the rules recap as the fallback.
 
 `profiles` is the Profile agent (`ProfileRefreshExecutor`): after the match is persisted, it refreshes the Scout view's
 profiles of the league players the match speaks for (global player ids on its team sheet, or confirmed "that's me"

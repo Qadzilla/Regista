@@ -107,7 +107,8 @@
     const q = new URLSearchParams(location.search);
     const id = (k) => { const v = q.get(k); return v && LINK_ID.test(v) && !v.includes('..') ? v : null; };
     const t = Number(q.get('t'));
-    return { match: id('match'), player: id('player'), clip: id('clip'), t: q.get('t') !== null && Number.isFinite(t) && t >= 0 ? t : null };
+    return { match: id('match'), player: id('player'), clip: id('clip'), t: q.get('t') !== null && Number.isFinite(t) && t >= 0 ? t : null,
+             recap: q.get('recap') === '1' };
   }
   const playerOfClip = (cid) => /^cl_(.+)_\d{6}$/.exec(cid || '')?.[1] || null;  // clip ids are cl_{player id}_{number}
 
@@ -154,6 +155,7 @@
     $('match').innerHTML = [first, ...state.matches.filter(m => m !== first)].filter(Boolean)
       .map(m => `<option value="${esc(m.match_id)}">${esc(matchName(m))}</option>`).join('');
     loadSeason();  // not awaited: the first paint never waits for the league
+    recapView.wanted = link.recap;  // the profile's "Recap" link: scroll to the recap as soon as it is written
     if (link.match && await loadMatch(link.match, { player: link.player || playerOfClip(link.clip), quiet: true })) {
       await openLinked(link);
       return syncUrl();
@@ -308,6 +310,7 @@
   }
 
   async function newConversation() {
+    loadRecap('rules');  // not awaited: the recap fills in beside the moments
     chat.state = seed(); chat.history = [];
     $('log').innerHTML = ''; $('log').hidden = true;
     try { await loadPlayerClips(state.player); } catch (e) { /* the grid says so below */ }
@@ -749,6 +752,112 @@
     });
   }
 
+  // ------------------------------------------------------------------ the recap
+
+  // GET /recap: a headline and short paragraphs told from the picked player's side, every sentence citing its moment.
+  // A new match or player always starts with the Instant recap (no model, no cost); Foundry writes one only when picked.
+  const recapView = { data: null, req: 0, wanted: false };
+  const recapEngine = () => document.querySelector('input[name="recapEngine"]:checked').value;
+
+  async function loadRecap(eng = recapEngine()) {
+    const box = $('recap');
+    if (!state.info || state.info.source === 'cosmos' || !state.player) { box.hidden = true; return; }
+    if (eng === 'rules') document.querySelector('input[name="recapEngine"][value="rules"]').checked = true;
+    const req = ++recapView.req;
+    const p = player(state.player);
+    box.hidden = false;
+    $('recapWho').textContent = p ? `This match, told from ${String(p.name)}'s side.` : 'This match.';  // text, never markup
+    $('recapBody').innerHTML = `<p class="wait">${eng === 'foundry' ? 'Asking Microsoft Foundry to write the recap. This can take half a minute…' : 'Writing the recap…'}</p>`;
+    $('recapBy').textContent = '';
+    recapButtons(null);
+    let out;
+    try {
+      out = await R.api(matchUrl(`/recap?player=${enc(state.player)}&engine=${enc(eng)}`));
+    } catch (e) {
+      if (req !== recapView.req) return;
+      $('recapBody').innerHTML = `<p class="wait">${esc(offline(e) ? OFFLINE : `The recap could not be written: ${detail(e)}`)}</p>`;
+      return;
+    }
+    if (req !== recapView.req) return;  // the match or player changed meanwhile
+    recapView.data = out;
+    renderRecap(out, eng);
+    if (recapView.wanted) {  // below the header where it sticks (wide screens; on a phone it scrolls away)
+      recapView.wanted = false;
+      const head = document.querySelector('header.top');
+      const covers = head && /sticky|fixed/.test(getComputedStyle(head).position) ? head.offsetHeight : 0;
+      window.scrollTo(0, box.getBoundingClientRect().top + window.scrollY - covers - 8);  // a page just opened: jump, no animation
+    }
+  }
+
+  function renderRecap(out, eng) {
+    const sentence = (s, pi, si) => {
+      const c = (s.cites || []).find(x => x.clip_id && out.clips?.[x.clip_id]?.video_url);
+      if (!c) return `<span>${esc(s.text)}</span>`;
+      // A link to the moment's own URL (it opens in a new tab too); a click plays it on the stage.
+      const href = `?match=${enc(state.match)}&player=${enc(out.clips[c.clip_id].player_id)}&clip=${enc(c.clip_id)}`;
+      return `<a class="cite" href="${esc(href)}" data-p="${pi}" data-s="${si}" title="Play this moment">${esc(s.text)}</a>`;
+    };
+    $('recapBody').innerHTML = `<h3>${esc(out.headline)}</h3>`
+      + (out.paragraphs || []).map((p, pi) => `<p>${(p.sentences || []).map((s, si) => sentence(s, pi, si)).join(' ')}</p>`).join('');
+    for (const a of $('recapBody').querySelectorAll('a.cite')) a.onclick = (e) => { e.preventDefault(); playCite(a); };
+    $('recapBy').innerHTML = recapByLine(out, eng);
+    recapButtons(out);
+  }
+
+  // Who wrote it, in plain words; for Foundry, what Regista's check of its sentences found.
+  function recapByLine(out, eng) {
+    const by = String(out.answered_by || 'rules');
+    if (by.startsWith('foundry:')) {
+      const ch = out.checked || {}, left = (ch.dropped || []).length;
+      return `Written by Microsoft Foundry (${esc(by.slice(8))}) from the match's facts${out.cached ? ', written earlier and kept' : ''}. `
+        + `Regista checked every sentence: ${esc(plural(ch.kept ?? 0, 'sentence'))} kept`
+        + (left ? `, ${esc(left)} left out (no moment to point at, or a number the match does not hold).` : ', none left out.')
+        + ' Pick a sentence to play its moment.';
+    }
+    const why = eng !== 'foundry' ? '' : /not configured/.test(by) ? 'Foundry is not set up on this server, so '
+      : /busy/.test(by) ? 'Foundry is busy right now, so ' : /too long/.test(by) ? 'Foundry took too long, so ' : 'Foundry could not write it this time, so ';
+    return why ? `<span class="fallback">${esc(why)}Regista's rules wrote this recap.</span>Pick a sentence to play its moment.`
+      : 'Instant: written by Regista\'s own rules from the match events, with no AI model. Pick a sentence to play its moment.';
+  }
+
+  function recapButtons(out) {
+    const ids = out ? (out.reel || []).filter(id => out.clips?.[id]?.video_url) : [];
+    $('recapReel').disabled = !ids.length;
+    $('recapReel').textContent = ids.length ? `Play recap reel (${ids.length})` : 'Play recap reel';
+    const dl = $('recapReelDl');
+    dl.setAttribute('aria-disabled', String(!ids.length));
+    if (ids.length) dl.href = matchUrl(`/reel.mp4?clips=${ids.map(enc).join(',')}`); else dl.removeAttribute('href');
+  }
+
+  // The recap's clips join the page's own (another player's goal, say), so the stage and the timeline can show them.
+  function rememberRecap(out) {
+    for (const [id, c] of Object.entries(out.clips || {})) {
+      if (state.all.has(id)) continue;
+      state.all.set(id, { id, player_id: c.player_id, t: c.t, t_end: c.t_end, reason: c.reason, title: c.title, video_url: c.video_url,
+                          label: { title: c.title, tags: c.tags || [], watchability: c.watchability || 0, explanation: c.explanation || '',
+                                   summary: c.summary || '' } });
+    }
+  }
+
+  function playCite(btn) {
+    const out = recapView.data;
+    const s = out?.paragraphs?.[Number(btn.dataset.p)]?.sentences?.[Number(btn.dataset.s)];
+    const c = s && (s.cites || []).find(x => x.clip_id && out.clips?.[x.clip_id]?.video_url);
+    if (!c) return;
+    rememberRecap(out);
+    for (const a of $('recapBody').querySelectorAll('a.cite')) a.classList.toggle('on', a === btn);
+    select(c.clip_id, true);
+  }
+
+  function playRecapReel() {
+    const out = recapView.data;
+    if (!out) return;
+    rememberRecap(out);
+    reel.ids = (out.reel || []).filter(id => state.all.get(id)?.video_url); reel.i = 0; reel.on = reel.ids.length > 0; reel.name = 'Recap reel';
+    nextInReel();
+    $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
   // ------------------------------------------------------------------ reels and exports
 
   // The reel: the last "make a reel" reply if there was one, else the result set in the order on screen.
@@ -793,15 +902,15 @@
     }
   }
 
-  const reel = { ids: [], i: 0, on: false };
+  const reel = { ids: [], i: 0, on: false, name: 'Reel' };
   function playReel() {
-    reel.ids = reelIds(); reel.i = 0; reel.on = reel.ids.length > 0;
+    reel.ids = reelIds(); reel.i = 0; reel.on = reel.ids.length > 0; reel.name = 'Reel';
     nextInReel();
   }
   function nextInReel() {
     if (!reel.on || reel.i >= reel.ids.length) { reel.on = false; return; }
     state.selected = reel.ids[reel.i++];
-    renderStage(true, `Reel · clip ${reel.i} of ${reel.ids.length}`);
+    renderStage(true, `${reel.name} · clip ${reel.i} of ${reel.ids.length}`);
   }
   function stopReel() { reel.on = false; }
 
@@ -894,6 +1003,8 @@
     $('playReel').onclick = () => { playReel(); $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
     $('stageVideo').addEventListener('ended', nextInReel);
     $('downloadReel').addEventListener('click', downloadReel);
+    for (const r of document.querySelectorAll('input[name="recapEngine"]')) r.addEventListener('change', () => loadRecap(recapEngine()));
+    $('recapReel').onclick = playRecapReel;
     wireStageVideo();
     $('reportToggle').onclick = toggleReport;
     $('howOpen').onclick = () => { const d = $('how'); d.showModal ? d.showModal() : d.setAttribute('open', ''); };

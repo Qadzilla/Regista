@@ -4,7 +4,7 @@ The same roles as ``regista.agents.roles`` (and their Foundry and Cosmos DB vari
 Agent Framework executors in a graph:
 
     ingest ──┬── validator ──┐
-             └── possession ─┴─▶ clip ─▶ label ─▶ review ─▶ persist ─▶ profiles ─▶ librarian ─▶ finish
+             └── possession ─┴─▶ clip ─▶ label ─▶ review ─▶ recap ─▶ persist ─▶ profiles ─▶ librarian ─▶ finish
                                                     ▲  │
        every role ── DeadLetter ──▶ dead_letter     └──┘ pauses for a human verdict when the
                                                          Label agent is unsure (request_info)
@@ -19,6 +19,8 @@ What Agent Framework provides here, and what the tests prove:
   with the remaining roles recorded as skipped.
 - **Human in the loop.** The review executor asks for verdicts with ``ctx.request_info`` and resumes in its
   ``@response_handler``; verdicts are stored as human annotations and retrain the watchability model.
+- **Recap.** The Recap agent (``regista.recap``) writes the match recap from the stream and the reviewed labels
+  (recap.json): every sentence cites a clip or an event; with ``--cloud`` a Foundry model writes it, checked.
 - **Profiles.** The profiles executor (the Profile agent) hands the persisted match to the Scout view: when the match
   carries global player ids (a league match) or has confirmed claims ("that's me", regista.season.claims), it rebuilds
   the affected players' profiles and records which in the trace; otherwise it notes that there was nothing to refresh.
@@ -59,7 +61,7 @@ TRACE_EVENT = "regista_trace"
 DEAD_EVENT = "regista_dead_letter"
 REVIEWED = {"keep": "kept", "drop": "dropped", "fix": "corrected"}  # a verdict as the public explanation says it
 HEAVY_KEYS = ("stream", "index")           # rebuildable from match_dir; kept out of workflow state
-ROLE_ORDER = ["ingest", "validator", "possession", "clip", "label", "review", "persist", "indexer", "profiles", "librarian"]  # "indexer" is optional
+ROLE_ORDER = ["ingest", "validator", "possession", "clip", "label", "review", "recap", "persist", "indexer", "profiles", "librarian"]  # "indexer" is optional
 
 
 # ---------------------------------------------------------------------------- messages
@@ -541,7 +543,8 @@ class WorkflowPipeline:
         b.add_fan_out_edges(roles["ingest"], [roles["validator"], roles["possession"]])
         b.add_fan_in_edges([roles["validator"], roles["possession"]], roles["clip"])
         tail = [roles["persist"]] + ([roles["indexer"]] if "indexer" in roles else []) + [profiles, roles["librarian"], finish]
-        b.add_chain([roles["clip"], roles["label"], review] + tail)
+        recap = [roles["recap"]] if "recap" in roles else []  # after the review, so the recap reads the final labels
+        b.add_chain([roles["clip"], roles["label"], review] + recap + tail)
         for ex in [*roles.values(), review, profiles]:
             b.add_edge(ex, dead)  # only DeadLetter messages reach it; handoffs are routed by type to the next role
         return b.build()
