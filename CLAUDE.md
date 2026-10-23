@@ -447,7 +447,16 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-23 (late afternoon).** Home's "Running on" row is live (PR #33, merge 73853c4, revision
+**As of 2026-10-23 (evening).** The Player and Scout dashboards are live (PR #34, merge c4a7b26, revision
+`regista-api--d1023210106`; §2.9): `/me` (Femi Toure: Overview, My profile, Matches & videos, Messages, Team,
+Settings), `/scout` (Maya Lindqvist, Fairhaven FC: Overview, Find players, Shortlist, Reports, Messages, Team, Settings),
+and `/players/{id}` as the one shared profile with a scout bar. Messages, stages, notes, reports, needs and settings are
+kept per visitor in the browser. The Scout agent now hears "score" (it ranked by minutes before). Checked live, read-only:
+every section at 1440 and 375 px, Femi's 11 matches with his friendly, the Scout agent's answer, no console errors.
+657 tests pass. Left: the hook's one-clip-per-goal reel, Zaid's match (Saturday), storyboard and video, pitch, public
+repo, submit by 2026-10-27.
+
+**Earlier, 2026-10-23 (late afternoon).** Home's "Running on" row is live (PR #33, merge 73853c4, revision
 `regista-api--d1023164500`): the official icons of the eight services, icon first with the full name under it,
 built from `/api/health` (which now also reports `container_apps` and `storage`); it replaced the footer's "Built on"
 line. Icons: Azure Architecture Center V24, the MCP project's mark, the microsoft/agent-framework icon (Zaid's call on
