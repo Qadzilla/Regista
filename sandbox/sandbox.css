@@ -38,9 +38,9 @@ main { min-width: 0; }
 .search:focus-within { border-color: var(--accent); }
 .search input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font: inherit; font-size: 18px; padding: 10px 16px; outline: none; }
 .search input::placeholder { color: var(--muted); }
-/* Who answers: Instant (Regista's own rules, no model) or Microsoft Foundry (an agent and its tools). The choice is
-   marked in Regista yellow, like the current view. */
-.engine { display: inline-flex; align-self: center; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; flex: 0 0 auto; }
+/* Who answers, just under the search box: Data Search (Regista's own data, no model) or Ask Microsoft Foundry (an
+   agent that reads the question and calls its tools). The choice is marked in Regista yellow, like the current view. */
+.engine { display: flex; width: max-content; margin: 14px auto 0; border: 1px solid var(--line); border-radius: 999px; padding: 2px; gap: 2px; }
 .engine label { display: flex; cursor: pointer; }
 .engine input { position: absolute; opacity: 0; width: 1px; height: 1px; }
 .engine span { padding: 6px 12px; border-radius: 999px; color: var(--muted); font-size: 13px; font-weight: 600; white-space: nowrap; }

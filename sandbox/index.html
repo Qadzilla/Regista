@@ -23,12 +23,12 @@
     <form class="search" role="search">
       <label class="sr" for="q">Ask for any moment, from any match this season</label>
       <input id="q" type="search" autocomplete="off" placeholder="Ask for any moment, from any match this season">
-      <div class="engine" role="radiogroup" aria-label="Who answers">
-        <label><input type="radio" name="engine" value="rules" checked><span>Instant</span></label>
-        <label><input type="radio" name="engine" value="foundry"><span>Microsoft Foundry</span></label>
-      </div>
       <button type="submit">Search</button>
     </form>
+    <div class="engine" role="radiogroup" aria-label="Who answers">
+      <label><input type="radio" name="engine" value="rules" checked><span>Data Search</span></label>
+      <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
+    </div>
   </section>
   <section id="profile" data-view="profile" aria-label="Player profile" hidden></section>
   <section id="scout" data-view="scout" aria-label="Scout" hidden></section>
