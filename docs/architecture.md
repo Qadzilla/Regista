@@ -139,8 +139,55 @@ Provision with `infra/provision.sh` (idempotent; creates the Foundry resource, p
 
 **What the live app serves.** The Product and the Studio described above, with the four sample matches in the image, and the library in Cosmos DB and Azure AI Search, with tracing. The vision layer runs only from the repository (README, "What's live"). The matches in the image with everything (`syn_0141`, `syn_0142`, `syn_0294`, `vis_0201`), plus every match Cosmos DB holds (`source: cosmos` in `/api/matches`): teams, players, clips and labels read back from Cosmos, skipping the stale pre-0.1.1 documents. Uploaded matches are written to the container's local disk and lose their event stream on a restart or new revision, so their video, search, and verdicts are unavailable from then on (the API answers 409 and says why). `/api/health` names what the deployment runs (`librarian`, `azure_mcp`, `tracing`), and the page's footer shows it. Agent Framework spans start with the app whenever the Application Insights connection string is set.
 
+## Microsoft Fabric: the season in OneLake, cross-checked
+
+The Regista League (30 matches, 108 players) and the Player view's uploads live in a **Fabric lakehouse** as Delta
+tables, and a **Fabric notebook** recomputes the league leaders on its own so Regista can check its profiles against it.
+
+```
+Fabric trial capacity (Zaid's own; the tenant is Northeastern's and holds other people's trials, never used)
+└── workspace "Regista"
+    ├── lakehouse regista_league   OneLake: abfss://<workspace>@onelake.dfs.fabric.microsoft.com/<lakehouse>/Tables/
+    │     clubs, players (global ids), matches (played_s), lineups (per-match id -> global id, starter),
+    │     events (every league event with its player's global id), clips, labels,
+    │     player_season (Regista's profile numbers: one row per player and stat), uploads (Player-view uploads),
+    │     leaders_check (written by the notebook)
+    └── notebook regista_leaders_check   Spark SQL over events, lineups, matches, players -> leaders_check
+```
+
+`python -m regista.season.fabric setup | push | check` (`src/regista/cloud/fabric.py`, `fabric_tables.py`,
+`fabric_notebook.py`):
+
+- **setup** lists capacities through the Fabric API and their admins through the Power BI API, and picks only an active
+  trial capacity whose admins include the signed-in user and on which that user holds the Admin right
+  (`choose_capacity`). It creates or reuses the workspace "Regista" on that capacity and the lakehouse in it. A
+  "Regista" workspace on any other capacity is left alone. The ids go into `.env` (`REGISTA_FABRIC_WORKSPACE_ID`,
+  `REGISTA_FABRIC_LAKEHOUSE_ID`).
+- **push** writes the tables with delta-rs (`deltalake`) straight into OneLake, overwriting each one (data and
+  schema), so a push can be repeated. Uploads are read from the Player view's store (Azure Blob Storage when
+  `REGISTA_STORAGE_ACCOUNT` is set). For a finished upload, the uploader's minutes and headline counts are added.
+- **check** creates or updates the notebook through the Items API (its definition is generated from
+  `fabric_notebook.py`, so it lives in the repo) and runs it on demand through the Job Scheduler API. When the run ends
+  it reads `leaders_check` back from OneLake and compares it, row by row, with `player_season`. The notebook re-derives
+  goals, assists, shots, key passes, take-ons won, tackles won and interceptions from the event contract in SQL; it does
+  not reuse Regista's Python. For each stat it computes appearances, minutes, count, per-90 rate and the percentile
+  within the position. Counts, appearances and percentiles must be equal; minutes and per-90 rates may differ only by
+  rounding (Python and Spark round halves differently).
+
+Keyless: `DefaultAzureCredential` with the Fabric API scope, the Power BI scope (capacity admins) and the storage scope
+(OneLake). The notebook recreates `leaders_check` each run without deletion vectors, which Fabric turns on for new
+tables and which delta-rs cannot read yet. Tests (`tests/test_fabric.py`) use a fake Fabric API and a local folder in
+place of OneLake; they never reach Fabric.
+
+**First run, 2026-10-23** (workspace `b45d50d0-…`, lakehouse `1926e0bf-…`, trial capacity FTL64 in Central US):
+`push` wrote clubs 6, players 108, matches 30, lineups 1,080, events 55,890, clips 11,881, labels 11,881,
+player_season 2,376 and uploads 1 rows in 31 s. `check` ran the notebook in 52 s, and its `leaders_check` agreed with
+Regista on all 756 rows checked (108 players x 7 stats; 462 of them carry a percentile, the rest belong to players
+below the minutes bar or on the bench). The first run failed before any comparison: `leaders_check` had deletion vectors
+on. That was fixed in the notebook.
+
 ## What is deliberately not here
 
 - No real footage, anywhere. The vision layer v0 is trained and measured only on Regista's own rendered broadcast; its evaluation matches were used during development, so they are a development set, not a held-out test. `docs/vision.md` has the numbers and what changes for real footage.
-- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry. Microsoft Fabric, Azure AI Vision, Video Indexer, Speech, Translator, Blob Storage, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
+- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above). Azure AI Vision, Video Indexer, Speech, Translator, Blob Storage, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.
