@@ -8,6 +8,9 @@
       if (a.dataset.view === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
   }
+  // An example search fills the box (the sandbox has no backend; searching itself comes from the app).
+  for (const c of document.querySelectorAll('.chip')) c.addEventListener('click', () => { const q = document.getElementById('q'); q.value = c.textContent; q.focus(); });
+  document.querySelector('.search').addEventListener('submit', (e) => e.preventDefault());
   window.addEventListener('hashchange', show);
   show();
 })();

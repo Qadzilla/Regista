@@ -17,7 +17,20 @@
   <a href="#scout" data-view="scout">Scout</a>
 </nav>
 <main>
-  <section id="home" data-view="home" aria-label="Home"></section>
+  <section id="home" data-view="home" aria-label="Home">
+    <form class="search" role="search">
+      <label class="sr" for="q">Search every match</label>
+      <input id="q" type="search" autocomplete="off" placeholder="Find me every Femi Toure goal this season">
+      <button type="submit">Search</button>
+    </form>
+    <div class="examples" aria-label="Try">
+      <button type="button" class="chip">Every Femi Toure goal this season</button>
+      <button type="button" class="chip">Amari Ustinov beating his man</button>
+      <button type="button" class="chip">Elias Popescu's nutmegs</button>
+      <button type="button" class="chip">Noel Brennan's saves against Ashby Athletic</button>
+      <button type="button" class="chip">Leon Whitfield's assists, best first</button>
+    </div>
+  </section>
   <section id="profile" data-view="profile" aria-label="Player profile" hidden></section>
   <section id="scout" data-view="scout" aria-label="Scout" hidden></section>
 </main>

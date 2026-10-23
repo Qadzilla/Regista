@@ -29,3 +29,16 @@ main { min-width: 0; }
   .side { flex-direction: row; position: sticky; height: auto; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line); overflow-x: auto; }
   .side a { flex: 0 0 auto; padding: 6px 12px; border-radius: 999px; }
 }
+
+/* Home: search first. One box across every match of the season, and example searches built from the league's real
+   season (its top scorer, best dribbler, nutmegs, saves, assists). No explanatory copy. */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+#home { max-width: 760px; margin: 0 auto; padding: 18vh 24px 48px; }
+.search { display: flex; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px; }
+.search:focus-within { border-color: var(--accent); }
+.search input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font: inherit; font-size: 18px; padding: 10px 16px; outline: none; }
+.search input::placeholder { color: var(--muted); }
+.search button { background: var(--accent); color: #111; border: 0; border-radius: 999px; padding: 10px 20px; font: inherit; font-weight: 700; cursor: pointer; }
+.examples { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 16px; }
+.chip { background: transparent; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13.5px; cursor: pointer; }
+.chip:hover { color: var(--text); border-color: var(--muted); }
