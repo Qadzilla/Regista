@@ -1,5 +1,5 @@
-/* Shared by the Product (/), the Scout pages (/scout, /players/{id}) and the Studio (/studio): colour tokens and base
-   elements. The look comes later; pages style their own layout on top of these tokens. */
+/* Shared by the Product (/), the Player and Scout dashboards (/me, /scout, /players/{id}) and the Studio (/studio): colour
+   tokens, base elements and the left panel. The look comes later; pages style their own layout on top of these tokens. */
 :root {
   --bg: #0c0e14; --panel: #161a24; --line: #262c3a; --text: #f3f4f6; --muted: #9aa3b5;
   --accent: #ffcd28; --replay: #d62028; --ok: #3ccf7a; --warn: #ffb020; --bad: #ff5a5f;
@@ -41,9 +41,30 @@ button:disabled { opacity: .5; cursor: default; }
 .views a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .views a[aria-current="page"] { background: var(--accent); color: #111; }   /* the current view in Regista yellow */
 
+/* A view's sections, indented under its link (the /me and /scout dashboards; /players/{id} shows Scout's). The section
+   on screen is in Regista yellow and the view's own link steps back to plain text. Markup (regista.js, sections()):
+   <a href="/me" class="parent" aria-current="page">Player profile</a>
+   <div class="subviews" role="group" aria-label="Player profile sections">
+     <a href="/me#overview" data-section="overview" aria-current="true">Overview</a> ...
+     <a href="/me#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a>
+   </div> */
+.views a.parent[aria-current="page"] { background: transparent; color: var(--text); }
+.subviews { display: flex; flex-direction: column; gap: 2px; margin: 0 0 6px 12px; padding-left: 10px; border-left: 1px solid var(--line); }
+.views .subviews a { font-size: 13.5px; font-weight: 500; padding: 7px 10px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.views .subviews a[aria-current="true"] { background: var(--accent); color: #111; font-weight: 700; }
+.views .count { display: inline-grid; place-items: center; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 999px; background: var(--accent);
+                color: #111; font-size: 11px; font-weight: 800; }
+.views .count:empty { display: none; }
+.views .subviews a[aria-current="true"] .count { background: #111; color: var(--accent); }
+
 @media (max-width: 720px) {
   .shell { grid-template-columns: minmax(0, 1fr); min-height: 0; }
   .views { flex-direction: row; position: static; min-height: 0; padding: 8px 12px; border-right: 0; border-bottom: 1px solid var(--line);
            overflow-x: auto; }
   .views a { flex: 0 0 auto; padding: 6px 12px; border-radius: 999px; }
+  /* the sections: a second row of tabs under Home / Player profile / Scout */
+  .views:has(> .subviews) { flex-wrap: wrap; row-gap: 6px; }
+  .subviews { flex-basis: 100%; flex-direction: row; order: 1; margin: 0; padding: 6px 0 0; border-left: 0; border-top: 1px solid var(--line);
+              overflow-x: auto; min-width: 0; }
+  .views .subviews a { flex: 0 0 auto; padding: 5px 11px; border-radius: 999px; font-size: 13px; }
 }

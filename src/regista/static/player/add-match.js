@@ -34,7 +34,6 @@
     for (const [k, v] of Object.entries(attrs || {})) {
       if (v === null || v === undefined || v === false) continue;
       if (k === 'class') el.className = v;
-      else if (k === 'style') el.style.cssText = v;
       else if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
       else el.setAttribute(k, v === true ? '' : String(v));
     }
@@ -69,20 +68,21 @@
   const S = { person: null, writes: null, jobs: false, jobsReason: null, match: null, header: null };
   const canWrite = () => S.writes === 'open' || (S.writes === 'token' && !!key.get());
 
-  const style = 'display:grid;gap:10px';
-  const status = h('p', { class: 'muted small', role: 'status', 'aria-live': 'polite' });
-  const body = h('div', { style });
+  // Layout comes from classes in player.css (am-stack, am-field, am-row, am-status): no style attributes.
+  const stack = 'panel am-stack';
+  const status = h('p', { class: 'small am-status', role: 'status', 'aria-live': 'polite' });
+  const body = h('div', { class: 'am-stack' });
   swap(root, h('h2', {}, 'Add a match'),
     h('p', { class: 'muted' }, 'Played in a match Regista has not seen? Add it, then say which player is you. ',
       'The operator confirms the claim in the Studio, and the match then counts in this profile.'),
     body, status);
-  const TONE = { ok: 'var(--ok)', bad: 'var(--bad)', warn: 'var(--warn)', muted: 'var(--muted)' };  // shared/regista.css tokens
-  const say = (text, cls) => { status.style.color = TONE[cls] || TONE.muted; status.textContent = text || ''; };
+  const TONES = ['ok', 'bad', 'warn'];  // shared/regista.css tokens, through player.css
+  const say = (text, cls) => { status.className = `small am-status${TONES.includes(cls) ? ` ${cls}` : ''}`; status.textContent = text || ''; };
 
   // ------------------------------------------------------------------------------------------------ the key, asked once
   function keyForm(then) {
     const input = h('input', { type: 'password', autocomplete: 'off', placeholder: 'Paste the admin key', 'aria-label': 'Admin key' });
-    return h('form', { class: 'panel', style, onsubmit: (e) => {
+    return h('form', { class: stack, onsubmit: (e) => {
       e.preventDefault();
       const v = input.value.trim();
       if (!v) return;
@@ -137,7 +137,7 @@
     const tr = h('input', { type: 'file', accept: '.jsonl,application/json,text/plain', 'aria-label': 'tracks.jsonl' });
     const mid = h('input', { maxlength: 120, placeholder: 'match id (default: from the file)', 'aria-label': 'Match id' });
     const go = h('button', { type: 'submit' }, 'Add the match');
-    const form = h('form', { class: 'panel', style, onsubmit: async (e) => {
+    const form = h('form', { class: stack, onsubmit: async (e) => {
       e.preventDefault();
       const f = ev.files[0];
       if (!f) { say('Pick events.jsonl first.', 'bad'); return; }
@@ -159,8 +159,8 @@
       } finally { go.disabled = false; }
     } },
     h('b', {}, 'The vision layer’s output'),
-    h('label', { class: 'small', style: 'display:grid;gap:4px' }, 'events.jsonl (validated against the schema first)', ev),
-    h('label', { class: 'small', style: 'display:grid;gap:4px' }, 'tracks.jsonl (optional: positions, for video)', tr),
+    h('label', { class: 'small am-field' }, 'events.jsonl (validated against the schema first)', ev),
+    h('label', { class: 'small am-field' }, 'tracks.jsonl (optional: positions, for video)', tr),
     mid, go);
     return form;
   }
@@ -172,7 +172,7 @@
     if (!local.length) return;
     const sel = h('select', { 'aria-label': 'A match already added' }, local.map((m) => h('option', { value: m.match_id },
       `${m.title || m.match_id}${(m.teams || []).length ? ` · ${m.teams.map((t) => t.short_name).join(' v ')}` : ''}`)));
-    swap(el, h('form', { class: 'panel', style, onsubmit: (e) => { e.preventDefault(); claimStep(sel.value); } },
+    swap(el, h('form', { class: stack, onsubmit: (e) => { e.preventDefault(); claimStep(sel.value); } },
       h('b', {}, 'Or a match already added'), sel, h('button', { type: 'submit', class: 'alt' }, 'Find me in this match')));
   }
 
@@ -185,7 +185,7 @@
       const local = (all || []).filter((m) => m.source === 'local');
       swap(roster, h('option', { value: '' }, 'team sheet: pick a match'), local.map((m) => h('option', { value: m.match_id }, m.title || m.match_id)));
     }).catch(() => {});
-    return h('form', { class: 'panel', style, onsubmit: async (e) => {
+    return h('form', { class: stack, onsubmit: async (e) => {
       e.preventDefault();
       const args = { video: path.value.trim(), roster: roster.value, out: out.value.trim(), workflow: true };
       if (!args.video || !args.roster || !ID.test(args.out)) { say('Give the video path, a team sheet and a new match id.', 'bad'); return; }
@@ -251,7 +251,7 @@
     const withNumber = teams.find((t) => players.some((x) => x.team_id === t.team_id && x.kit_number === p.kit_number));
     if (withNumber) team.value = withNumber.team_id;
     fillKits();
-    swap(body, h('form', { class: 'panel', style, onsubmit: async (e) => {
+    swap(body, h('form', { class: stack, onsubmit: async (e) => {
       e.preventDefault();
       const x = pick();
       if (!x) { say('Pick your team and kit number.', 'bad'); return; }
@@ -268,14 +268,14 @@
       }
     } },
     h('b', {}, `Which one is you in ${m.title || matchId}?`),
-    h('label', { class: 'small', style: 'display:grid;gap:4px' }, 'Team', team),
-    h('label', { class: 'small', style: 'display:grid;gap:4px' }, 'Kit number', kit),
+    h('label', { class: 'small am-field' }, 'Team', team),
+    h('label', { class: 'small am-field' }, 'Kit number', kit),
     who, name, note,
-    h('div', { style: 'display:flex;gap:10px;flex-wrap:wrap' }, go, h('button', { type: 'button', class: 'alt', onclick: chooseSource }, 'Back'))));
+    h('div', { class: 'am-row' }, go, h('button', { type: 'button', class: 'alt', onclick: chooseSource }, 'Back'))));
   }
 
   function done(c) {
-    swap(body, h('div', { class: 'panel', style },
+    swap(body, h('div', { class: stack },
       h('b', {}, 'Claim sent: pending.'),
       h('span', {}, `${c.player.name || c.player_id} (${c.player.kit_number}) in ${c.match_id} is ${S.person.name}, if the operator confirms it in the Studio. `,
         'Once confirmed, Regista cuts your moments in that match and this profile counts it.'),

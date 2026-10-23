@@ -7,86 +7,238 @@
 <meta name="description" content="Upload a match you played: Regista's vision agents find you, cut every moment you are on the ball, and add the match to your profile.">
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
+<link rel="stylesheet" href="/static/shared/dashboard.css">
 <link rel="stylesheet" href="/static/me/me.css">
 </head>
 <body>
 <header class="top">
   <p class="brand">REGI<span>STA</span></p>
+  <div class="me-as" id="as" hidden>
+    <span class="mini" id="asShirt" aria-hidden="true"></span>
+    <span class="me-asname" id="asName"></span>
+    <button type="button" class="alt" id="change" aria-expanded="false" aria-controls="finder">Switch player</button>
+  </div>
 </header>
 
 <div class="shell">
-<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me" aria-current="page">Player profile</a><a href="/scout">Scout</a></nav>
+<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me" class="parent" aria-current="page">Player profile</a><div class="subviews" role="group" aria-label="Player profile sections"><a href="/me#overview" data-section="overview">Overview</a><a href="/me#profile" data-section="profile">My profile</a><a href="/me#matches" data-section="matches">Matches &amp; videos</a><a href="/me#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/me#team" data-section="team">Team</a><a href="/me#settings" data-section="settings">Settings</a></div><a href="/scout">Scout</a></nav>
 <div class="shell-main">
 
-<main>
+<main class="pf" id="main">
   <div class="neterr" id="netError" role="alert" hidden><span id="netErrorText"></span><button type="button" class="alt" id="netRetry">Retry</button></div>
 
-  <section class="intro" aria-labelledby="promise">
-    <h1 id="promise">Your match, cut by Regista.</h1>
-    <p class="lede">Upload footage of a match you played. Regista's vision agents find you in it, cut every moment you are
-      on the ball, and add the match to your profile.</p>
-    <p class="synthetic"><span class="badge">Synthetic</span> The players here are the Regista League's synthetic players,
-      and the footage is synthetic too: Regista renders it as a friendly between two league clubs. No real camera, no
-      real people.</p>
-  </section>
+  <p class="loadingline" id="loading" role="status">Loading your dashboard…</p>
 
-  <section class="panel step" id="pick" aria-labelledby="pickHead">
-    <h2 id="pickHead"><span class="stepno" aria-hidden="true">1</span>Pick your player</h2>
-    <div class="chosen" id="chosen" hidden>
-      <div class="shirt" id="shirt" aria-hidden="true"></div>
-      <div class="chosen-text">
-        <p class="chosen-name" id="chosenName"></p>
-        <p class="muted small" id="chosenLine"></p>
-      </div>
-      <div class="chosen-actions">
-        <a class="btn alt" id="chosenProfile" href="/scout">Profile</a>
-        <button type="button" class="alt" id="change">Change</button>
-      </div>
-    </div>
-    <div id="finder">
-      <form class="findrow" id="findForm" role="search">
-        <label class="sr" for="find">Search the league's players by name or club</label>
-        <input id="find" type="search" autocomplete="off" maxlength="80" placeholder="Search by name or club">
-        <button type="submit">Search</button>
-      </form>
-      <p class="muted small" id="foundNote">Or pick one of the league's forwards:</p>
-      <ul class="found" id="found" aria-live="polite"></ul>
-    </div>
-  </section>
-
-  <section class="panel step" id="footage" aria-labelledby="footageHead" hidden>
-    <h2 id="footageHead"><span class="stepno" aria-hidden="true">2</span>Your footage</h2>
-    <p class="note">Synthetic footage, rendered by Regista as a friendly between your club and another league club, in the
-      format the vision layer reads (640x360, 10 frames a second, no captions or name labels). Make one with
-      <code>python -m regista.player.film</code>.</p>
-    <p class="operator" id="operator">Only the operator can upload: an upload starts cloud work, so it needs the admin
-      key. Anyone can watch the progress and the results.</p>
-    <div id="keyBox"></div>
-    <form class="upload" id="uploadForm">
-      <label class="field file"><span>Video (MP4, up to <span id="maxMb">300</span> MB)</span>
-        <input id="video" type="file" accept="video/mp4,.mp4" required></label>
-      <label class="field"><span>Against</span><select id="opponent" required></select></label>
-      <fieldset class="side">
-        <legend>Your club played</legend>
-        <label><input type="radio" name="side" value="home" checked><span>At home</span></label>
-        <label><input type="radio" name="side" value="away"><span>Away</span></label>
-      </fieldset>
-      <button type="submit" id="uploadGo">Upload and start</button>
+  <!-- Switch player: any synthetic player of the Regista League (?player=pl_… names one; Femi Toure by default) -->
+  <section class="panel finder" id="finder" aria-labelledby="finderHead" hidden>
+    <div class="pf-bar"><h2 id="finderHead">Switch player</h2>
+      <button type="button" class="alt" id="finderClose">Close</button></div>
+    <form class="findrow" id="findForm" role="search">
+      <label class="sr" for="find">Search the league's players by name or club</label>
+      <input id="find" type="search" autocomplete="off" maxlength="80" placeholder="Search by name or club">
+      <button type="submit">Search</button>
     </form>
-    <div class="sending" id="sending" hidden>
-      <div class="bar" role="progressbar" aria-label="Upload" aria-valuemin="0" aria-valuemax="100" id="sendBarWrap"><span id="sendBar"></span></div>
-      <p class="small" id="sendText"></p>
-    </div>
-    <p class="msg" id="uploadMsg" role="status" aria-live="polite"></p>
+    <p class="muted small" id="foundNote">Or pick one of the league's forwards:</p>
+    <ul class="found" id="found" aria-live="polite"></ul>
   </section>
 
-  <section class="step" id="uploads" aria-labelledby="uploadsHead" hidden>
-    <div class="section-bar">
-      <h2 id="uploadsHead"><span class="stepno" aria-hidden="true">3</span>Regista at work</h2>
-      <p class="muted small" id="uploadsSub"></p>
+  <!-- Overview -->
+  <div class="pv" data-panel="overview" hidden>
+    <header class="pf-head panel">
+      <div class="shirt" id="ovShirt" aria-hidden="true"></div>
+      <div class="pf-who"><p class="pf-hi muted">Your dashboard</p><h1 id="ovName"></h1><p class="pf-line" id="ovLine"></p></div>
+      <a class="pf-btn" href="#matches/add">Add a match</a>
+    </header>
+    <section class="panel" aria-labelledby="ovNeedHead">
+      <h2 id="ovNeedHead">Needs you</h2>
+      <div class="ov-needs" id="ovNeeds"></div>
+    </section>
+    <div class="pf-two">
+      <section class="panel" aria-labelledby="ovSeasonHead">
+        <div class="pf-bar"><h2 id="ovSeasonHead">Your season</h2><a href="#profile" class="small-link">See your profile</a></div>
+        <div class="ov-season" id="ovSeason"></div>
+      </section>
+      <section class="panel" aria-labelledby="ovBestHead">
+        <h2 id="ovBestHead">Your best moment</h2>
+        <div class="pf-screen"><video id="ovVideo" controls playsinline preload="none"></video>
+          <p class="pf-loading" id="ovWait" hidden></p></div>
+        <p class="reason" id="ovNow"></p>
+        <h3 class="ov-title" id="ovTitle"></h3>
+      </section>
     </div>
-    <ol class="runs" id="runs"></ol>
-    <p class="empty muted" id="noUploads" hidden>No footage from this player yet. Upload a match above and follow every agent here.</p>
+    <section class="panel" aria-labelledby="ovActHead">
+      <h2 id="ovActHead">Recent activity</h2>
+      <ol class="ov-activity" id="ovActivity"></ol>
+    </section>
+  </div>
+
+  <!-- My profile: what scouts see (player/profile-view.js, the same page /players/{id} shows, without the scout bar) -->
+  <div class="pv" data-panel="profile" hidden>
+    <p class="pf-scouts">This is what scouts see when they open your profile.</p>
+    <div id="meProfile"></div>
+  </div>
+
+  <!-- Matches & videos -->
+  <div class="pv" data-panel="matches" hidden>
+    <div class="pv-title"><h1>Matches &amp; videos</h1>
+      <button type="button" class="pf-btn" id="addBtn" aria-expanded="false" aria-controls="addBox">Add a match</button></div>
+
+    <section class="pf-addform panel" id="addBox" aria-labelledby="addHead" hidden>
+      <h2 id="addHead">Add a match</h2>
+      <p class="muted small">Upload footage of a match you played. Regista's vision agents find you in it, cut every moment you
+        are on the ball, and add the match to your profile.</p>
+      <p class="muted small me-hint">Regista's own footage: an MP4 at 640x360, 10 frames a second, as Regista renders a friendly
+        between two league clubs.</p>
+      <p class="operator" id="operator">Uploading starts cloud work, so it needs the operator's admin key. Anyone can watch the
+        progress and the results.</p>
+      <div id="keyBox"></div>
+      <form id="uploadForm">
+        <div class="pf-fields">
+          <label class="pf-field"><span>Video (MP4, up to <span id="maxMb">300</span> MB)</span>
+            <input id="video" type="file" accept="video/mp4,.mp4" required></label>
+          <label class="pf-field"><span>Against</span><select id="opponent" required></select></label>
+          <fieldset class="pf-seg"><legend>You played</legend>
+            <label><input type="radio" name="side" value="home" checked><span>At home</span></label>
+            <label><input type="radio" name="side" value="away"><span>Away</span></label>
+          </fieldset>
+        </div>
+        <div class="pf-addbar"><button type="submit" id="uploadGo">Upload and start</button>
+          <button type="button" class="alt" id="addCancel">Cancel</button></div>
+      </form>
+      <div class="sending" id="sending" hidden>
+        <div class="bar" role="progressbar" aria-label="Upload" aria-valuemin="0" aria-valuemax="100" id="sendBarWrap"><span id="sendBar"></span></div>
+        <p class="small" id="sendText"></p>
+      </div>
+      <p class="msg" id="uploadMsg" role="status" aria-live="polite"></p>
+    </section>
+
+    <section class="panel" id="uploads" aria-labelledby="uploadsHead">
+      <div class="pf-bar"><h2 id="uploadsHead">Your uploads</h2><p class="muted small" id="uploadsSub"></p></div>
+      <ol class="runs" id="runs"></ol>
+      <p class="empty muted" id="noUploads" hidden>No uploads yet. Add a match to watch Regista's agents work on it here, step by step.</p>
+    </section>
+
+    <section class="panel" id="questions" aria-labelledby="questionsHead">
+      <h2 id="questionsHead">Is this you?</h2>
+      <p class="muted small">When Regista's vision agents are not sure which player is you, they ask here. Your answers fix the
+        match and teach the agents.</p>
+      <div class="asks" id="asks"></div>
+      <p class="pf-qnone" id="noQuestions"><span class="pf-tick" aria-hidden="true">✓</span> No questions waiting.</p>
+      <p class="muted small" id="answered" hidden></p>
+    </section>
+
+    <section class="panel" aria-labelledby="allHead">
+      <h2 id="allHead">All your matches</h2>
+      <ol class="pf-mlist" id="allMatches"></ol>
+    </section>
+  </div>
+
+  <!-- Messages: scouts start conversations; the player replies, mutes or blocks (kept in this browser, shared/demo.js) -->
+  <div class="pv" data-panel="messages" hidden>
+    <div class="pv-title"><h1>Messages</h1><p class="muted small">Scouts start conversations; you reply, mute or block.</p></div>
+    <div class="mx panel" id="mx">
+      <ol class="mx-list" id="mxList" aria-label="Conversations"></ol>
+      <div class="mx-thread" id="mxThread">
+        <header class="mx-head" id="mxHead"></header>
+        <ol class="mx-msgs" id="mxMsgs" aria-live="polite"></ol>
+        <div class="mx-draftclips" id="mxDraft" hidden></div>
+        <form class="mx-compose" id="mxCompose">
+          <button type="button" class="alt mx-attach" id="mxAttach" aria-expanded="false" aria-controls="mxPicker">Attach a moment</button>
+          <label class="sr" for="mxText">Your reply</label>
+          <input id="mxText" type="text" autocomplete="off" maxlength="2000" placeholder="Write a reply">
+          <button type="submit">Send</button>
+        </form>
+        <div class="mx-picker" id="mxPicker" hidden><p class="small muted">Pick moments to send. They arrive as clips the scout can play.</p><ol id="mxPickList"></ol></div>
+        <button type="button" class="link mx-back" id="mxBack">← All conversations</button>
+      </div>
+    </div>
+    <p class="muted small me-note" id="mxNote"></p>
+  </div>
+
+  <!-- Team: my details (kept in this browser) and my club (the league's squad, results and table) -->
+  <div class="pv" data-panel="team" hidden>
+    <div class="pv-title"><h1>Team</h1></div>
+    <form class="panel tm-details" id="tmForm">
+      <h2>My details</h2>
+      <p class="muted small">What scouts see at the top of your profile.</p>
+      <div class="tm-grid">
+        <label class="pf-field"><span>Name</span><input id="tmName" type="text" maxlength="60" required></label>
+        <label class="pf-field"><span>Position</span><select id="tmPos"><option value="GK">Goalkeeper</option><option value="DF">Defender</option><option value="MF">Midfielder</option><option value="FW">Forward</option></select></label>
+        <label class="pf-field"><span>Kit number</span><input id="tmKit" type="number" min="1" max="99" required></label>
+        <fieldset class="pf-seg"><legend>Preferred foot</legend>
+          <label><input type="radio" name="tmfoot" value="Right" checked><span>Right</span></label>
+          <label><input type="radio" name="tmfoot" value="Left"><span>Left</span></label>
+          <label><input type="radio" name="tmfoot" value="Both"><span>Both</span></label>
+        </fieldset>
+        <label class="pf-field"><span>Height (cm)</span><input id="tmHeight" type="number" min="140" max="220" placeholder="e.g. 181"></label>
+        <label class="pf-field tm-bio"><span>About you</span><textarea id="tmBio" rows="3" maxlength="280" placeholder="A line or two scouts read first"></textarea></label>
+      </div>
+      <div class="pf-addbar"><button type="submit">Save</button><button type="button" class="alt" id="tmUndo">Undo my edits</button></div>
+      <p class="small pf-addnote" id="tmNote" role="status"></p>
+    </form>
+    <section class="panel" aria-labelledby="tmClubHead">
+      <div class="tm-club"><div class="tm-crest" id="tmCrest" aria-hidden="true"></div>
+        <div><h2 id="tmClubHead"></h2><p class="muted small" id="tmClubLine"></p></div></div>
+      <div class="pf-two tm-two">
+        <div><h3>Squad</h3><ol class="tm-squad" id="tmSquad"></ol></div>
+        <div><h3>Results</h3><ol class="tm-results" id="tmResults"></ol>
+          <h3>League table</h3><div class="tablewrap"><table class="tm-table" id="tmTable"></table></div></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Settings (kept in this browser) -->
+  <div class="pv" data-panel="settings" hidden>
+    <div class="pv-title"><h1>Settings</h1></div>
+    <section class="panel st" aria-labelledby="stAccHead">
+      <h2 id="stAccHead">Account</h2>
+      <div class="st-row"><div><b>Email</b><p class="muted small" id="stEmail"></p></div><button type="button" class="alt" id="stEmailBtn" aria-expanded="false" aria-controls="stEmailForm">Change</button></div>
+      <form class="st-edit" id="stEmailForm" hidden>
+        <label class="pf-field"><span>New email</span><input id="stEmailInput" type="email" maxlength="120" required></label>
+        <div class="pf-addbar"><button type="submit">Save</button><button type="button" class="alt" id="stEmailCancel">Cancel</button></div>
+      </form>
+      <div class="st-row"><div><b>Admin key</b><p class="muted small" id="stKey"></p></div><button type="button" class="alt" id="stKeyBtn">Forget it</button></div>
+    </section>
+    <section class="panel st" aria-labelledby="stPrivHead">
+      <h2 id="stPrivHead">Privacy</h2>
+      <fieldset class="st-choice"><legend>Who can see your profile</legend>
+        <label><input type="radio" name="stsee" value="everyone"><span>Everyone</span></label>
+        <label><input type="radio" name="stsee" value="scouts"><span>Scouts only</span></label>
+        <label><input type="radio" name="stsee" value="me"><span>Only me</span></label>
+      </fieldset>
+      <fieldset class="st-choice"><legend>Who can message you</legend>
+        <label><input type="radio" name="stmsg" value="verified"><span>Verified scouts</span></label>
+        <label><input type="radio" name="stmsg" value="any"><span>Any scout</span></label>
+        <label><input type="radio" name="stmsg" value="nobody"><span>Nobody</span></label>
+      </fieldset>
+    </section>
+    <section class="panel st" aria-labelledby="stNotHead">
+      <h2 id="stNotHead">Notifications</h2>
+      <label class="st-toggle"><input type="checkbox" data-set="notify.message"><span>A scout messages you</span></label>
+      <label class="st-toggle"><input type="checkbox" data-set="notify.upload"><span>An upload is ready</span></label>
+      <label class="st-toggle"><input type="checkbox" data-set="notify.question"><span>Regista asks "Is this you?"</span></label>
+      <label class="st-toggle"><input type="checkbox" data-set="notify.weekly"><span>A weekly summary of your profile</span></label>
+    </section>
+    <section class="panel st" aria-labelledby="stFootHead">
+      <h2 id="stFootHead">Your footage</h2>
+      <p class="muted small">Everyone you film must agree to it, and you can change these at any time.</p>
+      <label class="st-toggle"><input type="checkbox" data-set="footage.process"><span>Let Regista's vision agents process the matches you upload</span></label>
+      <label class="st-toggle"><input type="checkbox" data-set="footage.show"><span>Show clips from your uploads on your profile</span></label>
+      <label class="st-toggle"><input type="checkbox" data-set="footage.improve"><span>Use your uploads to improve Regista's agents</span></label>
+    </section>
+    <section class="panel st st-out">
+      <button type="button" class="alt" id="stOut">Sign out</button>
+      <button type="button" class="alt" id="stReset">Reset this demo</button>
+      <p class="small muted" id="stNote" role="status"></p>
+    </section>
+    <p class="muted small me-note" id="stLocal"></p>
+  </div>
+
+  <!-- A player who cannot be loaded -->
+  <section class="missing panel" id="missing" hidden aria-labelledby="missingHead">
+    <h1 id="missingHead">No such player</h1>
+    <p id="missingText" class="muted">No player with this id has played in the Regista League.</p>
+    <p><button type="button" id="missingPick">Pick a player</button></p>
   </section>
 </main>
 
@@ -98,6 +250,8 @@
 </div>
 
 <script src="/static/shared/regista.js"></script>
+<script src="/static/shared/demo.js"></script>
+<script src="/static/player/profile-view.js" defer></script>
 <script src="/static/me/me.js" defer></script>
 </body>
 </html>

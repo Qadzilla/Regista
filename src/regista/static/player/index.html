@@ -7,6 +7,7 @@
 <meta name="description" content="One player across every match: best moments, numbers that link to the moments they came from, touch map.">
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
+<link rel="stylesheet" href="/static/shared/dashboard.css">
 <link rel="stylesheet" href="/static/player/player.css">
 </head>
 <body>
@@ -15,11 +16,11 @@
 </header>
 
 <div class="shell">
-<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" aria-current="page">Scout</a></nav>
+<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find" aria-current="true">Find players</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
 <div class="shell-main">
 
-<main id="main">
-  <p><a class="back" id="back" href="/scout">← Back to Scout</a></p>
+<main id="main" class="pf">
+  <p class="backline"><a class="back" id="back" href="/scout#find">← Back to Scout</a></p>
 
   <p class="loadingline" id="loading" role="status">Loading the profile…</p>
 
@@ -28,84 +29,12 @@
   <section class="missing panel" id="missing" hidden aria-labelledby="missingHead">
     <h1 id="missingHead">No such player</h1>
     <p id="missingText" class="muted">No player with this id has played in the Regista League.</p>
-    <p><a class="btn alt" href="/scout">Find a player in Scout</a></p>
+    <p><a class="btn alt" href="/scout#find">Find a player in Scout</a></p>
   </section>
 
   <div id="profile" hidden>
-    <section class="who" aria-labelledby="name">
-      <div class="shirt" id="shirt" aria-hidden="true"></div>
-      <div class="who-text">
-        <h1 id="name"></h1>
-        <p class="who-line" id="whoLine"></p>
-        <p class="who-facts" id="whoFacts"></p>
-      </div>
-    </section>
-    <p class="synthetic" id="synthetic">A synthetic player from Regista's generated league, the Regista League. Every number on this
-      page is counted from the league's event streams, and every one links to the moments it came from.</p>
-
-    <section id="summary" class="panel" aria-label="Summary" hidden></section>
-
-    <section class="reel panel" aria-labelledby="reelHead">
-      <div class="section-bar">
-        <h2 id="reelHead">Best moments</h2>
-      </div>
-      <div class="screen">
-        <video id="reelVideo" controls playsinline preload="none"></video>
-        <div class="cover" id="reelCover">
-          <button type="button" id="reelPlay">Play best moments</button>
-          <p class="muted small" id="reelCoverNote">The best six moments across the season, back to back.</p>
-        </div>
-        <div class="loading" id="reelLoading" role="status" hidden></div>
-      </div>
-      <div class="tagbar" id="reelTags" role="group" aria-label="Make a reel of one kind of moment"></div>
-    </section>
-
-    <section class="stats panel" aria-labelledby="statsHead">
-      <div class="section-bar">
-        <h2 id="statsHead">Numbers</h2>
-        <p class="muted small" id="statsSub"></p>
-      </div>
-      <p class="proof">Every number links to the moment it came from. Pick one to see each event behind it.</p>
-      <ul class="headline" id="headline"></ul>
-      <p><button type="button" class="link" id="tableToggle" aria-expanded="false" aria-controls="fullTable">Show every number</button></p>
-      <div class="tablewrap" id="fullTable" hidden></div>
-      <section class="evidence" id="evidence" aria-labelledby="evidenceHead" hidden>
-        <div class="evidence-bar">
-          <h3 id="evidenceHead" tabindex="-1"></h3>
-          <button type="button" class="alt" id="evidenceClose">Close</button>
-        </div>
-        <p class="muted small" id="evidenceNote"></p>
-        <ol class="evlist" id="evidenceList"></ol>
-      </section>
-    </section>
-
-    <section class="touches panel" aria-labelledby="touchHead">
-      <div class="section-bar">
-        <h2 id="touchHead">Where they play</h2>
-        <p class="muted small">Every touch, pass, carry, shot and defensive action, all matches. Attacking left to right.</p>
-      </div>
-      <div class="pitchwrap" id="touchMap"></div>
-      <p class="thirds" id="thirds"></p>
-    </section>
-
-    <section class="moments" aria-labelledby="momentsHead">
-      <div class="section-bar">
-        <h2 id="momentsHead">Moments</h2>
-        <p class="muted small" id="momentsSub"></p>
-      </div>
-      <div class="grid" id="momentGrid"></div>
-      <button type="button" class="alt more" id="momentsMore" hidden>Show more</button>
-    </section>
-
-    <section class="matches panel" aria-labelledby="matchesHead">
-      <div class="section-bar">
-        <h2 id="matchesHead">Matches</h2>
-        <p class="muted small">Open any match in the Clip view with this player picked, or read its recap told from their side.</p>
-      </div>
-      <ol class="matchlist" id="matchList"></ol>
-    </section>
-
-    <section id="addMatch" aria-label="Add a match"></section>
+    <div id="profileView"></div>
+    <section id="addMatch" class="pf-addmatch" aria-label="Add a match"></section>
   </div>
 </main>
 
@@ -117,6 +46,8 @@
 </div>
 
 <script src="/static/shared/regista.js"></script>
+<script src="/static/shared/demo.js"></script>
+<script src="/static/player/profile-view.js" defer></script>
 <script src="/static/player/player.js" defer></script>
 <script src="/static/player/add-match.js" defer></script>
 </body>

@@ -10,6 +10,8 @@ from __future__ import annotations
 import io
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -329,6 +331,20 @@ def test_the_page_never_parses_api_text_as_markup():
 @pytest.mark.parametrize("path, current", [("/", "/"), ("/scout", "/scout"), (f"/players/{GID}", "/scout"), ("/me", "/me")])
 def test_every_view_links_to_the_player_view(client, path, current):
     nav = re.search(r'<nav class="views"[^>]*>(.*?)</nav>', client.get(path).text, flags=re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', nav) == ["/", "/me", "/scout"]
-    assert re.findall(r'>([^<]+)</a>', nav) == ["Home", "Player profile", "Scout"]
-    assert f'href="{current}" aria-current="page"' in nav and nav.count("aria-current") == 1
+    views = re.sub(r'<div class="subviews".*?</div>', "", nav, flags=re.S)  # a dashboard's sections, under its view
+    assert re.findall(r'href="([^"]+)"', views) == ["/", "/me", "/scout"]
+    assert re.findall(r'>([^<]+)</a>', views) == ["Home", "Player profile", "Scout"]
+    assert re.search(rf'href="{current}"( class="parent")? aria-current="page"', views) and nav.count('aria-current="page"') == 1
+
+
+def test_upload_steps_show_worker_notes_in_plain_words():
+    """The done card shows no match id and says "answers", not "answer(s)" (run in node; skipped without it)."""
+    node = shutil.which("node")
+    if node is None:
+        pytest.skip("node is not installed")
+    src = (ME / "me.js").read_text()
+    part = src[src.index("  const ID = /"):src.index("  function steps(rec)")]
+    notes = ["13 files saved as match pv_8807d7835c", "2 answer(s) from the player (2 yes)", "1 answer(s) from the player (1 yes)"]
+    js = part + f"\nconsole.log(JSON.stringify({json.dumps(notes)}.map(plain)));"
+    out = subprocess.run([node, "-e", js], capture_output=True, text=True, timeout=30, check=True).stdout
+    assert json.loads(out) == ["13 files saved", "2 answers from the player (2 yes)", "1 answer from the player (1 yes)"]

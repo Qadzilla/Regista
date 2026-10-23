@@ -222,7 +222,7 @@ STAT_PHRASES: list[tuple[str, str, str | None]] = [
     (r"nutmeg\w*|megs", "nutmegs", None),
     (r"assists?|provider|set\w* up goals", "assists", None),
     (r"cross(?:es|er|ers|ing)?\b", "crosses", None),
-    (r"goal ?scor\w*|\bgoals?\b|scor(?:er|ers|ing|es)|finish(?:er|ers|ing)|prolific|in front of goal", "goals", None),
+    (r"goal ?scor\w*|\bgoals?\b|\bscor(?:e|es|ed|er|ers|ing)\b|finish(?:er|ers|ing)|prolific|in front of goal", "goals", None),
     (r"shoot\w*|\bshots?\b|shooters?", "shots", None),
     (r"win\w* (?:the )?ball back|ball[- ]?win\w*|recover\w*|regain\w*|win\w* (?:back )?possession", "recoveries", None),
     (r"tackl\w*", "tackles_won", None),
