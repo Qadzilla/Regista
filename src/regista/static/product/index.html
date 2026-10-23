@@ -40,21 +40,24 @@
   </section>
 
   <div class="work" id="work" hidden>
-    <div class="work-main">
-      <!-- Results: the search across every match, the compact bar on top. -->
-      <section class="resultsview" id="resultsView" aria-label="Results" hidden>
-        <div class="rbar">
-          <form class="search compact" id="barForm" role="search">
-            <label class="sr" for="rq">Search every match</label>
-            <input id="rq" type="search" autocomplete="off" maxlength="300" placeholder="Search every match">
-            <button type="submit" id="barGo">Search</button>
-          </form>
-          <div class="engine pill inline" role="radiogroup" aria-label="Who answers">
-            <label><input type="radio" name="rengine" value="rules" checked><span>Data Search</span></label>
-            <label><input type="radio" name="rengine" value="foundry"><span>Ask Microsoft Foundry</span></label>
-          </div>
+    <!-- Results: the compact bar on top, across both columns, so on narrow screens the panel comes after it, before the grid. -->
+    <div class="rtop" id="resultsTop" hidden>
+      <div class="rbar">
+        <form class="search compact" id="barForm" role="search">
+          <label class="sr" for="rq">Search every match</label>
+          <input id="rq" type="search" autocomplete="off" maxlength="300" placeholder="Search every match">
+          <button type="submit" id="barGo">Search</button>
+        </form>
+        <div class="engine pill inline" role="radiogroup" aria-label="Who answers">
+          <label><input type="radio" name="rengine" value="rules" checked><span>Data Search</span></label>
+          <label><input type="radio" name="rengine" value="foundry"><span>Ask Microsoft Foundry</span></label>
         </div>
-        <p class="searchnote" id="searchNote" hidden></p>
+      </div>
+      <p class="searchnote" id="searchNote" hidden></p>
+    </div>
+    <div class="work-main">
+      <!-- Results: the search across every match (its bar is above, in #resultsTop). -->
+      <section class="resultsview" id="resultsView" aria-label="Results" hidden>
         <div class="slot" id="resultsSlotSearch"></div>
       </section>
 
@@ -90,6 +93,7 @@
             <a class="btn alt" id="exportMoments" download>Export moments</a>
             <a class="btn ghost" id="fullMatch" target="_blank" rel="noopener">Watch the full match</a>
           </div>
+          <p class="hint fullnote" id="fullMatchNote" hidden>Watch the full match: the first view takes a few minutes.</p>
         </section>
 
         <details class="recap panel" id="recap" hidden>
@@ -116,6 +120,7 @@
       <section class="results" id="resultsSection" aria-labelledby="resultsHead">
         <div class="results-bar">
           <h2 id="resultsHead">Moments</h2>
+          <p class="sr" id="resultsStatus" role="status" aria-live="polite"></p>
           <div class="sort" role="group" aria-label="Sort">
             <button type="button" class="seg" data-sort="best" aria-pressed="true">Best first</button>
             <button type="button" class="seg" data-sort="time" aria-pressed="false">Match order</button>

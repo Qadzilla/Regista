@@ -36,6 +36,8 @@ main { padding: 16px; max-width: 1320px; margin: 0 auto; display: flex; flex-dir
 .work { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .work.with-convo { grid-template-columns: minmax(0, 1fr) 360px; }
 .work-main { min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
+/* The results' compact bar spans both columns, so the panel and the grid both sit under it (as in the sandbox). */
+.rtop { grid-column: 1 / -1; min-width: 0; display: flex; flex-direction: column; gap: var(--gap); }
 .resultsview, .matchview { display: flex; flex-direction: column; gap: var(--gap); }
 .rbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .search.compact { flex: 1 1 420px; max-width: 720px; padding: 4px; }
@@ -100,6 +102,11 @@ details.how dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
 .stage { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; padding: 12px; }
 .stage > .actions { grid-column: 1 / -1; margin-top: 0; padding-top: 0; }   /* the stage's actions in one row under the clip */
 .stage > .actions button, .stage > .actions .btn { padding: 7px 12px; font-size: 13px; white-space: nowrap; }
+@media (min-width: 761px) {   /* where the stage is narrow (beside the nav and the panel), a label wraps inside its button, never the row */
+  .stage > .actions { flex-wrap: nowrap; }
+  .stage > .actions button, .stage > .actions .btn { white-space: normal; flex: 0 1 auto; min-width: 0; text-align: center; }
+}
+.stage > .fullnote { grid-column: 1 / -1; margin-top: -8px; }   /* a long match's "first view takes a few minutes", under the row */
 .screen { position: relative; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; overflow: hidden; }
 .screen video { width: 100%; height: 100%; display: block; background: #000; }
 .screen .novideo, .screen .loading { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 0 24px; color: var(--muted); font-size: 13.5px; }
@@ -189,6 +196,7 @@ footer p { margin: 4px 0; }
 @media (max-width: 1100px) {
   .work.with-convo { grid-template-columns: minmax(0, 1fr); }
   .convo { position: static; max-height: none; order: -1; }
+  .rtop { order: -2; }   /* the results' bar stays on top; the panel comes after it, before the grid */
   .convo .log { max-height: 360px; }
 }
 

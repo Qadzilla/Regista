@@ -179,3 +179,23 @@ sideways scroll at 375 px on landing, results or match view; no console errors.
   conversation the clip is further down (the panel's log is capped at 360 px there).
 - Q11. "Find me shots from outside the box this season" is read as "any player · shot" by the server's parser (no
   distance filter); the prompt promises more than the search does. Not a page change.
+
+## Pass 2 fixes (review-a-pass2.md S1-S3, review-b-pass2.md S1-S2)
+
+Checked on a local server (REGISTA_DOTENV empty, port 8071) at 1440, 1280, 1110 and 375 px; full suite 605 passed.
+
+- Results bar on narrow screens (A-S1, B-S1). The compact bar and `#searchNote` moved out of `#resultsView` into
+  `#resultsTop`, the first child of `.work`, spanning both columns (index.html, `.rtop` in product.css; shown with the
+  results in `showView`, app.js). At <= 1100 px `.rtop { order: -2 }` keeps it above the panel. Measured at 375 px with
+  Ask Microsoft Foundry: bar 213 px, panel 327 px, grid 1049 px. At 1440 px the bar spans the top and the panel sits on
+  the right under it, as in the sandbox. DOM order is now bar, grid, panel (the panel was already last).
+- Stage actions in one row (A-S2). The button says "Watch the full match"; on matches over 10 minutes a muted line under
+  the row says "Watch the full match: the first view takes a few minutes." (`#fullMatchNote`, linked with
+  aria-describedby; hidden with the link for Cosmos DB matches). Above 760 px the row no longer wraps: a label wraps
+  inside its button where the stage is narrow. rl_r08_bro_fai: one row at 1440, 1280 (row 524 px of 626) and 1110 (labels
+  on two lines). At 375 px the row still wraps, as before (adaptation I-098, a yes/no for Zaid).
+- Step counts (A-S3). `aggregate()` counts distinct matches per step and the runs separately; the details now read
+  "librarian.search_clips 38 ms · 53 runs in 34 matches" (and "· 34 matches" when each match ran it once).
+- Data Search results announced (B-S2). `#resultsStatus` (visually hidden, role="status") in the results heading row is
+  set to the reply ("21 moments in 10 matches · any player · header. Best: …"), the error, or "no matches", only while the
+  conversation panel (the other live region) is hidden.

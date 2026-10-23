@@ -135,6 +135,7 @@
     $('landing').hidden = v !== 'landing';
     $('work').hidden = v === 'landing';
     $('resultsView').hidden = v !== 'results';
+    $('resultsTop').hidden = v !== 'results';
     $('matchView').hidden = v !== 'match';
     const slot = v === 'results' ? $('resultsSlotSearch') : $('resultsSlotMatch');
     if ($('resultsSection').parentElement !== slot) slot.appendChild($('resultsSection'));
@@ -317,9 +318,12 @@
     fillPlayers(wanted || listed?.clips_for);
     $('fullMatch').href = matchUrl('/video.mp4');
     $('fullMatch').hidden = state.info.source === 'cosmos';
-    // A league match runs 30 minutes: its first full view renders the whole video, which takes minutes, so the link says so.
+    // A league match runs 30 minutes: its first full view renders the whole video, which takes minutes, so a note under
+    // the stage's actions says so (the button keeps a short label, so the four actions stay on one row).
     const long = (state.info.duration_s || 0) > 600;
-    $('fullMatch').textContent = long ? 'Watch the full match (the first view takes a few minutes)' : 'Watch the full match';
+    $('fullMatch').textContent = 'Watch the full match';
+    $('fullMatchNote').hidden = !long || $('fullMatch').hidden;
+    if (long) $('fullMatch').setAttribute('aria-describedby', 'fullMatchNote'); else $('fullMatch').removeAttribute('aria-describedby');
     report.loaded = null; $('report').hidden = true; $('reportToggle').setAttribute('aria-expanded', 'false');
     await newConversation();
     layoutPanel();  // a match read from Cosmos DB cannot answer questions: the panel's box says so
@@ -539,6 +543,7 @@
     if (!list.length) {
       wait.remove(); logChanged();
       addMsg('bot err', esc('There are no matches on this server to search.'));
+      announce('There are no matches on this server to search.');
       busy(false);
       return null;
     }
@@ -572,6 +577,7 @@
       if (message !== 'more') { search.results = []; search.total = 0; }
       search.wayout = offline(e) || e?.status >= 500 ? { label: 'Retry', go: () => searchEvery(message, { withStates: before, only }) } : null;
       render(esc(errorText(e, 'Regista could not search the matches')));
+      announce(errorText(e, 'Regista could not search the matches'));
       busy(false);
       if (!quiet) $(focus || 'rq')?.focus();
       return null;
@@ -673,11 +679,22 @@
         ? `Nothing for ${esc(understood || 'that')} in any match. Filters from earlier questions still apply: ${search.wayout ? 'use the button below' : 'change the question'}, or say "start over".`
         : 'Nothing matched that question in any match. Try a player\'s surname, a kit number, or an action like "nutmeg" or "shot".');
     if (state.view !== 'results') return out;  // a card was opened meanwhile: stay with it
+    announce(out.reply);
     if (message !== 'more') window.scrollTo(0, 0);
     if (search.sort === 'time' && intent === 'search') await fillEveryMatchOrder(kept);
     if (search.results.length && (oks.some(o => (o.out.reel || []).length) || /\b(reel|montage|compilation)\b/i.test(message))) await reelFromSearch(kept);
     if (!quiet && state.view === 'results') $(focus || 'rq')?.focus();
     return out;
+  }
+
+  // The results' own polite status (#resultsStatus, visually hidden): says what a search found when the conversation
+  // panel, whose log is the other live region, is hidden (Data Search on the results). Cleared first, so the same
+  // words twice are read twice.
+  function announce(text) {
+    const el = $('resultsStatus');
+    el.textContent = '';
+    if (!$('convo').hidden || !text) return;
+    setTimeout(() => { if ($('convo').hidden) el.textContent = text; }, 60);
   }
 
   function resetSearch() {
@@ -686,16 +703,17 @@
     $('searchNote').hidden = true;
   }
 
-  // Each match's own steps, added up: one line per step name, with how many matches ran it and their time together.
+  // Each match's own steps, added up: one line per step name, with how many matches ran it (each counted once), how
+  // many times it ran in all (a match can run a step twice) and their time together.
   function aggregate(oks) {
     const byName = new Map();
     for (const o of oks) for (const s of o.out.trace || []) {
       const k = [s.kind, s.name, s.server || ''].join('|');  // a key, never shown
-      const a = byName.get(k) || { kind: s.kind, name: s.name, server: s.server, ms: 0, n: 0 };
-      a.ms += Number(s.ms) || 0; a.n += 1;
+      const a = byName.get(k) || { kind: s.kind, name: s.name, server: s.server, ms: 0, runs: 0, mids: new Set() };
+      a.ms += Number(s.ms) || 0; a.runs += 1; a.mids.add(o.m.id);
       byName.set(k, a);
     }
-    return [...byName.values()];
+    return [...byName.values()].map(({ mids, ...a }) => ({ ...a, n: mids.size }));
   }
 
   // What the results do not cover: matches read from Cosmos DB without their event stream, matches that did not answer,
@@ -872,6 +890,14 @@
     return `<span class="fallback">${esc(why)}, so Regista's rules wrote this reply.</span>`;
   }
 
+  // How many matches ran a step added up across every match: " · 34 matches", or " · 53 runs in 34 matches" when some
+  // ran it more than once. A step of one match's own answer has no count.
+  function stepCount(s) {
+    if (!s.n) return '';
+    const where = plural(s.n, 'match', 'matches');
+    return s.runs > s.n ? ` · ${s.runs} runs in ${where}` : s.n > 1 ? ` · ${where}` : '';
+  }
+
   // "How Regista answered": one line per answer (who answered, how many steps); the steps in plain words open on
   // demand, and the exact step names and times one click further.
   function howAnswered(out, eng) {
@@ -885,7 +911,7 @@
     if (trace.length) {
       details = `<ol class="steps">${trace.map(s => `<li><span class="kind">${esc(s.kind)}</span><code>${esc(s.name)}</code>`
         + `${s.server ? `<span class="server">${esc(SERVERS[s.server] || s.server)}</span>` : ''}`
-        + `<span class="ms">${esc(ms(s.ms))}${s.n > 1 ? esc(` · ${s.n} matches`) : ''}</span></li>`).join('')}</ol>`;
+        + `<span class="ms">${esc(ms(s.ms))}${esc(stepCount(s))}</span></li>`).join('')}</ol>`;
     } else if ((out.tools_used || []).length) {
       details = `<div class="tags">${out.tools_used.map(t => `<span class="tool">${esc(t)}</span>`).join(' ')}</div>`;
     }
