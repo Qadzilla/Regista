@@ -27,6 +27,8 @@ cloud = [
   "azure-monitor-opentelemetry>=1.8.10,<2",
   "azure-storage-blob>=12.20,<13",
   "azure-storage-queue>=12.10,<13",
+  "deltalake>=1.0,<2",  # Microsoft Fabric: the season as Delta tables in OneLake (regista.cloud.fabric)
+  "pyarrow>=15",
 ]
 vision = [
   "opencv-python-headless>=4.10",
