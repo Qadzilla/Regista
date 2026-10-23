@@ -426,7 +426,13 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-23 (afternoon).** The redesigned Home (PR #32, merge 7afd88b) is live on revision
+**As of 2026-10-23 (late afternoon).** Home's "Running on" row is live (PR #33, merge 73853c4, revision
+`regista-api--d1023164500`): the official icons of the eight services, icon first with the full name under it,
+built from `/api/health` (which now also reports `container_apps` and `storage`); it replaced the footer's "Built on"
+line. Icons: Azure Architecture Center V24, the MCP project's mark, the microsoft/agent-framework icon (Zaid's call on
+Microsoft's icon terms, which name diagrams and documentation). Checked live: all eight tiles, no console errors. 620 tests pass.
+
+**Earlier, 2026-10-23 (afternoon).** The redesigned Home (PR #32, merge 7afd88b) is live on revision
 `regista-api--d1023155334`, deployed by CI: a left views panel on every page; Home is logo plus one search box across
 every match (Data Search or Ask Microsoft Foundry); results grid with each card's match line; the match view (title line
 with the Match and Player pickers, timeline, stage, folded recap); Back and Forward between landing, results and match.
