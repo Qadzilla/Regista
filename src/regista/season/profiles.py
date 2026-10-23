@@ -28,7 +28,7 @@ from typing import Any
 
 from regista.schema import iter_jsonl
 from regista.season.build import materialise
-from regista.season.league import club_by_id, load_league, people
+from regista.season.league import bio, club_by_id, load_league, people
 from regista.synth.generator import PITCH_L, PITCH_W
 
 Record = dict[str, Any]
@@ -269,9 +269,13 @@ def _sort_key(p: Record, sort: str) -> Any:
     raise ValueError(f"unknown sort {sort!r}")
 
 
+CARD_BIO = ("age", "height_cm", "preferred_foot", "nationality")  # the public bio on a card (never the hidden ratings)
+
+
 def card(p: Record) -> Record:
     """What a scout list shows: who, where, how much, and the headline rates."""
-    keep = ("global_id", "name", "club_id", "club", "short_name", "kit", "kit_number", "position", "appearances", "minutes")
+    keep = ("global_id", "name", "club_id", "club", "short_name", "kit", "kit_number", "position", "appearances", "minutes",
+            *CARD_BIO)
     return {**{k: p[k] for k in keep}, "headline": {k: {"label": STATS[k][0], "count": p["counts"][k], "per90": p["per90"][k],
                                                         "percentile": p["percentiles"].get(k)} for k in HEADLINE},
             "ratios": p["ratios"], "best_moment": p["moments"][0] if p["moments"] else None}
@@ -280,7 +284,7 @@ def card(p: Record) -> Record:
 def _empty(person: Record) -> Record:
     return {"global_id": person["global_id"], "name": person["name"], "kit_number": person["kit_number"],
             "position": person["position"], "starter": person["starter"], "club_id": person["club_id"], "club": person["club"],
-            "short_name": person["short_name"], "kit": person["kit"],
+            "short_name": person["short_name"], "kit": person["kit"], **bio(person),
             "appearances": 0, "minutes": 0.0, "matches": [], "counts": {k: 0 for k in STATS},
             "evidence": {k: [] for k in STATS}, "grid": [[0] * GRID_X for _ in range(GRID_Y)], "moments": []}
 

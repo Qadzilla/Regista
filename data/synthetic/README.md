@@ -128,6 +128,53 @@ Added in 0.1.1, both optional:
 | `prior_watchability` | The `rules-v0` score. When another scorer set `watchability` (the watchability model learned from human verdicts, or a Foundry model), the rules score is kept here; when rules-v0 alone scored the clip, the two are equal. |
 | `review` | Why the Label agent wants a human to look at this clip, when it does: the prior and the model disagree by 0.30 or more, or `watchability` sits on the keep/drop boundary (0.40–0.60). Absent when the clip is not flagged. The workflow's review step pauses on these clips (`regista.feedback.needs_review`). |
 
+## League players: bio and hidden ratings
+
+Added 2026-10-23 (attributes version 1). Every player in the Regista League (`data/season/league.json`, 6 clubs x 18) has
+a public **bio** and hidden **ratings**. All of it is synthetic: invented people, no real player's name or biography.
+`regista.season.league.assign_attributes` draws them from their own seeded stream (`random.Random(league seed + 1000003)`,
+recorded under `attributes.seed` at the top of the file), so names and fixtures are the same as before attributes were
+added, and `python -m regista.season new` writes the same file again.
+
+**Role.** Each squad entry has `role`, the 4-3-3 slot behind its kit number (the formation never changes): `GK` 1, 13 ·
+`FB` full-back 2, 3, 22 · `CB` centre-back 4, 5, 15 · `DM` holding midfielder 6, 16 · `CM` central midfielder 8, 14 ·
+`AM` attacking midfielder 10 · `W` winger 7, 11, 17 · `ST` striker 9, 20 (`regista.season.league.ROLE_OF_KIT`).
+
+**Bio (public: the API and pages show it).**
+
+| Field | Scale |
+|---|---|
+| `date_of_birth` | ISO date. Age at season start (1 August 2026, FBref's convention for an August-May league) is 17-35; keepers and centre-backs a little older on average. The API shows `age` computed from it (`regista.season.league.age_on`) |
+| `height_cm` | whole centimetres, 163-201; mean by role GK 190, CB 188, ST 183, DM 182, CM 179, FB 178, AM 176, W 175 (chosen to look plausible, not calibrated to a published source) |
+| `preferred_foot` | `right`, `left` or `both`; about 75 / 20 / 5% overall, left-backs (3) and left wingers (11) more often left-footed |
+| `nationality` | country name, a Premier League-like spread (about a quarter to a third English, then France, Spain, Brazil, Portugal, the Netherlands and others); weights in `NATIONALITIES` |
+
+**Ratings (hidden: they drive the generator and are never served).** Under `attributes` on each squad entry. Scouts must
+judge players from what they do, so `regista.season.league.people()` drops `attributes`, and no API, MCP tool or page
+returns them (tests/test_attributes.py checks every public player endpoint and the player tools). They are readable in
+this repository's league file, which is what makes the league regenerate exactly.
+
+| Field | Who | Scale |
+|---|---|---|
+| `finishing`, `passing`, `vision` (chance creation), `dribbling`, `defending` (tackling and positioning), `aerial`, `stamina` | everyone | integer 1-99. Absolute across the league: a striker's finishing is about 75 on average, a centre-back's about 35 |
+| `shot_stopping`, `handling`, `distribution` | goalkeepers only | integer 1-99 |
+| `top_speed_kmh` | everyone | km/h, one decimal. Outfielders 29.4-37.4, goalkeepers 23.6-32.7: the Premier League 2024-25 range (slowest outfielder 29.4, fastest just over 37; keepers 23.6 to 32.7; Opta via The Analyst, `OA-PHYS` in docs/scout-terminal/industry-metrics.md) |
+| `acceleration_ms2` | everyone | peak acceleration in m/s², two decimals. Outfielders 3.0-5.2, keepers 2.6-4.2; anchored on Wyscout's "high acceleration" threshold of 3 m/s² (industry-metrics row 176); the spread is our choice |
+
+How they are drawn: each role has a mean per rating (`ROLE_MEANS`: centre-backs defend and win headers, wingers dribble
+and are fastest, holding midfielders defend and pass, strikers finish, attacking midfielders see passes). A player's
+rating is the role mean plus a spread of 7 points (SD), part shared quality (starters a little above the bench) and part
+the rating's own draw; aerial follows height, stamina and top speed fade after 30. Drawn ratings stop at 95. Then one
+standout per pair in `STANDOUTS` (the best starting keeper at shot stopping, centre-back at aerial and at defending,
+full-back at stamina, holding midfielder at defending, central midfielder at passing, attacking midfielder at vision,
+winger at dribbling, striker at aerial) is lifted 10 clear of the next best starter (at most 97), and **Femi Toure
+(`pl_bro_09`) is the best finisher among forwards** (93; the next best forward has 85), decided by Zaid. No match is
+rigged: what a rating does is the generator's business, and it applies to every player the same way.
+
+**For the generator.** `regista.season.league.player_attributes(league)` gives `{global_id: ratings}`; the role is on
+each squad entry. Matches generated without ratings (every committed sample, the vision seeds, the demo and realistic
+profiles) must stay byte-identical: tests/test_backcompat.py pins their hashes from `main`.
+
 ## Azure mapping
 
 What runs today (see `docs/architecture.md`): with `--cloud`, and on uploads to the live app, the Persist agent upserts `match`, `clip`, and `label` records into Cosmos DB (database `regista`, containers `matches`, `clips`, `labels`, partition `match_id`), and the indexer role writes every labelled clip into the Azure AI Search index `regista-clips`. The API service keeps human `annotation` records and the learned watchability model in the Cosmos DB container `annotations`. The rest of the event stream (`camera_segment`, `possession`, `event`, `appearance`, `track`) is not stored in Azure.

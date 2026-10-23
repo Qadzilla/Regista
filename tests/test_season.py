@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from regista.schema import iter_jsonl, validate_match_dir
 from regista.season.build import ensure_tracks, fingerprint, is_current, materialise
-from regista.season.league import generate_kwargs, new_league, people, save_league
+from regista.season.league import age_on, generate_kwargs, new_league, people, save_league
 from regista.season.profiles import STATS, Season
 from regista.season_api import MAX_PROFILE_REEL
 from regista.synth.generator import generate
@@ -167,7 +167,10 @@ def test_season_lists_each_clubs_squad_from_the_league_file(client, built):
     clubs = client.get("/api/season").json()["clubs"]
     assert [c["club_id"] for c in clubs] == [c["club_id"] for c in small["clubs"]]
     for got, want in zip(clubs, small["clubs"]):
-        assert got["squad"] == [{k: p[k] for k in ("global_id", "name", "kit_number", "position", "starter")} for p in want["squad"]]
+        # ... plus the public bio (age at season start computed from the date of birth), never the hidden ratings
+        assert got["squad"] == [{**{k: p[k] for k in ("global_id", "name", "kit_number", "position", "starter", "date_of_birth",
+                                                       "height_cm", "preferred_foot", "nationality")}, "age": age_on(p["date_of_birth"])}
+                                for p in want["squad"]]
         assert len(got["squad"]) == 18 and all(p["global_id"].startswith("pl_") for p in got["squad"])
         assert set(got) == {"club_id", "name", "short_name", "kit", "ground", "squad"}
 

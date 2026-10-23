@@ -24,7 +24,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from regista.season.profiles import HEADLINE, RATIOS, STATS, Season, card
+from regista.season.profiles import CARD_BIO, HEADLINE, RATIOS, STATS, Season, card
 
 Record = dict[str, Any]
 
@@ -181,7 +181,9 @@ def get_profile(season: Season, who: str, *, moments: int = 5) -> Record:
     stats = {k: stat_of(p, k, rank_in_position(season, p, k)) for k in [*STATS, *RATIOS]}
     summary = summary_for(season, p)
     return {"global_id": p["global_id"], "name": p["name"], "club": p["club"], "position": p["position"], "kit_number": p["kit_number"],
-            "appearances": p["appearances"], "minutes": p["minutes"], "stats": stats,
+            "appearances": p["appearances"], "minutes": p["minutes"],
+            "bio": {k: p.get(k) for k in CARD_BIO},  # synthetic: age at 1 August 2026, height, foot, nationality
+            "stats": stats,
             "best_moments": [{k: m[k] for k in ("match_id", "round", "clip_id", "title", "tags", "watchability", "video_url")}
                              for m in p["moments"][:moments]],
             "matches": [{k: m[k] for k in ("round", "opponent", "home", "score")} for m in p["matches"]],
