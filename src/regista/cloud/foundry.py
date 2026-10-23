@@ -12,6 +12,8 @@ Both agents keep the exact role, inputs, outputs, and state keys of their rule-b
   the deterministic results are kept alongside so the UI can still show clips.
 - ``foundry_scout_answer`` is the Scout agent (Scout view): an Agent Framework agent with Regista's MCP server
   limited to the read-only player tools (``search_players``, ``get_profile``, ``compare_players``).
+- ``foundry_recap_text`` is the Recap agent: it writes a match recap from the facts ``regista.recap`` reads, every
+  sentence citing them; ``regista.recap.check_written`` keeps only what holds. ``FoundryRecapAgent`` is its workflow role.
 
 Credentials: ``DefaultAzureCredential`` (az login locally, managed identity in Container Apps).
 Set FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_MODEL; see ``regista.cloud.config``.
@@ -34,6 +36,7 @@ from regista.clips import REASON_TAGS, TAG_WEIGHTS, StreamIndex, label_clips, ma
 from regista.cloud.config import CloudConfig
 from regista.conversation import pick, timed_step
 from regista.librarian import search_clips
+from regista.recap import RecapAgent
 
 Record = dict[str, Any]
 Runner = Callable[[str, str], Awaitable[str]]  # (instructions, prompt) -> model text
@@ -128,7 +131,7 @@ def azure_mcp_tool(cloud: CloudConfig, namespaces: tuple[str, ...] | None = None
 
 
 REGISTA_MCP_TOOLS = ("search_clips", "search_library", "list_matches", "derive_clips", "validate_stream", "render_clip",
-                     "search_players", "get_profile", "compare_players")
+                     "search_players", "get_profile", "compare_players", "match_recap")
 
 
 def tool_server(name: str) -> str | None:
@@ -504,3 +507,44 @@ async def foundry_scout_answer(cloud: CloudConfig, question: str, understood: st
                   f"tools you hold (offer nothing else): {', '.join(allowed)}")
         result = await agent.run(prompt, tools=[mcp])
         return getattr(result, "text", None) or str(result), tool_calls(result)
+
+
+# ---------------------------------------------------------------------------- the Recap agent (match recaps)
+
+async def foundry_recap_text(cloud: CloudConfig, prompt: str) -> str:
+    """The Recap agent's recap as JSON text from a Foundry model (Agent Framework), written from the facts in ``prompt``
+    (``regista.recap.model_prompt``). No tools: everything it may say is in the facts, and every sentence cites them."""
+    from agent_framework import Agent
+    from agent_framework.foundry import FoundryChatClient
+    from azure.identity.aio import DefaultAzureCredential
+
+    from regista.recap import RECAP_INSTRUCTIONS
+
+    async with DefaultAzureCredential() as credential:
+        client = FoundryChatClient(project_endpoint=cloud.foundry_project_endpoint, model=cloud.foundry_model, credential=credential)
+        agent = Agent(client=client, name="regista-recap", instructions=RECAP_INSTRUCTIONS,
+                      default_options={"response_format": {"type": "json_object"}})
+        result = await agent.run(prompt)
+        return getattr(result, "text", None) or str(result)
+
+
+@dataclass
+class FoundryRecapAgent(RecapAgent):
+    """RecapAgent whose recap a Foundry model writes (``foundry_recap_text``), checked sentence by sentence; the rules
+    recap is the fallback, and ``answered_by`` in recap.json says which wrote it."""
+
+    description: str = ("Writes the match recap with a Microsoft Foundry model (Agent Framework) from the facts of the stream; every "
+                        "sentence must cite a clip or an event and use only the facts' numbers; rules recap as the fallback.")
+    engine: str = "foundry"
+    cloud: CloudConfig | None = None
+
+    def handle(self, state: State) -> State:
+        if self.writer is None:
+            cloud = self.cloud or CloudConfig.from_env()
+            if cloud.foundry_enabled:
+                def write(prompt: str) -> str:
+                    return run_sync(foundry_recap_text(cloud, prompt))
+
+                write.answered_by = f"foundry:{cloud.foundry_model}"  # type: ignore[attr-defined]
+                self.writer = write
+        return super().handle(state)

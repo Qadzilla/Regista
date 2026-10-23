@@ -200,7 +200,11 @@ src/regista/clips.py         clip rule + first labeller (watchability, tags, exp
 src/regista/validate.py      CLI validator
 src/regista/librarian.py     the Librarian: plain-English clip search (player, tags, minutes, replays), no cloud
 src/regista/conversation.py  the conversational Librarian (plan step 7): follow-ups merge into the query so far; chat_turn; /chat
-src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches
+src/regista/recap.py         the match recap (§2.7): facts with refs from the stream, rules or Foundry sentences each citing a clip or
+                             event (Foundry's checked: refs, numbers, jargon), the recap reel; RecapAgent (workflow step, recap.json);
+                             GET /api/matches/{id}/recap?player=&engine=; MCP tool match_recap; the Clip view's Recap panel
+src/regista/mcp_server.py    MCP server exposing search_clips, search_library, derive_clips, validate_stream, render_clip, list_matches,
+                             match_recap, and the player tools
 src/regista/season/          the Regista League (Scout view data): league.py (6 clubs, squads with global player ids, double round
                              robin, seeds; committed as data/season/league.json), build.py (regenerates each match folder on demand,
                              tracks only when video needs them), profiles.py (per-90 rates, percentiles, touch map, moments, evidence)
@@ -279,6 +283,7 @@ python3 -m regista.validate data/synthetic/sample/syn_0294
 python3 -m regista.render data/synthetic/sample/syn_0294 --out docs/demo/syn_0294.mp4 --frames-dir docs/demo/syn_0294_frames
 python3 -m regista.render.clips data/synthetic/sample/syn_0294 --player t_home_09 --out docs/demo/clips_t_home_09
 python3 -m regista.librarian data/synthetic/sample/syn_0294 "find me Castellanos doing a nutmeg"
+python3 -m regista.recap data/synthetic/sample/syn_0294 --player t_home_09 [--engine foundry]   # the match recap
 python3 -m regista.mcp_server --list-tools        # or without the flag: stdio MCP server for any MCP host
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
 python3 -m regista.season build && python3 -m regista.season table && python3 -m regista.season players --position FW --sort take_ons_won

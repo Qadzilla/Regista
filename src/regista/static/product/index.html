@@ -73,6 +73,23 @@
     </div>
   </section>
 
+  <section class="recap panel" id="recap" aria-labelledby="recapHead" hidden>
+    <div class="recap-bar">
+      <h2 id="recapHead">Recap</h2>
+      <div class="engine" role="radiogroup" aria-label="Who writes the recap">
+        <label><input type="radio" name="recapEngine" value="rules" checked><span>Instant</span></label>
+        <label><input type="radio" name="recapEngine" value="foundry"><span>Foundry</span></label>
+      </div>
+    </div>
+    <p class="hint" id="recapWho"></p>
+    <div class="recap-body" id="recapBody" aria-live="polite"></div>
+    <p class="hint" id="recapBy"></p>
+    <div class="actions">
+      <button id="recapReel" type="button">Play recap reel</button>
+      <a class="btn alt" id="recapReelDl" download>Download recap reel</a>
+    </div>
+  </section>
+
   <section class="results" aria-labelledby="resultsHead">
     <div class="results-bar">
       <h2 id="resultsHead">Moments</h2>
@@ -128,6 +145,7 @@
     <li><b>Clip</b> cuts on-ball moments, replays and highlights.</li>
     <li><b>Label</b> names each moment, scores it and says why.</li>
     <li><b>Review</b> asks a person about the labels it is unsure of.</li>
+    <li><b>Recap</b> writes the match recap: every sentence points at the moment it comes from.</li>
     <li><b>Persist</b> stores clips and labels.</li>
     <li><b>Indexer</b> adds them to the search index. <em>only where Azure AI Search is configured</em></li>
     <li><b>Librarian</b> answers questions over the labelled clips.</li>

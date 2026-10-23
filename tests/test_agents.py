@@ -35,7 +35,7 @@ def test_pipeline_runs_end_to_end_with_handoffs(match_dir):
     orch = Orchestrator(default_agents(), match_dir / "agents")
     result = orch.run({"match_dir": str(match_dir), "player_ids": [PLAYER], "queries": [f"find me {_surname(match_dir)} doing a nutmeg"]})
     assert result.ok, result.statuses
-    assert [r["agent"] for r in result.trace] == ["ingest", "validator", "possession", "clip", "label", "persist", "librarian"]
+    assert [r["agent"] for r in result.trace] == ["ingest", "validator", "possession", "clip", "label", "recap", "persist", "librarian"]
     assert all(r["status"] == "ok" for r in result.trace)
     # Shared state: each role's outputs are the next role's inputs.
     assert result.state["on_ball"][PLAYER] and result.state["clips"][PLAYER] and result.state["labels"][PLAYER]
