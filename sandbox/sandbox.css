@@ -2,7 +2,7 @@
    src/regista/static/shared/regista.css and product/product.css. Nothing here is served by the app. */
 :root {
   --bg: #0c0e14; --panel: #161a24; --line: #262c3a; --text: #f3f4f6; --muted: #9aa3b5;
-  --accent: #ffcd28;
+  --accent: #ffcd28; --radius: 10px;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -63,19 +63,26 @@ main { min-width: 0; }
 .engine.inline { margin: 0; }
 .rbody { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
 .rbody.with-foundry { grid-template-columns: minmax(0, 1fr) 360px; }
-.rcount { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
-.rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
-.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; }
-.card:hover { border-color: var(--muted); }
-.thumb { position: relative; aspect-ratio: 16 / 9; background: #13261b; display: flex; align-items: center; justify-content: center; color: #3ccf7a; font-size: 22px; }
-.kind { position: absolute; left: 8px; top: 8px; font-size: 11px; font-weight: 700; letter-spacing: .04em; padding: 2px 7px; border-radius: 4px; color: #111; }
-.k-on_ball_main { background: var(--accent); } .k-replay_appearance { background: #d62028; color: #fff; }
-.k-highlight_appearance { background: #4aa8ff; } .k-closeup_appearance { background: #c18cff; }
-.cbody { padding: 9px 11px 11px; }
-.ctitle { font-weight: 600; font-size: 13.5px; line-height: 1.3; }
-.cmeta { color: var(--muted); font-size: 12px; margin-top: 3px; }
-.ctags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 7px; }
-.ctags span { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
+.rcount { margin: 0 0 12px; font-size: 16px; font-weight: 600; }
+.rcount .muted { color: var(--muted); font-weight: 400; }
+
+/* The clip grid, copied exactly from the app (src/regista/static/product/product.css). */
+.rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 14px; }
+.card { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; padding: 0;
+        display: flex; flex-direction: column; text-align: left; font: inherit; font-weight: 400; cursor: pointer; }
+.card:hover { border-color: #3a4256; }
+.card .thumb { position: relative; display: block; aspect-ratio: 16 / 9; background: #000; }
+.card .prep { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-size: 12.5px; pointer-events: none; }
+.card .body { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 6px; }
+.card .title { font-weight: 700; overflow-wrap: anywhere; }
+.reason { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.reason.replay { color: #ff6b70; }
+.bar { height: 5px; background: #2b3140; border-radius: 3px; overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--accent); }
+.tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.tags span { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge { font-size: 11px; font-weight: 600; border-radius: 4px; padding: 2px 7px; background: #1d2a44; color: #9cc3ff; }
 .foundry { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: flex; flex-direction: column;
            position: sticky; top: 68px; max-height: calc(100vh - 84px); }
 .fhead { display: flex; align-items: center; gap: 8px; padding: 11px 14px; border-bottom: 1px solid var(--line); font-weight: 600; }

@@ -42,11 +42,15 @@
   // ---- results. The sandbox has no backend: results.json holds real result sets from the Regista League for the six
   // prompts, and a typed search is matched to the nearest of them by its words.
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  // Bookkeeping tags the app hides from people (as regista.conversation's INTERNAL_TAGS).
-  const HIDDEN = new Set(['possession_change', 'throw_in', 'corner', 'kick_off', 'goal_kick', 'free_kick', 'period_start', 'period_end', 'replay_appearance', 'highlight_appearance', 'closeup_appearance']);
-  const KIND = { on_ball_main: 'ON THE BALL', replay_appearance: 'REPLAY', highlight_appearance: 'HIGHLIGHT', closeup_appearance: 'CLOSE-UP' };
-  const WHAT = {
-    'Find me shots from outside the box this season': ['shots from outside the box', 'shots from more than 18 metres out, on the ball'],
+  // The card, exactly as the app draws it (src/regista/static/product/app.js render()): the same labels, tags it hides,
+  // time format and badge. The sandbox has no video, so the preview frame stays empty.
+  const INTERNAL = /_appearance$|_against$|^(on_ball_main|touch|possession_change|kick_off|period_start|period_end)$/;
+  const REASONS = { on_ball_main: 'On the ball', replay_appearance: 'Replay', highlight_appearance: 'Highlight', closeup_appearance: 'Closeup' };
+  const TAGS = { take_on: 'Take-on', kick_off: 'Kick-off', skill_move: 'Skill move', ball_won: 'Ball won', key_pass: 'Key pass' };
+  const words = (t) => { const s = String(t ?? '').replace(/_/g, ' '); return s.charAt(0).toUpperCase() + s.slice(1); };
+  const tagLabel = (t) => TAGS[t] || words(t);
+  const fmtTime = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+  const WHAT = {    'Find me shots from outside the box this season': ['shots from outside the box', 'shots from more than 18 metres out, on the ball'],
     'Show me every header this season': ['headers', 'shots with the head'],
     'Find me all the nutmegs': ['nutmegs', 'every nutmeg, with its replays and highlights'],
     'Show me take-ons in the final third': ['take-ons won in the final third', 'successful take-ons near either goal'],
@@ -64,10 +68,18 @@
     return names[k ? k[1] : 2];
   }
   function card(m) {
-    const tags = m.tags.filter(t => !HIDDEN.has(t) && !t.endsWith('_against')).slice(0, 4).map(t => `<span>${esc(t.replace(/_/g, ' '))}</span>`).join('');
-    return `<div class="card"><div class="thumb"><span class="kind k-${esc(m.kind)}">${KIND[m.kind] || ''}</span>&#9654;</div>
-      <div class="cbody"><div class="ctitle">${esc(m.title)}</div><div class="cmeta">Round ${m.round} · ${esc(m.home)} v ${esc(m.away)}</div>
-      <div class="ctags">${tags}</div></div></div>`;
+    const tags = (m.tags || []).filter(t => !INTERNAL.test(t)).map(t => `<span>${esc(tagLabel(t))}</span>`).join('');
+    const badge = String(m.model || '').startsWith('foundry:') ? '<span class="badges"><span class="badge">Labelled by Microsoft Foundry</span></span>' : '';
+    return `<button type="button" class="card" aria-label="Play ${esc(m.title)}">
+        <span class="thumb"><span class="prep"></span></span>
+        <span class="body">
+          <span class="reason ${m.kind === 'replay_appearance' ? 'replay' : ''}">${esc(REASONS[m.kind] || words(m.kind))} · ${esc(fmtTime(m.t || 0))}</span>
+          <span class="title">${esc(m.title)}</span>
+          <span class="bar"><i style="width:${Math.round((m.watch || 0) * 100)}%"></i></span>
+          <span class="tags">${tags}</span>
+          ${badge}
+        </span>
+      </button>`;
   }
   function foundryAnswer(q, key, set) {
     const [what, understood] = WHAT[key], best = set.moments[0];
@@ -86,7 +98,7 @@
     const key = pick(q), set = data[key];
     document.getElementById('rq').value = q;
     document.querySelector(`input[name=rengine][value=${engine}]`).checked = true;
-    document.getElementById('rcount').textContent = `${set.total} moments` + (set.total > set.moments.length ? ` · showing the best ${set.moments.length}` : '');
+    document.getElementById('rcount').innerHTML = `${set.total} moments` + (set.total > set.moments.length ? ` <span class="muted">· the best ${set.moments.length}</span>` : '');
     document.getElementById('rgrid').innerHTML = set.moments.map(card).join('');
     const f = engine === 'foundry';
     document.getElementById('foundry').hidden = !f;

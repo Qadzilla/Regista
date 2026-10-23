@@ -13,11 +13,15 @@
 "kind": "on_ball_main",
 "title": "Yusuf Tanaka (9): goal at 56'",
 "tags": [
+"touch",
 "shot",
 "goal",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1521.11,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -30,10 +34,14 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): goal at 8'",
 "tags": [
+"touch",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 462.24,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r03_fai_bro",
@@ -46,12 +54,16 @@
 "kind": "on_ball_main",
 "title": "Gael Valente (6): goal at 3'",
 "tags": [
+"touch",
 "pass",
 "carry",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 138.36,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_cal_ash",
@@ -64,10 +76,14 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): goal at 10'",
 "tags": [
+"touch",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 555.35,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_fai_ash",
@@ -80,13 +96,17 @@
 "kind": "on_ball_main",
 "title": "Farid Mensah (7): goal at 4'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "cross",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 172.6,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -99,10 +119,14 @@
 "kind": "on_ball_main",
 "title": "Leon Whitfield (11): goal at 54'",
 "tags": [
+"touch",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1428.06,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -115,13 +139,17 @@
 "kind": "on_ball_main",
 "title": "Haruki Fontaine (7): goal at 52'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1283.89,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_ash_eas",
@@ -134,11 +162,15 @@
 "kind": "on_ball_main",
 "title": "Hugo Ustinov (9): goal at 59'",
 "tags": [
+"touch",
 "carry",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1687.84,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_eas_cal",
@@ -151,11 +183,15 @@
 "kind": "on_ball_main",
 "title": "Haruki Fontaine (7): goal at 8'",
 "tags": [
+"touch",
 "carry",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 469.17,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_eas_cal",
@@ -168,10 +204,14 @@
 "kind": "on_ball_main",
 "title": "Hugo Ustinov (9): goal at 56'",
 "tags": [
+"touch",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1521.35,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -184,13 +224,17 @@
 "kind": "on_ball_main",
 "title": "Kenan Petrov (8): nutmeg at 9'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "carry",
 "dribble",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 482.99,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -203,10 +247,14 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): goal at 1'",
 "tags": [
+"touch",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 5.37,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_bro_dun",
@@ -219,12 +267,16 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): goal at 3'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 151.15,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_eas_dun",
@@ -237,11 +289,15 @@
 "kind": "on_ball_main",
 "title": "Hugo Ustinov (9): goal at 14'",
 "tags": [
+"touch",
 "carry",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 795.59,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_eas_dun",
@@ -254,10 +310,14 @@
 "kind": "on_ball_main",
 "title": "Sami Ibarra (9): goal at 51'",
 "tags": [
+"touch",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1239.34,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -272,13 +332,17 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "carry",
 "dribble",
 "take_on",
 "pass",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 0.94
+"watch": 0.94,
+"t": 766.64,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r03_cal_eas",
@@ -293,12 +357,16 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "carry",
 "dribble",
 "pass",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 0.91
+"watch": 0.91,
+"t": 294.04,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_eas_bro",
@@ -311,13 +379,17 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 57'",
 "tags": [
+"touch",
 "shot",
 "recovery",
 "possession_change",
 "carry",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.88
+"watch": 0.88,
+"t": 1589.07,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_eas_ash",
@@ -330,13 +402,17 @@
 "kind": "on_ball_main",
 "title": "Zane Weber (11): shot at 50'",
 "tags": [
+"touch",
 "carry",
 "shot",
 "recovery",
 "pass",
-"cross"
+"cross",
+"on_ball_main"
 ],
-"watch": 0.88
+"watch": 0.88,
+"t": 1162.31,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -349,13 +425,17 @@
 "kind": "on_ball_main",
 "title": "Leon Whitfield (11): shot at 12'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "shot",
 "interception",
-"possession_change"
+"possession_change",
+"on_ball_main"
 ],
-"watch": 0.88
+"watch": 0.88,
+"t": 655.96,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_dun_cal",
@@ -369,12 +449,16 @@
 "title": "Sami Ibarra (9): shot at 3'",
 "tags": [
 "free_kick",
+"touch",
 "carry",
 "shot",
 "recovery",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.88
+"watch": 0.88,
+"t": 137.82,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_ash_eas",
@@ -389,11 +473,15 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "carry",
 "dribble",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 0.88
+"watch": 0.88,
+"t": 256.98,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_bro_dun",
@@ -406,13 +494,17 @@
 "kind": "on_ball_main",
 "title": "Cole Zidane (7): shot at 46'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "shot",
 "recovery",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.88
+"watch": 0.88,
+"t": 909.11,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_cal_dun",
@@ -425,12 +517,16 @@
 "kind": "on_ball_main",
 "title": "Haruki Zidane (8): shot at 46'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "take_on",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 0.85
+"watch": 0.85,
+"t": 944.32,
+"model": "rules-v0"
 }
 ]
 },
@@ -448,11 +544,15 @@
 "kind": "on_ball_main",
 "title": "Yusuf Tanaka (9): goal at 56'",
 "tags": [
+"touch",
 "shot",
 "goal",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1521.11,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_ash_fai",
@@ -470,7 +570,9 @@
 "header",
 "replay_appearance"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1541.39,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -483,12 +585,16 @@
 "kind": "on_ball_main",
 "title": "Sami Okafor (6): shot at 55'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.85
+"watch": 0.85,
+"t": 1496.53,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_cal_ash",
@@ -502,11 +608,15 @@
 "title": "Amari Ustinov (9): shot at 14'",
 "tags": [
 "free_kick",
+"touch",
 "carry",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.85
+"watch": 0.85,
+"t": 783.56,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_ash_bro",
@@ -519,12 +629,16 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): shot at 54'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.85
+"watch": 0.85,
+"t": 1386.61,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -538,11 +652,15 @@
 "title": "Amari Ustinov (9): shot at 58'",
 "tags": [
 "free_kick",
+"touch",
 "carry",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.85
+"watch": 0.85,
+"t": 1669.91,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_bro_ash",
@@ -555,12 +673,16 @@
 "kind": "on_ball_main",
 "title": "Hugo Delgado (10): shot at 54'",
 "tags": [
+"touch",
 "pass",
 "carry",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.85
+"watch": 0.85,
+"t": 1405.66,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_cal_ash",
@@ -573,11 +695,15 @@
 "kind": "on_ball_main",
 "title": "Kenan Kowalski (9): shot at 4'",
 "tags": [
+"touch",
 "carry",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.82
+"watch": 0.82,
+"t": 193.63,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_dun_bro",
@@ -590,11 +716,15 @@
 "kind": "on_ball_main",
 "title": "Gael Valente (6): shot at 46'",
 "tags": [
+"touch",
 "carry",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.82
+"watch": 0.82,
+"t": 913.99,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_ash_fai",
@@ -607,10 +737,14 @@
 "kind": "on_ball_main",
 "title": "Noel Oliveira (10): shot at 5'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 240.42,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_dun_bro",
@@ -623,10 +757,14 @@
 "kind": "on_ball_main",
 "title": "Sami Ibarra (9): shot at 4'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 180.63,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_fai_eas",
@@ -639,10 +777,14 @@
 "kind": "on_ball_main",
 "title": "Hugo Ustinov (9): shot at 47'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 1015.65,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_ash_bro",
@@ -655,10 +797,14 @@
 "kind": "on_ball_main",
 "title": "Zane Weber (11): shot at 2'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 65.08,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_ash_bro",
@@ -671,10 +817,14 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 57'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 1608.69,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_ash_eas",
@@ -687,10 +837,14 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): shot at 1'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 23.19,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -703,10 +857,14 @@
 "kind": "on_ball_main",
 "title": "Gino Reyes (7): shot at 57'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 1592.63,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -719,10 +877,14 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): shot at 56'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 1505.25,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_cal_ash",
@@ -739,7 +901,9 @@
 "header",
 "replay_appearance"
 ],
-"watch": 0.76
+"watch": 0.76,
+"t": 790.97,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -756,7 +920,9 @@
 "header",
 "replay_appearance"
 ],
-"watch": 0.76
+"watch": 0.76,
+"t": 1677.38,
+"model": "rules-v0"
 }
 ]
 },
@@ -776,12 +942,16 @@
 "tags": [
 "throw_in",
 "possession_change",
+"touch",
 "carry",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 483.29,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_eas_bro",
@@ -795,12 +965,16 @@
 "title": "Milan Brennan (7): nutmeg at 57'",
 "tags": [
 "corner",
+"touch",
 "take_on",
 "nutmeg",
 "cross",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1616.33,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_eas_ash",
@@ -813,13 +987,17 @@
 "kind": "on_ball_main",
 "title": "Gino Reyes (7): nutmeg at 47'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "nutmeg",
 "dribble",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 997.0,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_dun_bro",
@@ -832,12 +1010,16 @@
 "kind": "on_ball_main",
 "title": "Pavel Petrov (10): nutmeg at 56'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "carry",
-"dribble"
+"dribble",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1519.8,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_fai_cal",
@@ -850,12 +1032,16 @@
 "kind": "on_ball_main",
 "title": "Idris Whitfield (4): nutmeg at 54'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1421.48,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_fai_cal",
@@ -870,11 +1056,15 @@
 "tags": [
 "interception",
 "possession_change",
+"touch",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 540.71,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_fai_cal",
@@ -887,12 +1077,16 @@
 "kind": "on_ball_main",
 "title": "Otis Nakamura (2): nutmeg at 14'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 807.21,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_dun_eas",
@@ -905,13 +1099,17 @@
 "kind": "on_ball_main",
 "title": "Sami Ibarra (9): nutmeg at 4'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 179.44,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -924,12 +1122,16 @@
 "kind": "on_ball_main",
 "title": "Caio Sorensen (4): nutmeg at 53'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1325.9,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_dun_cal",
@@ -942,13 +1144,17 @@
 "kind": "on_ball_main",
 "title": "Kenan Kowalski (9): nutmeg at 11'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "carry",
 "dribble",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 603.69,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_eas_cal",
@@ -963,11 +1169,15 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1693.65,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -980,13 +1190,17 @@
 "kind": "on_ball_main",
 "title": "Kenan Petrov (8): nutmeg at 9'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "carry",
 "dribble",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 482.99,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -1001,12 +1215,16 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "carry",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 107.34,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -1019,13 +1237,17 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): nutmeg at 15'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 842.88,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_bro_ash",
@@ -1040,11 +1262,15 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1606.77,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_cal_fai",
@@ -1057,12 +1283,16 @@
 "kind": "on_ball_main",
 "title": "Elias Popescu (3): nutmeg at 4'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "nutmeg",
-"cross"
+"cross",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 176.83,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_eas_dun",
@@ -1075,13 +1305,17 @@
 "kind": "on_ball_main",
 "title": "Femi Rahman (4): nutmeg at 8'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 464.64,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_ash_fai",
@@ -1097,7 +1331,9 @@
 "nutmeg",
 "highlight_appearance"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1815.25,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_eas_bro",
@@ -1113,7 +1349,9 @@
 "nutmeg",
 "highlight_appearance"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1823.35,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_eas_ash",
@@ -1129,7 +1367,9 @@
 "nutmeg",
 "highlight_appearance"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1822.48,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_dun_bro",
@@ -1145,7 +1385,9 @@
 "nutmeg",
 "highlight_appearance"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1825.81,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_fai_cal",
@@ -1161,7 +1403,9 @@
 "nutmeg",
 "highlight_appearance"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1819.99,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_fai_cal",
@@ -1177,7 +1421,9 @@
 "nutmeg",
 "highlight_appearance"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1824.99,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_dun_eas",
@@ -1193,7 +1439,9 @@
 "nutmeg",
 "highlight_appearance"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1813.27,
+"model": "rules-v0"
 }
 ]
 },
@@ -1211,12 +1459,16 @@
 "kind": "on_ball_main",
 "title": "Zane Eriksen (10): goal at 58'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1661.48,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_eas_bro",
@@ -1230,12 +1482,16 @@
 "title": "Milan Brennan (7): nutmeg at 57'",
 "tags": [
 "corner",
+"touch",
 "take_on",
 "nutmeg",
 "cross",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1616.33,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_eas_ash",
@@ -1248,13 +1504,17 @@
 "kind": "on_ball_main",
 "title": "Gino Reyes (7): nutmeg at 47'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "nutmeg",
 "dribble",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 997.0,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_fai_dun",
@@ -1269,12 +1529,16 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "carry",
 "pass",
 "take_on",
-"skill_move"
+"skill_move",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 925.44,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -1288,12 +1552,16 @@
 "title": "Femi Toure (9): goal at 13'",
 "tags": [
 "free_kick",
+"touch",
 "carry",
 "take_on",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 733.17,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_cal_ash",
@@ -1306,13 +1574,17 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): goal at 48'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "take_on",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1058.6,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_dun_bro",
@@ -1325,12 +1597,16 @@
 "kind": "on_ball_main",
 "title": "Pavel Petrov (10): nutmeg at 56'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "carry",
-"dribble"
+"dribble",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1519.8,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_dun_eas",
@@ -1343,13 +1619,17 @@
 "kind": "on_ball_main",
 "title": "Sami Ibarra (9): nutmeg at 4'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 179.44,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_fai_ash",
@@ -1362,13 +1642,17 @@
 "kind": "on_ball_main",
 "title": "Yusuf Tanaka (9): goal at 53'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "take_on",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1337.34,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_fai_ash",
@@ -1381,13 +1665,17 @@
 "kind": "on_ball_main",
 "title": "Hugo Delgado (10): goal at 5'",
 "tags": [
+"touch",
 "take_on",
 "carry",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 267.81,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -1402,12 +1690,16 @@
 "tags": [
 "interception",
 "possession_change",
+"touch",
 "take_on",
 "skill_move",
 "carry",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 952.26,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_dun_cal",
@@ -1420,13 +1712,17 @@
 "kind": "on_ball_main",
 "title": "Kenan Kowalski (9): nutmeg at 11'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "carry",
 "dribble",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 603.69,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_dun_cal",
@@ -1439,12 +1735,16 @@
 "kind": "on_ball_main",
 "title": "Mateo Brennan (11): assist at 55'",
 "tags": [
+"touch",
 "take_on",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1470.08,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_dun_fai",
@@ -1459,14 +1759,18 @@
 "tags": [
 "tackle",
 "possession_change",
+"touch",
 "pass",
 "take_on",
 "carry",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1518.5,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_eas_cal",
@@ -1481,11 +1785,15 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "take_on",
 "nutmeg",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1693.65,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -1498,13 +1806,17 @@
 "kind": "on_ball_main",
 "title": "Kenan Petrov (8): nutmeg at 9'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "carry",
 "dribble",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 482.99,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -1517,13 +1829,17 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): nutmeg at 15'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 842.88,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_bro_ash",
@@ -1536,14 +1852,18 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): goal at 5'",
 "tags": [
+"touch",
 "take_on",
 "skill_move",
 "carry",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 267.38,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r03_ash_dun",
@@ -1556,13 +1876,17 @@
 "kind": "on_ball_main",
 "title": "Jonah Okafor (11): skill move at 56'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "take_on",
 "skill_move",
-"cross"
+"cross",
+"on_ball_main"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1543.76,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r03_fai_bro",
@@ -1575,13 +1899,17 @@
 "kind": "on_ball_main",
 "title": "Milan Brennan (7): skill move at 49'",
 "tags": [
+"touch",
 "take_on",
 "skill_move",
 "carry",
 "dribble",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1093.93,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_dun_ash",
@@ -1594,13 +1922,17 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): skill move at 48'",
 "tags": [
+"touch",
 "take_on",
 "skill_move",
 "carry",
 "dribble",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1070.84,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -1613,13 +1945,17 @@
 "kind": "on_ball_main",
 "title": "Leon Whitfield (11): skill move at 7'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "skill_move",
 "foul_against",
-"foul_won"
+"foul_won",
+"on_ball_main"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 367.28,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -1632,13 +1968,17 @@
 "kind": "on_ball_main",
 "title": "Leon Whitfield (11): skill move at 52'",
 "tags": [
+"touch",
 "carry",
 "take_on",
 "skill_move",
 "cross",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 1312.72,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_bro_dun",
@@ -1652,12 +1992,16 @@
 "title": "Femi Rahman (4): skill move at 12'",
 "tags": [
 "free_kick",
+"touch",
 "take_on",
 "skill_move",
 "carry",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.98
+"watch": 0.98,
+"t": 688.84,
+"model": "rules-v0"
 }
 ]
 },
@@ -1678,12 +2022,16 @@
 "take_on_against",
 "tackle",
 "possession_change",
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 772.37,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_ash_fai",
@@ -1696,12 +2044,16 @@
 "kind": "on_ball_main",
 "title": "Benji Tanaka (11): assist at 56'",
 "tags": [
+"touch",
 "carry",
 "cross",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1517.88,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_cal_dun",
@@ -1714,13 +2066,17 @@
 "kind": "on_ball_main",
 "title": "Cole Zidane (7): assist at 7'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 374.02,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_cal_dun",
@@ -1733,13 +2089,17 @@
 "kind": "on_ball_main",
 "title": "Jonah Okafor (11): assist at 54'",
 "tags": [
+"touch",
 "carry",
 "cross",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1443.53,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r03_cal_eas",
@@ -1752,12 +2112,16 @@
 "kind": "on_ball_main",
 "title": "Haruki Fontaine (7): assist at 8'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 424.24,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r03_fai_bro",
@@ -1770,13 +2134,17 @@
 "kind": "on_ball_main",
 "title": "Noel Oliveira (10): assist at 46'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 954.42,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r03_fai_bro",
@@ -1789,12 +2157,16 @@
 "kind": "on_ball_main",
 "title": "Leon Whitfield (11): assist at 3'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 141.1,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_cal_ash",
@@ -1807,12 +2179,16 @@
 "kind": "on_ball_main",
 "title": "Mateo Delgado (8): assist at 58'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1677.33,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_fai_cal",
@@ -1825,12 +2201,16 @@
 "kind": "on_ball_main",
 "title": "Yusuf Tanaka (9): assist at 3'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 167.31,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_fai_ash",
@@ -1845,11 +2225,15 @@
 "tags": [
 "recovery",
 "possession_change",
+"touch",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 27.44,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -1862,12 +2246,16 @@
 "kind": "on_ball_main",
 "title": "Milan Brennan (7): assist at 47'",
 "tags": [
+"touch",
 "take_on",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 989.23,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -1880,12 +2268,16 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): assist at 54'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1422.4,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_dun_cal",
@@ -1898,12 +2290,16 @@
 "kind": "on_ball_main",
 "title": "Mateo Brennan (11): assist at 55'",
 "tags": [
+"touch",
 "take_on",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1470.08,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_ash_eas",
@@ -1917,11 +2313,15 @@
 "title": "Amari Ustinov (9): assist at 9'",
 "tags": [
 "free_kick",
+"touch",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 514.52,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_dun_fai",
@@ -1935,11 +2335,15 @@
 "title": "Benji Tanaka (11): assist at 55'",
 "tags": [
 "corner",
+"touch",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1474.77,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_dun_fai",
@@ -1952,12 +2356,16 @@
 "kind": "on_ball_main",
 "title": "Benji Tanaka (11): assist at 56'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1522.14,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_eas_cal",
@@ -1970,12 +2378,16 @@
 "kind": "on_ball_main",
 "title": "Ivan Santos (11): assist at 56'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1518.95,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -1988,12 +2400,16 @@
 "kind": "on_ball_main",
 "title": "Kenan Nakamura (10): assist at 50'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1192.53,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -2006,13 +2422,17 @@
 "kind": "on_ball_main",
 "title": "Amari Ustinov (9): nutmeg at 15'",
 "tags": [
+"touch",
 "take_on",
 "nutmeg",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 842.88,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -2025,12 +2445,16 @@
 "kind": "on_ball_main",
 "title": "Zane Weber (11): assist at 1'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1.53,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_ash_cal",
@@ -2043,13 +2467,17 @@
 "kind": "on_ball_main",
 "title": "Ivan Whitfield (7): assist at 6'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 316.35,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_bro_dun",
@@ -2062,12 +2490,16 @@
 "kind": "on_ball_main",
 "title": "Bruno Kowalski (2): assist at 2'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 88.43,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_bro_ash",
@@ -2080,15 +2512,19 @@
 "kind": "on_ball_main",
 "title": "Hugo Delgado (10): assist at 5'",
 "tags": [
+"touch",
 "pass",
 "take_on_against",
 "tackle",
 "possession_change",
 "carry",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 248.39,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r10_eas_dun",
@@ -2101,12 +2537,16 @@
 "kind": "on_ball_main",
 "title": "Gino Mensah (3): assist at 14'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 792.64,
+"model": "rules-v0"
 }
 ]
 },
@@ -2124,10 +2564,14 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): goal at 8'",
 "tags": [
+"touch",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 462.24,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -2141,12 +2585,16 @@
 "title": "Femi Toure (9): goal at 13'",
 "tags": [
 "free_kick",
+"touch",
 "carry",
 "take_on",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 733.17,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -2159,11 +2607,15 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): goal at 47'",
 "tags": [
+"touch",
 "carry",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 994.52,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -2176,12 +2628,16 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): assist at 54'",
 "tags": [
+"touch",
 "carry",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1422.4,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -2194,12 +2650,16 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): goal at 50'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 1196.6,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_bro_dun",
@@ -2212,12 +2672,16 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): goal at 2'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 92.59,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r09_bro_dun",
@@ -2230,12 +2694,16 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): goal at 3'",
 "tags": [
+"touch",
 "carry",
 "dribble",
 "shot",
-"goal"
+"goal",
+"on_ball_main"
 ],
-"watch": 1.0
+"watch": 1.0,
+"t": 151.15,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_bro_cal",
@@ -2248,11 +2716,15 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): assist at 6'",
 "tags": [
+"touch",
 "pass",
 "key_pass",
-"assist"
+"assist",
+"on_ball_main"
 ],
-"watch": 0.97
+"watch": 0.97,
+"t": 349.18,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r01_eas_bro",
@@ -2265,13 +2737,17 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 57'",
 "tags": [
+"touch",
 "shot",
 "recovery",
 "possession_change",
 "carry",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.88
+"watch": 0.88,
+"t": 1589.07,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r06_bro_eas",
@@ -2284,12 +2760,16 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 15'",
 "tags": [
+"touch",
 "shot",
 "interception",
 "possession_change",
-"pass"
+"pass",
+"on_ball_main"
 ],
-"watch": 0.85
+"watch": 0.85,
+"t": 849.83,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_bro_cal",
@@ -2302,11 +2782,15 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 9'",
 "tags": [
+"touch",
 "carry",
 "dribble",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 0.82
+"watch": 0.82,
+"t": 496.55,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_dun_bro",
@@ -2319,10 +2803,14 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 52'",
 "tags": [
+"touch",
 "carry",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 1290.16,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r05_ash_bro",
@@ -2335,10 +2823,14 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 57'",
 "tags": [
+"touch",
 "shot",
-"header"
+"header",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 1608.69,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r08_bro_fai",
@@ -2351,10 +2843,14 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 47'",
 "tags": [
+"touch",
 "carry",
-"shot"
+"shot",
+"on_ball_main"
 ],
-"watch": 0.79
+"watch": 0.79,
+"t": 1021.67,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -2367,9 +2863,13 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 2'",
 "tags": [
-"shot"
+"touch",
+"shot",
+"on_ball_main"
 ],
-"watch": 0.76
+"watch": 0.76,
+"t": 67.16,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -2382,9 +2882,13 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 10'",
 "tags": [
-"shot"
+"touch",
+"shot",
+"on_ball_main"
 ],
-"watch": 0.76
+"watch": 0.76,
+"t": 575.11,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r02_cal_bro",
@@ -2397,9 +2901,13 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 48'",
 "tags": [
-"shot"
+"touch",
+"shot",
+"on_ball_main"
 ],
-"watch": 0.76
+"watch": 0.76,
+"t": 1033.73,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r04_dun_bro",
@@ -2412,9 +2920,13 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 9'",
 "tags": [
-"shot"
+"touch",
+"shot",
+"on_ball_main"
 ],
-"watch": 0.76
+"watch": 0.76,
+"t": 529.25,
+"model": "rules-v0"
 },
 {
 "match_id": "rl_r07_bro_cal",
@@ -2427,9 +2939,13 @@
 "kind": "on_ball_main",
 "title": "Femi Toure (9): shot at 14'",
 "tags": [
-"shot"
+"touch",
+"shot",
+"on_ball_main"
 ],
-"watch": 0.76
+"watch": 0.76,
+"t": 798.49,
+"model": "rules-v0"
 }
 ]
 }
