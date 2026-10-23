@@ -364,7 +364,9 @@ https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io, revi
 - **Branch images:** ACR Tasks (`az acr build`) are blocked on this subscription too. Pushes to `feature/**` run the
   workflow's test and build and push `regista:branch-<sha>` (never `latest`) as the app registration
   `regista-github-build` (AcrPush on the registry only, federated for `refs/heads/feature/player-view`; variable
-  `AZURE_BUILD_CLIENT_ID`). The deploy job runs on `main` only. Use a branch image for the vision job with
+  `AZURE_BUILD_CLIENT_ID`). The deploy job runs on `main` only. Other feature branches test, build and smoke-test but
+  push nothing (the build identity trusts only the branches listed in the workflow's PUSH condition; add a federated
+  credential and the branch name there to push images for another branch). Use a branch image for the vision job with
   `IMAGE=…:branch-<sha> ./infra/deploy-job.sh`; the live app is untouched.
 - **End to end in Azure, 2026-10-22** (branch image a6a8037, local app on the real storage, live app untouched): a
   3-minute synthetic film for Femi Toure (pl_bro_09) went upload → Blob → queue → job execution `regista-vision-2cvlj`
