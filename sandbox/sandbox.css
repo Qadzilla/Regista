@@ -126,7 +126,6 @@ main { min-width: 0; }
 .recap p { margin: 0 0 8px; line-height: 1.5; }
 .recap a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
 .recap a:hover { text-decoration-color: var(--accent); }
-.card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .convo { position: sticky; top: 68px; max-height: calc(100vh - 84px); }
 .turn { display: grid; gap: 8px; }
 .how { font-size: 12.5px; color: var(--muted); }
