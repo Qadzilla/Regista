@@ -1,6 +1,6 @@
 /* The Scout dashboard (/scout): what this page adds on top of the shared tokens (shared/regista.css) and the dashboards'
-   shared look (shared/dashboard.css): the header, the error banner, player cards with a star, the league table, the
-   Scout agent's options and trace, the comparison table, report citations, and the phone layout. Phone first: everything
+   shared look (shared/dashboard.css): the header, the error banner, player cards with a star, the league table under
+   them, the Scout agent's options and trace, the comparison table, report citations, and the phone layout. Phone first: everything
    stacks at 375 px and nothing scrolls sideways (wide tables scroll inside their own box). */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 html { -webkit-text-size-adjust: 100%; }
@@ -16,16 +16,12 @@ h1, h2, h3 { overflow-wrap: anywhere; }
           padding: 10px 14px; background: #2a1518; }
 .neterr span { flex: 1 1 240px; }
 
-.synthetic { margin: -6px 0 0; font-size: 13.5px; max-width: 80ch; color: var(--muted); }
-.pf .synthetic .badge { font-size: 11px; font-weight: 700; border-radius: 4px; padding: 2px 7px; background: #2c2440; color: #c9b4ff; margin-right: 4px;
-                        text-transform: uppercase; letter-spacing: .05em; }
 .pf .sc-local { margin: 0; }
 
 /* Find players: the Scout agent */
 .sc-askopts { display: flex; align-items: center; gap: 10px 16px; flex-wrap: wrap; margin-top: 10px; }
 .sc-askopts .sc-examples { margin-top: 0; }
 .pf-seg .sc-seglabel { font-size: 12.5px; margin-right: 4px; padding: 0; border: 0; border-radius: 0; font-weight: 400; }
-.hint { margin: 10px 0 0; color: var(--muted); font-size: 12.5px; max-width: 90ch; }
 .sc-answer:empty { display: none; }
 .sc-answer > p { margin: 0 0 6px; }
 .sc-answer .sc-reply { border-left: 3px solid var(--accent); padding: 2px 0 2px 11px; overflow-wrap: anywhere; margin-bottom: 8px; }
@@ -35,19 +31,15 @@ h1, h2, h3 { overflow-wrap: anywhere; }
 .sc-answer .how .tech summary { font-size: 12px; }
 .pf .sc-about { margin: 0; color: var(--accent); font-weight: 600; }
 
-/* Find players: cards beside the league table from 1100 px; the table first on narrower screens (six short rows) */
-.sc-findgrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); grid-template-areas: "league" "results"; align-items: start; }
-.sc-results { grid-area: results; display: flex; flex-direction: column; gap: 12px; }
-.league { grid-area: league; }
-@media (min-width: 1100px) {
-  .sc-findgrid { grid-template-columns: minmax(0, 1fr) 330px; grid-template-areas: "results league"; }
-  .league { position: sticky; top: calc(var(--top-h) + 12px); }
-}
-.sc-results .pf-bar { margin-bottom: 0; flex-wrap: wrap; justify-content: flex-start; gap: 4px 12px; }
-.sc-results .pf-bar .small { margin: 0; }
+/* Find players: the sandbox's three filters, then the cards (four columns at 1440 px), the league table under them */
+.sc-results { display: flex; flex-direction: column; gap: 12px; }
+.pf .sc-results > .small { margin: 0; }
 .sc-filters { align-items: end; }
-.sc-filters .pf-field { flex: 1 1 150px; }
+.sc-filters .pf-field { flex: 1 1 180px; }
 .sc-filters input, .sc-filters select { width: 100%; height: 40px; }
+.pf .sc-more { flex: 0 0 auto; align-self: center; font-size: 13px; }
+.sc-morebox { flex: 1 1 100%; display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+.sc-morebox[hidden] { display: none; }
 .pf .sc-reset { flex: 0 0 auto; height: 40px; }
 
 /* A player's card: the name's link covers the card, the star sits above it */
@@ -115,11 +107,9 @@ h1, h2, h3 { overflow-wrap: anywhere; }
 .ctable thead th > * { display: block; margin-left: auto; width: fit-content; }
 .ctable thead th .sc-shirt { display: grid; }
 .ctable thead td:first-child, .ctable tbody th[scope="row"] { width: 34%; }
-.ctable tr.group th { color: var(--text); font-weight: 700; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; padding-top: 14px; }
 .ctable td.best button, .ctable td.best { color: var(--accent); font-weight: 800; }
 .ctable td.best::before { content: "▲ "; font-size: 9px; vertical-align: 1px; color: var(--accent); }
 .ctable td button.link { font-variant-numeric: tabular-nums; }
-.ctable .pc { display: block; font-size: 11px; color: var(--muted); font-weight: 400; }
 .sc-cev .pf-bar { margin-bottom: 8px; }
 .sc-cev h3:focus { outline: none; }
 .pf .sc-cev .pf-bar button { padding: 5px 11px; font-size: 13px; }

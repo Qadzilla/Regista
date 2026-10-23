@@ -5,7 +5,6 @@
 //
 //   const view = Regista.profileView.render(root, profile, options)
 //     options.bar(slot, profile)   fills the slot above the header (the scout bar); no bar without it
-//     options.synthetic            false hides the one-line synthetic note (default shown)
 //     options.stat                 a stat key whose evidence opens straight away (keeps it open across a reload)
 //   view.pause()                         pauses every video in the profile
 //   view.identity(name, position, kit, { foot, height, bio })   redraws the header (a player's "My details")
@@ -134,8 +133,6 @@
       <header class="pf-head panel" aria-labelledby="${id}-name"><div class="shirt" data-r="shirt" aria-hidden="true"></div>
         <div class="pf-who"><h1 id="${id}-name" data-r="name"></h1><p class="pf-line" data-r="line"></p>
           <p class="pf-line muted" data-r="facts"></p><div class="pf-extra" data-r="extra" hidden></div></div></header>
-      <p class="pf-synthetic" data-r="synthetic">A synthetic player from Regista's generated league, the Regista League. Every number on
-        this page is counted from the league's event streams, and every one links to the moments it came from.</p>
       <section class="pf-summary panel" data-r="summaryBox" aria-labelledby="${id}-sum" hidden><h2 id="${id}-sum">Summary</h2>
         <div data-r="summary"></div><p class="muted small" data-r="sumby"></p></section>
       <section class="pf-best panel" aria-labelledby="${id}-best">
@@ -175,7 +172,6 @@
     root.replaceChildren(el);
     const q = (r) => el.querySelector(`[data-r="${r}"]`);
     const video = q('video');
-    if (options.synthetic === false) q('synthetic').hidden = true;
 
     // ---------------------------------------------------------------- the bar slot (the scout bar on /players/{id})
     if (typeof options.bar === 'function') {

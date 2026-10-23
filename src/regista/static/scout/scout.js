@@ -37,8 +37,6 @@
     FW: ['goals', 'shots', 'assists', 'take_ons_won'],
   };
   const CARD_RATES = 3;
-  // A ratio's evidence is its numerator's (regista.season.profiles.RATIOS).
-  const RATIO_OF = { pass_accuracy: 'passes_completed', shot_accuracy: 'shots_on_target', take_on_success: 'take_ons_won' };
   const EXAMPLES = ['Forwards with the most goals', 'Midfielders who win the ball back', 'Who wins the most take-ons?',
                     'Defenders with the most interceptions'];
 
@@ -80,7 +78,6 @@
   const headOf = (p, k) => (p && p.headline && p.headline[k]) || null;
   const stageBadge = (stage) => stage ? `<span class="sc-stage s-${esc(stage)}">${esc(stage)}</span>` : '';
   const verdictBadge = (v) => v ? `<span class="sc-verdict v-${esc(String(v).replace(/ /g, ''))}">${esc(v)}</span>` : '';
-  const shortPct = (p, pos) => PV.pctText(p, pos).replace("the league's ", '');
   // "Round 2 · v Calder Town" for a moment reference (messages, reports).
   const refWhere = (r) => [r.round !== null && r.round !== undefined ? `Round ${r.round}` : 'Friendly', r.opponent ? `v ${r.opponent}` : '']
     .filter(Boolean).join(' · ');
@@ -212,8 +209,9 @@
     if (!b) return;
     const club = state.filters.club === b.dataset.club ? '' : b.dataset.club;
     $('fClub').value = club;
+    if (club) moreFilters(true);
     setFilter({ club });
-    $('resultsHead').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    $('filterForm').scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 
   // ------------------------------------------------------------------ Find players: filters
@@ -242,7 +240,20 @@
     if (u.get('sort') && [...$('fSort').options].some(o => o.value === u.get('sort'))) f.sort = u.get('sort');
     $('fPosition').value = f.position; $('fClub').value = f.club; $('fName').value = f.q;
     $('fMinutes').value = String(f.min_minutes); $('fSort').value = f.sort;
+    if (f.club || f.min_minutes) moreFilters(true);
   }
+
+  // Club and Minimum minutes sit behind "More filters", under the sandbox's three (Name or club, Position, Sort by).
+  function moreFilters(open) {
+    $('fMoreBox').hidden = !open;
+    $('fMore').setAttribute('aria-expanded', String(open));
+    $('fMore').textContent = open ? 'Fewer filters' : 'More filters';
+  }
+  $('fMore').addEventListener('click', () => {
+    const open = $('fMoreBox').hidden;
+    moreFilters(open);
+    if (open) $('fClub').focus();
+  });
 
   function writeUrl() {
     const f = state.filters;
@@ -345,7 +356,7 @@
     const said = PV.pctText(pc, p.position);
     return `<li title="${esc(said)}"><span class="lbl"><b>${esc(fmtRate(h.per90))}</b> ${esc(h.label.toLowerCase())} per 90</span>
       <span class="bar" aria-hidden="true"><i data-w="${esc(pc ?? 0)}"></i></span>
-      <span class="pct muted">${esc(shortPct(pc, p.position))}</span></li>`;
+      <span class="pct muted">${esc(said)}</span></li>`;
   }
 
   // A player's card: the name's link covers the whole card (to /players/{id}); the star sits above it.
@@ -467,7 +478,9 @@
     const about = (p) => {
       const s = p.stat;
       if (!s || typeof s !== 'object' || !s.label) return '';
-      const rank = s.rank && s.of_players ? ` · ${PV.ordinal(s.rank)} of ${s.of_players}` : '';
+      // The rank is among the player's position (regista.season.scout.rank_in_position): say so.
+      const rank = s.rank && s.of_players
+        ? ` · ${s.tied_with ? 'joint ' : ''}${PV.ordinal(s.rank)} of ${s.of_players} ${GROUP[p.position] || 'players'}` : '';
       return `<p class="sc-about small">${esc(s.label)}: ${esc(s.display || '')}${esc(rank)}</p>`;
     };
     box.innerHTML = (reply ? `<p class="sc-reply">${esc(reply)}</p>` : '') +
@@ -604,7 +617,7 @@
           return `<article class="sc-item" data-item="${esc(gid)}" tabindex="-1">
             <a href="/players/${enc(gid)}"><b>${esc(p.name)}</b></a>
             <span class="muted small">${esc(posLine(p))}</span>
-            ${h ? `<span class="small">${esc(fmtRate(h.per90))} ${esc(h.label.toLowerCase())} per 90 · ${esc(shortPct(h.percentile, p.position))}</span>` : ''}
+            ${h ? `<span class="small">${esc(fmtRate(h.per90))} ${esc(h.label.toLowerCase())} per 90 · ${esc(PV.pctText(h.percentile, p.position))}</span>` : ''}
             ${sl[gid].note ? `<p class="sc-inote">${esc(sl[gid].note)}</p>` : ''}
             <div class="sc-iacts"><label class="sc-cmp"><input type="checkbox" data-cmp="${esc(gid)}"${on ? ' checked' : ''}${full ? ' disabled' : ''}> Compare</label>
               <label><span class="sr">Move ${esc(p.name)} to</span><select data-move="${esc(gid)}">${demo.STAGES.map(s2 =>
@@ -676,42 +689,44 @@
     }
   }
 
+  // The sandbox's compact table: each player's position-leading rates, then the same seven for everyone, per 90 minutes.
+  const COMPARE_LEAD = { FW: ['goals', 'shots', 'assists'], MF: ['recoveries', 'tackles_won', 'key_passes'],
+                         DF: ['interceptions', 'tackles_won', 'recoveries'], GK: ['saves', 'passes_completed', 'recoveries'] };
+  const COMPARE_ALL = ['goals', 'assists', 'key_passes', 'take_ons_won', 'tackles_won', 'interceptions', 'recoveries'];
+
   function renderCompare(out) {
     const ps = out.players || [];
-    const stats = out.stats || state.stats;
+    const keys = [...new Set(ps.flatMap(p => COMPARE_LEAD[p.card.position] || COMPARE_LEAD.FW).concat(COMPARE_ALL))]
+      .filter(k => ps.some(p => p.per90 && p.per90[k] !== undefined));
     const head = ps.map(p => {
       const c = p.card;
       return `<th scope="col"><span class="sc-shirt" aria-hidden="true">${shirt(c, 34)}</span>
         <a href="/players/${enc(c.global_id)}">${esc(c.name)}</a>
-        <span class="muted small">${esc(POSITIONS[c.position] || c.position)} · ${esc(c.short_name)}</span>
-        <span class="muted small">${esc(fmtMinutes(p.minutes))}</span></th>`;
+        <span class="muted small">${esc(POSITIONS[c.position] || c.position)} · ${esc(c.short_name)}</span></th>`;
     }).join('');
-    const rows = (kind, title) => {
-      const body = stats.filter(s => s.kind === kind).map(s => {
-        const vals = ps.map(p => kind === 'ratio' ? p.ratios?.[s.key] : p.per90?.[s.key]);
-        const nums = vals.filter(v => v !== null && v !== undefined).map(Number);
-        const top = nums.length ? Math.max(...nums) : null;
-        const markBest = top !== null && top > 0 && nums.length > 1;
-        const cells = ps.map((p, i) => {
-          const v = vals[i];
-          const best = markBest && v !== null && v !== undefined && Number(v) === top;
-          const pc = kind === 'per90' ? p.percentiles?.[s.key] : null;
-          const txt = kind === 'ratio' ? fmtRatio(v) : fmtRate(v);
-          const evKey = kind === 'ratio' ? RATIO_OF[s.key] : s.key;
-          const num = evKey && v !== null && v !== undefined
-            ? `<button type="button" class="link" data-ev="${esc(p.card.global_id)}|${esc(evKey)}" aria-label="${esc(`${p.card.name}: ${txt} ${s.label.toLowerCase()}, show the moments`)}">${esc(txt)}</button>`
-            : esc(txt);
-          return `<td class="${best ? 'best' : ''}">${num}${best ? '<span class="sr"> (highest)</span>' : ''}${
-            pc !== null && pc !== undefined ? `<span class="pc">${esc(PV.ordinal(pc))} percentile</span>` : ''}</td>`;
-        }).join('');
-        return `<tr><th scope="row">${esc(s.label)}</th>${cells}</tr>`;
+    const body = keys.map(k => {
+      const label = labelOf(k);
+      const vals = ps.map(p => p.per90?.[k]);
+      const nums = vals.filter(v => v !== null && v !== undefined).map(Number);
+      const top = nums.length ? Math.max(...nums) : null;
+      const markBest = top !== null && top > 0 && nums.length > 1;
+      const cells = ps.map((p, i) => {
+        const v = vals[i];
+        const best = markBest && v !== null && v !== undefined && Number(v) === top;
+        const txt = fmtRate(v);
+        // How the number ranks, in words, on hover and for screen readers ("Higher than 88% of the league's midfielders").
+        const said = PV.pctText(p.percentiles?.[k], p.card.position);
+        const num = v !== null && v !== undefined
+          ? `<button type="button" class="link" data-ev="${esc(p.card.global_id)}|${esc(k)}" title="${esc(said)}"
+              aria-label="${esc(`${p.card.name}: ${txt} ${label.toLowerCase()} per 90. ${said}. Show the moments`)}">${esc(txt)}</button>`
+          : esc(txt);
+        return `<td class="${best ? 'best' : ''}">${num}${best ? '<span class="sr"> (highest)</span>' : ''}</td>`;
       }).join('');
-      return body ? `<tbody><tr class="group"><th scope="rowgroup" colspan="${ps.length + 1}">${esc(title)}</th></tr>${body}</tbody>` : '';
-    };
+      return `<tr><th scope="row">${esc(label)}</th>${cells}</tr>`;
+    }).join('');
     $('compareBody').innerHTML = `<table class="sc-ctable ctable">
-      <caption class="sr">${esc(ps.map(p => p.card.name).join(', '))} compared</caption>
-      <thead><tr><td></td>${head}</tr></thead>
-      ${rows('per90', 'Per 90 minutes (percentile)')}${rows('ratio', 'Share that worked')}
+      <caption class="sr">${esc(ps.map(p => p.card.name).join(', '))} compared, per 90 minutes</caption>
+      <thead><tr><td></td>${head}</tr></thead><tbody>${body}</tbody>
     </table>`;
   }
 
@@ -1139,7 +1154,7 @@
           aria-label="Remove the need: ${esc(n.title)}">Remove</button></div>
         <p class="muted small">${esc(pos)}s with ${esc(labelOf(n.stat).toLowerCase())} per 90 higher than ${esc(n.pct)}% of the league's ${esc(GROUP[n.pos] || 'players')} · ${esc(plural(ps.length, 'player fits', 'players fit'))}</p>
         <div class="sc-mini">${ps.slice(0, 6).map(p => `<a href="/players/${enc(p.global_id)}" class="sc-minirow"><span class="sc-shirt" aria-hidden="true">${shirt(p)}</span>
-          <span><b>${esc(p.name)}</b> <span class="muted small">${esc(p.club)} · ${esc(fmtRate(headOf(p, n.stat).per90))} per 90 · ${esc(shortPct(headOf(p, n.stat).percentile, p.position))}</span></span>${sl[p.global_id] ? stageBadge(sl[p.global_id].stage) : ''}</a>`).join('')
+          <span><b>${esc(p.name)}</b> <span class="muted small">${esc(p.club)} · ${esc(fmtRate(headOf(p, n.stat).per90))} per 90 · ${esc(PV.pctText(headOf(p, n.stat).percentile, p.position))}</span></span>${sl[p.global_id] ? stageBadge(sl[p.global_id].stage) : ''}</a>`).join('')
           || '<p class="muted small">Nobody in the league fits this yet.</p>'}</div></article>`;
     }).join('') || '<p class="muted small">No needs yet. Add what the club is looking for.</p>';
   }
@@ -1204,7 +1219,11 @@
     $('stEmailEdit').focus();
   });
   $('stEmailInput').addEventListener('input', () => $('stEmailInput').setCustomValidity(''));
-  $('stOut').addEventListener('click', () => { $('stOutNote').textContent = 'Regista has no sign-in yet, so there is nothing to sign out of.'; });
+  // As on the Player dashboard: signing out forgets the admin key this tab holds (Regista.key).
+  $('stOut').addEventListener('click', () => {
+    R.key.clear();
+    $('stOutNote').textContent = 'Signed out: this tab no longer holds the admin key.';
+  });
   $('stReset').addEventListener('click', () => {
     demo.reset();
     state.openConvo = null; state.openReport = null; state.picker = null;

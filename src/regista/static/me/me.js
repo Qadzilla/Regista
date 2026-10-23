@@ -270,7 +270,7 @@
 
   const latest = () => [...S.uploads.values()].map((u) => u.rec).sort((a, b) => b.created_at - a.created_at);
   const oppName = (rec) => (rec.opponent && rec.opponent.name) || (S.clubs.find((c) => c.club_id === rec.opponent_club_id) || {}).name || 'another club';
-  const clipsNote = (rec) => ((rec.stages || []).find((s) => s.role === 'clips' && s.note && OK.has(s.status)) || {}).note || '';
+  const clipsNote = (rec) => plain(((rec.stages || []).find((s) => s.role === 'clips' && s.note && OK.has(s.status)) || {}).note || '');
 
   function paintNeeds() {
     if (!S.P) return;
@@ -529,13 +529,25 @@
     return rec.status === 'needs_review' || (rec.stages || []).some((s) => s.role === 'identity_review' && /answer|question/i.test(s.note || ''));
   }
 
+  // A worker's note in plain words: no ids ("13 files saved as match pv_…" says "13 files saved"), and "2 answer(s)"
+  // says "2 answers" ("1 answer" for one).
+  const ID = /\b(?:pv|up|syn|vis|pl|t)_[A-Za-z0-9_]+\b/g;
+  function plain(note) {
+    return String(note || '')
+      .replace(/\s*\bas match\s+(?:pv|up|syn|vis)_[A-Za-z0-9_]+\b/g, '')
+      .replace(ID, '')
+      .replace(/\b(\d+)\s+([A-Za-z]+)\(s\)/g, (m, n, w) => `${n} ${n === '1' ? w : `${w}s`}`)
+      .replace(/\b([A-Za-z]+)\(s\)/g, '$1s')
+      .replace(/\s{2,}/g, ' ').replace(/\s+([,.:;)])/g, '$1').trim();
+  }
+
   function steps(rec) {
     const stages = Array.isArray(rec.stages) ? rec.stages : [];
     const shown = STEPS.filter((st) => !st.optional || asked(rec) || stages.some((s) => st.roles.includes(s.role)));
     const rows = shown.map((st) => {
       const ss = stages.filter((s) => st.roles.includes(s.role));
       const ms = ss.reduce((t, s) => t + (typeof s.ms === 'number' ? s.ms : 0), 0);
-      const note = ss.map((s) => s.note).filter(Boolean).slice(-1)[0] || '';
+      const note = plain(ss.map((s) => s.note).filter(Boolean).slice(-1)[0] || '');
       let state = 'pending';
       if (st.key === 'received' && rec.status === 'queued') state = 'running';
       else if (st.key === 'review' && rec.status === 'needs_review') state = 'ask';
@@ -641,7 +653,7 @@
   function paintQuestionsState() {
     const waiting = [...S.uploads.values()].some((u) => !u.ask.hidden);
     $('noQuestions').hidden = waiting;
-    const answered = latest().flatMap((r) => (r.notes || []).filter((n) => /answer/i.test(n)).map((n) => `${title(r)}: ${n.replace('answer(s)', 'answers')}`));
+    const answered = latest().flatMap((r) => (r.notes || []).filter((n) => /answer/i.test(n)).map((n) => `${title(r)}: ${plain(n)}`));
     $('answered').hidden = !answered.length;
     swap($('answered'), answered.flatMap((t, i) => (i ? [h('br'), t] : [t])));
   }

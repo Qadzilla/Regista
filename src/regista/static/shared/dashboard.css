@@ -429,9 +429,8 @@
 }
 .sc-st .sc-stage, .sc-col .sc-stage { align-self: start; }
 
-/* ---- The profile page's own pieces (profile-view.js) beyond the sandbox's: the synthetic line, the stage's overlay,
+/* ---- The profile page's own pieces (profile-view.js) beyond the sandbox's: the stage's overlay,
    the reel's kinds, ratio and table buttons, evidence bar, every moment's cards, the scout bar slot */
-.pf-synthetic { margin: -4px 0 0; color: var(--muted); font-size: 13px; max-width: 90ch; border-left: 3px solid var(--line); padding-left: 10px; }
 .pf-screen { position: relative; }
 .pf-loading { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; padding: 0 24px; color: var(--muted);
               font-size: 13.5px; background: rgba(0, 0, 0, .65); pointer-events: none; }
