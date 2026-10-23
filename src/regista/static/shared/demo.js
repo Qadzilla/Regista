@@ -75,7 +75,7 @@
       conversations: [
         { id: 'cv_maya_bro_09', scout: 'maya', player: 'pl_bro_09', player_name: 'Femi Toure', unread: { player: 1, scout: 0 }, muted: false, blocked: false,
           msgs: [
-            { from: 'scout', at: ago(2, '18:02'), text: 'Hi Femi, we have been following your season. Six goals in eleven games stands out. Could you send a couple of your finishes?' },
+            { from: 'scout', at: ago(2, '18:02'), text: 'Hi Femi, we have been watching you closely. Six goals this season stands out. Could you send a couple of your finishes?' },
             { from: 'player', at: ago(2, '19:40'), text: 'Thanks Maya. Here are two from this season.', clips: [CLIPS.r02goal8, CLIPS.r06goal47] },
             { from: 'scout', at: ago(0, '09:15'), text: 'The first one is exactly what we look for: early, low, across the keeper. Are you free for a call on Thursday?' },
           ] },
@@ -113,11 +113,11 @@
         { id: 'rp_bro_09_1', gid: 'pl_bro_09', author: 'maya', at: ago(1, '17:30'), verdict: 'Sign', draft: false,
           title: 'Femi Toure, forward, Brookfield Rovers',
           sections: [
-            { name: 'Summary', text: "The league's top scorer: 6 goals in 11 matches, 1.78 per 90, the best of its 18 forwards. Finishes early and low, and is a threat from the first minute.",
+            { name: 'Summary', text: "The league's top scorer: six goals this season, the most per 90 of its 18 forwards. Finishes early and low, and is a threat from the first minute.",
               cites: [CLIPS.r02goal8, CLIPS.r09goal2] },
-            { name: 'Strengths', text: 'Shoots often and on target (5.92 shots per 90, 70% on target). Links play too: 2.07 key passes per 90, higher than 88% of forwards.',
+            { name: 'Strengths', text: 'Shoots often and hits the target: among the league\'s top forwards for shots per 90. Links play too, with more key passes than most forwards.',
               cites: [CLIPS.r02goal13, CLIPS.r06goal47] },
-            { name: 'Concerns', text: 'Wins half of his take-ons (50%). We would want more from him one against one; watch him against a deep block.',
+            { name: 'Concerns', text: 'Wins about half of his take-ons. We would want more from him one against one; watch him against a deep block.',
               cites: [CLIPS.r10nutmeg] },
           ] },
       ],

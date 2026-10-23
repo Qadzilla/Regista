@@ -122,7 +122,7 @@ def test_the_visitors_own_things_stay_in_this_browser_through_the_shared_store(p
         assert call in script, call
     assert not re.search(r"method: 'POST'(?!, body: \{ q, engine \})", script), "the only write is the Scout agent's question"
     # one quiet line in Messages and Settings (and Reports), and Settings can restore the seeds
-    assert page.count("Messages, notes and reports are kept in this browser only.") == 3
+    assert page.count("Messages, notes and reports are kept in this browser only.") == 2  # Messages and Settings only (Zaid, 2026-10-23)
     assert ">Reset this demo<" in page
 
 
