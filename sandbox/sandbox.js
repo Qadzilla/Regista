@@ -4,8 +4,9 @@
   function show() {
     const h = location.hash.slice(1);
     const v = views.includes(h) ? h : 'home';
-    for (const s of document.querySelectorAll('main section[data-view]')) s.hidden = s.dataset.view !== v || h === 'search';
+    for (const s of document.querySelectorAll('main section[data-view]')) s.hidden = s.dataset.view !== v || h === 'search' || h === 'match';
     document.getElementById('results').hidden = h !== 'search';
+    document.getElementById('matchview').hidden = h !== 'match';
     for (const a of document.querySelectorAll('.side a')) {
       if (a.dataset.view === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
@@ -67,10 +68,10 @@
     const k = KEYS.find(([w]) => t.includes(w));
     return names[k ? k[1] : 2];
   }
-  function card(m) {
+  function card(m, mid, on) {
     const tags = (m.tags || []).filter(t => !INTERNAL.test(t)).map(t => `<span>${esc(tagLabel(t))}</span>`).join('');
     const badge = String(m.model || '').startsWith('foundry:') ? '<span class="badges"><span class="badge">Labelled by Microsoft Foundry</span></span>' : '';
-    return `<button type="button" class="card" aria-label="Play ${esc(m.title)}">
+    return `<button type="button" class="card${on ? ' on' : ''}" data-mid="${esc(mid || m.match_id)}" data-cid="${esc(m.clip_id)}" aria-label="Play ${esc(m.title)}">
         <span class="thumb"><span class="prep"></span></span>
         <span class="body">
           <span class="reason ${m.kind === 'replay_appearance' ? 'replay' : ''}">${esc(REASONS[m.kind] || words(m.kind))} · ${esc(fmtTime(m.t || 0))}</span>
@@ -81,18 +82,82 @@
         </span>
       </button>`;
   }
-  function foundryAnswer(q, key, set) {
+  // ---- the conversation: every question and its answer, shown only in the right panel. "How Regista answered" is one
+  // line per answer; its steps and their timings open on demand.
+  const turns = [];
+  let matches = null;
+  fetch('matches.json').then(r => r.json()).then(d => { matches = d; });
+  function addTurn(q, engine, key, set) {
     const [what, understood] = WHAT[key], best = set.moments[0];
-    return `<div class="fq-user">${esc(q)}</div>
-      <div class="fa">I found ${set.total} ${esc(what)} across the season's 30 matches. The best is ${esc(best.title.split(': ').pop())}
-        by ${esc(best.player)}, round ${best.round}, ${esc(best.home)} v ${esc(best.away)}. They're in the grid, best first.
-        <div class="understood">Understood: ${esc(understood)}</div></div>
-      <div class="trace"><b>How Regista answered</b><ol>
-        <li>Microsoft Foundry agent (gpt-5-mini) read the question</li>
-        <li>search_clips · Regista's MCP server</li>
-        <li>search_index_query · Azure MCP Server → Azure AI Search</li>
-        <li>Wrote the answer from what the tools returned</li></ol></div>`;
+    const where = `${best.title.split(': ').pop()} by ${best.player}, round ${best.round}, ${best.home} v ${best.away}`;
+    if (engine === 'foundry') {
+      turns.push({ q, engine, answer: `I found ${set.total} ${what} across the season's 30 matches. The best is ${where}. They're in the grid, best first.`,
+        how: ['Read the season', `Understood: ${understood}`, `Found ${set.total} moments`, 'Handed the question to the Foundry Librarian agent', 'Microsoft Foundry (gpt-5-mini) wrote the reply'],
+        times: [['step', 'librarian.load_season', '12 ms'], ['step', 'conversation.step', '3 ms'], ['tool', 'search_clips · Regista MCP server', '41 ms'], ['tool', 'search_index_query · Azure MCP Server', '0.9 s'], ['model', 'gpt-5-mini', '5.8 s']],
+        by: 'Answered by Microsoft Foundry (gpt-5-mini)' });
+    } else {
+      turns.push({ q, engine, answer: `${set.total} moments: ${what}. Best: ${where}.`,
+        how: ['Read the season', `Understood: ${understood}`, `Found ${set.total} moments`],
+        times: [['step', 'librarian.load_season', '12 ms'], ['step', 'conversation.step', '<1 ms'], ['step', 'librarian.search_clips', '2 ms']],
+        by: "Answered by Data Search: Regista's own data, no AI model" });
+    }
   }
+  function convoHtml() {
+    const items = turns.map(t => `<div class="turn"><div class="fq-user">${esc(t.q)}</div><div class="fa">${esc(t.answer)}</div>
+      <details class="how"><summary>${esc(t.by)} · ${t.how.length} steps</summary><ol>${t.how.map(x => `<li>${esc(x)}</li>`).join('')}</ol>
+        <details class="how"><summary>Step names and times</summary><div class="times">${t.times.map(([k, n, ms]) => `${esc(k)} · ${esc(n)} · ${esc(ms)}`).join('<br>')}</div></details>
+      </details></div>`).join('');
+    return `<div class="fhead"><span class="fdot"></span>Conversation</div><div class="fthread">${items || '<p class="how">Ask for a moment to start.</p>'}</div>
+      <form class="ffollow"><label class="sr">Ask a follow-up</label><input type="text" autocomplete="off" placeholder="Ask a follow-up"></form>`;
+  }
+  function paintConvo(el) {
+    el.innerHTML = convoHtml();
+    const th = el.querySelector('.fthread'); th.scrollTop = th.scrollHeight;
+    el.querySelector('.ffollow').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const inp = e.target.querySelector('input'), t = inp.value.trim();
+      if (!t) return;
+      turns.push({ q: t, engine: 'rules', answer: 'In the app, a follow-up narrows the search ("now the replays", "second half").', how: ['Follow-up'], times: [['step', 'conversation.step', '<1 ms']], by: 'Sandbox' });
+      paintConvo(el);
+    });
+  }
+  // ---- the match view: the clicked clip on the stage.
+  let cur = null;
+  function openMatch(mid, cid) {
+    if (!matches || !matches[mid]) return;
+    const pid = cid.replace(/^cl_/, '').replace(/_\d+$/, '');
+    cur = { mid, pid, cid };
+    if (location.hash !== '#match') location.hash = 'match';
+    window.scrollTo(0, 0);
+    paintMatch();
+  }
+  function paintMatch() {
+    const M = matches[cur.mid], P = M.players[cur.pid], c = P.moments.find(m => m.clip_id === cur.cid) || P.moments[0];
+    document.getElementById('mtitle').textContent = M.title;
+    const halves = M.periods.slice(1).map(p => `<span class="half" style="left:${(p.t / M.duration * 100).toFixed(2)}%"></span>`).join('');
+    document.getElementById('tline').innerHTML = halves + P.moments.map(m => `<button type="button" class="mk k-${esc(m.kind)}${m.clip_id === c.clip_id ? ' on' : ''}" data-cid="${esc(m.clip_id)}" style="left:${(m.t / M.duration * 100).toFixed(2)}%" title="${esc(m.title)}" aria-label="${esc(m.title)}"></button>`).join('');
+    document.getElementById('sreason').className = 'reason' + (c.kind === 'replay_appearance' ? ' replay' : '');
+    document.getElementById('sreason').textContent = `${REASONS[c.kind] || words(c.kind)} · ${fmtTime(c.t)}–${fmtTime(c.t_end)}`;
+    document.getElementById('stitle').textContent = c.title;
+    document.getElementById('stags').innerHTML = c.tags.filter(t => !INTERNAL.test(t)).map(t => `<span>${esc(tagLabel(t))}</span>`).join('');
+    document.getElementById('sexpl').textContent = c.explanation;
+    document.getElementById('playreel').textContent = `Play reel (${P.moments.length})`;
+    document.getElementById('rhead').textContent = P.recap.headline;
+    document.getElementById('rparas').innerHTML = P.recap.paragraphs.map(x => `<p>${x.clip ? `<a data-cid="${esc(x.clip)}">${esc(x.text)}</a>` : esc(x.text)}</p>`).join('');
+    document.getElementById('mcount').innerHTML = `${P.moments.length} moments <span class="muted">· ${esc(P.name)} in this match</span>`;
+    document.getElementById('mgrid').innerHTML = P.moments.map(m => card(m, cur.mid, m.clip_id === c.clip_id)).join('');
+    paintConvo(document.getElementById('convo'));
+  }
+  document.getElementById('matchview').addEventListener('click', (e) => {
+    const t = e.target.closest('[data-cid]');
+    if (!t || !cur) return;
+    e.preventDefault();
+    cur.cid = t.dataset.cid; paintMatch();
+    if (t.closest('#mgrid') || t.closest('#rparas')) window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  document.getElementById('rgrid').addEventListener('click', (e) => {
+    const t = e.target.closest('.card'); if (t) openMatch(t.dataset.mid, t.dataset.cid);
+  });
   function search(q, engine) {
     if (!q || !data) return;
     const key = pick(q), set = data[key];
@@ -103,7 +168,8 @@
     const f = engine === 'foundry';
     document.getElementById('foundry').hidden = !f;
     document.querySelector('.rbody').classList.toggle('with-foundry', f);
-    if (f) document.getElementById('fthread').innerHTML = foundryAnswer(q, key, set);
+    addTurn(q, engine, key, set);
+    if (f) paintConvo(document.getElementById('foundry'));
     if (location.hash !== '#search') location.hash = 'search';
     window.scrollTo(0, 0);
   }
@@ -114,13 +180,7 @@
   });
   document.getElementById('rsearch').addEventListener('submit', (e) => { e.preventDefault(); search(document.getElementById('rq').value.trim(), engineOf('rengine')); });
   for (const r of document.querySelectorAll('input[name=rengine]')) r.addEventListener('change', () => search(document.getElementById('rq').value.trim(), r.value));
-  document.getElementById('ffollow').addEventListener('submit', (e) => {
-    e.preventDefault();
-    const fq = document.getElementById('fq'), t = fq.value.trim();
-    if (!t) return;
-    document.getElementById('fthread').insertAdjacentHTML('beforeend', `<div class="fq-user">${esc(t)}</div><div class="fa understood">In the app, Microsoft Foundry answers follow-ups and narrows the grid.</div>`);
-    fq.value = '';
-  });
+
   window.addEventListener('hashchange', show);
   show();
 })();

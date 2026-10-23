@@ -98,3 +98,40 @@ main { min-width: 0; }
 .ffollow input { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 999px; padding: 9px 14px; font: inherit; outline: none; }
 .ffollow input:focus { border-color: var(--accent); }
 @media (max-width: 1100px) { .rbody.with-foundry { grid-template-columns: minmax(0, 1fr); } .foundry { position: static; max-height: none; order: -1; } }   /* narrow: the answer first, then the grid */
+
+/* The match view: the clicked clip on the stage, the player's moments on a timeline and in the grid, the recap folded
+   away. The conversation (every question and answer, and how each was answered) lives only in the right panel. */
+#matchview { padding: 16px 20px 32px; }
+.mbody { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 16px; align-items: start; }
+.back { color: var(--muted); text-decoration: none; font-size: 13px; }
+.back:hover { color: var(--text); }
+.mtitle { margin: 8px 0 12px; font-size: 20px; font-weight: 700; }
+.tline { position: relative; height: 34px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; margin-bottom: 14px; }
+.tline .half { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--line); }
+.tline .mk { position: absolute; top: 7px; width: 6px; height: 18px; border-radius: 2px; border: 0; padding: 0; cursor: pointer; transform: translateX(-3px); }
+.tline .mk.on { outline: 2px solid var(--text); outline-offset: 1px; }
+.mk.k-on_ball_main { background: var(--accent); } .mk.k-replay_appearance { background: #d62028; }
+.mk.k-highlight_appearance { background: #4aa8ff; } .mk.k-closeup_appearance { background: #c18cff; }
+.stage { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 16px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px; }
+.player { aspect-ratio: 16 / 9; background: #000; border-radius: 6px; display: grid; place-items: center; color: var(--muted); font-size: 28px; }
+.sinfo { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.stitle { margin: 0; font-size: 18px; font-weight: 700; }
+.sexpl { margin: 0; color: var(--muted); line-height: 1.5; }
+.actions { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }   /* one row under the clip and its details */
+.actions button { background: var(--accent); color: #111; border: 0; border-radius: 6px; padding: 7px 12px; font: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
+.actions button.alt { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.recap { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 14px; margin: 14px 0; }
+.recap summary { cursor: pointer; font-weight: 700; }
+.recap h3 { margin: 10px 0 6px; font-size: 15px; }
+.recap p { margin: 0 0 8px; line-height: 1.5; }
+.recap a { color: var(--text); text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; cursor: pointer; }
+.recap a:hover { text-decoration-color: var(--accent); }
+.card.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.convo { position: sticky; top: 68px; max-height: calc(100vh - 84px); }
+.turn { display: grid; gap: 8px; }
+.how { font-size: 12.5px; color: var(--muted); }
+.how summary { cursor: pointer; }
+.how ol { margin: 6px 0 0; padding-left: 18px; display: grid; gap: 3px; }
+.how .times { margin-top: 6px; font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
+@media (max-width: 1100px) { .mbody { grid-template-columns: minmax(0, 1fr); } .convo { position: static; max-height: none; order: -1; } }
+@media (max-width: 720px) { .stage { grid-template-columns: 1fr; } }

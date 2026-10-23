@@ -47,14 +47,39 @@
         <p class="rcount" id="rcount"></p>
         <div class="rgrid" id="rgrid"></div>
       </div>
-      <aside class="foundry" id="foundry" aria-label="Microsoft Foundry" hidden>
-        <div class="fhead"><span class="fdot"></span>Microsoft Foundry</div>
-        <div class="fthread" id="fthread"></div>
-        <form class="ffollow" id="ffollow">
-          <label class="sr" for="fq">Ask a follow-up</label>
-          <input id="fq" type="text" autocomplete="off" placeholder="Ask a follow-up">
-        </form>
-      </aside>
+      <aside class="foundry" id="foundry" aria-label="Conversation" hidden></aside>
+    </div>
+  </section>
+  <section id="matchview" aria-label="Match" hidden>
+    <div class="mbody">
+      <div class="mmain">
+        <a href="#search" class="back">&larr; Back to results</a>
+        <h2 class="mtitle" id="mtitle"></h2>
+        <div class="tline" id="tline" aria-label="Moments on the match timeline"></div>
+        <div class="stage">
+          <div class="player"><span>&#9654;</span></div>
+          <div class="sinfo">
+            <span class="reason" id="sreason"></span>
+            <h3 class="stitle" id="stitle"></h3>
+            <span class="tags" id="stags"></span>
+            <p class="sexpl" id="sexpl"></p>
+          </div>
+          <div class="actions">
+            <button type="button" id="playreel">Play reel</button>
+            <button type="button" class="alt">Download reel</button>
+            <button type="button" class="alt">Export moments</button>
+            <button type="button" class="alt">Watch the full match</button>
+          </div>
+        </div>
+        <details class="recap" id="recap">
+          <summary>Match recap</summary>
+          <h3 id="rhead"></h3>
+          <div id="rparas"></div>
+        </details>
+        <p class="rcount" id="mcount"></p>
+        <div class="rgrid" id="mgrid"></div>
+      </div>
+      <aside class="foundry convo" id="convo" aria-label="Conversation"></aside>
     </div>
   </section>
   <section id="profile" data-view="profile" aria-label="Player profile" hidden></section>
