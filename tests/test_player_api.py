@@ -329,5 +329,6 @@ def test_the_page_never_parses_api_text_as_markup():
 @pytest.mark.parametrize("path, current", [("/", "/"), ("/scout", "/scout"), (f"/players/{GID}", "/scout"), ("/me", "/me")])
 def test_every_view_links_to_the_player_view(client, path, current):
     nav = re.search(r'<nav class="views"[^>]*>(.*?)</nav>', client.get(path).text, flags=re.S).group(1)
-    assert re.findall(r'href="([^"]+)"', nav) == ["/", "/scout", "/me"]
-    assert f'href="{current}" aria-current="page"' in nav
+    assert re.findall(r'href="([^"]+)"', nav) == ["/", "/me", "/scout"]
+    assert re.findall(r'>([^<]+)</a>', nav) == ["Home", "Player profile", "Scout"]
+    assert f'href="{current}" aria-current="page"' in nav and nav.count("aria-current") == 1

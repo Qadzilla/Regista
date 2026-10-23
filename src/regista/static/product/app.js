@@ -1,6 +1,9 @@
-// The Product (/): ask for a moment, watch it, take it away. One result set on screen at a time: the selected player's
-// moments until the first question, then whatever the last reply found. Every reply drives the grid, the timeline and
-// the stage. Plain script on top of window.Regista (/static/shared/regista.js); the timeline is /static/product/timeline.js.
+// Home (/): ask for any moment across every match, watch it in its match, take it away. Three views on one page:
+//   landing  the logo, the tagline and one search box (Data Search or Ask Microsoft Foundry);
+//   results  the moments every match found for the conversation so far, best first, with a compact search bar;
+//   match    the full match view of one moment: timeline, stage, the recap folded away, the player's moments.
+// The conversation (every question, its answer and how it was answered) lives in the panel on the right.
+// Plain script on top of window.Regista (/static/shared/regista.js); the timeline is /static/product/timeline.js.
 // No inline scripts, handlers or style attributes: the page runs under a Content Security Policy.
 (function () {
   const R = window.Regista;
@@ -9,8 +12,10 @@
   const esc = R.esc;
   const $ = (id) => document.getElementById(id);
   const enc = encodeURIComponent;
-  const REEL_MAX = 12;  // what /reel.mp4 accepts
+  const REEL_MAX = 12;   // what /reel.mp4 accepts
+  const PARALLEL = 6;    // requests in flight at once when Home searches every match (a browser's per-host limit)
 
+  // The match view's state: one match, one player, one result set (the player's moments, or the last reply asked there).
   const state = {
     matches: [], match: null, info: null, player: null,
     all: new Map(),          // clip id -> clip as GET /clips returns it: every persisted clip, plus the moments of each
@@ -22,8 +27,26 @@
     tag: null,               // the tag chip filtering the grid, or null for all
     sort: 'best', selected: null, health: null,
     picked: null,            // the moment last picked by a click or a link: the clip= of the page's URL
+    head: 'Moments', emptyHtml: '',
+    season: [],              // the Regista League's matches (GET /api/season), in round order
+    clubs: new Map(),        // club id -> short name ("ASH"), for the match line on result cards
+    view: 'landing',         // 'landing' | 'results' | 'match'
   };
+  // The match view's conversation (as before: the query so far for this match). history is the whole conversation, for
+  // a Foundry reply's context; the log in the panel shows every turn, from Home and from the match view.
   const chat = { state: null, history: [], busy: false };
+  // Home's search across every match: one call to the match's own /chat per match, merged best first.
+  const search = {
+    results: [], total: 0, fromQuestion: true, reel: null, tag: null, sort: 'best', head: 'Moments', emptyHtml: '',
+    asked: false,            // a search has results to go back to
+    states: new Map(),       // match id -> the query so far in that match, as its /chat returned it
+    perMatch: new Map(),     // match id -> {total, counted}: what each match found, and how much of it counts
+    names: null,             // the players the conversation named (a Set of names), or null for anyone
+    infos: new Map(),        // match id -> GET /api/matches/{id} (origin, for the "Cut from video" badge)
+    clips: new Map(),        // match id -> clip id -> clip (label models, for the Foundry badge), library matches only
+    wayout: null,            // {label, go}: the follow-up that clears piled-up filters, when nothing was found
+  };
+  const ui = { engine: 'rules' };
 
   // ------------------------------------------------------------------ small helpers
 
@@ -35,7 +58,9 @@
   // fetch() itself failed: the server or the network is down. ApiError means the server answered.
   const offline = (e) => !(e instanceof R.ApiError);
   const OFFLINE = 'Can\'t reach Regista right now. Check your connection and try again.';
+  const COSMOS_HINT = 'This match is read from Cosmos DB without its event stream, so it cannot answer questions here. Its moments are below.';
   const momentsOf = (pid) => (state.info?.moment_counts || {})[pid] || 0;
+  const set = () => state.view === 'results' ? search : state;   // the result set the grid shows in this view
 
   // A match as people would name it: its title, else the teams and score. Never its id.
   function matchName(m) {
@@ -52,10 +77,11 @@
 
   // A clip from GET /clips or a result from /chat, as one shape. Chat results carry no label model, so the badge
   // reads it from the match's clips. A Foundry label's explanation was written to justify a score ("Scored 0.56
-  // because… xG"); people read its summary instead, which says what happens.
-  function row(c) {
+  // because… xG"); people read its summary instead, which says what happens. ctx: a result from Home's search
+  // ({mid, idx}: its match and that match's place in the list), read against that match's clips.
+  function row(c, ctx = null) {
     const id = c.id || c.clip_id;
-    const full = state.all.get(id);
+    const full = (ctx ? search.clips.get(ctx.mid) : state.all)?.get(id);
     const lb = c.label || full?.label || {};
     const model = lb.model || full?.label?.model || '';
     let explanation = c.explanation ?? lb.explanation ?? '';
@@ -66,6 +92,7 @@
       title: c.title ?? lb.title, tags: c.tags ?? lb.tags ?? [], watchability: c.watchability ?? lb.watchability ?? 0,
       explanation, model,
       video_url: c.video_url !== undefined ? c.video_url : (full ? full.video_url : null),
+      mid: ctx ? ctx.mid : state.match, idx: ctx ? ctx.idx : 0, player: c.player || '', raw: c,
     };
   }
 
@@ -81,12 +108,14 @@
     }
   }
 
-  const sorted = (rows) => [...rows].sort(state.sort === 'time'
-    ? (a, b) => a.t - b.t
-    : (a, b) => (b.watchability - a.watchability) || (a.t - b.t));
+  // Best first: watchability, then the match's place in the list, then time. Match order: the matches in list order,
+  // each from kick-off. Within one match (the match view) both are as they always were.
+  const sorted = (rows, s = set()) => [...rows].sort(s.sort === 'time'
+    ? (a, b) => (a.idx - b.idx) || (a.t - b.t)
+    : (a, b) => (b.watchability - a.watchability) || (a.idx - b.idx) || (a.t - b.t));
 
   // The result set as the grid shows it: filtered by the tag chip, in the order picked.
-  const visible = () => sorted(state.tag ? state.results.filter(r => r.tags.includes(state.tag)) : state.results);
+  const visible = () => { const s = set(); return sorted(s.tag ? s.results.filter(r => r.tags.includes(s.tag)) : s.results, s); };
 
   // ------------------------------------------------------------------ errors with a way out
 
@@ -97,6 +126,47 @@
     $('netRetry').onclick = () => { box.hidden = true; retry(); };
   }
   const hideNetError = () => { $('netError').hidden = true; };
+
+  // ------------------------------------------------------------------ the views
+
+  // One view at a time. The moments section (heading, sort, tag chips, grid) moves under the results or under the
+  // match; the conversation panel shows in the match view, and on the results when Microsoft Foundry answers.
+  // push: a step people take (landing to results, results to a match) gets its own history entry, so Back returns.
+  function showView(v, { sync = true, push = false } = {}) {
+    if (push && v !== state.view && window.history?.pushState) {
+      try { history.pushState({ view: v, from: state.view }, '', location.pathname); } catch (e) { /* the page still works */ }
+    }
+    state.view = v;
+    $('landing').hidden = v !== 'landing';
+    $('work').hidden = v === 'landing';
+    $('resultsView').hidden = v !== 'results';
+    $('resultsTop').hidden = v !== 'results';
+    $('matchView').hidden = v !== 'match';
+    const slot = v === 'results' ? $('resultsSlotSearch') : $('resultsSlotMatch');
+    if ($('resultsSection').parentElement !== slot) slot.appendChild($('resultsSection'));
+    if (v !== 'match') { stopReel(); $('stageVideo').pause(); }
+    $('backToResults').hidden = !(v === 'match' && search.asked);
+    // The realism report is about one match, so it is offered only where that match is on screen.
+    $('reportLine').hidden = v !== 'match';
+    if (v !== 'match') { $('report').hidden = true; $('reportToggle').setAttribute('aria-expanded', 'false'); }
+    layoutPanel();
+    if (v === 'results' || (v === 'match' && state.info)) render();
+    if (sync) syncUrl();
+  }
+
+  function layoutPanel() {
+    const on = state.view === 'match' || (state.view === 'results' && engine() === 'foundry');
+    $('convo').hidden = !on;
+    $('work').classList.toggle('with-convo', on);
+    $('work').classList.toggle('in-match', state.view === 'match');
+    // The panel's box asks this match in the match view, every match on the results.
+    const here = state.view === 'match';
+    const text = here ? 'Ask about this match' : 'Ask a follow-up across every match';
+    $('fq').placeholder = text; $('fqLabel').textContent = text;
+    const cosmosOnly = here && state.info?.source === 'cosmos';
+    $('fq').disabled = cosmosOnly; $('go').disabled = cosmosOnly || chat.busy;
+    engineHint();
+  }
 
   // ------------------------------------------------------------------ links into the page
 
@@ -112,15 +182,42 @@
   }
   const playerOfClip = (cid) => /^cl_(.+)_\d{6}$/.exec(cid || '')?.[1] || null;  // clip ids are cl_{player id}_{number}
 
-  // The URL follows what is on screen (match, player, the moment picked), so it can be shared. replaceState: switching
-  // matches does not fill the back button.
+  // The URL follows what is on screen (match, player, the moment picked), so it can be shared. Within a view it is
+  // replaced: picking moments, players or matches does not fill the back button; moving between views pushes an entry
+  // (showView), so Back goes from a match to the results and from the results to the landing. Each entry keeps what
+  // it showed, for popstate. Home's landing and results have no match, so their URL is plain /.
   function syncUrl() {
-    if (!state.match || !window.history?.replaceState) return;
-    const q = new URLSearchParams({ match: state.match });
-    if (state.player) q.set('player', state.player);
-    if (state.picked) q.set('clip', state.picked);
-    const url = `${location.pathname}?${q}`;
-    if (url !== location.pathname + location.search) history.replaceState(null, '', url);
+    if (!window.history?.replaceState) return;
+    let url = location.pathname;
+    const entry = { view: state.view, from: history.state?.from || null };  // from: the view this entry was pushed from
+    if (state.view === 'match' && state.match) {
+      const q = new URLSearchParams({ match: state.match });
+      if (state.player) q.set('player', state.player);
+      if (state.picked) q.set('clip', state.picked);
+      url = `${location.pathname}?${q}`;
+      Object.assign(entry, { match: state.match, player: state.player, clip: state.picked });
+    }
+    try { history.replaceState(entry, '', url); } catch (e) { /* the page still works */ }
+  }
+
+  // Back and Forward: show the view the entry was, as it was left. Results that are gone (a "start over") show the
+  // landing instead.
+  async function onPopState(e) {
+    const s = e.state || {};
+    if (s.view === 'match' && s.match) {
+      showView('match', { sync: false });
+      if (s.match !== state.match || !state.info) {
+        if (!(await loadMatch(s.match, { player: s.player, quiet: true }))) return showView(search.asked ? 'results' : 'landing');
+      } else if (s.player && s.player !== state.player && player(s.player)) {
+        $('player').value = s.player; await pickPlayer(s.player);
+      }
+      if (s.clip && state.all.has(s.clip)) { state.selected = s.clip; state.picked = s.clip; renderStage(false); markPlaying(s.clip); }
+      return syncUrl();
+    }
+    const v = s.view === 'results' && search.asked ? 'results' : 'landing';
+    showView(v);
+    window.scrollTo(0, 0);
+    $(v === 'results' ? 'rq' : 'q').focus({ preventScroll: true });
   }
 
   // The moment a link asked for: the clip itself, else the moment nearest to t (among the linked player's moments when
@@ -138,8 +235,11 @@
 
   // ------------------------------------------------------------------ loading
 
+  let seasonReady = Promise.resolve();
+
   async function init() {
     wire();
+    startPrompts();
     loadHealth();
     try {
       state.matches = await R.api('/api/matches');
@@ -149,30 +249,40 @@
     }
     hideNetError();
     const link = readLink();
-    if (!state.matches.length && !link.match) return fatal('There are no matches on this server yet.');
     // The featured match first, then the others as the server lists them; the league's matches join later (loadSeason).
     const first = state.matches.length ? featured() : null;
-    $('match').innerHTML = [first, ...state.matches.filter(m => m !== first)].filter(Boolean)
-      .map(m => `<option value="${esc(m.match_id)}">${esc(matchName(m))}</option>`).join('');
-    loadSeason();  // not awaited: the first paint never waits for the league
-    recapView.wanted = link.recap;  // the profile's "Recap" link: scroll to the recap as soon as it is written
-    if (link.match && await loadMatch(link.match, { player: link.player || playerOfClip(link.clip), quiet: true })) {
-      await openLinked(link);
-      return syncUrl();
+    state.matches = [first, ...state.matches.filter(m => m !== first)].filter(Boolean);
+    $('match').innerHTML = state.matches.map(m => `<option value="${esc(m.match_id)}">${esc(matchName(m))}</option>`).join('');
+    seasonReady = loadSeason();  // not awaited: the first paint never waits for the league
+    recapView.wanted = link.recap;  // the profile's "Recap" link: open the recap and scroll to it as soon as it is written
+    if (link.match) {
+      showView('match');
+      if (await loadMatch(link.match, { player: link.player || playerOfClip(link.clip), quiet: true })) {
+        await openLinked(link);
+        if (recapView.wanted) openRecap();
+        return syncUrl();
+      }
     }
-    if (location.search && window.history?.replaceState) history.replaceState(null, '', location.pathname);  // a link that led nowhere
-    if (!first) return fatal('There are no matches on this server yet.');
-    await loadMatch(first.match_id);
+    showView('landing');
+    if (location.search && window.history?.replaceState) history.replaceState({ view: 'landing' }, '', location.pathname);  // a link that led nowhere
+    if (!first) {
+      await seasonReady;
+      if (!state.season.length) return fatal('There are no matches on this server yet.');
+      return loadMatch(state.season[0].match_id);
+    }
+    await loadMatch(first.match_id);  // in the background of Home: it fills the Match and Player pickers
   }
 
   // The Regista League's matches, in round order, in their own group under the matches above. Season matches are
   // ordinary matches to the API, so nothing else on the page treats them differently. No league on this server, or no
-  // answer: the picker keeps what it has.
+  // answer: the picker keeps what it has (and Home searches the matches it has).
   async function loadSeason() {
     let s;
     try { s = await R.api('/api/season'); } catch (e) { return; }
     const ms = (s.rounds || []).flatMap(r => r.matches || []);
     if (!ms.length) return;
+    state.season = ms;
+    state.clubs = new Map((s.clubs || []).map(c => [c.club_id, c.short_name]));
     const sel = $('match'), keep = sel.value;
     const g = seasonGroup();
     g.label = [s.league, s.season].filter(Boolean).join(' ') || g.label;
@@ -205,14 +315,15 @@
   }
 
   function fatal(text) {
-    $('resultsHead').textContent = 'Moments';
+    state.head = 'Moments'; $('resultsHead').textContent = 'Moments';
     showEmpty(esc(text));
     $('stage').hidden = true;
+    $('landingNote').textContent = text; $('landingNote').hidden = !text;
   }
 
   // A switch loads everything first and only then replaces what is on screen: if it fails, the picker goes back to the
   // match still shown, so the page never mixes two matches.
-  // quiet: a link's match, which falls back to the featured one if it fails, so a failure here says nothing.
+  // quiet: a link's match, which falls back to Home if it fails, so a failure here says nothing.
   async function loadMatch(id, { player: wanted = null, quiet = false } = {}) {
     const previous = state.info ? state.match : null;
     $('match').disabled = true;
@@ -240,22 +351,21 @@
     fillPlayers(wanted || listed?.clips_for);
     $('fullMatch').href = matchUrl('/video.mp4');
     $('fullMatch').hidden = state.info.source === 'cosmos';
-    // A league match runs 30 minutes: its first full view renders the whole video, which takes minutes, so the link says so.
+    // A league match runs 30 minutes: its first full view renders the whole video, which takes minutes, so a note under
+    // the stage's actions says so (the button keeps a short label, so the four actions stay on one row).
     const long = (state.info.duration_s || 0) > 600;
-    $('fullMatch').textContent = long ? 'Watch the full match (the first view takes a few minutes)' : 'Watch the full match';
+    $('fullMatch').textContent = 'Watch the full match';
+    $('fullMatchNote').hidden = !long || $('fullMatch').hidden;
+    if (long) $('fullMatch').setAttribute('aria-describedby', 'fullMatchNote'); else $('fullMatch').removeAttribute('aria-describedby');
     report.loaded = null; $('report').hidden = true; $('reportToggle').setAttribute('aria-expanded', 'false');
-    const cosmosOnly = state.info.source === 'cosmos';
-    $('q').disabled = cosmosOnly; $('go').disabled = cosmosOnly;
     await newConversation();
-    if (cosmosOnly) $('engineHint').textContent = 'This match is read from Cosmos DB without its event stream, so it cannot answer questions here. Its moments are below.';
+    layoutPanel();  // a match read from Cosmos DB cannot answer questions: the panel's box says so
     return true;
   }
 
+  // The match's name and, for a match cut from video, what the badge means. (Its explainer line is not shown.)
   function showMatchLine(m) {
     $('matchTitle').textContent = matchName({ ...m, title: m.title || state.info.title, teams: m.teams || state.info.teams });
-    const sub = m.subtitle || state.info.subtitle;
-    $('matchSub').textContent = sub || '';
-    $('matchSub').hidden = !sub;
     $('visionNote').hidden = state.info.origin !== 'vision';
   }
 
@@ -301,7 +411,434 @@
     syncUrl();
   }
 
-  // ------------------------------------------------------------------ the conversation
+  // ------------------------------------------------------------------ the landing: prompts that type themselves
+
+  // Example prompts type themselves into the empty search box and back out, one after another. They pause while the
+  // box has focus or text in it, and stay still for people who prefer less motion. Tab fills in the prompt showing.
+  const PROMPTS = [
+    'Find me the best saves this season',
+    'Show me every header this season',
+    'Find me all the nutmegs',
+    'Show me take-ons in the final third',
+    'Find me every assist, best first',
+    'Show me Femi Toure\'s goals, assists and shots',
+  ];
+  const typing = { p: 0, n: 0, up: true, shown: '' };
+
+  function startPrompts() {
+    const q = $('q');
+    const still = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    q.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.shiftKey && !q.value && typing.shown) { e.preventDefault(); q.value = PROMPTS[typing.p]; }
+    });
+    q.addEventListener('focus', () => { if (!q.value) q.placeholder = typing.shown; });
+    q.addEventListener('blur', () => { if (!q.value) q.placeholder = typing.shown; });
+    if (still) { typing.shown = PROMPTS[0]; q.placeholder = PROMPTS[0]; return; }
+    const tick = () => {
+      if ($('landing').hidden || document.activeElement === q || q.value) return setTimeout(tick, 400);
+      const text = PROMPTS[typing.p];
+      if (typing.up) {
+        typing.n++; typing.shown = text.slice(0, typing.n); q.placeholder = `${typing.shown}|`;
+        if (typing.n >= text.length) { typing.up = false; q.placeholder = typing.shown; return setTimeout(tick, 1800); }
+        return setTimeout(tick, 45 + Math.random() * 40);
+      }
+      typing.n--; typing.shown = text.slice(0, typing.n); q.placeholder = `${typing.shown}|`;
+      if (typing.n <= 0) { typing.up = true; typing.p = (typing.p + 1) % PROMPTS.length; return setTimeout(tick, 400); }
+      return setTimeout(tick, 22);
+    };
+    tick();
+  }
+
+  // ------------------------------------------------------------------ the conversation: shared pieces
+
+  const engine = () => ui.engine;
+
+  // The three "Who answers" switches (landing, results bar, panel) are one choice.
+  function setEngine(v) {
+    ui.engine = v;
+    for (const r of document.querySelectorAll('input[name="engine"], input[name="rengine"], input[name="fengine"]')) r.checked = r.value === v;
+    layoutPanel();
+  }
+
+  function engineHint() {
+    if (state.view === 'match' && state.info?.source === 'cosmos') { $('engineHint').textContent = COSMOS_HINT; return; }
+    const h = state.health;
+    const where = state.view === 'match' ? 'Questions here search this match.' : 'Questions here search every match.';
+    $('engineHint').textContent = engine() === 'rules'
+      ? `Data Search: Regista's own rules find the moments and write the reply, with no AI model. Follow-ups build on what you asked; "start over" clears it. ${where}`
+      : (h && !h.cloud.foundry
+        ? `Foundry is not set up on this server, so Regista's rules will write the reply. The moments found are the same. ${where}`
+        : `Ask Microsoft Foundry: the same search, then a Microsoft Foundry model writes the reply and may call its tools. Takes a few seconds. ${where}`);
+  }
+
+  function logChanged() {
+    const empty = !$('log').children.length;
+    $('log').hidden = empty; $('logEmpty').hidden = !empty;
+    $('log').scrollTop = $('log').scrollHeight;
+  }
+
+  function addMsg(cls, html) {
+    const div = document.createElement('div');
+    div.className = `msg ${cls}`;
+    div.innerHTML = html;
+    $('log').appendChild(div);
+    logChanged();
+    const how = div.querySelector('details');
+    if (how) how.addEventListener('toggle', () => { if (how.open) how.scrollIntoView({ block: 'nearest' }); });
+    return div;
+  }
+
+  // Which matches a reply searched, on the first line of the reply.
+  const where = (text) => `<span class="where">${esc(text)}</span>`;
+
+  function busy(on) {
+    chat.busy = on;
+    $('homeGo').disabled = on; $('barGo').disabled = on;
+    $('go').disabled = on || (state.view === 'match' && state.info?.source === 'cosmos');
+  }
+
+  function errorText(e, scope) {
+    return offline(e) ? OFFLINE : e.status === 429 ? detail(e)
+      : e.status === 404 ? 'This match is not on this server any more. Pick another match.' : `${scope}: ${detail(e)}`;
+  }
+
+  function addError(e, scope, retry) {
+    const err = addMsg('bot err', esc(errorText(e, scope)));
+    if (offline(e) || e.status >= 500) {
+      const b = Object.assign(document.createElement('button'), { type: 'button', className: 'alt retry', textContent: 'Retry' });
+      b.onclick = () => { err.remove(); logChanged(); retry(); };
+      err.appendChild(b);
+      $('log').scrollTop = $('log').scrollHeight;
+    }
+    return err;
+  }
+
+  // ------------------------------------------------------------------ Home: search every match
+
+  // Every match Home can search: the library's (in the picker's order, featured first) and the league's, in round
+  // order. A match read from Cosmos DB without its event stream cannot answer questions, so it is left out (and said).
+  function searchList() {
+    const list = [], seen = new Set();
+    let skipped = 0;
+    for (const m of [...state.matches, ...state.season]) {
+      if (seen.has(m.match_id)) continue;
+      seen.add(m.match_id);
+      if (m.source === 'cosmos') { skipped++; continue; }
+      list.push({ id: m.match_id, name: m.home_name ? (m.title || `Round ${m.round}: ${m.home_name} v ${m.away_name}`) : matchName(m),
+                  card: cardLine(m), library: !m.home_name, idx: list.length });
+    }
+    return { list, skipped };
+  }
+  const nameOf = (mid) => searchList().list.find(m => m.id === mid)?.name || 'a match';
+
+  // The short line on a result card that says which match it comes from: "Round 2 · EAS v ASH" for a league match,
+  // the match's own name for the library's.
+  function cardLine(m) {
+    if (!m.home_name) return matchName(m);
+    const short = (club, name) => state.clubs.get(club) || name;
+    return `Round ${m.round} · ${short(m.home, m.home_name)} v ${short(m.away, m.away_name)}`;
+  }
+
+  // Runs fn over items, at most n at a time; the results keep the items' order.
+  async function pool(items, n, fn) {
+    const out = new Array(items.length);
+    let i = 0;
+    const worker = async () => { while (i < items.length) { const k = i++; out[k] = await fn(items[k], k); } };
+    await Promise.all(Array.from({ length: Math.min(n, items.length) }, worker));
+    return out;
+  }
+
+  // Each match reads a name in the question on its own, so "Femi Toure" can mean Femi Rahman in a match Toure did not
+  // play. The names the question really says: players with results whose full name is in it, else whose surname is.
+  // null: the question names no one with a result (then every match's answer stands).
+  const FOOTBALL_WORDS = /^(shot|shots|header|headers|cross|crosses|pass|passes|goal|goals|save|saves|ball|best|top|more|tackle|tackles)$/;
+  const words = (s) => String(s || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean);
+  function namesIn(message, results) {
+    const said = new Set(words(message));
+    const names = [...new Set(results.map(r => r.player).filter(Boolean))];
+    const full = names.filter(n => words(n).length > 1 && words(n).every(w => said.has(w)));
+    if (full.length) return new Set(full);
+    const sur = names.filter(n => { const w = words(n); return w.length > 1 && !FOOTBALL_WORDS.test(w[w.length - 1]) && said.has(w[w.length - 1]); });
+    return sur.length ? new Set(sur) : null;
+  }
+  const resolved = (st) => (st?.player_ids || []).length > 0 || !!st?.team_id;
+  const carriedFilters = (st) => (st?.tags || []).length || (st?.reasons || []).length || st?.minutes;
+
+  // One question to every match: each match's own /chat (the Instant engine: no model) with that match's query so far,
+  // merged best first. With Ask Microsoft Foundry, Foundry then writes the reply once, from the match with the best
+  // result (the /chat Foundry engine reads one match). fresh: a new search from the landing; withStates: the queries to
+  // send instead of the current ones (a Retry, or the server's way out); only: just these matches ("Show more").
+  async function searchEvery(message, { fresh = false, withStates = null, only = null, quiet = false, focus = null } = {}) {
+    if (!message || chat.busy) return null;
+    busy(true);
+    await seasonReady;
+    const { list: everyMatch, skipped } = searchList();
+    const list = only ? everyMatch.filter(m => only.includes(m.id)) : everyMatch;
+    if (fresh) { search.states = new Map(); search.names = null; }
+    const before = new Map(search.states);
+    const eng = engine();
+    showView('results', { push: true });
+    if (message !== 'more') $('rq').value = message;
+    addMsg('me', esc(message));
+    const wait = addMsg('bot wait', eng === 'foundry' ? 'Searching every match, then asking Microsoft Foundry to write the reply…' : 'Searching every match…');
+    if (!list.length) {
+      wait.remove(); logChanged();
+      addMsg('bot err', esc('There are no matches on this server to search.'));
+      announce('There are no matches on this server to search.');
+      busy(false);
+      return null;
+    }
+    const progress = (done) => {
+      $('resultsHead').textContent = 'Searching every match…';
+      $('grid').innerHTML = ''; $('tagbar').hidden = true; $('more').hidden = true;
+      showEmpty(esc(`Searching every match… ${done} of ${list.length}`));
+    };
+    if (search.results.length === 0 || message !== 'more') progress(0);
+    const t0 = performance.now();
+    let done = 0;
+    const outs = await pool(list, PARALLEL, async (m) => {
+      const st = withStates ? (withStates.get(m.id) ?? null) : (search.states.get(m.id) ?? null);
+      try {
+        const out = await R.api(matchUrl('/chat', m.id), { method: 'POST', body: { message, state: st, history: [], engine: 'rules' } });
+        return { m, out, st };
+      } catch (e) {
+        return { m, err: e, st };
+      } finally {
+        done++;
+        if (message !== 'more') progress(done);
+      }
+    });
+    const wall = performance.now() - t0;
+    const oks = outs.filter(o => o.out), bad = outs.filter(o => o.err);
+    if (!oks.length) {
+      wait.remove(); logChanged();
+      const e = bad[0]?.err;
+      addError(e, 'Regista could not search the matches', () => searchEvery(message, { withStates: before, only }));
+      search.head = 'Moments';
+      if (message !== 'more') { search.results = []; search.total = 0; }
+      search.wayout = offline(e) || e?.status >= 500 ? { label: 'Retry', go: () => searchEvery(message, { withStates: before, only }) } : null;
+      render(esc(errorText(e, 'Regista could not search the matches')));
+      announce(errorText(e, 'Regista could not search the matches'));
+      busy(false);
+      if (!quiet) $(focus || 'rq')?.focus();
+      return null;
+    }
+    for (const o of oks) search.states.set(o.m.id, o.out.state);
+    const intent = oks[0].out.intent;
+    if (intent === 'reset') {
+      wait.remove(); logChanged();
+      addMsg('bot', `${where('Every match')}${esc(oks[0].out.reply)}`);
+      chat.history = [];
+      resetSearch();
+      busy(false);
+      showView('landing');
+      if (!quiet) $('q').focus();
+      return oks[0].out;
+    }
+
+    // Which answers count: if the question named someone in some matches, the matches where it named no one drop out;
+    // then, if it says a player's name, only that player's moments.
+    const kept = oks.some(o => resolved(o.out.state)) ? oks.filter(o => resolved(o.out.state)) : oks;
+    const named = namesIn(message, kept.flatMap(o => o.out.results || []));
+    if (named) search.names = named;
+    const newRows = [];
+    for (const o of oks) {
+      const keep = kept.includes(o);
+      const rows = keep ? (o.out.results || []).filter(c => !search.names || search.names.has(c.player)) : [];
+      const partial = keep && rows.length < (o.out.results || []).length;
+      const total = keep ? (partial ? rows.length : (o.out.total ?? rows.length)) : 0;
+      const pm = search.perMatch.get(o.m.id);
+      search.perMatch.set(o.m.id, intent === 'more' && pm ? { total: Math.max(pm.total, total), counted: pm.counted } : { total, counted: true });
+      for (const c of rows) newRows.push(row(c, { mid: o.m.id, idx: o.m.idx }));
+    }
+    if (intent !== 'more') for (const m of everyMatch) if (!oks.some(o => o.m.id === m.id) && !only) search.perMatch.set(m.id, { total: 0, counted: true });
+    await loadSearchDetails([...new Set(newRows.map(r => r.mid))]);
+    const fixed = newRows.map(r => row(r.raw, { mid: r.mid, idx: r.idx }));  // now with each match's label models
+    search.results = intent === 'more' ? [...search.results, ...fixed.filter(r => !search.results.some(x => x.mid === r.mid && x.id === r.id))] : fixed;
+    search.total = Math.max(search.results.length, [...search.perMatch.values()].reduce((a, p) => a + (p.total || 0), 0));
+    search.fromQuestion = true; search.tag = null; search.asked = true;
+    const best = sorted(search.results, { sort: 'best' });
+    const topMid = best[0]?.mid || kept[0]?.m.id || list[0].id;
+    const top = oks.find(o => o.m.id === topMid) || kept[0] || oks[0];
+    const understood = top.out.understood || '';
+    // The server keeps the order asked for in state.order ("time" after "in match order").
+    const prevOrder = top.st?.order;
+    if (top.out.state?.order === 'time') setSort('time', search);
+    else if ((prevOrder === 'time' && top.out.state?.order === null) || /\bbest\b|\btop\b/i.test(message)) setSort('best', search);
+
+    // Ask Microsoft Foundry: one Foundry reply, written from the match with the best result.
+    let fout = null, ferr = null;
+    if (eng === 'foundry') {
+      try {
+        fout = await R.api(matchUrl('/chat', topMid), { method: 'POST', body: { message, state: top.st ?? null, history: chat.history, engine: 'foundry' } });
+        search.states.set(topMid, fout.state);
+      } catch (e) { ferr = e; }
+    }
+    wait.remove(); logChanged();
+    const matchesWith = new Set(search.results.map(r => r.mid)).size;
+    const composed = !search.total ? `Nothing in any match for ${understood || 'that'}.`
+      : `${plural(search.total, 'moment')} in ${plural(matchesWith, 'match', 'matches')} · ${understood}. Best: ${best[0].title}, ${nameOf(best[0].mid)}.`;
+    const foundryWrote = fout && String(fout.answered_by || '').startsWith('foundry');
+    const out = {
+      reply: foundryWrote ? fout.reply : composed, understood, total: search.total, intent,
+      answered_by: fout ? fout.answered_by : 'rules', tools_used: fout?.tools_used || [], state: { player_ids: [] },
+      trace: [...aggregate(oks), ...(fout?.trace || []).filter(s => s.kind !== 'step')],
+      every: { searched: oks.length, matchesWith, ms: wall },
+    };
+    const scope = foundryWrote ? `<span class="scope">Microsoft Foundry wrote this from ${esc(nameOf(topMid))}, the match with the best result. `
+      + 'The moments in the grid come from every match.</span>' : '';
+    const msg = addMsg('bot', `${where('Every match')}${esc(out.reply)}${scope}${fallbackLine(out, eng)}${howAnswered(out, eng)}`);
+    if (ferr) addError(ferr, 'Microsoft Foundry could not write the reply', () => searchEvery(message, { withStates: before, only }));
+    if (!foundryWrote) chat.history = [...chat.history, { role: 'user', text: message }, { role: 'assistant', text: composed.slice(0, 600) }].slice(-12);
+    else chat.history = fout.history;
+
+    // The way out when piled-up filters leave nothing: the server's own suggestion, else all of the named player.
+    search.wayout = null;
+    if (!search.total && intent !== 'more') {
+      const sug = oks.find(o => o.out.suggest?.message)?.out.suggest;
+      const names = search.names ? [...search.names] : [];
+      if (sug) {
+        search.wayout = { label: sug.label || sug.message.charAt(0).toUpperCase() + sug.message.slice(1),
+                          go: () => searchEvery(sug.message, { withStates: new Map(oks.map(o => [o.m.id, o.out.suggest?.state || null])) }) };
+      } else if (names.length === 1 && oks.some(o => carriedFilters(o.out.state))) {
+        search.wayout = { label: `Show all of ${names[0]}'s moments`, go: () => searchEvery(names[0], { fresh: true }) };  // set as textContent
+      }
+      if (search.wayout) {
+        const b = Object.assign(document.createElement('button'), { type: 'button', className: 'alt wayout', textContent: search.wayout.label });
+        const go = search.wayout.go;
+        b.onclick = () => { b.disabled = true; go(); };
+        msg.insertBefore(b, msg.querySelector('details.how'));
+      }
+    }
+
+    searchNote(everyMatch.length, skipped, bad.length);
+    search.head = `${esc(plural(search.total, 'moment'))} <span class="muted">· ${esc(understood)}</span>`;
+    const carried = oks.some(o => carriedFilters(o.out.state));
+    busy(false);
+    render(search.results.length ? ''
+      : carried && !/^(start over|reset)/i.test(message)
+        ? `Nothing for ${esc(understood || 'that')} in any match. Filters from earlier questions still apply: ${search.wayout ? 'use the button below' : 'change the question'}, or say "start over".`
+        : 'Nothing matched that question in any match. Try a player\'s surname, a kit number, or an action like "nutmeg" or "shot".');
+    if (state.view !== 'results') return out;  // a card was opened meanwhile: stay with it
+    announce(out.reply);
+    if (message !== 'more') window.scrollTo(0, 0);
+    if (search.sort === 'time' && intent === 'search') await fillEveryMatchOrder(kept);
+    if (search.results.length && (oks.some(o => (o.out.reel || []).length) || /\b(reel|montage|compilation)\b/i.test(message))) await reelFromSearch(kept);
+    if (!quiet && state.view === 'results') $(focus || 'rq')?.focus();
+    return out;
+  }
+
+  // The results' own polite status (#resultsStatus, visually hidden): says what a search found when the conversation
+  // panel, whose log is the other live region, is hidden (Data Search on the results). Cleared first, so the same
+  // words twice are read twice.
+  function announce(text) {
+    const el = $('resultsStatus');
+    el.textContent = '';
+    if (!$('convo').hidden || !text) return;
+    setTimeout(() => { if ($('convo').hidden) el.textContent = text; }, 60);
+  }
+
+  function resetSearch() {
+    search.states = new Map(); search.perMatch = new Map(); search.names = null; search.results = []; search.total = 0;
+    search.tag = null; search.reel = null; search.asked = false; search.wayout = null; search.head = 'Moments'; search.emptyHtml = '';
+    $('searchNote').hidden = true;
+  }
+
+  // Each match's own steps, added up: one line per step name, with how many matches ran it (each counted once), how
+  // many times it ran in all (a match can run a step twice) and their time together.
+  function aggregate(oks) {
+    const byName = new Map();
+    for (const o of oks) for (const s of o.out.trace || []) {
+      const k = [s.kind, s.name, s.server || ''].join('|');  // a key, never shown
+      const a = byName.get(k) || { kind: s.kind, name: s.name, server: s.server, ms: 0, runs: 0, mids: new Set() };
+      a.ms += Number(s.ms) || 0; a.runs += 1; a.mids.add(o.m.id);
+      byName.set(k, a);
+    }
+    return [...byName.values()].map(({ mids, ...a }) => ({ ...a, n: mids.size }));
+  }
+
+  // What the results do not cover: matches read from Cosmos DB without their event stream, matches that did not answer,
+  // and the players a name in the question left out.
+  function searchNote(n, skipped, failed) {
+    const parts = [];
+    if (failed) parts.push(`Regista could not search ${failed} of ${plural(n, 'match', 'matches')}.`);
+    if (skipped) parts.push(`${plural(skipped, 'match', 'matches')} read from Cosmos DB without ${skipped === 1 ? 'its' : 'their'} event stream cannot be searched.`);
+    if (search.names) parts.push(`Only ${[...search.names].join(' and ')}: where a name in the question meant another player, that match is left out.`);
+    $('searchNote').textContent = parts.join(' ');
+    $('searchNote').hidden = !parts.length;
+  }
+
+  // What the cards need from each match that found something: its origin ("Cut from video") and, for the library's
+  // matches, its clips' label models ("Labelled by Microsoft Foundry"). Read once per match; a failure only loses badges.
+  async function loadSearchDetails(mids) {
+    const library = new Set(searchList().list.filter(m => m.library).map(m => m.id));
+    await pool(mids.filter(mid => !search.infos.has(mid)), PARALLEL, async (mid) => {
+      try { search.infos.set(mid, await R.api(matchUrl('', mid))); } catch (e) { return; }
+      if (!library.has(mid)) return;  // a league match's clips are hundreds of rows, all labelled by Regista's rules
+      try { search.clips.set(mid, new Map((await R.api(matchUrl('/clips', mid))).map(c => [c.id, c]))); } catch (e) { /* no badge */ }
+    });
+  }
+
+  // "In match order" means every moment from kick-off: the server returns them all in one page; an older server pages
+  // them, so the page fetches each match's remaining pages itself (Instant engine, no lines in the conversation).
+  async function fillEveryMatchOrder(kept) {
+    for (const o of kept) {
+      const pm = search.perMatch.get(o.m.id);
+      let st = search.states.get(o.m.id);
+      for (let i = 0; i < 10 && pm && search.results.filter(r => r.mid === o.m.id).length < pm.total; i++) {
+        let out;
+        try {
+          out = await R.api(matchUrl('/chat', o.m.id), { method: 'POST', body: { message: 'more', state: st, history: [], engine: 'rules' } });
+        } catch (e) { break; }
+        const fresh = (out.results || []).filter(c => !search.names || search.names.has(c.player)).map(c => row(c, { mid: o.m.id, idx: o.m.idx }))
+          .filter(r => !search.results.some(x => x.mid === r.mid && x.id === r.id));
+        if (!fresh.length) break;
+        st = out.state;
+        search.results = [...search.results, ...fresh];
+      }
+      search.states.set(o.m.id, st);
+    }
+    render();
+  }
+
+  // A reel is one match's (the reel endpoint takes one match): a reel asked for on the results plays the best match's
+  // part of them, in that match's view.
+  async function reelFromSearch(kept) {
+    const top = sorted(search.results, { sort: 'best' })[0];
+    if (!top) return;
+    const o = kept.find(x => x.m.id === top.mid);
+    const rows = sorted(search.results.filter(r => r.mid === top.mid), { sort: 'best' });
+    const ids = o?.out.reel?.length ? o.out.reel.map(c => c.clip_id) : rows.map(r => r.id);
+    await openResult(top.mid, top.id, { part: { rows, reel: ids, understood: o?.out.understood || '' } });
+  }
+
+  // A card on the results opens its match: the full match view, that moment on the stage, its player's moments below.
+  // part: open with this match's share of the results instead (a reel asked for on the results).
+  async function openResult(mid, id, { part = null } = {}) {
+    const pid = playerOfClip(id);
+    const pushed = state.view !== 'match';
+    showView('match', { sync: false, push: true });  // the URL changes once the moment is on the stage
+    window.scrollTo(0, 0);
+    if (mid !== state.match || !state.info) {
+      if (!(await loadMatch(mid, { player: pid }))) { if (pushed && history.state?.view === 'match') history.back(); else if (search.asked) showView('results'); return; }
+    } else if (pid && pid !== state.player && player(pid)) {
+      $('player').value = pid; await pickPlayer(pid);
+    }
+    const r = search.results.find(x => x.mid === mid && x.id === id);
+    if (r) remember([r.raw]);
+    if (part) {
+      remember(part.rows.map(x => x.raw));
+      state.results = part.rows.map(x => row(x.raw)); state.total = part.rows.length; state.fromQuestion = true; state.tag = null;
+      state.reel = part.reel;
+      state.head = `${esc(plural(state.total, 'moment'))} <span class="muted">· ${esc(part.understood)}</span>`;
+      render('');
+      playReel();
+      return syncUrl();
+    }
+    select(id, true);
+  }
+
+  // ------------------------------------------------------------------ the match view's conversation
 
   // The server keeps nothing between turns: it merges each message into the query so far and returns it, and the page
   // sends it back. It starts from the picked player, so "make a reel of his best moments" knows who "his" is.
@@ -309,93 +846,33 @@
     return { player_ids: state.player ? [state.player] : [], team_id: null, tags: [], reasons: [], minutes: null, limit: null, offset: 0 };
   }
 
+  // A new match or player: the query starts again from the player (the conversation so far stays in the panel).
   async function newConversation() {
-    loadRecap('rules');  // not awaited: the recap fills in beside the moments
-    chat.state = seed(); chat.history = [];
-    $('log').innerHTML = ''; $('log').hidden = true;
+    resetRecap();
+    chat.state = seed();
     try { await loadPlayerClips(state.player); } catch (e) { /* the grid says so below */ }
-    showLanding();
     engineHint();
     showPlayerMoments();
   }
 
-  function showLanding() {
-    $('landing').hidden = false;
-    renderExamples();
-  }
-
-  // The first chip asks for something the player really did, so it never comes back empty: the most telling tag among
-  // their moments, in a phrase the Librarian understands.
-  const ASKS = [
-    ['goal', (w) => `Show me ${w} scoring`, 'Goals'], ['nutmeg', (w) => `Find me ${w} doing a nutmeg`, 'Nutmegs'],
-    ['take_on', (w) => `Find me ${w} doing a take-on`, 'Take-ons'], ['assist', (w) => `Find me ${w}'s assists`, 'Assists'],
-    ['shot', (w) => `Find me ${w}'s shots`, 'Shots'], ['save', (w) => `Find me ${w}'s saves`, 'Saves'],
-    ['header', (w) => `Find me ${w}'s headers`, 'Headers'], ['tackle', (w) => `Find me ${w}'s tackles`, 'Tackles'],
-    ['interception', (w) => `Find me ${w}'s interceptions`, 'Interceptions'], ['cross', (w) => `Find me ${w}'s crosses`, 'Crosses'],
-    ['dribble', (w) => `Find me ${w} dribbling`, 'Dribbles'], ['carry', (w) => `Find me ${w}'s carries`, 'Carries'],
-    ['pass', (w) => `Find me ${w}'s passes`, 'Passes'],
-  ];
-
-  // How a chip names a player so the Librarian finds exactly them. It reads the first name part it knows, in roster
-  // order: a surname no one else has is enough, else the full name when its first name leads to them, else the name
-  // with team and kit number ("Ivan Brennan, Southgate's number 1").
+  // How a way-out button names a player so the Librarian finds exactly them. It reads the first name part it knows, in
+  // roster order: a surname no one else has is enough, else the full name when its first name leads to them, else the
+  // name with team and kit number ("Ivan Brennan, Southgate's number 1").
   function chipName(p) {
     const parts = new Map();
     for (const o of state.info.players) for (const w of o.name.toLowerCase().split(' ')) { if (!parts.has(w)) parts.set(w, []); parts.get(w).push(o); }
-    const words = p.name.toLowerCase().split(' ');
-    const last = words[words.length - 1];
+    const ws = p.name.toLowerCase().split(' ');
+    const last = ws[ws.length - 1];
     if (parts.get(last).length === 1) return { who: p.name.split(' ').slice(-1)[0], plain: true };
-    if (parts.get(words[0])[0] === p) return { who: p.name, plain: true };
+    if (parts.get(ws[0])[0] === p) return { who: p.name, plain: true };
     const name = p.name, side = (team(p.team_id)?.name || '').split(' ')[0];  // plain text: esc() is applied where it is shown
     return { who: `${name}, ${side}'s number ${p.kit_number}`, plain: false };
   }
 
-  function renderExamples() {
-    // A player with no moments gets chips about the player who has the most, so every chip answers.
-    let p = player(state.player);
-    if (p && !momentsOf(p.player_id)) p = player(Object.entries(state.info.moment_counts || {}).sort((a, b) => b[1] - a[1])[0]?.[0]) || p;
-    const asks = [];
-    if (p) {
-      const { who, plain } = chipName(p);
-      const tags = new Set([...state.all.values()].filter(c => c.player_id === p.player_id).flatMap(c => c.label?.tags || []));
-      const first = ASKS.find(([tag]) => tags.has(tag));
-      if (first) asks.push(plain ? first[1](who) : `${first[2]} by ${who}`);
-      if (momentsOf(p.player_id)) asks.push(`Every touch by ${who}, in match order`,
-        plain ? `Make a reel of ${who}'s best moments` : `The best moments of ${who}, as a reel`);
-    }
-    $('examples').innerHTML = asks.map(a => `<button type="button" class="example">${esc(a)}</button>`).join('');
-    const off = state.info?.source === 'cosmos';
-    for (const b of $('examples').querySelectorAll('button')) { b.disabled = off; b.onclick = () => { $('q').value = b.textContent; send(); }; }
-  }
-
-  const engine = () => document.querySelector('input[name="engine"]:checked').value;
-
-  function engineHint() {
-    if (state.info?.source === 'cosmos') return;
-    const h = state.health;
-    $('engineHint').textContent = engine() === 'rules'
-      ? 'Instant: Regista\'s own rules find the moments and write the reply, with no AI model. Follow-ups build on what you asked; "start over" clears it.'
-      : (h && !h.cloud.foundry
-        ? 'Foundry is not set up on this server, so Regista\'s rules will write the reply. The moments found are the same.'
-        : 'Foundry: the same search, then a Microsoft Foundry model writes the reply and may call its tools. Takes a few seconds.');
-  }
-
-  function addMsg(cls, html) {
-    const div = document.createElement('div');
-    div.className = `msg ${cls}`;
-    div.innerHTML = html;
-    $('log').hidden = false;
-    $('log').appendChild(div);
-    $('log').scrollTop = $('log').scrollHeight;
-    const how = div.querySelector('details');
-    if (how) how.addEventListener('toggle', () => { if (how.open) how.scrollIntoView({ block: 'nearest' }); });
-    return div;
-  }
-
-  async function send(message = $('q').value.trim(), { quiet = false, withState = null } = {}) {
+  // One question about the match on screen, from the panel's box in the match view.
+  async function send(message = $('fq').value.trim(), { quiet = false, withState = null } = {}) {
     if (!message || chat.busy || !state.match) return null;
-    chat.busy = true; $('go').disabled = true; $('q').value = '';
-    $('landing').hidden = true;
+    busy(true); $('fq').value = '';
     addMsg('me', esc(message));
     const eng = engine();
     const wait = addMsg('bot wait', eng === 'foundry' ? 'Searching, then asking Microsoft Foundry to write the reply…' : 'Searching…');
@@ -403,10 +880,10 @@
     const prevOrder = (withState || chat.state)?.order;
     try {
       out = await R.api(matchUrl('/chat'), { method: 'POST', body: { message, state: withState || chat.state, history: chat.history, engine: eng } });
-      wait.remove();
+      wait.remove(); logChanged();
       chat.state = out.state; chat.history = out.history;
       remember(out.results);
-      const msg = addMsg('bot', `${esc(out.reply)}${fallbackLine(out, eng)}${howAnswered(out, eng)}`);
+      const msg = addMsg('bot', `${where(nameOf(state.match) === 'a match' ? matchName(state.info) : nameOf(state.match))}${esc(out.reply)}${fallbackLine(out, eng)}${howAnswered(out, eng)}`);
       // The server keeps the order asked for in state.order ("time" after "in match order"); older servers did not.
       if (out.state?.order === 'time' || (out.state?.order === undefined && /match order|in order|chronolog/i.test(message))) setSort('time');
       else if ((prevOrder === 'time' && out.state?.order === null) || /\bbest\b|\btop\b/i.test(message)) setSort('best');
@@ -414,19 +891,11 @@
       offerWayOut(msg, out);
       if (state.sort === 'time' && out.intent === 'search') await fillMatchOrder();
     } catch (e) {
-      wait.remove();
-      const text = offline(e) ? OFFLINE : e.status === 429 ? detail(e)
-        : e.status === 404 ? 'This match is not on this server any more. Pick another match.' : `Regista could not answer: ${detail(e)}`;
-      const err = addMsg('bot err', esc(text));
-      if (offline(e) || e.status >= 500) {
-        const b = Object.assign(document.createElement('button'), { type: 'button', className: 'alt retry', textContent: 'Retry' });
-        b.onclick = () => { err.remove(); send(message); };
-        err.appendChild(b);
-        $('log').scrollTop = $('log').scrollHeight;
-      }
+      wait.remove(); logChanged();
+      addError(e, 'Regista could not answer', () => send(message));
     } finally {
-      chat.busy = false; $('go').disabled = state.info?.source === 'cosmos';
-      if (!quiet) $('q').focus();
+      busy(false);
+      if (!quiet) $('fq').focus();
     }
     return out;
   }
@@ -463,7 +932,16 @@
     return `<span class="fallback">${esc(why)}, so Regista's rules wrote this reply.</span>`;
   }
 
-  // "How Regista answered": the steps in plain words, then the exact step names and times on a smaller details line.
+  // How many matches ran a step added up across every match: " · 34 matches", or " · 53 runs in 34 matches" when some
+  // ran it more than once. A step of one match's own answer has no count.
+  function stepCount(s) {
+    if (!s.n) return '';
+    const where = plural(s.n, 'match', 'matches');
+    return s.runs > s.n ? ` · ${s.runs} runs in ${where}` : s.n > 1 ? ` · ${where}` : '';
+  }
+
+  // "How Regista answered": one line per answer (who answered, how many steps); the steps in plain words open on
+  // demand, and the exact step names and times one click further.
   function howAnswered(out, eng) {
     const by = String(out.answered_by || 'rules');
     const instant = by.startsWith('rules');
@@ -474,16 +952,18 @@
     let details = '';
     if (trace.length) {
       details = `<ol class="steps">${trace.map(s => `<li><span class="kind">${esc(s.kind)}</span><code>${esc(s.name)}</code>`
-        + `${s.server ? `<span class="server">${esc(SERVERS[s.server] || s.server)}</span>` : ''}<span class="ms">${esc(ms(s.ms))}</span></li>`).join('')}</ol>`;
+        + `${s.server ? `<span class="server">${esc(SERVERS[s.server] || s.server)}</span>` : ''}`
+        + `<span class="ms">${esc(ms(s.ms))}${esc(stepCount(s))}</span></li>`).join('')}</ol>`;
     } else if ((out.tools_used || []).length) {
       details = `<div class="tags">${out.tools_used.map(t => `<span class="tool">${esc(t)}</span>`).join(' ')}</div>`;
     }
     const who = instant ? 'Regista\'s own rules, with no AI model' : `Microsoft Foundry (${esc(by.replace(/^foundry:/, ''))})`;
-    return `<details class="how"><summary>How Regista answered</summary>`
+    const short = instant ? 'Data Search, no AI model' : `Microsoft Foundry (${esc(by.replace(/^foundry:/, ''))})`;
+    return `<details class="how"><summary>How Regista answered · ${short} · ${esc(plural(plain.length, 'step'))}</summary>`
       + (plain.length ? `<ol class="plain">${plain.map(s => `<li>${esc(s)}</li>`).join('')}</ol>` : '')
       + `<p class="by">Answered by ${who}${eng === 'foundry' && instant ? ' (Foundry was asked for)' : ''}.</p>`
       + (details ? `<details class="tech"><summary>Details: step names and times</summary>${details}`
-        + `<p class="engine-raw">Engine ${esc(eng)} · answered by ${esc(by)}</p></details>` : '')
+        + `<p class="engine-raw">Engine ${esc(eng)} · answered by ${esc(by)}${out.every ? esc(` · ${out.every.searched} matches searched in ${ms(out.every.ms)}`) : ''}</p></details>` : '')
       + `</details>`;
   }
 
@@ -492,24 +972,31 @@
     const ids = out.state?.player_ids || [];
     const of = ids.length === 1 && momentsOf(ids[0]) ? ` of ${momentsOf(ids[0])}` : '';
     const lastModel = trace.map(x => x.kind).lastIndexOf('model');
+    const understood = out.understood ? `Understood: ${String(out.understood).replace(/ · /g, ', ')}` : 'Read the question';
     let searches = 0;
-    const steps = trace.map((step, i) => {
+    const steps = [];
+    if (out.every) {  // Home's search: every match's own steps, said once
+      steps.push(`Read every match (${plural(out.every.searched, 'match', 'matches')})`, understood,
+        out.intent === 'reset' ? 'Cleared the question' : `Found ${out.total} moments in ${plural(out.every.matchesWith, 'match', 'matches')}`);
+    }
+    trace.forEach((step, i) => {
       if (step.kind === 'step') {
-        if (step.name === 'librarian.load_match') return 'Read the match';
-        if (step.name === 'conversation.step') return out.understood ? `Understood: ${String(out.understood).replace(/ · /g, ', ')}` : 'Read the question';
+        if (out.every) return;
+        if (step.name === 'librarian.load_match') return steps.push('Read the match');
+        if (step.name === 'conversation.step') return steps.push(understood);
         if (step.name === 'librarian.search_clips') {
           searches += 1;
-          if (searches > 1) return 'Checked what else the same player has';
-          return out.intent === 'reset' ? 'Cleared the question' : `Found ${out.total ?? (out.results || []).length}${of} moments`;
+          if (searches > 1) return steps.push('Checked what else the same player has');
+          return steps.push(out.intent === 'reset' ? 'Cleared the question' : `Found ${out.total ?? (out.results || []).length}${of} moments`);
         }
-        return 'Worked on the question';
+        return steps.push('Worked on the question');
       }
-      if (step.kind === 'agent') return 'Handed the question to the Foundry Librarian agent';
-      if (step.kind === 'model') return i === lastModel ? `Microsoft Foundry (${step.name}) wrote the reply` : `Microsoft Foundry (${step.name}) chose what to look up`;
-      if (step.kind === 'tool') return toolStep(step);
-      return 'Another step';
+      if (step.kind === 'agent') return steps.push('Handed the question to the Foundry Librarian agent');
+      if (step.kind === 'model') return steps.push(i === lastModel ? `Microsoft Foundry (${step.name}) wrote the reply` : `Microsoft Foundry (${step.name}) chose what to look up`);
+      if (step.kind === 'tool') return steps.push(toolStep(step));
+      return steps.push('Another step');
     });
-    if (!trace.length) for (const t of out.tools_used || []) steps.push(toolStep({ name: t, server: /^search_index_|^cosmos_/.test(t) ? 'azure-mcp' : 'regista-mcp' }));
+    if (!trace.some(s => s.kind !== 'step')) for (const t of out.tools_used || []) steps.push(toolStep({ name: t, server: /^search_index_|^cosmos_/.test(t) ? 'azure-mcp' : 'regista-mcp' }));
     return steps;
   }
 
@@ -524,7 +1011,7 @@
 
   function applyReply(out, message = '') {
     if (out.intent === 'reset') { restartQuery(); return; }
-    const rows = (out.results || []).map(row);
+    const rows = (out.results || []).map(c => row(c));
     state.fromQuestion = true; state.tag = null;
     state.reel = out.reel && out.reel.length ? out.reel.map(c => c.clip_id) : null;
     // "more" pages through the same question: the new page joins the set already on screen.
@@ -537,7 +1024,7 @@
       scoutLink(); syncUrl();
       loadPlayerClips(ids[0]).then(() => { renderTimeline(); }).catch(() => {});
     }
-    $('resultsHead').innerHTML = `${esc(plural(state.total, 'moment'))} <span class="muted">· ${esc(out.understood || '')}</span>`;
+    state.head = `${esc(plural(state.total, 'moment'))} <span class="muted">· ${esc(out.understood || '')}</span>`;
     const st = out.state || {};
     const carried = (st.tags || []).length || (st.reasons || []).length || st.minutes;
     render(state.results.length ? ''
@@ -560,20 +1047,19 @@
         out = await R.api(matchUrl('/chat'), { method: 'POST', body: { message: 'more', state: st, history: [], engine: 'rules' } });
       } catch (e) { break; }
       remember(out.results);
-      const fresh = (out.results || []).map(row).filter(r => !state.results.some(x => x.id === r.id));
+      const fresh = (out.results || []).map(c => row(c)).filter(r => !state.results.some(x => x.id === r.id));
       if (!fresh.length) break;
       st = out.state;
       state.results = [...state.results, ...fresh];
     }
     chat.state = st;
-    render('');
+    render();
   }
 
-  // "Start over" from the ask box: the log stays (it is the record of the conversation), the query and results reset,
-  // and the example questions come back.
+  // "Start over" in the match view: the log stays (it is the record of the conversation), the query resets to the
+  // picked player and the player's moments come back.
   function restartQuery() {
     chat.state = seed(); chat.history = [];
-    showLanding();
     showPlayerMoments();
   }
 
@@ -593,9 +1079,9 @@
     const p = player(state.player);
     scoutLink();
     state.fromQuestion = false; state.reel = null; state.selected = null; state.tag = null;
-    state.results = [...state.all.values()].filter(c => c.player_id === state.player).map(row);
+    state.results = [...state.all.values()].filter(c => c.player_id === state.player).map(c => row(c));
     state.total = state.results.length;
-    $('resultsHead').innerHTML = p
+    state.head = p
       ? `${esc(plural(state.total, 'moment'))} <span class="muted">· ${esc(p.name)}, ${esc(team(p.team_id)?.name || '')}</span>`
       : 'Moments';
     render(p ? `${esc(p.name)} never had the ball in the main camera and is in no replay or highlight, so Regista cut no moments for this player. Pick someone from "Players with moments".`
@@ -607,52 +1093,70 @@
 
   function showEmpty(html) { $('empty').hidden = !html; $('empty').innerHTML = html || ''; }
 
+  // The grid of the view on screen: the results (every match) or the match view's moments. emptyHtml: what to say when
+  // nothing is there (kept with the set, so a re-render says it again).
   function render(emptyHtml) {
+    const s = set();
+    if (state.view === 'landing') return;
+    if (emptyHtml !== undefined) s.emptyHtml = emptyHtml;
     const rows = visible();
-    showEmpty(rows.length ? '' : emptyHtml);
-    const shown = state.fromQuestion ? state.results.length : state.total;
-    $('more').hidden = !(state.fromQuestion && state.total > shown);
-    $('more').textContent = `Show more (${state.total - shown} more)`;
+    $('resultsHead').innerHTML = s.head || 'Moments';
+    for (const b of document.querySelectorAll('.seg')) b.setAttribute('aria-pressed', String(b.dataset.sort === s.sort));
+    showEmpty(rows.length ? '' : s.emptyHtml);
+    if (!rows.length && s === search && search.wayout) {
+      const b = Object.assign(document.createElement('button'), { type: 'button', className: 'alt wayout', textContent: search.wayout.label });
+      const go = search.wayout.go;
+      b.onclick = () => { b.disabled = true; go(); };
+      $('empty').appendChild(b);
+    }
+    const shown = s.fromQuestion ? s.results.length : s.total;
+    $('more').hidden = !(s.fromQuestion && s.total > shown);
+    $('more').textContent = `Show more (${s.total - shown} more)`;
     renderTagBar();
-    const vision = state.info?.origin === 'vision';
+    const vision = (r) => visionOf(s === search ? search.infos.get(r.mid) : state.info);
+    const cards = s === search ? new Map(searchList().list.map(m => [m.id, m.card])) : null;  // results: which match
     $('grid').innerHTML = rows.map(r => `
-      <button type="button" class="card" data-id="${esc(r.id)}" aria-label="Play ${esc(r.title)}">
+      <button type="button" class="card" data-id="${esc(r.id)}" data-mid="${esc(r.mid)}" aria-label="Play ${esc(r.title)}">
         ${r.video_url ? `<span class="thumb"><video muted playsinline preload="none" src="${esc(r.video_url)}"></video><span class="prep">Preparing…</span></span>`
           : `<span class="novideo">Read from Cosmos DB. The labels and timings are stored there; this server does not hold the match's video.</span>`}
         <span class="body">
+          ${cards ? `<span class="from">${esc(cards.get(r.mid) || '')}</span>` : ''}
           <span class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${esc(R.reasonLabel(r.reason))} · ${esc(R.fmtTime(r.t))}</span>
           <span class="title">${esc(r.title)}</span>
           <span class="bar" title="How worth watching, from 0 to 1: ${esc(Number(r.watchability).toFixed(2))}"><i data-w="${esc(Math.round(r.watchability * 100))}"></i></span>
           <span class="tags">${plainTags(r.tags).map(t => `<span>${esc(R.tagLabel(t))}</span>`).join('')}</span>
-          ${badges(r, vision)}
+          ${badges(r, vision(r))}
         </span>
       </button>`).join('');
     for (const i of $('grid').querySelectorAll('.bar i')) i.style.width = `${Number(i.dataset.w) || 0}%`;
-    for (const card of $('grid').querySelectorAll('.card')) card.onclick = () => select(card.dataset.id, true);
+    for (const card of $('grid').querySelectorAll('.card')) {
+      card.onclick = () => (state.view === 'results' ? openResult(card.dataset.mid, card.dataset.id) : select(card.dataset.id, true));
+    }
     for (const v of $('grid').querySelectorAll('.thumb video')) {
       const prep = v.nextElementSibling;
       v.addEventListener('loadeddata', () => { prep.hidden = true; });
       v.addEventListener('error', () => { prep.textContent = 'Could not load the preview'; });
     }
     lazyPreview($('grid'));
-    renderTimeline();
-    renderStage();
+    if (state.view === 'match') { renderTimeline(); renderStage(); }
   }
+  const visionOf = (info) => info?.origin === 'vision';
 
   // Tag chips over the grid: one per football tag in the result set, with its count, as a filter.
   function renderTagBar() {
+    const s = set();
     const counts = new Map();
-    for (const r of state.results) for (const t of new Set(plainTags(r.tags))) counts.set(t, (counts.get(t) || 0) + 1);
-    if (state.tag && !counts.has(state.tag)) state.tag = null;
+    for (const r of s.results) for (const t of new Set(plainTags(r.tags))) counts.set(t, (counts.get(t) || 0) + 1);
+    if (s.tag && !counts.has(s.tag)) s.tag = null;
     const bar = $('tagbar');
-    if (counts.size < 1 || state.results.length < 2) { bar.hidden = true; bar.innerHTML = ''; return; }
-    const chips = [[null, 'All', state.results.length], ...[...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t, n]) => [t, R.tagLabel(t), n])];
+    if (counts.size < 1 || s.results.length < 2) { bar.hidden = true; bar.innerHTML = ''; return; }
+    const chips = [[null, 'All', s.results.length], ...[...counts].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t, n]) => [t, R.tagLabel(t), n])];
     bar.hidden = false;
-    bar.innerHTML = chips.map(([t, name, n]) => `<button type="button" class="chip" data-tag="${esc(t || '')}" aria-pressed="${String(state.tag === t)}">`
+    bar.innerHTML = chips.map(([t, name, n]) => `<button type="button" class="chip" data-tag="${esc(t || '')}" aria-pressed="${String(s.tag === t)}">`
       + `${esc(name)} <span class="n">${esc(n)}</span></button>`).join('');
     for (const b of bar.querySelectorAll('.chip')) b.onclick = () => {
-      state.tag = b.dataset.tag || null; state.selected = null;
-      render($('empty').innerHTML);
+      set().tag = b.dataset.tag || null; if (state.view === 'match') state.selected = null;
+      render();
       bar.querySelector(`.chip[data-tag="${CSS.escape(b.dataset.tag)}"]`)?.focus();
     };
   }
@@ -699,8 +1203,16 @@
     stopReel();
     renderStage(play, '', fromLink);
     syncUrl();
-    for (const c of $('grid').querySelectorAll('.card')) c.classList.toggle('on', c.dataset.id === id);
+    markPlaying(id);
     if (play) $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // The playing card is marked for screen readers (and the timeline rings it); it carries no yellow outline.
+  function markPlaying(id) {
+    for (const c of $('grid').querySelectorAll('.card')) {
+      c.classList.toggle('on', c.dataset.id === id);
+      if (c.dataset.id === id) c.setAttribute('aria-current', 'true'); else c.removeAttribute('aria-current');
+    }
   }
 
   function current() {
@@ -709,6 +1221,7 @@
   }
 
   function renderStage(play = false, prefix = '', fromLink = false) {
+    if (state.view !== 'match') return;  // the stage loads its video only when the match view is on screen
     const r = current();
     const v = $('stageVideo');
     reelLinks();
@@ -723,7 +1236,7 @@
     $('stageTitle').textContent = r.title || '';
     $('stageTags').innerHTML = plainTags(r.tags).map(t => `<span>${esc(R.tagLabel(t))}</span>`).join('');
     $('stageWhy').textContent = r.explanation || '';
-    for (const c of $('grid').querySelectorAll('.card')) c.classList.toggle('on', c.dataset.id === r.id);
+    markPlaying(r.id);
     if (!r.video_url) {
       v.pause(); v.removeAttribute('src'); v.hidden = true; $('stageLoading').hidden = true;
       $('stageNoVideo').hidden = false;
@@ -740,13 +1253,13 @@
 
   // Loading text while a clip renders on first view; an error says so instead of a blank player.
   function wireStageVideo() {
-    const v = $('stageVideo'), busy = (on) => { $('stageLoading').hidden = !on; };
-    v.addEventListener('loadstart', () => busy(true));
-    v.addEventListener('waiting', () => busy(true));
-    for (const ev of ['loadeddata', 'canplay', 'playing', 'pause', 'emptied']) v.addEventListener(ev, () => busy(false));
+    const v = $('stageVideo'), busyOn = (on) => { $('stageLoading').hidden = !on; };
+    v.addEventListener('loadstart', () => busyOn(true));
+    v.addEventListener('waiting', () => busyOn(true));
+    for (const ev of ['loadeddata', 'canplay', 'playing', 'pause', 'emptied']) v.addEventListener(ev, () => busyOn(false));
     v.addEventListener('error', () => {
       if (!v.getAttribute('src')) return;
-      busy(false);
+      busyOn(false);
       $('stageNoVideo').hidden = false;
       $('stageNoVideo').textContent = 'This clip could not be loaded. Try again in a moment.';
     });
@@ -755,15 +1268,33 @@
   // ------------------------------------------------------------------ the recap
 
   // GET /recap: a headline and short paragraphs told from the picked player's side, every sentence citing its moment.
-  // A new match or player always starts with the Instant recap (no model, no cost); Foundry writes one only when picked.
-  const recapView = { data: null, req: 0, wanted: false };
+  // Folded into "Match recap": it is written when opened. A new match or player always starts with the Instant recap
+  // (no model, no cost); Foundry writes one only when picked.
+  const recapView = { data: null, req: 0, wanted: false, key: null };
   const recapEngine = () => document.querySelector('input[name="recapEngine"]:checked').value;
+  const recapKey = () => `${state.match}|${state.player}`;
+
+  function resetRecap() {
+    document.querySelector('input[name="recapEngine"][value="rules"]').checked = true;
+    recapView.key = null; recapView.req++;  // a recap still being written for the last match or player is dropped
+    const box = $('recap');
+    box.hidden = !state.info || state.info.source === 'cosmos' || !state.player;
+    if (!box.hidden && box.open) loadRecap('rules');
+  }
+
+  // The profiles' "Recap" link (recap=1): open it; it scrolls into view once written.
+  function openRecap() {
+    const box = $('recap');
+    if (box.hidden) { recapView.wanted = false; return; }
+    if (box.open) loadRecap(recapEngine()); else box.open = true;  // the toggle event writes it
+  }
 
   async function loadRecap(eng = recapEngine()) {
     const box = $('recap');
     if (!state.info || state.info.source === 'cosmos' || !state.player) { box.hidden = true; return; }
     if (eng === 'rules') document.querySelector('input[name="recapEngine"][value="rules"]').checked = true;
     const req = ++recapView.req;
+    recapView.key = recapKey();
     const p = player(state.player);
     box.hidden = false;
     $('recapWho').textContent = p ? `This match, told from ${String(p.name)}'s side.` : 'This match.';  // text, never markup
@@ -776,6 +1307,7 @@
     } catch (e) {
       if (req !== recapView.req) return;
       $('recapBody').innerHTML = `<p class="wait">${esc(offline(e) ? OFFLINE : `The recap could not be written: ${detail(e)}`)}</p>`;
+      recapView.key = null;  // opening it again tries again
       return;
     }
     if (req !== recapView.req) return;  // the match or player changed meanwhile
@@ -916,9 +1448,9 @@
 
   // ------------------------------------------------------------------ sort, health, how it works
 
-  function setSort(s) {
-    state.sort = s;
-    for (const b of document.querySelectorAll('.seg')) b.setAttribute('aria-pressed', String(b.dataset.sort === s));
+  function setSort(s, target = set()) {
+    target.sort = s;
+    if (target === set()) for (const b of document.querySelectorAll('.seg')) b.setAttribute('aria-pressed', String(b.dataset.sort === s));
   }
 
   async function loadHealth() {
@@ -994,16 +1526,40 @@
   }
 
   function wire() {
-    $('askForm').addEventListener('submit', (e) => { e.preventDefault(); send(); });
-    for (const r of document.querySelectorAll('input[name="engine"]')) r.addEventListener('change', engineHint);
-    $('match').onchange = async () => { if (await loadMatch($('match').value)) syncUrl(); };
-    $('player').onchange = () => pickPlayer($('player').value);
-    for (const b of document.querySelectorAll('.seg')) b.onclick = () => { setSort(b.dataset.sort); render($('empty').innerHTML); };
-    $('more').onclick = () => send('more');
+    logChanged();  // the panel says how to start until the first question
+    $('homeForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      const message = $('q').value.trim() || PROMPTS[typing.p];  // an empty box searches the prompt showing
+      $('q').value = '';
+      searchEvery(message, { fresh: true, focus: 'rq' });
+    });
+    $('barForm').addEventListener('submit', (e) => { e.preventDefault(); searchEvery($('rq').value.trim(), { focus: 'rq' }); });
+    $('askForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      if (state.view === 'match') return send();
+      const message = $('fq').value.trim();
+      $('fq').value = '';
+      searchEvery(message, { focus: 'fq' });
+    });
+    for (const r of document.querySelectorAll('input[name="engine"], input[name="rengine"], input[name="fengine"]')) r.addEventListener('change', () => setEngine(r.value));
+    $('backToResults').onclick = () => {
+      if (history.state?.from === 'results') { history.back(); return; }  // popstate shows the results
+      showView('results', { push: true }); window.scrollTo(0, 0); $('rq').focus();
+    };
+    window.addEventListener('popstate', onPopState);
+    $('match').onchange = async () => { showView('match'); if (await loadMatch($('match').value)) syncUrl(); };
+    $('player').onchange = () => { showView('match'); pickPlayer($('player').value); };
+    for (const b of document.querySelectorAll('.seg')) b.onclick = () => { setSort(b.dataset.sort); render(); };
+    $('more').onclick = () => {
+      if (state.view !== 'results') return send('more');
+      const left = [...search.perMatch].filter(([mid, p]) => p.total > search.results.filter(r => r.mid === mid).length).map(([mid]) => mid);
+      searchEvery('more', { only: left });
+    };
     $('playReel').onclick = () => { playReel(); $('stage').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
     $('stageVideo').addEventListener('ended', nextInReel);
     $('downloadReel').addEventListener('click', downloadReel);
     for (const r of document.querySelectorAll('input[name="recapEngine"]')) r.addEventListener('change', () => loadRecap(recapEngine()));
+    $('recap').addEventListener('toggle', () => { if ($('recap').open && recapView.key !== recapKey()) loadRecap(recapEngine()); });
     $('recapReel').onclick = playRecapReel;
     wireStageVideo();
     $('reportToggle').onclick = toggleReport;

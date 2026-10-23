@@ -700,7 +700,7 @@
       ${(out.dead_letters || []).length ? html`<div class="err small">Dead letters: ${out.dead_letters.map((d) => `${d.agent}: ${d.error}`).join(' · ')}</div>` : NOTHING}
       ${out.paused && mid ? html`<div class="note small">The workflow paused for a human: <a href="#review/${enc(mid)}">answer it in the Review queue</a>.</div>` : NOTHING}
       ${out.review_log ? html`<details><summary>review log</summary>${jsonBlock(out.review_log)}</details>` : NOTHING}
-      ${mid ? html`<p class="small"><a href="#runs/${enc(mid)}">open the run</a> · <a href="#review/${enc(mid)}">review queue</a> · <a href="/">see it in the Product</a></p>` : NOTHING}
+      ${mid ? html`<p class="small"><a href="#runs/${enc(mid)}">open the run</a> · <a href="#review/${enc(mid)}">review queue</a> · <a href="/">see it on Home</a></p>` : NOTHING}
     </div>`;
   }
 
@@ -1057,7 +1057,7 @@
     try { m = await api(`/api/matches/${enc(mid)}`); } catch (e) { if (ticket === S.poll) fail(el, e); return; }
     if (ticket !== S.poll) return;
     const links = html`<a href="#runs/${enc(mid)}">its run</a> · <a href="#review/${enc(mid)}" data-view-all="${mid}">its clips in the Review queue</a>
-      ${job.kind === 'vision-run' ? html` · <a href="#whos-who/${enc(mid)}">Who's who</a>` : NOTHING} · <a href="/">the Product</a>`;
+      ${job.kind === 'vision-run' ? html` · <a href="#whos-who/${enc(mid)}">Who's who</a>` : NOTHING} · <a href="/">Home</a>`;
     if (job.kind === 'cut-clips' || m.clip_count) {
       put(el, html`<div class="okbox newMatch"><span>Match <b class="mono">${mid}</b> has ${plural(m.clip_count || 0, 'clip')}${(m.players_with_clips || []).length ? ` for ${m.players_with_clips.join(', ')}` : ''}.</span><span class="small">${links}</span></div>`);
       return;

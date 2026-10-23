@@ -7,14 +7,10 @@ body { overflow-x: hidden; }
 h1, h2, h3 { overflow-wrap: anywhere; }
 .small { font-size: 12.5px; }
 
-/* Header: brand, then the Clips / Scout switch */
+/* Header: the brand (the views are in the shared left panel, shared/regista.css) */
 .top { display: flex; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
        position: sticky; top: 0; z-index: 5; }
 .top .brand { margin-right: auto; }
-.views { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
-.views a { padding: 6px 16px; color: var(--muted); font-weight: 700; text-decoration: none; }
-.views a:hover { color: var(--text); }
-.views a[aria-current="page"] { background: var(--accent); color: #111; }
 
 main { padding: 16px; max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--gap); }
 

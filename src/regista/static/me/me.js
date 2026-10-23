@@ -488,7 +488,7 @@
         : 'Regista found no moments of you on the ball in this footage. The match still counts in your profile.'),
       best.length ? h('div', { class: 'moments' }, best.map(moment)) : null,
       h('div', { class: 'links' },
-        h('a', { class: 'btn solid', href: href(links.clip_view) }, 'Open the match in Clips'),
+        h('a', { class: 'btn solid', href: href(links.clip_view) }, 'Open the match on Home'),
         h('a', { class: 'btn alt', href: href(links.profile) }, 'See your updated profile')));
     const mid = u.rec.match && u.rec.match.match_id;
     if (mid && pid) {
@@ -532,7 +532,7 @@
       (r.paragraphs || []).map((p) => h('p', {}, (p.sentences || []).flatMap((s, i) => (i ? [' ', sentence(s)] : [sentence(s)])))),
       h('p', { class: 'muted small' }, 'Written by Regista from the match events. Each sentence opens its moment in the Clip view.'),
       video,
-      h('div', { class: 'links' }, play, h('a', { class: 'btn alt', href: clipView === '#' ? '#' : `${clipView}&recap=1` }, 'Read it in Clips')));
+      h('div', { class: 'links' }, play, h('a', { class: 'btn alt', href: clipView === '#' ? '#' : `${clipView}&recap=1` }, 'Read it on Home')));
   }
 
   function moment(c) {

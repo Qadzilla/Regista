@@ -1,7 +1,8 @@
-"""The Product page (/): one ask box through /chat, the stage, the grid, How it works; nothing from the Studio.
+"""Home (/): the landing search, results across every match through each match's /chat, the match view with the stage,
+the folded recap and the conversation panel, How it works; nothing from the Studio.
 
 Static checks on the page and its script, plus the files it loads being served. The page's behaviour in a browser
-(desktop and 375 px, both engines) is checked by hand; see the PR that introduced it.
+(desktop and 375 px, both engines) is checked by hand; see docs/redesign/home.md and the PR that introduced it.
 """
 
 from __future__ import annotations
@@ -36,7 +37,9 @@ def test_the_files_the_page_loads_are_served():
     from regista import api
 
     c = TestClient(api.app)
-    assert "Every touch, every replay, every player, found in seconds." in c.get("/").text
+    html = c.get("/").text
+    assert "Every moment. Every highlight. Every player. Found in seconds." in html  # the landing's tagline
+    assert '<h1 class="logo" id="promise">' in html and "Every touch, every replay, every player" not in html.split("<body>")[1]
     for path in ("/static/shared/regista.css", "/static/shared/regista.js", "/static/product/product.css", "/static/product/app.js"):
         assert c.get(path).status_code == 200, path
 
@@ -70,8 +73,18 @@ def test_any_player_can_be_picked_and_dead_ends_offer_a_way_out(script):
     assert "Can\\'t reach Regista right now." in script and "Retry" in script
 
 
-def test_example_chips_and_tag_filters_come_from_the_moments_themselves(script, page):
-    assert "const ASKS = [" in script and "tags.has(tag)" in script
+def test_the_landing_has_typing_prompts_and_no_example_buttons_and_tag_filters_stay(script, page):
+    # Decided: no pitch copy and no example buttons on the landing; six prompts type in and out of the box instead.
+    assert "const ASKS = [" not in script and 'id="examples"' not in page and 'class="lede"' not in page
+    # "Shots from outside the box" left the prompts: the search has no distance filter, so it answered "any shot".
+    assert "outside the box" not in script
+    for prompt in ("Find me the best saves this season", "Show me every header this season", "Find me all the nutmegs",
+                   "Show me take-ons in the final third", "Find me every assist, best first", "Show me Femi Toure\\'s goals, assists and shots"):
+        assert prompt in script, prompt
+    assert "e.key === 'Tab'" in script and "q.value = PROMPTS[typing.p]" in script  # Tab fills the prompt showing
+    assert "prefers-reduced-motion: reduce" in script  # still for people who prefer less motion
+    landing = page[page.index('<section class="landing"'):page.index("</section>", page.index('<section class="landing"'))]
+    assert landing.index('id="q"') < landing.index(">Data Search<") < landing.index(">Ask Microsoft Foundry<")  # the switch under the box
     assert 'id="tagbar"' in page and "renderTagBar" in script
 
 
@@ -116,13 +129,36 @@ def test_grid_videos_load_lazily(script):
 
 # ---------------------------------------------------------------------------- the Clip view beside the Scout view
 
-def test_the_views_switch_marks_clips_as_current_and_is_styled_once_for_every_page(page):
-    nav = re.search(r'<nav class="views" aria-label="Views">(.*?)</nav>', page).group(1)
-    assert re.findall(r'<a href="([^"]+)"', nav) == ["/", "/scout", "/me"]
-    assert '<a href="/" aria-current="page">Clips</a>' in nav and ">Scout</a>" in nav
+VIEWS = [("/", "Home"), ("/me", "Player profile"), ("/scout", "Scout")]
+
+
+@pytest.mark.parametrize("page_file, current", [("product/index.html", "/"), ("scout/index.html", "/scout"),
+                                                ("player/index.html", "/scout"), ("me/index.html", "/me")])
+def test_every_view_has_the_same_left_panel_with_its_own_view_current(page_file, current):
+    html = (PRODUCT.parent / page_file).read_text()
+    header = re.search(r'<header class="top">(.*?)</header>', html, flags=re.S).group(1)
+    assert "<nav" not in header and '<p class="brand">REGI<span>STA</span></p>' in header  # the views left the header
+    navs = re.findall(r'<nav class="views" aria-label="Views">(.*?)</nav>', html)
+    assert len(navs) == 1
+    mark = ' aria-current="page"'
+    links = "".join(f'<a href="{h}"{mark if h == current else ""}>{t}</a>' for h, t in VIEWS)
+    assert navs[0] == links
+    # The panel sits beside the page's content: shell > nav + shell-main > main ... footer
+    shell = html[html.index('<div class="shell">'):]
+    assert shell.index('<nav class="views"') < shell.index('<div class="shell-main">') < shell.index("<main")
+    assert shell.index("</footer>") < shell.index("</div>\n</div>")
+
+
+def test_the_left_panel_is_styled_once_for_every_page():
     shared = (PRODUCT.parent / "shared/regista.css").read_text()
-    assert ".views {" in shared and '.views a[aria-current="page"]' in shared
-    assert ".views" not in (PRODUCT / "product.css").read_text()  # one rule, shared by the Scout and profile pages
+    assert ".shell {" in shared and ".views {" in shared and "position: sticky" in shared
+    assert '.views a[aria-current="page"] { background: var(--accent); color: #111; }' in shared  # Regista yellow
+    phone = shared[shared.index("@media (max-width: 720px)"):]
+    assert "flex-direction: row" in phone and "overflow-x: auto" in phone  # a row of tabs on phones
+    for css in ("product/product.css", "scout/scout.css", "player/player.css", "me/me.css"):
+        assert ".views" not in (PRODUCT.parent / css).read_text(), css  # one rule, shared by every view
+    js = (PRODUCT.parent / "shared/regista.js").read_text()
+    assert "--top-h" in js and "--top-h" in shared  # the panel sticks below headers of any height
 
 
 def test_league_matches_join_the_picker_lazily_after_the_featured_match(script):
@@ -158,7 +194,7 @@ def test_deep_links_open_a_match_player_and_moment_and_fall_back_quietly(script)
     init = script[script.index("async function init()"):script.index("async function loadSeason()")]
     assert "await loadMatch(link.match, { player: link.player || playerOfClip(link.clip), quiet: true })" in init
     assert "await loadMatch(first.match_id)" in init  # a link that fails lands on the featured match ...
-    assert "history.replaceState(null, '', location.pathname)" in init  # ... with the bad link cleared from the address
+    assert "history.replaceState({ view: 'landing' }, '', location.pathname)" in init  # ... with the bad link cleared from the address
     assert "if (quiet && !previous) return false;" in script  # and says nothing about it
     linked = script[script.index("async function openLinked("):script.index("// ------------------------------------------------------------------ loading")]
     assert "state.all.has(link.clip)" in linked and "select(link.clip, true, true)" in linked
@@ -167,8 +203,10 @@ def test_deep_links_open_a_match_player_and_moment_and_fall_back_quietly(script)
 
 
 def test_the_url_follows_the_match_player_and_moment_with_replace_state(script):
-    sync = script[script.index("function syncUrl()"):script.index("// The moment a link asked for")]
-    assert "history.replaceState(null, '', url)" in sync and "pushState" not in script
+    sync = script[script.index("function syncUrl()"):script.index("// Back and Forward")]
+    assert "history.replaceState(entry, '', url)" in sync  # within a view the entry is replaced, never pushed
+    assert "pushState" not in sync
+    assert "Object.assign(entry, { match: state.match, player: state.player, clip: state.picked })" in sync  # for popstate
     assert "q.set('player', state.player)" in sync and "q.set('clip', state.picked)" in sync
     assert "if (await loadMatch($('match').value)) syncUrl();" in script
     pick = script[script.index("async function pickPlayer("):script.index("// ------------------------------------------------------------------ the conversation")]
@@ -221,3 +259,120 @@ def test_matches_outside_the_league_have_no_global_ids():
 
     m = TestClient(api.app).get("/api/matches/syn_0294").json()
     assert not any(p.get("global_player_id") for p in m["players"])
+
+
+# ---------------------------------------------------------------------------- Home: results across every match
+
+def test_search_covers_every_match_through_each_matchs_own_chat(script):
+    every = script[script.index("async function searchEvery("):script.index("function resetSearch()")]
+    assert "matchUrl('/chat', m.id)" in every and "engine: 'rules'" in every  # the existing per-match search, no model
+    assert "pool(list, PARALLEL" in every and "const PARALLEL = 6;" in script  # a few requests at a time, not all at once
+    listing = script[script.index("function searchList()"):script.index("const nameOf")]
+    assert "state.matches" in listing and "state.season" in listing  # the library and the league
+    assert "m.source === 'cosmos'" in listing  # a match without its event stream cannot answer: left out, and said
+    assert "await seasonReady" in every  # the league's list is in before a search starts
+    assert "sorted(search.results, { sort: 'best' })" in every  # merged best first
+    assert "Searching every match…" in every  # a visible loading state with progress
+
+
+def test_ask_microsoft_foundry_writes_one_reply_from_the_best_match_and_says_so(script):
+    every = script[script.index("async function searchEvery("):script.index("function resetSearch()")]
+    assert "matchUrl('/chat', topMid)" in every and "engine: 'foundry'" in every and "history: chat.history" in every
+    assert every.count("engine: 'foundry'") == 1  # one model call per question, never one per match
+    assert "the match with the best result" in every and "The moments in the grid come from every match." in every
+
+
+def test_a_name_means_one_player_across_matches(script):
+    fn = script[script.index("function namesIn("):script.index("const resolved")]
+    assert "every(w => said.has(w))" in fn  # the full name first, then the surname
+    assert "search.names.has(c.player)" in script and "where a name in the question meant another player" in script
+
+
+def test_the_conversation_lives_in_the_right_panel(page, script):
+    aside = page[page.index('<aside class="convo panel" id="convo"'):page.index("</aside>")]
+    for part in ('id="log"', 'id="askForm"', 'id="fq"', 'id="engineHint"', ">Data Search<", ">Ask Microsoft Foundry<"):
+        assert part in aside, part
+    assert page.count('id="log"') == 1  # the whole conversation, in the panel only
+    layout = script[script.index("function layoutPanel()"):script.index("// ------------------------------------------------------------------ links into the page")]
+    assert "state.view === 'match' || (state.view === 'results' && engine() === 'foundry')" in layout
+    assert "How Regista answered · ${short} · ${esc(plural(plain.length, 'step'))}" in script  # one line per answer
+    assert "Details: step names and times" in script  # steps and timings on demand
+
+
+def test_the_match_view_has_no_explainer_line_a_folded_recap_and_actions_in_one_row(page, script):
+    assert 'id="matchSub"' not in page and "subtitle" not in script  # the match's explainer line is gone
+    recap = page[page.index('<details class="recap panel" id="recap"'):page.index("</details>", page.index('id="recap"'))]
+    assert '<summary id="recapHead">Match recap</summary>' in recap
+    assert 'name="recapEngine" value="rules"' in recap and ">Instant<" in recap and ">Foundry<" in recap  # its own switch, inside
+    stage = page[page.index('<section class="stage panel" id="stage"'):page.index("</section>", page.index('id="stage"'))]
+    assert stage.index('<div class="info">') < stage.index("</div>\n          <div class=\"actions\">")  # actions under the clip, not in .info
+    css = (PRODUCT / "product.css").read_text()
+    assert ".stage > .actions { grid-column: 1 / -1;" in css
+    assert ".card.on {" not in css  # no yellow outline on the playing card
+    assert "openRecap()" in script and "recapView.wanted" in script  # recap=1 opens the folded recap
+
+
+def test_cards_open_their_match_and_the_url_follows_only_the_match_view(script):
+    assert "openResult(card.dataset.mid, card.dataset.id)" in script and 'data-mid="${esc(r.mid)}"' in script
+    sync = script[script.index("function syncUrl()"):script.index("// Back and Forward")]
+    assert "let url = location.pathname;" in sync and "if (state.view === 'match' && state.match)" in sync  # the landing and the results are plain /
+
+
+# ---------------------------------------------------------------------------- decisions on PR #32 (Zaid, 2026-10-23)
+
+def test_back_moves_between_the_landing_the_results_and_a_match(script):
+    show = script[script.index("function showView("):script.index("function layoutPanel()")]
+    assert "history.pushState({ view: v, from: state.view }, '', location.pathname)" in show and "v !== state.view" in show
+    assert "showView('results', { push: true })" in script  # the first search from the landing
+    open_ = script[script.index("async function openResult("):script.index("// ------------------------------------------------------------------ the match view's conversation")]
+    assert "showView('match', { sync: false, push: true })" in open_  # a card opens its match as a new entry
+    pop = script[script.index("async function onPopState("):script.index("// The moment a link asked for")]
+    assert "loadMatch(s.match, { player: s.player, quiet: true })" in pop and "search.asked ? 'results' : 'landing'" in pop
+    assert "window.addEventListener('popstate', onPopState)" in script
+    assert "history.state?.from === 'results'" in script and "history.back()" in script  # Back to results is the browser's Back
+
+
+def test_the_pickers_live_in_the_match_view_and_the_landing_is_logo_and_search(page):
+    header = re.search(r'<header class="top">(.*?)</header>', page, flags=re.S).group(1)
+    assert "<select" not in header and "pick" not in header
+    match = page[page.index('<section class="matchline"'):page.index("</section>", page.index('<section class="matchline"'))]
+    assert match.index('id="matchTitle"') < match.index('<select id="match">') < match.index('<select id="player">')
+    css = (PRODUCT / "product.css").read_text()
+    assert ".top .pick" not in css and ".titleline {" in css and ".pick select {" in css
+
+
+def test_the_meta_description_is_the_tagline(page):
+    assert '<meta name="description" content="Every moment. Every highlight. Every player. Found in seconds.">' in page
+    assert "Every touch, every replay" not in page
+
+
+def test_result_cards_say_which_match_they_come_from(script):
+    line = script[script.index("function cardLine(m)"):script.index("// Runs fn over items")]
+    assert "`Round ${m.round} · ${short(m.home, m.home_name)} v ${short(m.away, m.away_name)}`" in line
+    assert "if (!m.home_name) return matchName(m);" in line  # a library match: its own name
+    assert "state.clubs = new Map((s.clubs || []).map(c => [c.club_id, c.short_name]))" in script
+    render = script[script.index("  function render(emptyHtml)"):script.index("const visionOf")]
+    assert "s === search ? new Map(searchList().list.map(m => [m.id, m.card])) : null" in render  # results only
+    assert '<span class="from">${esc(cards.get(r.mid) || \'\')}</span>' in render
+
+
+def test_on_phones_the_panel_comes_right_after_the_clip_in_the_match_view(script):
+    css = (PRODUCT / "product.css").read_text()
+    narrow = css[css.index("@media (max-width: 1100px)"):css.index("@media (max-width: 760px)")]
+    assert ".work.with-convo.in-match .work-main, .work.with-convo.in-match .matchview { display: contents; }" in narrow
+    assert ".work.in-match .convo { order: 0; }" in narrow and ".work.in-match .matchview > .stage ~ * { order: 1; }" in narrow
+    assert "$('work').classList.toggle('in-match', state.view === 'match')" in script
+
+
+def test_the_realism_report_is_offered_only_in_the_match_view(page, script):
+    assert '<p id="reportLine" hidden>' in page
+    assert "$('reportLine').hidden = v !== 'match';" in script
+
+
+@pytest.mark.parametrize("page_file, words", [("me/index.html", '<a href="/">Home</a>'), ("player/index.html", '<a href="/">Home</a>'),
+                                              ("scout/index.html", '<a href="/">Home</a>'), ("player/player.js", ">Watch on Home<"),
+                                              ("me/me.js", "'Open the match on Home'"), ("me/me.js", "'Read it on Home'"),
+                                              ("studio/studio.js", ">see it on Home<")])
+def test_other_pages_call_the_first_view_home(page_file, words):
+    text = (PRODUCT.parent / page_file).read_text()
+    assert words in text and "in Clips" not in text and '<a href="/">Clips</a>' not in text and "the Product</a>" not in text
