@@ -2,7 +2,7 @@
 (function () {
   const views = ['home', 'profile', 'scout'];
   function show() {
-    const h = location.hash.slice(1);
+    const h = location.hash.slice(1).split('/')[0];  // #profile/messages: the profile view, its Messages section
     const v = views.includes(h) ? h : 'home';
     for (const s of document.querySelectorAll('main section[data-view]')) s.hidden = s.dataset.view !== v || h === 'search' || h === 'match';
     document.getElementById('results').hidden = h !== 'search';

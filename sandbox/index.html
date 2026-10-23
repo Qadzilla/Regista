@@ -13,7 +13,15 @@
 <div class="shell">
 <nav class="side" aria-label="Views">
   <a href="#home" data-view="home">Home</a>
-  <a href="#profile" data-view="profile">Player profile</a>
+  <a href="#profile/overview" data-view="profile">Player profile</a>
+  <div class="subnav" id="pfSub" aria-label="Player profile sections" hidden>
+    <a href="#profile/overview" data-sub="overview">Overview</a>
+    <a href="#profile/me" data-sub="me">My profile</a>
+    <a href="#profile/matches" data-sub="matches">Matches &amp; videos</a>
+    <a href="#profile/messages" data-sub="messages">Messages <span class="count" id="pfUnread"></span></a>
+    <a href="#profile/team" data-sub="team">Team</a>
+    <a href="#profile/settings" data-sub="settings">Settings</a>
+  </div>
   <a href="#scout" data-view="scout">Scout</a>
 </nav>
 <main>
@@ -99,79 +107,214 @@
       <aside class="foundry convo" id="convo" aria-label="Conversation"></aside>
     </div>
   </section>
-  <!-- Player profile: the player's own view of the profile scouts see (Femi Toure, real data from the live app in
-       profile.json), plus the owner's tools: Add a match and Your uploads. profile.js fills it. -->
+  <!-- Player profile: Femi Toure's dashboard. Six sections (the sub-navigation under Player profile, #profile/<section>).
+       Real data from the live app in profile.json (profile, moments, matches, upload, club); messages, settings and edits
+       are mocks. profile.js fills it. -->
   <section id="profile" data-view="profile" aria-label="Player profile" hidden>
     <div class="pf">
-      <header class="pf-head panel">
-        <div class="shirt" id="pfShirt" aria-hidden="true"></div>
-        <div class="pf-who">
-          <h1 id="pfName"></h1>
-          <p class="pf-line" id="pfLine"></p>
-          <p class="pf-line muted" id="pfApps"></p>
-        </div>
-        <button type="button" class="pf-add" id="pfAddBtn" aria-expanded="false" aria-controls="pfAdd">Add a match</button>
-      </header>
 
-      <form class="pf-addform panel" id="pfAdd" hidden>
-        <h2>Add a match</h2>
-        <p class="muted small">Upload footage of a match you played. Regista's vision agents find you in it, cut every moment you
-          are on the ball, and add the match to your profile.</p>
-        <div class="pf-fields">
-          <label class="pf-field"><span>Video (MP4, up to 300 MB)</span><input type="file" accept="video/mp4,.mp4"></label>
-          <label class="pf-field"><span>Against</span><select id="pfOpp"></select></label>
-          <fieldset class="pf-side"><legend>You played</legend>
-            <label><input type="radio" name="pfside" value="home" checked><span>At home</span></label>
-            <label><input type="radio" name="pfside" value="away"><span>Away</span></label>
-          </fieldset>
-        </div>
-        <div class="pf-addbar"><button type="submit">Upload and start</button><button type="button" class="alt" id="pfAddCancel">Cancel</button></div>
-        <p class="small pf-addnote" id="pfAddNote" role="status"></p>
-      </form>
-
-      <section class="pf-summary panel" aria-labelledby="pfSumHead">
-        <h2 id="pfSumHead">Summary</h2>
-        <p id="pfSummary"></p>
-        <p class="muted small" id="pfSumBy"></p>
-      </section>
-
-      <section class="pf-best panel" aria-labelledby="pfBestHead">
-        <div class="pf-bar"><h2 id="pfBestHead">Best moments</h2><button type="button" id="pfReel">Play reel</button></div>
-        <div class="pf-bestgrid">
-          <div class="pf-stage">
-            <div class="pf-screen"><video id="pfVideo" controls playsinline preload="none"></video></div>
-            <p class="reason" id="pfNow"></p>
-            <h3 id="pfTitle"></h3>
-            <span class="tags" id="pfTags"></span>
-          </div>
-          <ol class="pf-strip" id="pfStrip"></ol>
-        </div>
-      </section>
-
-      <div class="pf-two">
-        <section class="pf-numbers panel" aria-labelledby="pfNumHead">
-          <h2 id="pfNumHead">Numbers</h2>
-          <p class="muted small">This season, against the league's other forwards. Pick a number to see the moments behind it.</p>
-          <div class="pf-tiles" id="pfTiles"></div>
-          <div class="pf-ratios" id="pfRatios"></div>
-          <div class="pf-evidence" id="pfEvidence" hidden></div>
+      <!-- Overview -->
+      <div class="pv" id="pv-overview" data-sub="overview" hidden>
+        <header class="pf-head panel">
+          <div class="shirt" aria-hidden="true"></div>
+          <div class="pf-who"><p class="pf-hi muted">Your dashboard</p><h1 class="js-name"></h1><p class="pf-line js-line"></p></div>
+          <a class="pf-btn" href="#profile/matches/add">Add a match</a>
+        </header>
+        <section class="panel" aria-labelledby="ovNeedHead">
+          <h2 id="ovNeedHead">Needs you</h2>
+          <div class="ov-needs" id="ovNeeds"></div>
         </section>
-        <section class="pf-map panel" aria-labelledby="pfMapHead">
-          <h2 id="pfMapHead">Where he plays</h2>
-          <p class="muted small">Every touch this season, attacking left to right.</p>
-          <div class="pitch" id="pfPitch"></div>
+        <div class="pf-two">
+          <section class="panel" aria-labelledby="ovSeasonHead">
+            <div class="pf-bar"><h2 id="ovSeasonHead">Your season</h2><a href="#profile/me" class="small-link">See your profile</a></div>
+            <div class="ov-season" id="ovSeason"></div>
+          </section>
+          <section class="panel" aria-labelledby="ovLatestHead">
+            <h2 id="ovLatestHead">Your best moment</h2>
+            <div class="pf-screen"><video id="ovVideo" controls playsinline preload="none"></video></div>
+            <p class="reason" id="ovNow"></p>
+            <h3 class="ov-title" id="ovTitle"></h3>
+          </section>
+        </div>
+        <section class="panel" aria-labelledby="ovActHead">
+          <h2 id="ovActHead">Recent activity</h2>
+          <ol class="ov-activity" id="ovActivity"></ol>
         </section>
       </div>
 
-      <section class="pf-matches panel" aria-labelledby="pfMatchHead">
-        <h2 id="pfMatchHead">Matches</h2>
-        <ol class="pf-mlist" id="pfMatches"></ol>
-      </section>
+      <!-- My profile: what scouts see -->
+      <div class="pv" id="pv-me" data-sub="me" hidden>
+        <p class="pf-scouts">This is what scouts see when they open your profile.</p>
+        <header class="pf-head panel">
+          <div class="shirt" aria-hidden="true"></div>
+          <div class="pf-who"><h1 class="js-name"></h1><p class="pf-line js-line"></p><p class="pf-line muted js-apps"></p></div>
+        </header>
+        <section class="pf-summary panel" aria-labelledby="pfSumHead">
+          <h2 id="pfSumHead">Summary</h2>
+          <p id="pfSummary"></p>
+          <p class="muted small" id="pfSumBy"></p>
+        </section>
+        <section class="pf-best panel" aria-labelledby="pfBestHead">
+          <div class="pf-bar"><h2 id="pfBestHead">Best moments</h2><button type="button" id="pfReel">Play reel</button></div>
+          <div class="pf-bestgrid">
+            <div class="pf-stage">
+              <div class="pf-screen"><video id="pfVideo" controls playsinline preload="none"></video></div>
+              <p class="reason" id="pfNow"></p>
+              <h3 id="pfTitle"></h3>
+              <span class="tags" id="pfTags"></span>
+            </div>
+            <ol class="pf-strip" id="pfStrip"></ol>
+          </div>
+        </section>
+        <div class="pf-two">
+          <section class="pf-numbers panel" aria-labelledby="pfNumHead">
+            <h2 id="pfNumHead">Numbers</h2>
+            <p class="muted small">This season, against the league's other forwards. Pick a number to see the moments behind it.</p>
+            <div class="pf-tiles" id="pfTiles"></div>
+            <div class="pf-ratios" id="pfRatios"></div>
+            <div class="pf-evidence" id="pfEvidence" hidden></div>
+          </section>
+          <section class="pf-map panel" aria-labelledby="pfMapHead">
+            <h2 id="pfMapHead">Where he plays</h2>
+            <p class="muted small">Every touch this season, attacking left to right.</p>
+            <div class="pitch" id="pfPitch"></div>
+          </section>
+        </div>
+        <section class="panel" aria-labelledby="pfMatchHead">
+          <h2 id="pfMatchHead">Matches</h2>
+          <ol class="pf-mlist js-matches"></ol>
+        </section>
+      </div>
 
-      <section class="pf-uploads panel" aria-labelledby="pfUpHead">
-        <h2 id="pfUpHead">Your uploads</h2>
-        <div id="pfUploads"></div>
-      </section>
+      <!-- Matches & videos -->
+      <div class="pv" id="pv-matches" data-sub="matches" hidden>
+        <div class="pv-title"><h1>Matches &amp; videos</h1>
+          <button type="button" class="pf-btn" id="pfAddBtn" aria-expanded="false" aria-controls="pfAdd">Add a match</button></div>
+        <form class="pf-addform panel" id="pfAdd" hidden>
+          <h2>Add a match</h2>
+          <p class="muted small">Upload footage of a match you played. Regista's vision agents find you in it, cut every moment you
+            are on the ball, and add the match to your profile.</p>
+          <div class="pf-fields">
+            <label class="pf-field"><span>Video (MP4, up to 300 MB)</span><input type="file" accept="video/mp4,.mp4"></label>
+            <label class="pf-field"><span>Against</span><select id="pfOpp"></select></label>
+            <fieldset class="pf-seg"><legend>You played</legend>
+              <label><input type="radio" name="pfside" value="home" checked><span>At home</span></label>
+              <label><input type="radio" name="pfside" value="away"><span>Away</span></label>
+            </fieldset>
+          </div>
+          <div class="pf-addbar"><button type="submit">Upload and start</button><button type="button" class="alt" id="pfAddCancel">Cancel</button></div>
+          <p class="small pf-addnote" id="pfAddNote" role="status"></p>
+        </form>
+        <section class="panel" aria-labelledby="pfUpHead">
+          <h2 id="pfUpHead">Your uploads</h2>
+          <div id="pfUploads"></div>
+        </section>
+        <section class="panel" aria-labelledby="pfQHead">
+          <h2 id="pfQHead">Is this you?</h2>
+          <p class="muted small">When Regista's vision agents are not sure which player is you, they ask here. Your answers fix the
+            match and teach the agents.</p>
+          <div id="pfQuestions"></div>
+        </section>
+        <section class="panel" aria-labelledby="pfAllHead">
+          <h2 id="pfAllHead">All your matches</h2>
+          <ol class="pf-mlist js-matches"></ol>
+        </section>
+      </div>
+
+      <!-- Messages: scouts start conversations, players reply -->
+      <div class="pv" id="pv-messages" data-sub="messages" hidden>
+        <div class="pv-title"><h1>Messages</h1><p class="muted small">Scouts start conversations; you reply, mute or block.</p></div>
+        <div class="mx panel">
+          <ol class="mx-list" id="mxList" aria-label="Conversations"></ol>
+          <div class="mx-thread" id="mxThread">
+            <header class="mx-head" id="mxHead"></header>
+            <ol class="mx-msgs" id="mxMsgs" aria-live="polite"></ol>
+            <div class="mx-draftclips" id="mxDraft"></div>
+            <form class="mx-compose" id="mxCompose">
+              <button type="button" class="alt mx-attach" id="mxAttach" aria-expanded="false" aria-controls="mxPicker">Attach a moment</button>
+              <label class="sr" for="mxText">Your reply</label>
+              <input id="mxText" type="text" autocomplete="off" placeholder="Write a reply">
+              <button type="submit">Send</button>
+            </form>
+            <div class="mx-picker" id="mxPicker" hidden><p class="small muted">Pick moments to send. They arrive as clips the scout can play.</p><ol id="mxPickList"></ol></div>
+            <button type="button" class="link mx-back" id="mxBack">&larr; All conversations</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Team: my details + my club -->
+      <div class="pv" id="pv-team" data-sub="team" hidden>
+        <div class="pv-title"><h1>Team</h1></div>
+        <form class="panel tm-details" id="tmForm">
+          <h2>My details</h2>
+          <p class="muted small">What scouts see at the top of your profile.</p>
+          <div class="tm-grid">
+            <label class="pf-field"><span>Name</span><input id="tmName" type="text" maxlength="60"></label>
+            <label class="pf-field"><span>Position</span><select id="tmPos"><option value="GK">Goalkeeper</option><option value="DF">Defender</option><option value="MF">Midfielder</option><option value="FW">Forward</option></select></label>
+            <label class="pf-field"><span>Kit number</span><input id="tmKit" type="number" min="1" max="99"></label>
+            <fieldset class="pf-seg"><legend>Preferred foot</legend>
+              <label><input type="radio" name="tmfoot" value="Right" checked><span>Right</span></label>
+              <label><input type="radio" name="tmfoot" value="Left"><span>Left</span></label>
+              <label><input type="radio" name="tmfoot" value="Both"><span>Both</span></label>
+            </fieldset>
+            <label class="pf-field"><span>Height (cm)</span><input id="tmHeight" type="number" min="140" max="220" placeholder="e.g. 181"></label>
+            <label class="pf-field tm-bio"><span>About you</span><textarea id="tmBio" rows="3" maxlength="280" placeholder="A line or two scouts read first"></textarea></label>
+          </div>
+          <div class="pf-addbar"><button type="submit">Save</button></div>
+          <p class="small pf-addnote" id="tmNote" role="status"></p>
+        </form>
+        <section class="panel" aria-labelledby="tmClubHead">
+          <div class="tm-club"><div class="tm-crest" id="tmCrest" aria-hidden="true"></div>
+            <div><h2 id="tmClubHead"></h2><p class="muted small" id="tmClubLine"></p></div></div>
+          <div class="pf-two tm-two">
+            <div><h3>Squad</h3><ol class="tm-squad" id="tmSquad"></ol></div>
+            <div><h3>Results</h3><ol class="tm-results" id="tmResults"></ol>
+              <h3>League table</h3><table class="tm-table" id="tmTable"></table></div>
+          </div>
+        </section>
+      </div>
+
+      <!-- Settings -->
+      <div class="pv" id="pv-settings" data-sub="settings" hidden>
+        <div class="pv-title"><h1>Settings</h1></div>
+        <section class="panel st">
+          <h2>Account</h2>
+          <div class="st-row"><div><b>Email</b><p class="muted small">femi.toure@regista-league.example</p></div><button type="button" class="alt">Change</button></div>
+          <div class="st-row"><div><b>Password</b><p class="muted small">Last changed 2 months ago</p></div><button type="button" class="alt">Change</button></div>
+        </section>
+        <section class="panel st">
+          <h2>Privacy</h2>
+          <fieldset class="st-choice"><legend>Who can see your profile</legend>
+            <label><input type="radio" name="stsee" checked><span>Everyone</span></label>
+            <label><input type="radio" name="stsee"><span>Scouts only</span></label>
+            <label><input type="radio" name="stsee"><span>Only me</span></label>
+          </fieldset>
+          <fieldset class="st-choice"><legend>Who can message you</legend>
+            <label><input type="radio" name="stmsg" checked><span>Verified scouts</span></label>
+            <label><input type="radio" name="stmsg"><span>Any scout</span></label>
+            <label><input type="radio" name="stmsg"><span>Nobody</span></label>
+          </fieldset>
+        </section>
+        <section class="panel st">
+          <h2>Notifications</h2>
+          <label class="st-toggle"><input type="checkbox" checked><span>A scout messages you</span></label>
+          <label class="st-toggle"><input type="checkbox" checked><span>An upload is ready</span></label>
+          <label class="st-toggle"><input type="checkbox" checked><span>Regista asks "Is this you?"</span></label>
+          <label class="st-toggle"><input type="checkbox"><span>A weekly summary of your profile</span></label>
+        </section>
+        <section class="panel st">
+          <h2>Your footage</h2>
+          <p class="muted small">Everyone you film must agree to it, and you can change these at any time.</p>
+          <label class="st-toggle"><input type="checkbox" checked><span>Let Regista's vision agents process the matches you upload</span></label>
+          <label class="st-toggle"><input type="checkbox" checked><span>Show clips from your uploads on your profile</span></label>
+          <label class="st-toggle"><input type="checkbox"><span>Use your uploads to improve Regista's agents</span></label>
+        </section>
+        <section class="panel st st-out">
+          <button type="button" class="alt" id="stOut">Sign out</button>
+          <p class="small muted" id="stNote" role="status"></p>
+        </section>
+      </div>
+
     </div>
   </section>
   <section id="scout" data-view="scout" aria-label="Scout" hidden></section>
