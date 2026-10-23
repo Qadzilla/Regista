@@ -135,13 +135,24 @@ main { min-width: 0; }
 @media (max-width: 1100px) { .mbody { grid-template-columns: minmax(0, 1fr); } .convo { position: static; max-height: none; order: -1; } }
 @media (max-width: 720px) { .stage { grid-template-columns: 1fr; } }
 
-/* What Regista runs on: one muted row of official icons, each beside its full service name. */
-.stack { margin: 44px 0 0; text-align: center; position: relative; left: 50%; transform: translateX(-50%);
+/* What Regista runs on, laid out like the Azure portal's "Azure services" row: the official icon first and large, its
+   full service name small and muted underneath; a tile lights up on hover. One row of eight on desktop, four a row on
+   phones. */
+.stack { margin: 48px 0 0; text-align: center; position: relative; left: 50%; transform: translateX(-50%);
          width: max-content; max-width: min(1100px, calc(100vw - 268px)); }   /* wider than the search box: one row on desktop */
-.stack-label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 14px; }
-.stack ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, auto); justify-content: center;
-            gap: 14px 32px; }   /* two even rows of four */
-.stack li { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); white-space: nowrap; }
-.stack li:hover { color: var(--text); }
-.stack img { width: 20px; height: 20px; flex: 0 0 auto; }
-@media (max-width: 720px) { .stack { margin-top: 32px; max-width: 100%; } .stack ul { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px 16px; } .stack li { font-size: 12.5px; } .stack img { width: 18px; height: 18px; } }
+.stack-label { display: block; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+.stack ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(8, 104px); justify-content: center; gap: 8px; }
+.stack li { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px 6px 12px; border-radius: 8px;
+            transition: background-color .15s ease; cursor: default; }
+.stack li:hover { background: rgba(255, 255, 255, .05); }
+.stack img { width: 40px; height: 40px; flex: 0 0 auto; }
+.stack li span { font-size: 12px; line-height: 1.3; color: var(--muted); max-width: 92px; }
+.stack li:hover span { color: var(--text); }
+@media (max-width: 1240px) { .stack ul { grid-template-columns: repeat(4, 104px); } }
+@media (max-width: 720px) {
+  .stack { margin-top: 36px; max-width: 100%; }
+  .stack ul { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; }
+  .stack li { padding: 10px 2px; gap: 8px; }
+  .stack img { width: 32px; height: 32px; }
+  .stack li span { font-size: 11px; }
+}
