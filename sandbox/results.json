@@ -1,0 +1,2436 @@
+{
+"Find me shots from outside the box this season": {
+"total": 150,
+"moments": [
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_away_09_000026",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Yusuf Tanaka (9): goal at 56'",
+"tags": [
+"shot",
+"goal",
+"header"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000010",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 8'",
+"tags": [
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r03_fai_bro",
+"round": 3,
+"home": "FAI",
+"away": "BRO",
+"clip_id": "cl_t_away_06_000002",
+"player": "Gael Valente",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Gael Valente (6): goal at 3'",
+"tags": [
+"pass",
+"carry",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r04_cal_ash",
+"round": 4,
+"home": "CAL",
+"away": "ASH",
+"clip_id": "cl_t_away_09_000010",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): goal at 10'",
+"tags": [
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_fai_ash",
+"round": 6,
+"home": "FAI",
+"away": "ASH",
+"clip_id": "cl_t_home_07_000005",
+"player": "Farid Mensah",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Farid Mensah (7): goal at 4'",
+"tags": [
+"carry",
+"dribble",
+"cross",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_11_000022",
+"player": "Leon Whitfield",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Leon Whitfield (11): goal at 54'",
+"tags": [
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_away_07_000020",
+"player": "Haruki Fontaine",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Haruki Fontaine (7): goal at 52'",
+"tags": [
+"carry",
+"pass",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r07_ash_eas",
+"round": 7,
+"home": "ASH",
+"away": "EAS",
+"clip_id": "cl_t_away_09_000025",
+"player": "Hugo Ustinov",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Hugo Ustinov (9): goal at 59'",
+"tags": [
+"carry",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_eas_cal",
+"round": 8,
+"home": "EAS",
+"away": "CAL",
+"clip_id": "cl_t_home_07_000011",
+"player": "Haruki Fontaine",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Haruki Fontaine (7): goal at 8'",
+"tags": [
+"carry",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_eas_cal",
+"round": 8,
+"home": "EAS",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000029",
+"player": "Hugo Ustinov",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Hugo Ustinov (9): goal at 56'",
+"tags": [
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_08_000005",
+"player": "Kenan Petrov",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Kenan Petrov (8): nutmeg at 9'",
+"tags": [
+"take_on",
+"nutmeg",
+"carry",
+"dribble",
+"shot"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000002",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): goal at 1'",
+"tags": [
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_bro_dun",
+"round": 9,
+"home": "BRO",
+"away": "DUN",
+"clip_id": "cl_t_home_09_000011",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 3'",
+"tags": [
+"carry",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_eas_dun",
+"round": 10,
+"home": "EAS",
+"away": "DUN",
+"clip_id": "cl_t_home_09_000021",
+"player": "Hugo Ustinov",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Hugo Ustinov (9): goal at 14'",
+"tags": [
+"carry",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_eas_dun",
+"round": 10,
+"home": "EAS",
+"away": "DUN",
+"clip_id": "cl_t_away_09_000024",
+"player": "Sami Ibarra",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Sami Ibarra (9): goal at 51'",
+"tags": [
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000024",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): shot at 14'",
+"tags": [
+"recovery",
+"possession_change",
+"carry",
+"dribble",
+"take_on",
+"pass",
+"shot"
+],
+"watch": 0.94
+},
+{
+"match_id": "rl_r03_cal_eas",
+"round": 3,
+"home": "CAL",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000008",
+"player": "Kenan Kowalski",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Kenan Kowalski (9): shot at 6'",
+"tags": [
+"recovery",
+"possession_change",
+"carry",
+"dribble",
+"pass",
+"shot"
+],
+"watch": 0.91
+},
+{
+"match_id": "rl_r01_eas_bro",
+"round": 1,
+"home": "EAS",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000028",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 57'",
+"tags": [
+"shot",
+"recovery",
+"possession_change",
+"carry",
+"pass"
+],
+"watch": 0.88
+},
+{
+"match_id": "rl_r02_eas_ash",
+"round": 2,
+"home": "EAS",
+"away": "ASH",
+"clip_id": "cl_t_away_11_000014",
+"player": "Zane Weber",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Zane Weber (11): shot at 50'",
+"tags": [
+"carry",
+"shot",
+"recovery",
+"pass",
+"cross"
+],
+"watch": 0.88
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_11_000010",
+"player": "Leon Whitfield",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Leon Whitfield (11): shot at 12'",
+"tags": [
+"carry",
+"dribble",
+"shot",
+"interception",
+"possession_change"
+],
+"watch": 0.88
+},
+{
+"match_id": "rl_r06_dun_cal",
+"round": 6,
+"home": "DUN",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000005",
+"player": "Sami Ibarra",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Sami Ibarra (9): shot at 3'",
+"tags": [
+"free_kick",
+"carry",
+"shot",
+"recovery",
+"pass"
+],
+"watch": 0.88
+},
+{
+"match_id": "rl_r07_ash_eas",
+"round": 7,
+"home": "ASH",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000012",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): shot at 5'",
+"tags": [
+"recovery",
+"possession_change",
+"carry",
+"dribble",
+"shot"
+],
+"watch": 0.88
+},
+{
+"match_id": "rl_r09_bro_dun",
+"round": 9,
+"home": "BRO",
+"away": "DUN",
+"clip_id": "cl_t_away_07_000011",
+"player": "Cole Zidane",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Cole Zidane (7): shot at 46'",
+"tags": [
+"carry",
+"dribble",
+"shot",
+"recovery",
+"pass"
+],
+"watch": 0.88
+},
+{
+"match_id": "rl_r01_cal_dun",
+"round": 1,
+"home": "CAL",
+"away": "DUN",
+"clip_id": "cl_t_away_08_000016",
+"player": "Haruki Zidane",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Haruki Zidane (8): shot at 46'",
+"tags": [
+"carry",
+"dribble",
+"take_on",
+"shot"
+],
+"watch": 0.85
+}
+]
+},
+"Show me every header this season": {
+"total": 19,
+"moments": [
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_away_09_000026",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Yusuf Tanaka (9): goal at 56'",
+"tags": [
+"shot",
+"goal",
+"header"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_away_09_000029",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "replay_appearance",
+"title": "Yusuf Tanaka (9): goal \u00b7 half-speed replay from the touchline camera",
+"tags": [
+"shot",
+"goal",
+"header",
+"replay_appearance"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_home_06_000017",
+"player": "Sami Okafor",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Sami Okafor (6): shot at 55'",
+"tags": [
+"carry",
+"dribble",
+"shot",
+"header"
+],
+"watch": 0.85
+},
+{
+"match_id": "rl_r04_cal_ash",
+"round": 4,
+"home": "CAL",
+"away": "ASH",
+"clip_id": "cl_t_away_09_000020",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): shot at 14'",
+"tags": [
+"free_kick",
+"carry",
+"shot",
+"header"
+],
+"watch": 0.85
+},
+{
+"match_id": "rl_r05_ash_bro",
+"round": 5,
+"home": "ASH",
+"away": "BRO",
+"clip_id": "cl_t_home_09_000023",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): shot at 54'",
+"tags": [
+"carry",
+"pass",
+"shot",
+"header"
+],
+"watch": 0.85
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000042",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): shot at 58'",
+"tags": [
+"free_kick",
+"carry",
+"shot",
+"header"
+],
+"watch": 0.85
+},
+{
+"match_id": "rl_r10_bro_ash",
+"round": 10,
+"home": "BRO",
+"away": "ASH",
+"clip_id": "cl_t_away_10_000026",
+"player": "Hugo Delgado",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Hugo Delgado (10): shot at 54'",
+"tags": [
+"pass",
+"carry",
+"shot",
+"header"
+],
+"watch": 0.85
+},
+{
+"match_id": "rl_r04_cal_ash",
+"round": 4,
+"home": "CAL",
+"away": "ASH",
+"clip_id": "cl_t_home_09_000008",
+"player": "Kenan Kowalski",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Kenan Kowalski (9): shot at 4'",
+"tags": [
+"carry",
+"shot",
+"header"
+],
+"watch": 0.82
+},
+{
+"match_id": "rl_r04_dun_bro",
+"round": 4,
+"home": "DUN",
+"away": "BRO",
+"clip_id": "cl_t_away_06_000009",
+"player": "Gael Valente",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Gael Valente (6): shot at 46'",
+"tags": [
+"carry",
+"shot",
+"header"
+],
+"watch": 0.82
+},
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_away_10_000003",
+"player": "Noel Oliveira",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Noel Oliveira (10): shot at 5'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r04_dun_bro",
+"round": 4,
+"home": "DUN",
+"away": "BRO",
+"clip_id": "cl_t_home_09_000007",
+"player": "Sami Ibarra",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Sami Ibarra (9): shot at 4'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r04_fai_eas",
+"round": 4,
+"home": "FAI",
+"away": "EAS",
+"clip_id": "cl_t_away_09_000021",
+"player": "Hugo Ustinov",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Hugo Ustinov (9): shot at 47'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r05_ash_bro",
+"round": 5,
+"home": "ASH",
+"away": "BRO",
+"clip_id": "cl_t_home_11_000002",
+"player": "Zane Weber",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Zane Weber (11): shot at 2'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r05_ash_bro",
+"round": 5,
+"home": "ASH",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000030",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 57'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r07_ash_eas",
+"round": 7,
+"home": "ASH",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000003",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): shot at 1'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_07_000020",
+"player": "Gino Reyes",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Gino Reyes (7): shot at 57'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000037",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): shot at 56'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r04_cal_ash",
+"round": 4,
+"home": "CAL",
+"away": "ASH",
+"clip_id": "cl_t_away_09_000021",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "replay_appearance",
+"title": "Amari Ustinov (9): shot \u00b7 quarter-speed replay from high and wide",
+"tags": [
+"shot",
+"header",
+"replay_appearance"
+],
+"watch": 0.76
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000043",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "replay_appearance",
+"title": "Amari Ustinov (9): shot \u00b7 quarter-speed replay from behind the goal",
+"tags": [
+"shot",
+"header",
+"replay_appearance"
+],
+"watch": 0.76
+}
+]
+},
+"Find me all the nutmegs": {
+"total": 35,
+"moments": [
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_home_11_000010",
+"player": "Zane Weber",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Zane Weber (11): nutmeg at 9'",
+"tags": [
+"throw_in",
+"possession_change",
+"carry",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r01_eas_bro",
+"round": 1,
+"home": "EAS",
+"away": "BRO",
+"clip_id": "cl_t_away_07_000022",
+"player": "Milan Brennan",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Milan Brennan (7): nutmeg at 57'",
+"tags": [
+"corner",
+"take_on",
+"nutmeg",
+"cross",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r02_eas_ash",
+"round": 2,
+"home": "EAS",
+"away": "ASH",
+"clip_id": "cl_t_away_07_000010",
+"player": "Gino Reyes",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Gino Reyes (7): nutmeg at 47'",
+"tags": [
+"carry",
+"take_on",
+"nutmeg",
+"dribble",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r04_dun_bro",
+"round": 4,
+"home": "DUN",
+"away": "BRO",
+"clip_id": "cl_t_home_10_000018",
+"player": "Pavel Petrov",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Pavel Petrov (10): nutmeg at 56'",
+"tags": [
+"take_on",
+"nutmeg",
+"carry",
+"dribble"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r05_fai_cal",
+"round": 5,
+"home": "FAI",
+"away": "CAL",
+"clip_id": "cl_t_home_04_000012",
+"player": "Idris Whitfield",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Idris Whitfield (4): nutmeg at 54'",
+"tags": [
+"carry",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r05_fai_cal",
+"round": 5,
+"home": "FAI",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000009",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Yusuf Tanaka (9): nutmeg at 10'",
+"tags": [
+"interception",
+"possession_change",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r05_fai_cal",
+"round": 5,
+"home": "FAI",
+"away": "CAL",
+"clip_id": "cl_t_away_02_000007",
+"player": "Otis Nakamura",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Otis Nakamura (2): nutmeg at 14'",
+"tags": [
+"carry",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r05_dun_eas",
+"round": 5,
+"home": "DUN",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000002",
+"player": "Sami Ibarra",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Sami Ibarra (9): nutmeg at 4'",
+"tags": [
+"carry",
+"dribble",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_04_000006",
+"player": "Caio Sorensen",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Caio Sorensen (4): nutmeg at 53'",
+"tags": [
+"carry",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_dun_cal",
+"round": 6,
+"home": "DUN",
+"away": "CAL",
+"clip_id": "cl_t_away_09_000006",
+"player": "Kenan Kowalski",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Kenan Kowalski (9): nutmeg at 11'",
+"tags": [
+"take_on",
+"nutmeg",
+"carry",
+"dribble",
+"shot"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_eas_cal",
+"round": 8,
+"home": "EAS",
+"away": "CAL",
+"clip_id": "cl_t_away_03_000006",
+"player": "Elias Popescu",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Elias Popescu (3): nutmeg at 59'",
+"tags": [
+"recovery",
+"possession_change",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_08_000005",
+"player": "Kenan Petrov",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Kenan Petrov (8): nutmeg at 9'",
+"tags": [
+"take_on",
+"nutmeg",
+"carry",
+"dribble",
+"shot"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_away_08_000002",
+"player": "Luca Mensah",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Luca Mensah (8): nutmeg at 2'",
+"tags": [
+"recovery",
+"possession_change",
+"carry",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000026",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): nutmeg at 15'",
+"tags": [
+"take_on",
+"nutmeg",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_bro_ash",
+"round": 10,
+"home": "BRO",
+"away": "ASH",
+"clip_id": "cl_t_home_09_000020",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): nutmeg at 57'",
+"tags": [
+"recovery",
+"possession_change",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_cal_fai",
+"round": 10,
+"home": "CAL",
+"away": "FAI",
+"clip_id": "cl_t_home_03_000003",
+"player": "Elias Popescu",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Elias Popescu (3): nutmeg at 4'",
+"tags": [
+"carry",
+"take_on",
+"nutmeg",
+"cross"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_eas_dun",
+"round": 10,
+"home": "EAS",
+"away": "DUN",
+"clip_id": "cl_t_away_04_000005",
+"player": "Femi Rahman",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Femi Rahman (4): nutmeg at 8'",
+"tags": [
+"carry",
+"dribble",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_home_11_000023",
+"player": "Zane Weber",
+"club": "ASH",
+"kind": "highlight_appearance",
+"title": "Zane Weber (11): nutmeg \u00b7 in the highlights",
+"tags": [
+"nutmeg",
+"highlight_appearance"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r01_eas_bro",
+"round": 1,
+"home": "EAS",
+"away": "BRO",
+"clip_id": "cl_t_away_07_000027",
+"player": "Milan Brennan",
+"club": "BRO",
+"kind": "highlight_appearance",
+"title": "Milan Brennan (7): nutmeg \u00b7 in the highlights",
+"tags": [
+"nutmeg",
+"highlight_appearance"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r02_eas_ash",
+"round": 2,
+"home": "EAS",
+"away": "ASH",
+"clip_id": "cl_t_away_07_000019",
+"player": "Gino Reyes",
+"club": "ASH",
+"kind": "highlight_appearance",
+"title": "Gino Reyes (7): nutmeg \u00b7 in the highlights",
+"tags": [
+"nutmeg",
+"highlight_appearance"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r04_dun_bro",
+"round": 4,
+"home": "DUN",
+"away": "BRO",
+"clip_id": "cl_t_home_10_000025",
+"player": "Pavel Petrov",
+"club": "DUN",
+"kind": "highlight_appearance",
+"title": "Pavel Petrov (10): nutmeg \u00b7 in the highlights",
+"tags": [
+"nutmeg",
+"highlight_appearance"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r05_fai_cal",
+"round": 5,
+"home": "FAI",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000035",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "highlight_appearance",
+"title": "Yusuf Tanaka (9): nutmeg \u00b7 in the highlights",
+"tags": [
+"nutmeg",
+"highlight_appearance"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r05_fai_cal",
+"round": 5,
+"home": "FAI",
+"away": "CAL",
+"clip_id": "cl_t_away_02_000013",
+"player": "Otis Nakamura",
+"club": "CAL",
+"kind": "highlight_appearance",
+"title": "Otis Nakamura (2): nutmeg \u00b7 in the highlights",
+"tags": [
+"nutmeg",
+"highlight_appearance"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r05_dun_eas",
+"round": 5,
+"home": "DUN",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000025",
+"player": "Sami Ibarra",
+"club": "DUN",
+"kind": "highlight_appearance",
+"title": "Sami Ibarra (9): nutmeg \u00b7 in the highlights",
+"tags": [
+"nutmeg",
+"highlight_appearance"
+],
+"watch": 0.98
+}
+]
+},
+"Show me take-ons in the final third": {
+"total": 121,
+"moments": [
+{
+"match_id": "rl_r01_eas_bro",
+"round": 1,
+"home": "EAS",
+"away": "BRO",
+"clip_id": "cl_t_home_10_000020",
+"player": "Zane Eriksen",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Zane Eriksen (10): goal at 58'",
+"tags": [
+"carry",
+"take_on",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r01_eas_bro",
+"round": 1,
+"home": "EAS",
+"away": "BRO",
+"clip_id": "cl_t_away_07_000022",
+"player": "Milan Brennan",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Milan Brennan (7): nutmeg at 57'",
+"tags": [
+"corner",
+"take_on",
+"nutmeg",
+"cross",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r02_eas_ash",
+"round": 2,
+"home": "EAS",
+"away": "ASH",
+"clip_id": "cl_t_away_07_000010",
+"player": "Gino Reyes",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Gino Reyes (7): nutmeg at 47'",
+"tags": [
+"carry",
+"take_on",
+"nutmeg",
+"dribble",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r02_fai_dun",
+"round": 2,
+"home": "FAI",
+"away": "DUN",
+"clip_id": "cl_t_away_09_000020",
+"player": "Sami Ibarra",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Sami Ibarra (9): skill move at 46'",
+"tags": [
+"recovery",
+"possession_change",
+"carry",
+"pass",
+"take_on",
+"skill_move"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000016",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 13'",
+"tags": [
+"free_kick",
+"carry",
+"take_on",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r04_cal_ash",
+"round": 4,
+"home": "CAL",
+"away": "ASH",
+"clip_id": "cl_t_away_09_000024",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): goal at 48'",
+"tags": [
+"carry",
+"dribble",
+"take_on",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r04_dun_bro",
+"round": 4,
+"home": "DUN",
+"away": "BRO",
+"clip_id": "cl_t_home_10_000018",
+"player": "Pavel Petrov",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Pavel Petrov (10): nutmeg at 56'",
+"tags": [
+"take_on",
+"nutmeg",
+"carry",
+"dribble"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r05_dun_eas",
+"round": 5,
+"home": "DUN",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000002",
+"player": "Sami Ibarra",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Sami Ibarra (9): nutmeg at 4'",
+"tags": [
+"carry",
+"dribble",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_fai_ash",
+"round": 6,
+"home": "FAI",
+"away": "ASH",
+"clip_id": "cl_t_home_09_000032",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Yusuf Tanaka (9): goal at 53'",
+"tags": [
+"carry",
+"dribble",
+"take_on",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_fai_ash",
+"round": 6,
+"home": "FAI",
+"away": "ASH",
+"clip_id": "cl_t_away_10_000003",
+"player": "Hugo Delgado",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Hugo Delgado (10): goal at 5'",
+"tags": [
+"take_on",
+"carry",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_03_000006",
+"player": "Elias Bakker",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Elias Bakker (3): skill move at 46'",
+"tags": [
+"interception",
+"possession_change",
+"take_on",
+"skill_move",
+"carry",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_dun_cal",
+"round": 6,
+"home": "DUN",
+"away": "CAL",
+"clip_id": "cl_t_away_09_000006",
+"player": "Kenan Kowalski",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Kenan Kowalski (9): nutmeg at 11'",
+"tags": [
+"take_on",
+"nutmeg",
+"carry",
+"dribble",
+"shot"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_dun_cal",
+"round": 6,
+"home": "DUN",
+"away": "CAL",
+"clip_id": "cl_t_away_11_000014",
+"player": "Mateo Brennan",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Mateo Brennan (11): assist at 55'",
+"tags": [
+"take_on",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r07_dun_fai",
+"round": 7,
+"home": "DUN",
+"away": "FAI",
+"clip_id": "cl_t_away_09_000025",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Yusuf Tanaka (9): goal at 56'",
+"tags": [
+"tackle",
+"possession_change",
+"pass",
+"take_on",
+"carry",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_eas_cal",
+"round": 8,
+"home": "EAS",
+"away": "CAL",
+"clip_id": "cl_t_away_03_000006",
+"player": "Elias Popescu",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Elias Popescu (3): nutmeg at 59'",
+"tags": [
+"recovery",
+"possession_change",
+"take_on",
+"nutmeg",
+"pass"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_08_000005",
+"player": "Kenan Petrov",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Kenan Petrov (8): nutmeg at 9'",
+"tags": [
+"take_on",
+"nutmeg",
+"carry",
+"dribble",
+"shot"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000026",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): nutmeg at 15'",
+"tags": [
+"take_on",
+"nutmeg",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_bro_ash",
+"round": 10,
+"home": "BRO",
+"away": "ASH",
+"clip_id": "cl_t_away_09_000003",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): goal at 5'",
+"tags": [
+"take_on",
+"skill_move",
+"carry",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r03_ash_dun",
+"round": 3,
+"home": "ASH",
+"away": "DUN",
+"clip_id": "cl_t_away_11_000017",
+"player": "Jonah Okafor",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Jonah Okafor (11): skill move at 56'",
+"tags": [
+"carry",
+"pass",
+"take_on",
+"skill_move",
+"cross"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r03_fai_bro",
+"round": 3,
+"home": "FAI",
+"away": "BRO",
+"clip_id": "cl_t_away_07_000017",
+"player": "Milan Brennan",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Milan Brennan (7): skill move at 49'",
+"tags": [
+"take_on",
+"skill_move",
+"carry",
+"dribble",
+"pass"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r08_dun_ash",
+"round": 8,
+"home": "DUN",
+"away": "ASH",
+"clip_id": "cl_t_away_09_000018",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): skill move at 48'",
+"tags": [
+"take_on",
+"skill_move",
+"carry",
+"dribble",
+"pass"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_11_000006",
+"player": "Leon Whitfield",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Leon Whitfield (11): skill move at 7'",
+"tags": [
+"carry",
+"take_on",
+"skill_move",
+"foul_against",
+"foul_won"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_11_000025",
+"player": "Leon Whitfield",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Leon Whitfield (11): skill move at 52'",
+"tags": [
+"carry",
+"take_on",
+"skill_move",
+"cross",
+"pass"
+],
+"watch": 0.98
+},
+{
+"match_id": "rl_r09_bro_dun",
+"round": 9,
+"home": "BRO",
+"away": "DUN",
+"clip_id": "cl_t_away_04_000003",
+"player": "Femi Rahman",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Femi Rahman (4): skill move at 12'",
+"tags": [
+"free_kick",
+"take_on",
+"skill_move",
+"carry",
+"pass"
+],
+"watch": 0.98
+}
+]
+},
+"Find me every assist, best first": {
+"total": 40,
+"moments": [
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_home_09_000020",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): assist at 13'",
+"tags": [
+"take_on_against",
+"tackle",
+"possession_change",
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r01_ash_fai",
+"round": 1,
+"home": "ASH",
+"away": "FAI",
+"clip_id": "cl_t_away_11_000021",
+"player": "Benji Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Benji Tanaka (11): assist at 56'",
+"tags": [
+"carry",
+"cross",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r01_cal_dun",
+"round": 1,
+"home": "CAL",
+"away": "DUN",
+"clip_id": "cl_t_away_07_000009",
+"player": "Cole Zidane",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Cole Zidane (7): assist at 7'",
+"tags": [
+"carry",
+"dribble",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r01_cal_dun",
+"round": 1,
+"home": "CAL",
+"away": "DUN",
+"clip_id": "cl_t_away_11_000017",
+"player": "Jonah Okafor",
+"club": "DUN",
+"kind": "on_ball_main",
+"title": "Jonah Okafor (11): assist at 54'",
+"tags": [
+"carry",
+"cross",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r03_cal_eas",
+"round": 3,
+"home": "CAL",
+"away": "EAS",
+"clip_id": "cl_t_away_07_000010",
+"player": "Haruki Fontaine",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Haruki Fontaine (7): assist at 8'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r03_fai_bro",
+"round": 3,
+"home": "FAI",
+"away": "BRO",
+"clip_id": "cl_t_home_10_000016",
+"player": "Noel Oliveira",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Noel Oliveira (10): assist at 46'",
+"tags": [
+"carry",
+"dribble",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r03_fai_bro",
+"round": 3,
+"home": "FAI",
+"away": "BRO",
+"clip_id": "cl_t_away_11_000005",
+"player": "Leon Whitfield",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Leon Whitfield (11): assist at 3'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r04_cal_ash",
+"round": 4,
+"home": "CAL",
+"away": "ASH",
+"clip_id": "cl_t_home_08_000023",
+"player": "Mateo Delgado",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Mateo Delgado (8): assist at 58'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r05_fai_cal",
+"round": 5,
+"home": "FAI",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000004",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Yusuf Tanaka (9): assist at 3'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_fai_ash",
+"round": 6,
+"home": "FAI",
+"away": "ASH",
+"clip_id": "cl_t_home_09_000002",
+"player": "Yusuf Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Yusuf Tanaka (9): assist at 1'",
+"tags": [
+"recovery",
+"possession_change",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_07_000010",
+"player": "Milan Brennan",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Milan Brennan (7): assist at 47'",
+"tags": [
+"take_on",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000026",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): assist at 54'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_dun_cal",
+"round": 6,
+"home": "DUN",
+"away": "CAL",
+"clip_id": "cl_t_away_11_000014",
+"player": "Mateo Brennan",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Mateo Brennan (11): assist at 55'",
+"tags": [
+"take_on",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r07_ash_eas",
+"round": 7,
+"home": "ASH",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000017",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): assist at 9'",
+"tags": [
+"free_kick",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r07_dun_fai",
+"round": 7,
+"home": "DUN",
+"away": "FAI",
+"clip_id": "cl_t_away_11_000019",
+"player": "Benji Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Benji Tanaka (11): assist at 55'",
+"tags": [
+"corner",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r07_dun_fai",
+"round": 7,
+"home": "DUN",
+"away": "FAI",
+"clip_id": "cl_t_away_11_000021",
+"player": "Benji Tanaka",
+"club": "FAI",
+"kind": "on_ball_main",
+"title": "Benji Tanaka (11): assist at 56'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_eas_cal",
+"round": 8,
+"home": "EAS",
+"away": "CAL",
+"clip_id": "cl_t_home_11_000016",
+"player": "Ivan Santos",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Ivan Santos (11): assist at 56'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_10_000021",
+"player": "Kenan Nakamura",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Kenan Nakamura (10): assist at 50'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000026",
+"player": "Amari Ustinov",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Amari Ustinov (9): nutmeg at 15'",
+"tags": [
+"take_on",
+"nutmeg",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_home_11_000001",
+"player": "Zane Weber",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Zane Weber (11): assist at 1'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_ash_cal",
+"round": 9,
+"home": "ASH",
+"away": "CAL",
+"clip_id": "cl_t_away_07_000005",
+"player": "Ivan Whitfield",
+"club": "CAL",
+"kind": "on_ball_main",
+"title": "Ivan Whitfield (7): assist at 6'",
+"tags": [
+"carry",
+"dribble",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_bro_dun",
+"round": 9,
+"home": "BRO",
+"away": "DUN",
+"clip_id": "cl_t_home_02_000001",
+"player": "Bruno Kowalski",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Bruno Kowalski (2): assist at 2'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_bro_ash",
+"round": 10,
+"home": "BRO",
+"away": "ASH",
+"clip_id": "cl_t_away_10_000006",
+"player": "Hugo Delgado",
+"club": "ASH",
+"kind": "on_ball_main",
+"title": "Hugo Delgado (10): assist at 5'",
+"tags": [
+"pass",
+"take_on_against",
+"tackle",
+"possession_change",
+"carry",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r10_eas_dun",
+"round": 10,
+"home": "EAS",
+"away": "DUN",
+"clip_id": "cl_t_home_03_000001",
+"player": "Gino Mensah",
+"club": "EAS",
+"kind": "on_ball_main",
+"title": "Gino Mensah (3): assist at 14'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+}
+]
+},
+"Show me Femi Toure's goals, assists and shots": {
+"total": 19,
+"moments": [
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000010",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 8'",
+"tags": [
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000016",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 13'",
+"tags": [
+"free_kick",
+"carry",
+"take_on",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000019",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 47'",
+"tags": [
+"carry",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000026",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): assist at 54'",
+"tags": [
+"carry",
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_09_000021",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 50'",
+"tags": [
+"carry",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_bro_dun",
+"round": 9,
+"home": "BRO",
+"away": "DUN",
+"clip_id": "cl_t_home_09_000007",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 2'",
+"tags": [
+"carry",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r09_bro_dun",
+"round": 9,
+"home": "BRO",
+"away": "DUN",
+"clip_id": "cl_t_home_09_000011",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): goal at 3'",
+"tags": [
+"carry",
+"dribble",
+"shot",
+"goal"
+],
+"watch": 1.0
+},
+{
+"match_id": "rl_r07_bro_cal",
+"round": 7,
+"home": "BRO",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000009",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): assist at 6'",
+"tags": [
+"pass",
+"key_pass",
+"assist"
+],
+"watch": 0.97
+},
+{
+"match_id": "rl_r01_eas_bro",
+"round": 1,
+"home": "EAS",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000028",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 57'",
+"tags": [
+"shot",
+"recovery",
+"possession_change",
+"carry",
+"pass"
+],
+"watch": 0.88
+},
+{
+"match_id": "rl_r06_bro_eas",
+"round": 6,
+"home": "BRO",
+"away": "EAS",
+"clip_id": "cl_t_home_09_000015",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 15'",
+"tags": [
+"shot",
+"interception",
+"possession_change",
+"pass"
+],
+"watch": 0.85
+},
+{
+"match_id": "rl_r07_bro_cal",
+"round": 7,
+"home": "BRO",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000012",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 9'",
+"tags": [
+"carry",
+"dribble",
+"shot"
+],
+"watch": 0.82
+},
+{
+"match_id": "rl_r04_dun_bro",
+"round": 4,
+"home": "DUN",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000024",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 52'",
+"tags": [
+"carry",
+"shot"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r05_ash_bro",
+"round": 5,
+"home": "ASH",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000030",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 57'",
+"tags": [
+"shot",
+"header"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r08_bro_fai",
+"round": 8,
+"home": "BRO",
+"away": "FAI",
+"clip_id": "cl_t_home_09_000013",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 47'",
+"tags": [
+"carry",
+"shot"
+],
+"watch": 0.79
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000002",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 2'",
+"tags": [
+"shot"
+],
+"watch": 0.76
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000015",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 10'",
+"tags": [
+"shot"
+],
+"watch": 0.76
+},
+{
+"match_id": "rl_r02_cal_bro",
+"round": 2,
+"home": "CAL",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000024",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 48'",
+"tags": [
+"shot"
+],
+"watch": 0.76
+},
+{
+"match_id": "rl_r04_dun_bro",
+"round": 4,
+"home": "DUN",
+"away": "BRO",
+"clip_id": "cl_t_away_09_000009",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 9'",
+"tags": [
+"shot"
+],
+"watch": 0.76
+},
+{
+"match_id": "rl_r07_bro_cal",
+"round": 7,
+"home": "BRO",
+"away": "CAL",
+"clip_id": "cl_t_home_09_000017",
+"player": "Femi Toure",
+"club": "BRO",
+"kind": "on_ball_main",
+"title": "Femi Toure (9): shot at 14'",
+"tags": [
+"shot"
+],
+"watch": 0.76
+}
+]
+}
+}

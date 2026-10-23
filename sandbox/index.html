@@ -30,6 +30,33 @@
       <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
     </div>
   </section>
+  <section id="results" aria-label="Results" hidden>
+    <div class="rbar">
+      <form class="search compact" role="search" id="rsearch">
+        <label class="sr" for="rq">Search every match</label>
+        <input id="rq" type="search" autocomplete="off">
+        <button type="submit">Search</button>
+      </form>
+      <div class="engine inline" role="radiogroup" aria-label="Who answers">
+        <label><input type="radio" name="rengine" value="rules" checked><span>Data Search</span></label>
+        <label><input type="radio" name="rengine" value="foundry"><span>Ask Microsoft Foundry</span></label>
+      </div>
+    </div>
+    <div class="rbody">
+      <div class="rgrid-wrap">
+        <p class="rcount" id="rcount"></p>
+        <div class="rgrid" id="rgrid"></div>
+      </div>
+      <aside class="foundry" id="foundry" aria-label="Microsoft Foundry" hidden>
+        <div class="fhead"><span class="fdot"></span>Microsoft Foundry</div>
+        <div class="fthread" id="fthread"></div>
+        <form class="ffollow" id="ffollow">
+          <label class="sr" for="fq">Ask a follow-up</label>
+          <input id="fq" type="text" autocomplete="off" placeholder="Ask a follow-up">
+        </form>
+      </aside>
+    </div>
+  </section>
   <section id="profile" data-view="profile" aria-label="Player profile" hidden></section>
   <section id="scout" data-view="scout" aria-label="Scout" hidden></section>
 </main>
