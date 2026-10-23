@@ -183,6 +183,21 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
   The Fabric data agent is not used (preview).
 - `docs/criteria.md` replaces `docs/gap-analysis.md`: each judging criterion, its evidence and where to check it.
 
+### 2.8 Positioning, pitch and demo (decided 2026-10-23)
+
+**Regista is a clip powerhouse and a football data engine.** Video in: every touch, replay and highlight cut, labelled,
+explained, recapped and searchable; plus a synthetic data engine (a whole season with exact ground truth). The four views
+are the **paths** it serves, all live: fans and creators (Clips: search, reels, exports), broadcasters (recaps, replay
+packages), scouts (Scout: profiles where every stat opens its moment), players (Player: upload your own match).
+
+- **The pitch and the demo video follow this order:** (1) the clip powerhouse, (2) Microsoft, AI and agents shown
+  working in the app, (3) the paths. The close says where it goes next.
+- **Not a scouting-only product.** The brief names studio, broadcast and fans and calls metrics-only incomplete. A
+  Bloomberg-style scouting terminal (workspaces, linked panels, ⌘K) is a direction for the Scout path, shown only as
+  "where it goes next", never as working.
+- `docs/demo-storyboard.md` is written to this structure (2026-10-23). UI/UX work continues in the sandbox
+  (`ux/sandbox`); its small wins (yellow current view, centred nav, search-first Home) fold into the app later.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
