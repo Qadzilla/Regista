@@ -33,12 +33,13 @@ main { min-width: 0; }
 /* Home: search first. One box across every match of the season, and example searches built from the league's real
    season (its top scorer, best dribbler, nutmegs, saves, assists). No explanatory copy. */
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
-#home { max-width: 760px; margin: 0 auto; padding: calc(40vh - 144px) 24px 48px; }
+#home { max-width: 760px; margin: 0 auto; padding: calc(40vh - 180px) 24px 48px; }
 .search { display: flex; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px; }
 .search:focus-within { border-color: var(--accent); }
 .search input { flex: 1; min-width: 0; background: transparent; border: 0; color: var(--text); font: inherit; font-size: 18px; padding: 10px 16px; outline: none; }
 .search input::placeholder { color: var(--muted); }
 .search button { background: var(--accent); color: #111; border: 0; border-radius: 999px; padding: 10px 20px; font: inherit; font-weight: 700; cursor: pointer; }
 /* The Regista logo above the search box, in the header's wordmark style, larger. */
-.logo { font-size: 88px; line-height: 1; margin: 0 0 56px; letter-spacing: .08em; font-weight: 800; text-align: center; }
+.logo { font-size: 88px; line-height: 1; margin: 0 0 16px; letter-spacing: .08em; font-weight: 800; text-align: center; }
 .logo span { color: var(--accent); }
+.tagline { margin: 0 0 48px; text-align: center; color: var(--muted); font-size: 18px; letter-spacing: .01em; }
