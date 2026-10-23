@@ -26,6 +26,20 @@
         "8040"
       ],
       "port": 8040
+    },
+    {
+      "name": "regista-sandbox",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8060",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "sandbox"
+      ],
+      "port": 8060
     }
   ]
 }
