@@ -4,7 +4,7 @@
   function show() {
     const v = views.includes(location.hash.slice(1)) ? location.hash.slice(1) : 'home';
     for (const s of document.querySelectorAll('main section')) s.hidden = s.dataset.view !== v;
-    for (const a of document.querySelectorAll('.views a')) {
+    for (const a of document.querySelectorAll('.side a')) {
       if (a.dataset.view === v) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current');
     }
   }
