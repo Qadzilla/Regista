@@ -118,25 +118,28 @@ def test_the_committed_season_is_pinned(matches, tmp_path):
         assert hashlib.sha256((tmp_path / f"{i}.jsonl").read_bytes()).hexdigest() == want, i
 
 
-def test_every_clip_the_demo_cites_exists_and_is_the_stars_goal(league, tmp_path):
-    """demo.js hard-codes clips of Femi Toure's goals (match id + clip id): each must be his clip, with his goal in it."""
+def test_every_clip_the_demo_cites_exists_and_shows_what_its_title_says(league, tmp_path):
+    """demo.js hard-codes clips of Femi Toure (match id + clip id + title): each must be his clip, and hold his goal when
+    its title names a goal, his take-on when it names a take-on."""
     import re
 
     from regista.schema import iter_jsonl
     from regista.season.build import fixture_of, materialise
 
-    refs = set(re.findall(r"match_id: '(rl_[a-z0-9_]+)', clip_id: '(cl_[a-z0-9_]+)'", DEMO_JS.read_text()))
-    assert refs
-    for match_id in {m for m, _c in refs}:
+    refs = set(re.findall(r"match_id: '(rl_[a-z0-9_]+)', clip_id: '(cl_[a-z0-9_]+)', title: \"Femi Toure \(9\): ([a-z-]+) at",
+                          DEMO_JS.read_text()))
+    assert refs and {kind for _m, _c, kind in refs} == {"goal", "take-on"}
+    assert len(refs) == DEMO_JS.read_text().count("clip_id: 'cl_")
+    for match_id in {m for m, _c, _k in refs}:
         folder = materialise(league, fixture_of(league, match_id), tmp_path)
         stream = list(iter_jsonl(folder / "events.jsonl"))
         star = next(p["player_id"] for p in stream[0]["players"] if p.get("global_player_id") == "pl_bro_09")
         clips = {c["id"]: c for c in iter_jsonl(folder / "clips.jsonl") if c["type"] == "clip"}
-        goals = {e["id"] for e in stream if e.get("event_type") == "goal" and e.get("player_id") == star}
-        for m, clip_id in refs:
+        for m, clip_id, kind in refs:
             if m == match_id:
                 assert clip_id in clips and clips[clip_id]["player_id"] == star, (m, clip_id)
-                assert goals & set(clips[clip_id]["event_ids"]), (m, clip_id)
+                want = {e["id"] for e in stream if e.get("event_type") == kind.replace("-", "_") and e.get("player_id") == star}
+                assert want & set(clips[clip_id]["event_ids"]), (m, clip_id, kind)
 
 
 # ---------------------------------------------------------------------------- the new events
@@ -494,15 +497,16 @@ def test_femi_toure_is_the_leagues_top_scorer(league, season):
 
 @pytest.mark.slow
 def test_the_demos_goal_count_is_the_stars(league, season):
-    """demo.js says how many goals Femi Toure scored this season ("Three goals this season"): it must be his tally."""
+    """demo.js says how many goals Femi Toure scored this season ("Three league goals"): it must be his tally."""
     import re
 
     from regista.season.audit import top_scorers
 
     words = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
-    said = {words[w.lower()] for w in re.findall(r"\b(\w+) goals this season", DEMO_JS.read_text()) if w.lower() in words}
+    said = {words[w.lower()] for w in re.findall(r"\b(\w+) (?:league goals|goals this season)", DEMO_JS.read_text()) if w.lower() in words}
     star = next(r for r in top_scorers(league, season, n=200) if r["global_id"] == "pl_bro_09")
     assert said == {star["goals"]}, (said, star)
+    assert len(re.findall(r"\b(?:\w+) (?:league goals|goals this season)", DEMO_JS.read_text())) >= 3  # message, note, report
 
 
 @pytest.mark.slow

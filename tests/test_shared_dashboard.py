@@ -148,19 +148,100 @@ def test_reset_also_forgets_the_old_scout_shortlist():
     assert "pl_cal_07" not in out["list"] and out["old"] is False
 
 
-def test_seeded_moments_are_femi_tourés_real_clips():
-    # The seeds' clips must exist in the league as generated from data/season/league.json (clip ids repeat across
-    # matches, so each is checked by match and clip id).
-    out = run("return D.seeds().reports[0].sections.flatMap(s => s.cites).concat(D.seeds().conversations[0].msgs[1].clips);")
+def _season():
+    from regista import api
     from regista.season.profiles import load_season
+
+    return load_season(api.SEASON_LEAGUE, api.SEASON_ROOT, [], [])
+
+
+def _clip_events(match_id: str, clip_id: str) -> list[dict]:
+    """The events a clip was cut from, read from the league's match folder."""
     from regista import api
 
-    p = load_season(api.SEASON_LEAGUE, api.SEASON_ROOT, [], []).player("pl_bro_09")
+    folder = api.SEASON_ROOT / match_id
+    clip = next(r for r in map(json.loads, (folder / "clips.jsonl").read_text().splitlines())
+                if r.get("type") == "clip" and r["id"] == clip_id)
+    events = {r["id"]: r for r in map(json.loads, (folder / "events.jsonl").read_text().splitlines()) if r.get("type") == "event"}
+    return [events[i] for i in clip["event_ids"] if i in events]
+
+
+def test_seeded_moments_are_femi_tourés_real_clips():
+    # The seeds' clips must exist in the league as generated from data/season/league.json (clip ids repeat across
+    # matches, so each is checked by match and clip id), and each must show what the text citing it says.
+    out = run("""
+      const s = D.seeds();
+      return { sections: s.reports[0].sections.map(x => ({ name: x.name, text: x.text, cites: x.cites })),
+               sent: s.conversations[0].msgs[1].clips };
+    """)
+    p = _season().player("pl_bro_09")
     have = {(m["match_id"], m["clip_id"]): m for m in p["moments"]}
-    for ref in out:
+    refs = [r for sec in out["sections"] for r in sec["cites"]] + out["sent"]
+    for ref in refs:
         m = have.get((ref["match_id"], ref["clip_id"]))
         assert m is not None, ref
-        assert m["title"] == ref["title"] and m["video_url"] == ref["video_url"]
+        assert m["title"] == ref["title"] and m["video_url"] == ref["video_url"] and m["t"] == ref["t"], ref
+        assert m["round"] == ref["round"] and m["reason"] == ref["reason"], ref
+    by_name = {sec["name"]: sec for sec in out["sections"]}
+    goal_refs = by_name["Summary"]["cites"] + by_name["Strengths"]["cites"] + out["sent"]
+    for ref in goal_refs:  # his goals: each clip holds his goal event
+        assert any(e["event_type"] == "goal" and e["player_id"] == have[(ref["match_id"], ref["clip_id"])]["player_id"]
+                   for e in _clip_events(ref["match_id"], ref["clip_id"])), ref
+    # The Summary cites all three league goals, one a penalty, each in a different match.
+    summary = by_name["Summary"]["cites"]
+    assert {(r["match_id"], r["clip_id"]) for r in summary} == {(e["match_id"], e["clip_id"]) for e in p["evidence"]["goals"]}
+    assert len({r["match_id"] for r in summary}) == 3
+    for ref in by_name["Concerns"]["cites"]:  # take-ons that did not come off
+        pid = have[(ref["match_id"], ref["clip_id"])]["player_id"]
+        assert any(e["event_type"] == "take_on" and e["player_id"] == pid and e["outcome"] == "fail"
+                   for e in _clip_events(ref["match_id"], ref["clip_id"])), ref
+
+
+def test_seeded_claims_hold_in_the_league():
+    # Maya's messages, notes and report quote league counts and ranks; they must be what the league as generated says.
+    s = _season()
+    q = s.sample()["qualifying_minutes"]
+    profiles = [p for p in s.profiles.values() if p["appearances"]]
+
+    def rank(gid: str, pos: str, key: str) -> int:
+        rows = [p for p in profiles if p["position"] == pos and p["minutes"] >= q]
+        rows.sort(key=lambda p: -p["counts"][key] / p["minutes"])
+        return [p["global_id"] for p in rows].index(gid) + 1
+
+    femi = s.player("pl_bro_09")
+    c = femi["counts"]
+    # "Three league goals, more than anyone else in the league", "one a penalty", "in three different matches"
+    assert c["goals"] == 3 and c["penalty_goals"] == 1
+    assert all(p["counts"]["goals"] < 3 for p in profiles if p["global_id"] != "pl_bro_09")
+    assert len({e["match_id"] for e in femi["evidence"]["goals"]}) == 3
+    # "the most per 90 of its 18 regular forwards"
+    assert len([p for p in profiles if p["position"] == "FW" and p["minutes"] >= q]) == 18
+    assert rank("pl_bro_09", "FW", "goals") == 1
+    # "the most shots on target of the league's forwards, in total and per 90"
+    assert rank("pl_bro_09", "FW", "shots_on_target") == 1
+    assert all(p["counts"]["shots_on_target"] < c["shots_on_target"] for p in profiles
+               if p["position"] == "FW" and p["global_id"] != "pl_bro_09")
+    # "Won one of his seven take-ons in league matches"
+    assert (c["take_ons"], c["take_ons_won"]) == (7, 1)
+    # "struck from outside the box" (round 5) and "header from a corner" (round 6)
+    goals = {e["match_id"]: e for e in femi["evidence"]["goals"]}
+    r05 = next(e for e in _clip_events("rl_r05_ash_bro", goals["rl_r05_ash_bro"]["clip_id"]) if e["event_type"] == "goal")
+    assert r05["metrics"]["shot_distance_m"] > 18 and "penalty" not in r05.get("qualifiers", [])
+    from regista import api
+    events = [r for r in map(json.loads, (api.SEASON_ROOT / "rl_r06_bro_eas" / "events.jsonl").read_text().splitlines())
+              if r.get("type") == "event"]
+    r06 = next(e for e in events if e["id"] == goals["rl_r06_bro_eas"]["event_id"])
+    assert r06["body_part"] == "head"
+    assert any(e["event_type"] == "corner" and e["team_id"] == r06["team_id"] and 0 < r06["t"] - e["t"] < 10 for e in events)
+    # The penalty is the round 2 goal.
+    pen = next(e for e in _clip_events("rl_r02_cal_bro", goals["rl_r02_cal_bro"]["clip_id"]) if e["event_type"] == "goal")
+    assert "penalty" in pen.get("qualifiers", [])
+    # The shortlist's notes.
+    assert rank("pl_ash_10", "MF", "take_ons_won") == 3
+    assert rank("pl_ash_09", "FW", "shots") == 3
+    assert rank("pl_dun_06", "MF", "passes") == 2
+    assert rank("pl_eas_03", "DF", "key_passes") == 5
+    assert "key_passes" in s.noisy()
 
 
 def test_the_sections_helper_and_the_shared_styles():
