@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Regista · sandbox</title>
 <link rel="stylesheet" href="sandbox.css">
+<link rel="stylesheet" href="terminal.css">
 </head>
 <body>
 <header class="top">
@@ -26,6 +27,7 @@
   <div class="subnav" id="scSub" aria-label="Scout sections" hidden>
     <a href="#scout/overview" data-sub="overview">Overview</a>
     <a href="#scout/find" data-sub="find">Find players</a>
+    <a href="#scout/terminal" data-sub="terminal">Terminal</a>
     <a href="#scout/shortlist" data-sub="shortlist">Shortlist</a>
     <a href="#scout/reports" data-sub="reports">Reports</a>
     <a href="#scout/messages" data-sub="messages">Messages <span class="count" id="scUnread"></span></a>
@@ -288,7 +290,7 @@
 
     </div>
   </section>
-  <!-- Scout: Maya Lindqvist's dashboard (chief scout, Fairhaven FC). Seven sections (#scout/<section>). Real league data in
+  <!-- Scout: Maya Lindqvist's dashboard (chief scout, Fairhaven FC). Eight sections (#scout/<section>; Terminal is terminal.js). Real league data in
        scout.json (players, profiles, the Scout agent's answers, Fairhaven's squad, the table); messages, notes, stages,
        reports, needs and settings are mocks. scout.js fills it. -->
   <section id="scout" data-view="scout" aria-label="Scout" hidden>
@@ -330,6 +332,31 @@
           <p class="muted small" id="scCount"></p>
           <div class="sc-cards" id="scCards"></div>
         </section>
+      </div>
+
+      <!-- Terminal: the Scout terminal (part B6). A command line with Bloomberg-style mnemonics over linked panels; every
+           number opens the moments behind it. terminal.js fills it from terminal.json (part A's metrics engine, exported by
+           tools/export_terminal.py); clips play from the local app named there. Workspaces live in this browser only. -->
+      <div class="pv tx" data-sc="terminal" hidden>
+        <div class="tx-top">
+          <form class="tx-cmd" id="txForm" role="search" autocomplete="off">
+            <label class="tx-prompt" for="txIn">CMD&gt;</label>
+            <div class="tx-combo">
+              <input id="txIn" type="text" role="combobox" aria-expanded="false" aria-controls="txAc" aria-autocomplete="list"
+                     spellcheck="false" autocapitalize="off" placeholder="TOURE · RANK FW npxg · CMP · SCAT · TEAM BRO · HELP">
+              <ul id="txAc" class="tx-ac" role="listbox" aria-label="Suggestions" hidden></ul>
+            </div>
+            <button type="submit" class="tx-go">&lt;GO&gt;</button>
+            <kbd class="tx-kbd" title="Cmd+K or Ctrl+K focuses the command line">&#8984;K</kbd>
+          </form>
+          <p class="tx-out" id="txOut" role="status" aria-live="polite"></p>
+          <div class="tx-fkeys" id="txKeys" role="toolbar" aria-label="Panels"></div>
+          <div class="tx-help" id="txHelp" role="dialog" aria-labelledby="txHelpH" hidden></div>
+        </div>
+        <div class="tx-meta" id="txMeta"></div>
+        <div class="tx-sel" id="txSel" aria-label="Selected players"></div>
+        <div class="tx-grid" id="txGrid"></div>
+        <div class="tx-tip" id="txTip" role="tooltip" hidden></div>
       </div>
 
       <!-- One player, opened from anywhere: the profile scouts see, with the scout bar on top -->
@@ -445,5 +472,6 @@
 <script src="profile-view.js"></script>
 <script src="profile.js"></script>
 <script src="scout.js"></script>
+<script src="terminal.js"></script>
 </body>
 </html>

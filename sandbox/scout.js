@@ -1,4 +1,4 @@
-// The Scout dashboard: Maya Lindqvist, chief scout at Fairhaven FC (synthetic, like the league). Seven sections under
+// The Scout dashboard: Maya Lindqvist, chief scout at Fairhaven FC (synthetic, like the league). Eight sections under
 // Scout (#scout/<section>), and #scout/player/<id> for one player: the same profile page the player sees as "My
 // profile" (profile-view.js), with the scout bar on top. scout.json holds real data read from the live app on
 // 2026-10-23: every league player's card, full profiles for her shortlist, four Scout agent answers (rules engine),
@@ -12,7 +12,7 @@
   const GROUP = { FW: 'forwards', MF: 'midfielders', DF: 'defenders', GK: 'goalkeepers' };
   const LEAD = { FW: ['goals', 'shots', 'assists'], MF: ['recoveries', 'tackles_won', 'key_passes'], DF: ['interceptions', 'tackles_won', 'recoveries'], GK: ['saves', 'passes_completed', 'recoveries'] };
   const STAGES = ['Watching', 'Contacted', 'Trial', 'Offer'];
-  const SECTIONS = ['overview', 'find', 'player', 'shortlist', 'reports', 'messages', 'team', 'settings'];
+  const SECTIONS = ['overview', 'find', 'terminal', 'player', 'shortlist', 'reports', 'messages', 'team', 'settings'];
 
   let D = null, APP = '', byId = new Map(), playerView = null, current = null;
   const clipOf = new Map();  // match|clip -> moment, across every saved profile
