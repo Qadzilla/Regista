@@ -150,6 +150,10 @@ All ten hold. I did not re-render the Goal reel (42.2 s); refresh-2.md rendered 
   and that a per-90 row still does.
 - **Docs:** `docs/realism-report.md` updated. Its two rows now match the regenerated output exactly.
 - **Files:** `src/regista/synth/report.py`, `tests/test_league_mode.py`, `docs/realism-report.md`.
+- **Commit and CI:** ad3c726, green on Linux.
+  - Push run https://github.com/Qadzilla/Regista/actions/runs/40138559323: test and build pass, 797 passed and
+    1 skipped. The smoke test inside the image printed `season-pins` ok with `differs: {}`.
+  - PR run https://github.com/Qadzilla/Regista/actions/runs/40138561975: success.
 
 ## Open (none blocks the merge)
 
