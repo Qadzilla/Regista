@@ -223,16 +223,15 @@ def test_seeded_claims_hold_in_the_league():
                if p["position"] == "FW" and p["global_id"] != "pl_bro_09")
     # "Won one of his seven take-ons in league matches"
     assert (c["take_ons"], c["take_ons_won"]) == (7, 1)
-    # "struck from outside the box" (round 5) and "header from a corner" (round 6)
+    # "struck from outside the box" (round 5)
     goals = {e["match_id"]: e for e in femi["evidence"]["goals"]}
     r05 = next(e for e in _clip_events("rl_r05_ash_bro", goals["rl_r05_ash_bro"]["clip_id"]) if e["event_type"] == "goal")
     assert r05["metrics"]["shot_distance_m"] > 18 and "penalty" not in r05.get("qualifiers", [])
-    from regista import api
-    events = [r for r in map(json.loads, (api.SEASON_ROOT / "rl_r06_bro_eas" / "events.jsonl").read_text().splitlines())
-              if r.get("type") == "event"]
-    r06 = next(e for e in events if e["id"] == goals["rl_r06_bro_eas"]["event_id"])
-    assert r06["body_part"] == "head"
-    assert any(e["event_type"] == "corner" and e["team_id"] == r06["team_id"] and 0 < r06["t"] - e["t"] < 10 for e in events)
+    # The round 6 goal is not called a header from a corner: the generator stages it as a cross, Femi's 4 m carry along
+    # the ground, then a headed shot (a completed cross becomes an ordinary possession; review C round 1), so the seeds
+    # only call it his goal against Eastwick.
+    demo = (SHARED / "demo.js").read_text()
+    assert "header" not in demo.lower() and "in the air" not in demo
     # The penalty is the round 2 goal.
     pen = next(e for e in _clip_events("rl_r02_cal_bro", goals["rl_r02_cal_bro"]["clip_id"]) if e["event_type"] == "goal")
     assert "penalty" in pen.get("qualifiers", [])

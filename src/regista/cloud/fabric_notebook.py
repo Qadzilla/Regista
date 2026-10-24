@@ -2,7 +2,7 @@
 
 It reads ``players``, ``matches``, ``lineups`` and ``events`` from the lakehouse, and in Spark SQL works out each
 player's appearances, minutes, counts and per-90 rates for the headline stats, then each rate's percentile among players
-in the same position (only players with at least 40% of the most minutes are ranked, as on Regista's profiles). It
+in the same position by Regista's rule (FBref's percentile rank among players with a third of a club's minutes). It
 writes one row per (player, stat) to the table ``leaders_check``; ``regista.season.fabric check`` reads that back and
 compares it with ``player_season``, the numbers Regista's profiles show.
 
@@ -66,24 +66,100 @@ FROM (
 """
 
 
+# The percentile rule is Regista's (regista.season.profiles.PERCENTILE_RULE), written again here in Spark SQL:
+#   pool        players who appeared, with unrounded minutes >= a third of the most minutes any club played
+#               (regista.season.metrics.qualifying_minutes: ROUND(max club minutes / 3, 1); a club's minutes are the sum of
+#               its matches' played_s / 60)
+#   rank value  the per-90 rate unrounded, to 6 decimals (regista.season.metrics.rank_value), so equal rates tie
+#   percentile  FBref's: 50 * (players strictly below + players at or below) / n, half to even (Python's round), when n > 1
+# The per90 column stays rounded to 2 decimals, as a profile shows it. leaders_rule() below applies the same rule in Python
+# to the same tables, and a test checks it against Season.build, so the rule can be checked without Fabric.
 LEADERS_SQL = """
-WITH flagged AS (
-  SELECT *, ROUND(minutes_raw, 1) AS minutes,
-    appearances > 0 AND ROUND(minutes_raw, 1) >= 0.4D * MAX(ROUND(minutes_raw, 1)) OVER () AS ranked
-  FROM rates
+WITH club_minutes AS (
+  SELECT club_id, SUM(played_s / 60.0D) AS club_min
+  FROM (SELECT home_club_id AS club_id, played_s FROM matches UNION ALL SELECT away_club_id AS club_id, played_s FROM matches)
+  GROUP BY club_id
+),
+pool AS (
+  SELECT ROUND(MAX(club_min) / 3.0D, 1) AS min_minutes FROM club_minutes
+),
+flagged AS (
+  SELECT r.*, ROUND(r.minutes_raw, 1) AS minutes,
+    CASE WHEN r.minutes_raw > 0 THEN ROUND(CAST(r.count AS DOUBLE) * 90.0D / r.minutes_raw, 6) ELSE 0.0D END AS rank_value,
+    r.appearances > 0 AND r.minutes_raw >= pool.min_minutes AS ranked
+  FROM rates r CROSS JOIN pool
 ),
 ranks AS (
   SELECT global_id, stat,
-    RANK() OVER (PARTITION BY position, stat ORDER BY per90) - 1 AS below,
+    RANK() OVER (PARTITION BY position, stat ORDER BY rank_value) - 1 AS below,
+    COUNT(*) OVER (PARTITION BY position, stat ORDER BY rank_value RANGE BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+      AS at_or_below,
     COUNT(*) OVER (PARTITION BY position, stat) AS n
   FROM flagged WHERE ranked
 )
 SELECT f.global_id, f.position, f.stat, CAST(f.appearances AS INT) AS appearances, f.minutes, f.count, f.per90,
-  CASE WHEN r.n > 1 THEN CAST(BROUND(CAST(r.below AS DOUBLE) * 100.0D / (r.n - 1), 0) AS INT) END AS percentile,
+  CASE WHEN r.n > 1 THEN CAST(BROUND(CAST(r.below + r.at_or_below AS DOUBLE) * 50.0D / r.n, 0) AS INT) END AS percentile,
   current_timestamp() AS computed_at
 FROM flagged f LEFT JOIN ranks r ON r.global_id = f.global_id AND r.stat = f.stat
 ORDER BY f.stat, f.per90 DESC, f.global_id
 """
+
+
+def leaders_rule(tables: dict[str, list[dict[str, Any]]], stats: list[str] | None = None) -> list[dict[str, Any]]:
+    """The notebook's SQL, step by step in plain Python over the same raw tables (``players``, ``matches``, ``lineups``,
+    ``events``): one ``leaders_check`` row per (player, stat). It reuses nothing from ``regista.season``, so comparing it
+    with ``player_season`` checks the SQL's rule (counts, minutes, pool, rank value, percentile) offline."""
+    stats = stats or CHECK_STATS
+    tests = {
+        "goals": lambda e: e["event_type"] == "goal",
+        "assists": lambda e: e["event_type"] == "assist",
+        "shots": lambda e: e["event_type"] == "shot",
+        "key_passes": lambda e: e["event_type"] in ("pass", "cross") and "key_pass" in (e["qualifiers"] or []),
+        "take_ons_won": lambda e: e["event_type"] == "take_on" and e["outcome"] == "success",
+        "tackles_won": lambda e: e["event_type"] == "tackle" and e["outcome"] == "success",
+        "interceptions": lambda e: e["event_type"] == "interception",
+    }
+    assert set(tests) == set(STAT_SQL)
+    played: dict[str, list[float]] = {}            # PLAYED_SQL
+    for r in tables["lineups"]:
+        if r["played_s"] > 0 and r["global_id"] is not None:
+            a = played.setdefault(r["global_id"], [0, 0.0])
+            a[0] += 1
+            a[1] += r["played_s"] / 60.0
+    tallies: dict[tuple[str, str], int] = {}      # tallies_sql
+    for e in tables["events"]:
+        if e["global_id"] is not None:
+            for s in stats:
+                if tests[s](e):
+                    tallies[(e["global_id"], s)] = tallies.get((e["global_id"], s), 0) + 1
+    club_min: dict[str, float] = {}                # club_minutes, pool
+    for m in tables["matches"]:
+        for cid in (m["home_club_id"], m["away_club_id"]):
+            club_min[cid] = club_min.get(cid, 0.0) + m["played_s"] / 60.0
+    min_minutes = round(max(club_min.values(), default=0.0) / 3.0, 1)
+    rows = []                                      # rates_sql, flagged
+    for p in tables["players"]:
+        apps, mins = played.get(p["global_id"], (0, 0.0))
+        for s in stats:
+            n = tallies.get((p["global_id"], s), 0)
+            rows.append({"global_id": p["global_id"], "position": p["position"], "stat": s, "appearances": apps,
+                         "minutes": round(mins, 1), "count": n, "per90": round(n * 90.0 / mins, 2) if mins > 0 else 0.0,
+                         "_value": round(n * 90.0 / mins, 6) if mins > 0 else 0.0,
+                         "_ranked": apps > 0 and mins >= min_minutes, "percentile": None})
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}   # ranks
+    for r in rows:
+        if r["_ranked"]:
+            groups.setdefault((r["position"], r["stat"]), []).append(r)
+    for group in groups.values():
+        n = len(group)
+        for r in group:
+            below = sum(1 for o in group if o["_value"] < r["_value"])
+            at_or_below = sum(1 for o in group if o["_value"] <= r["_value"])
+            r["percentile"] = int(round((below + at_or_below) * 50.0 / n)) if n > 1 else None
+    for r in rows:
+        del r["_value"], r["_ranked"]
+    return rows
+
 
 
 def _code(src: str) -> dict[str, Any]:

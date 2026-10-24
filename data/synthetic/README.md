@@ -215,7 +215,12 @@ Also in league mode:
     opponent's goal line (a full-back, on the overlap), 39 m (a winger) or 35 m (anyone else) decides to cross first,
     then aims into the box at a teammate attacking it: an outfielder within 34 m of the goal line, by role (`cross_role`:
     wingers and the 10 at the back post and the edge of the box as well as the striker), nearness to where the ball comes
-    down and finishing. With nobody there he plays an ordinary pass. A corner from the flag is always a cross. In 0.6.0
+    down and finishing. With nobody there he plays an ordinary pass. A corner is **not** always a cross: the taker picks
+    his first action like any holder, and only when he passes from the flag (where the crossing roll is skipped) and
+    someone is attacking the box does it become a cross. In the committed season (generator 0.7.0) the first event after
+    a corner, skipping touches and pressure, is the taker's cross 66 times in 111, a carry 18, a pass 9, a take-on 7, a
+    shot 1, a throw-in 5 and the period's end 5: nobody attacks the box at 45 corners (an open finding of review closing
+    round 3, CLAUDE.md §4.2). In 0.6.0
     the target was picked first (in build-up, mostly centre-backs) and any wide pass a full-back made more than 42 m from
     his **own** goal line became a cross into the box: half of full-backs' crosses were 50 m balls from their own half,
     and centre-backs a median 60 m away "received" crosses;

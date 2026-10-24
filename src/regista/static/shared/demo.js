@@ -85,7 +85,7 @@
           ] },
         { id: 'cv_tomas_bro_09', scout: 'tomas', player: 'pl_bro_09', player_name: 'Femi Toure', unread: { player: 1, scout: 0 }, muted: false, blocked: false,
           msgs: [
-            { from: 'scout', at: ago(0, '08:30'), text: 'Your header from a corner against Eastwick in round 6 caught our eye. Do you have footage from friendlies too? We would like to see more of you.' },
+            { from: 'scout', at: ago(0, '08:30'), text: 'Your goal against Eastwick in round 6 caught our eye. Do you have footage from friendlies too? We would like to see more of you.' },
           ] },
         { id: 'cv_priya_bro_09', scout: 'priya', player: 'pl_bro_09', player_name: 'Femi Toure', unread: { player: 0, scout: 0 }, muted: false, blocked: false,
           msgs: [
@@ -119,8 +119,8 @@
           sections: [
             { name: 'Summary', text: "The league's top scorer: three league goals, each in a different match (one a penalty), the most per 90 of its 18 regular forwards.",
               cites: [CLIPS.r02goal50, CLIPS.r05goal15, CLIPS.r06goal47] },
-            { name: 'Strengths', text: 'Shoots often and hits the target: the most shots on target of the league\'s forwards, in total and per 90. Scores from distance and in the air.',
-              cites: [CLIPS.r05goal15, CLIPS.r06goal47] },
+            { name: 'Strengths', text: 'Shoots often and hits the target: the most shots on target of the league\'s forwards, in total and per 90. Scores from distance and from the penalty spot.',
+              cites: [CLIPS.r05goal15, CLIPS.r02goal50] },
             { name: 'Concerns', text: 'Won one of his seven take-ons in league matches: we would want more from him one against one; watch him against a deep block.',
               cites: [CLIPS.r06takeon3, CLIPS.r09takeon2] },
           ] },

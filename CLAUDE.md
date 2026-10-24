@@ -500,15 +500,25 @@ for the record:
 **As of 2026-10-24.** Part A of the Scout terminal (§2.10) is built on `feature/terminal-engine` (not merged, not
 deployed): player attributes, league mode (generator 0.7.0, schema 0.2.0), 10 Hz physical motion, the metrics engine
 (127 player, 19 team-style metrics) and its API, after two review rounds and three closing rounds
-(`docs/scout-terminal/build/`). On the committed season: 13 of 13 event bands, 14 of 14 physical, 10 of 11 league-mode
+(`docs/scout-terminal/build/`; closing round 3 was **not signed off**, see below). On the committed season: 13 of 13 event bands, 14 of 14 physical, 10 of 11 league-mode
 (penalties low, indicative on one season), 12 of 14 leaders (indicative). Over six pooled seasons every band holds
-(`docs/realism-report.md`). Femi Toure is the top scorer with 3 league goals; his Goal reel runs 23.6 s. 761 tests
-plus 12 slow pass. The dashboards' seeds, the storyboard, README, criteria and architecture quote this league.
-**Fabric:** the new season is pushed (events 33,624 rows, player_season 3,024), but the notebook's check matches only
-328 of 756 rows. Its `LEADERS_SQL` (`src/regista/cloud/fabric_notebook.py`) still ranks percentiles the old way; it
-needs FBref's rule and the third-of-club-minutes pool, then `REGISTA_DOTENV= python3 -m regista.season.fabric check`.
-Left: that fix, part B (the terminal's screens, sandbox first, then ported into Scout as a Terminal section), merge
-and deploy, Zaid's match, the video, the pitch, the public repo, submit by 2026-10-27.
+(`docs/realism-report.md`). Femi Toure is the top scorer with 3 league goals; his Goal reel runs 23.6 s. 763 tests
+plus 13 slow pass. The dashboards' seeds, the storyboard, README, criteria and architecture quote this league.
+**Fabric:** the new season is pushed (events 33,624 rows, player_season 3,024). The notebook's check first matched 328
+of 756 (old percentile rule); `LEADERS_SQL` now uses Regista's rule (FBref's percentile, unrounded rates, a third of a
+club's minutes), `tests/test_fabric.py` checks that rule offline against `Season.build`, and the check matched
+**756 of 756** (2026-10-24). The round 6 goal is no longer called "a header from a corner" anywhere (demo seeds,
+storyboard): the generator stages it as a cross, a 4 m carry, then a headed shot.
+**Open from closing round 3 (not fixed, not yet accepted; Zaid's call):** review-a-final3 #1, nobody attacks the box at
+corners (66 of 111 corners are followed by the taker's cross; the rest by a carry, pass, take-on, shot or the ball going
+dead); review-b-final3 #1, headed shots and goals at about half the Premier League rate (a completed cross becomes an
+ordinary possession, so 8 of 14 headed shots come after the header's own carry); #2, progressive passes low in every
+role; #3, wide players in the crossing zone almost always cross (`cross_choice` 1.0). Fixing any of them changes the
+generator, so the league regenerates: every quoted number, the dashboards' seeds, `reliability.json` and the Fabric push
+move with it, and Femi Toure must stay top scorer.
+Left: those findings (fix or accept), part B (the terminal's screens, sandbox first, then ported into Scout as a
+Terminal section), merge and deploy (then re-check storyboard beats 1, 5 and 7 on the live app), Zaid's match, the
+video, the pitch, the public repo, submit by 2026-10-27.
 
 **Earlier, 2026-10-23 (evening).** The Player and Scout dashboards are live (PR #34, merge c4a7b26, revision
 `regista-api--d1023210106`; §2.9): `/me` (Femi Toure: Overview, My profile, Matches & videos, Messages, Team,

@@ -272,15 +272,21 @@ on. That was fixed in the notebook.
 
 **Second run, 2026-10-24** (the season regenerated in league mode, generator 0.7.0): `push` wrote clubs 6, players 108,
 matches 30, lineups 1,080, events 33,624, clips 10,620, labels 10,620, player_season 3,024 and uploads 1 rows in 23 s.
-`check` ran the notebook in 42 s and matched **328 of 756** rows. Appearances, minutes, counts and per-90 rates agree on
-all 756. Every difference is in the percentile: Regista now uses FBref's rule (the average of the share of position
+`check` ran the notebook in 42 s and matched **328 of 756** rows. Appearances, minutes, counts and per-90 rates agreed on
+all 756. Every difference was in the percentile: Regista now uses FBref's rule (the average of the share of position
 peers strictly below and the share at or below), ranks unrounded rates, and pools players with at least a third of a
-club's minutes (100.5). The notebook's `LEADERS_SQL` still uses `(RANK()-1)/(n-1)`, rates rounded to 2 decimals, and
-40% of the top player's minutes. Applying Regista's rule to Fabric's own counts reproduced Regista's percentile on 750 of
-756 rows. The other 6 are ties that only change when minutes are rounded, which ranking on `minutes_raw` avoids. Until
-`LEADERS_SQL` is brought in line, the check fails. The lakehouse already holds the new season, so after the fix only
-`check` needs running again: `REGISTA_DOTENV= python3 -m regista.season.fabric check`. The row counts above are what
-`fabric_tables.season_tables` builds offline from the same season.
+club's minutes (100.5). The notebook's `LEADERS_SQL` still used `(RANK()-1)/(n-1)`, rates rounded to 2 decimals, and
+40% of the top player's minutes.
+
+**Third run, 2026-10-24** (same lakehouse, no new push): `LEADERS_SQL` now states Regista's rule. The pool is players
+who appeared with unrounded minutes of at least `ROUND(max club minutes / 3, 1)`, a club's minutes being the sum of its
+matches' `played_s / 60`. The rank value is the per-90 rate to 6 decimals. The percentile is
+`BROUND(50 * (strictly_below + at_or_below) / n, 0)` when n > 1. `fabric_notebook.leaders_rule` applies the same rule
+in Python to the same tables, and `tests/test_fabric.py` compares it with `Season.build` (three fixtures in the quick
+suite, the whole committed season under `-m slow`). `REGISTA_DOTENV= python3 -m regista.season.fabric check` ran the
+notebook in 52 s and matched **756 of 756** rows (462 with a percentile). The `player_season` table in OneLake was read
+back and equals what this branch's `Season.build` gives. The row counts above are what `fabric_tables.season_tables`
+builds offline from the same season.
 
 ## What is deliberately not here
 
