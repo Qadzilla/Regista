@@ -136,7 +136,8 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 | `/studio` | **Studio** (as built) | the operator; adds a Claims tab ("that's me" confirmations) |
 
 - **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 2 x 15 minutes,
-  generator profile `league` (league mode: hidden player ratings drive outcomes, generator 0.5.0), fixed squads of 18
+  generator profile `league` (league mode: hidden player ratings drive outcomes and roles shape who makes which numbers,
+  generator 0.6.0; `regista.synth.report` checks league bands, leaders, the star's lead and role shapes), fixed squads of 18
   with **global player ids** (`pl_…`) on every roster entry. A regular plays about 300 minutes a season, so the Scout
   terminal and profiles state the sample size and mark metrics whose split-half reliability is below 0.3 as noisy
   (`regista.season.reliability`, `data/season/reliability.json`). The league definition

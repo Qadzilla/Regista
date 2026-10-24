@@ -5,11 +5,13 @@ labelled by the rules labeller) and ``manifest.json`` (title, round, ``collectio
 30-minute match) is written only when something needs positions, such as video (``ensure_tracks``); profiles need only
 the events. A folder is written
 into a temporary name and renamed into place, so a reader never sees half a match, and it is rebuilt when the league
-definition changes (``manifest.json`` records a fingerprint of the fixture and generator settings).
+definition or the code that builds it changes (``manifest.json`` records a fingerprint of the fixture, the generator
+settings and the source of the modules in ``BUILT_BY``).
 """
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
 import os
@@ -31,12 +33,33 @@ _locks_guard = threading.Lock()
 _build_all_lock = threading.Lock()   # one build_all at a time in this process: two would start two pools on one fixture
 
 
+# The modules a match folder is made by: the generator, its motion and camera models, the clip rule and the playing-time
+# rule. Their source is hashed into the fingerprint, so a folder built by older code (a retune within one generator
+# version, a clip-rule change) is rebuilt rather than served. A rebuild takes a few seconds; comment-only edits rebuild too.
+BUILT_BY = ("regista/synth/generator.py", "regista/synth/physical.py", "regista/camera.py", "regista/clips.py",
+            "regista/season/playing_time.py")
+# The modules a match's events come from (no clips): what the committed reliability table depends on.
+GENERATED_BY = BUILT_BY[:3]
+_SRC = Path(__file__).resolve().parents[2]   # the directory holding the regista package
+
+
+@functools.lru_cache(maxsize=None)
+def code_fingerprint(modules: tuple[str, ...] = BUILT_BY) -> str:
+    """sha256 (16 hex) of the named source files, in order. Read once per process: the code does not change under a
+    running process (a reloading dev server starts a new one)."""
+    h = hashlib.sha256()
+    for rel in modules:
+        h.update(rel.encode())
+        h.update((_SRC / rel).read_bytes())
+    return h.hexdigest()[:16]
+
+
 def fingerprint(league: Record, fixture: Record) -> str:
     """Changes whenever anything that shapes this match changes: the fixture, both squads, the generator settings in the
-    league file, and the generator code's own league version (so a folder built by older code is rebuilt even when the
-    league file was not regenerated)."""
+    league file, the generator's league version, and the source of the code that builds the folder (``BUILT_BY``), so a
+    folder built by older code is rebuilt even when neither the league file nor the version changed."""
     kw = generate_kwargs(league, fixture)
-    data = {"kw": kw, "gen": league["generator"], "code": LEAGUE_GENERATOR_VERSION}
+    data = {"kw": kw, "gen": league["generator"], "code": LEAGUE_GENERATOR_VERSION, "source": code_fingerprint()}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 

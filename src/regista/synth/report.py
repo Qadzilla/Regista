@@ -108,7 +108,8 @@ LEADER_V: dict[str, tuple[float, str, float, float]] = {   # key: (V, where it c
     "shots_on_target": (2.08, "the leader, not the third best (the rest of the ranking could not be read): Haaland 2.08 "
                         "non-penalty and penalty shots on target per 90, 59 in all (StatMuse, Opta data, read 2026-10-24)",
                         0.5, 1.5),
-    "touches_in_box": (9.33, "1 Doku 14.32, 2 Gabriel Jesus 9.55, 3 Garnacho 9.33", 0.75, 1.5),
+    # (no touches-in-the-box leader band since review closing round 1: Regista's touch records are one per 1.7 s on the
+    # ball, not FBref's touches, so its touches in the box are not comparable with FBref's Att Pen either)
     "tackles_won": (4.28, "tackles (Regista's tackle events are the tackles the league band counts): 1 Palhinha 5.14, "
                     "2 Joao Gomes 4.35, 3 Vinicius Souza 4.28", 0.75, 1.5),
     "interceptions": (1.97, "1 Antonee Robinson 2.23, 2 Lewis Cook 2.16, 3 Wan-Bissaka 1.97", 0.75, 1.5),
@@ -124,6 +125,20 @@ INDIVIDUAL_NORMS: dict[str, tuple[float, float, str, str]] = {
                           f"{lo:g} V to {hi:g} V")
     for k, (v, why, lo, hi) in LEADER_V.items()
 }
+# One designed star must not be the league's only scoring threat (review closing round 1): the leader's lead over the
+# next player, and the largest share of a club's chances one player takes. The lower bounds of the two gaps are 1 by
+# definition (the leader is the leader); the upper bounds are the check.
+INDIVIDUAL_NORMS["leader_npxg_gap"] = (1.0, 1.75, "ratio", "the leader's npxG per 90 over the second best's. Premier League "
+                                       "2023/24, the ranking LEADER_V cites: Haaland 1.04, Isak 0.81, a ratio of 1.28. "
+                                       "The upper bound is ours: six clubs give a smaller pool, whose leader sits further "
+                                       "clear by chance")
+INDIVIDUAL_NORMS["leader_goals_gap"] = (1.0, 2.0, "ratio", "the leader's goals per 90 over the second best's. Premier League "
+                                        "2023/24, the ranking LEADER_V cites: Haaland 0.95, Isak 0.84, a ratio of 1.13. "
+                                        "The upper bound is ours and wider than npxG's: goals are the noisiest count")
+INDIVIDUAL_NORMS["top_npxg_share"] = (0.20, 0.40, "share", "the largest share of a club's non-penalty xG taken by one "
+                                      "player. Premier League 2023/24 (StatMuse, Opta data, read 2026-10-24; xG with "
+                                      "penalties): Haaland 29.37 of Man City's 82.63 (35.5%), Isak 20.29 of Newcastle's "
+                                      "78.14 (26.0%), Watkins 16.92 of Aston Villa's 65.66 (25.8%). The margins are ours")
 INDIVIDUAL_NORMS["top_shooter_share"] = (0.12, 0.35, "share", "the largest share of a club's non-penalty shots taken by one "
                                          "player. Premier League 2023/24: Liverpool took 790 shots, their top shooters Salah "
                                          "114 (14%) and Nunez 108 (14%) (StatMuse). The upper bound, for a team built around "
@@ -190,6 +205,45 @@ CENTRAL_ROLES = ("CB", "DM", "CM")
 LEAGUE_DIAGNOSTICS = ("matches", "through_balls_per90", "yellow_cards_per90", "penalty_conversion", "npxg_per90",
                       "np_goals_minus_xg", "key_passes_per_shot", "progressive_passes_team_per90",
                       "progressive_carries_team_per90", "shot_outcomes", "gk_launch_pct_range", "gk_avg_pass_length_range")
+# Role shapes (league mode, review closing round 1): which roles make the numbers, not only how many there are. Per-90
+# means of qualified players by kit role (regista.synth.generator.ROLE_OF_KIT), each check an order between roles. The
+# Premier League figures are examples of each role (StatMuse, Opta data, 2023/24, read 2026-10-24), not role means; the
+# order they show is what is checked. Verdicts over six pooled seasons (LEADER_SEASONS), like the leaders.
+ROLE_SHAPE_KEYS = ("passes", "touches", "passes_received", "crosses", "tackles_won", "fouls", "fouls_won")
+ROLE_SHAPES: dict[str, tuple[str, str]] = {   # name: (the order checked, its source)
+    "passes_cb_dm_over_st": ("centre-backs and holding midfielders each attempt more passes per 90 than strikers",
+                             "StatMuse (Opta data, 2023/24), completed passes per 90: Rodri (DM) 103.48, van Dijk (CB) 74.73, against Watkins (ST) 12.87 "
+                             "and Haaland (ST) 10.47"),
+    "touches_cb_dm_over_st": ("centre-backs and holding midfielders each touch the ball more per 90 than strikers",
+                              "StatMuse (Opta data, 2023/24), touches per 90: Rodri 126.54, van Dijk 92.38, against Watkins 29.95 and Haaland 24.64"),
+    "fb_crosses_third_of_w": ("full-backs cross at least a third as often as wingers",
+                              "StatMuse (Opta data, 2023/24), crosses per 90: Trippier (FB) 8.61 against Saka (W) 5.58; two of the top three crossers "
+                              "LEADER_V cites, Doughty and Robertson, play at full-back or wing-back"),
+    "st_tackles_below_fb_cb_dm": ("strikers win fewer tackles per 90 than full-backs, centre-backs and holding midfielders",
+                                  "StatMuse (Opta data, 2023/24), tackles per 90: Haaland 0.21 and Watkins 0.34, against van Dijk (CB) 1.10, Antonee "
+                                  "Robinson (FB) 2.56, and the holding midfielders who lead LEADER_V's tackles (Palhinha "
+                                  "5.14)"),
+    "fouls_won_w_st_over_cb": ("wingers and strikers are each fouled more per 90 than centre-backs",
+                               "StatMuse (Opta data, 2023/24), fouls drawn per 90: Saka (W) 2.13, Watkins 1.15 and Haaland 1.06 (ST), against van Dijk "
+                               "(CB) 0.37"),
+}
+
+
+def role_shape_checks(by_role: dict[str, dict[str, float]]) -> dict[str, bool]:
+    """``by_role``: metric -> role -> per-90 mean. True where the league's roles keep the order ROLE_SHAPES names."""
+    def r(key: str, role: str) -> float:
+        return by_role.get(key, {}).get(role, 0.0)
+
+    return {
+        "passes_cb_dm_over_st": min(r("passes", "CB"), r("passes", "DM")) > r("passes", "ST"),
+        "touches_cb_dm_over_st": min(r("touches", "CB"), r("touches", "DM")) > r("touches", "ST"),
+        "fb_crosses_third_of_w": r("crosses", "FB") >= r("crosses", "W") / 3.0 > 0.0,
+        "st_tackles_below_fb_cb_dm": r("tackles_won", "ST") < min(r("tackles_won", "FB"), r("tackles_won", "CB"),
+                                                                   r("tackles_won", "DM")),
+        "fouls_won_w_st_over_cb": min(r("fouls_won", "W"), r("fouls_won", "ST")) > r("fouls_won", "CB"),
+    }
+
+
 # Shape checks without a numeric band (league mode): centre-backs win the most aerial duels (FBref 2023/24 via
 # Football365: three of the five players with the most aerial duels won were centre-backs, the other two target
 # forwards). Contests are a diagnostic: since generator 0.5.0 keepers launch long to the front three, so strikers contest
@@ -334,6 +388,8 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
         rates = sorted(((people[g].get(key, 0.0) * 90.0 / minutes[g], g) for g in pool), reverse=True)
         out[f"leader_{key}_per90"] = round(rates[0][0], 2) if rates else 0.0
         out[f"leader_{key}_minutes"] = round(minutes[rates[0][1]]) if rates else 0
+        if key in ("npxg", "goals"):   # the leader's lead over the next player
+            out[f"leader_{key}_gap"] = round(rates[0][0] / rates[1][0], 2) if len(rates) > 1 and rates[1][0] > 0 else 0.0
     out["gk_long_pass_share"] = round(gk_long / gk_passes, 3) if gk_passes else 0.0
     gks = [c for g, c in people.items() if role_of[g] == "GK" and c.get("gk_open_passes", 0.0) >= 10]
     launch = [100.0 * c.get("gk_launches", 0.0) / c["gk_open_passes"] for c in gks]
@@ -345,6 +401,11 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
         shots.setdefault(club_of[g], Counter())[g] += c.get("shots", 0.0)
     shares = [max(v.values()) / sum(v.values()) for v in shots.values() if sum(v.values())]
     out["top_shooter_share"] = round(max(shares), 3) if shares else 0.0
+    chances: dict[str, Counter] = {}
+    for g, c in people.items():
+        chances.setdefault(club_of[g], Counter())[g] += c.get("npxg", 0.0)
+    shares = [max(v.values()) / sum(v.values()) for v in chances.values() if sum(v.values())]
+    out["top_npxg_share"] = round(max(shares), 3) if shares else 0.0
     ppda = [t["opp_build_up_passes"] / t["ppda_actions"] for t in clubs.values() if t.get("ppda_actions")]
     poss = [100.0 * t["possession_s"] / (t["possession_s"] + t["opp_possession_s"]) for t in clubs.values()
             if t.get("possession_s", 0.0) + t.get("opp_possession_s", 0.0) > 0]
@@ -375,6 +436,15 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
     out["cb_aerial_rank"] = order.index("CB") + 1 if "CB" in order else 0
     order = sorted(won_by_role, key=lambda r: -won_by_role[r])
     out["cb_aerial_won_rank"] = order.index("CB") + 1 if "CB" in order else 0
+    by_role: dict[str, dict[str, float]] = {}
+    for key in ROLE_SHAPE_KEYS:
+        acc: dict[str, list[float]] = {}
+        for g in pool:
+            if role_of[g] != "GK":
+                acc.setdefault(role_of[g], []).append(people[g].get(key, 0.0) * 90.0 / minutes[g])
+        by_role[key] = {r: round(sum(v) / len(v), 2) for r, v in sorted(acc.items())}
+    out["role_per90"] = by_role
+    out |= {f"shape_{k}": v for k, v in role_shape_checks(by_role).items()}
     return out
 
 
@@ -519,6 +589,18 @@ def individual_verdicts(metrics: dict[str, Any]) -> dict[str, str]:
     return {k: f"{x}, {INDICATIVE}" if x != "n/a" else x for k, x in v.items()}
 
 
+def role_shape_verdicts(metrics: dict[str, Any]) -> dict[str, str]:
+    """"holds" or "fails" for each ROLE_SHAPES order; below ``LEADER_SEASONS`` pooled seasons marked indicative, like the
+    leaders (one season gives each role's regulars about 300 minutes each)."""
+    out = {}
+    for k in ROLE_SHAPES:
+        v = metrics.get(f"shape_{k}")
+        out[k] = "n/a" if v is None else "holds" if v else "fails"
+    if metrics.get("seasons", 1) >= LEADER_SEASONS:
+        return out
+    return {k: f"{x}, {INDICATIVE}" if x != "n/a" else x for k, x in out.items()}
+
+
 def verdicts(metrics: dict[str, float], norms: dict[str, tuple[float, float, str, str]] | None = None) -> dict[str, str]:
     out = {}
     for key, (lo, hi, _unit, _note) in (NORMS if norms is None else norms).items():
@@ -595,6 +677,19 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
             lines += ["", f"**{inb} of {len(norms)} in band" + (f" ({INDICATIVE}).**" if leaders and
                                                                   metrics.get("seasons", 1) < LEADER_SEASONS else ".**"), ""]
         lines += ["Shape checks (no numeric band): " + ", ".join(f"{k}={metrics[k]}" for k in SHAPE_DIAGNOSTICS if k in metrics), ""]
+        rv = role_shape_verdicts(metrics)
+        lines += ["## Role shapes (league mode)", "", "Which roles make the numbers: per-90 means of qualified players by kit "
+                  "role, each check an order between roles. The Premier League figures are examples of each role, not role "
+                  f"means (StatMuse, Opta data, 2023/24). Verdicts over {LEADER_SEASONS} or more pooled seasons; on fewer "
+                  f"marked '{INDICATIVE}'.", "", "| Check | Order | Verdict | Premier League |", "|---|---|---|---|"]
+        for k, (order, source) in ROLE_SHAPES.items():
+            lines.append(f"| {k} | {order} | {rv[k]} | {source} |")
+        table = metrics.get("role_per90", {})
+        roles = [r for r in ("CB", "FB", "DM", "CM", "AM", "W", "ST") if any(r in v for v in table.values())]
+        lines += ["", "| Per 90 | " + " | ".join(roles) + " |", "|---|" + "---|" * len(roles)]
+        for key, v in table.items():
+            lines.append(f"| {key} | " + " | ".join(f"{v.get(r, 0.0)}" for r in roles) + " |")
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -663,6 +758,7 @@ def main(argv: list[str] | None = None) -> int:
         if "leader_shots_per90" in metrics:
             out["style_verdicts"] = verdicts(metrics, STYLE_NORMS)
             out["individual_verdicts"] = individual_verdicts(metrics)
+            out["role_shape_verdicts"] = role_shape_verdicts(metrics)
             out["individual_rule"] = (f"leader bands are a verdict over {LEADER_SEASONS}+ pooled seasons (--repeat "
                                       f"{LEADER_SEASONS}); this stream has {metrics.get('seasons', 1)}")
         print(json.dumps(out, indent=2))

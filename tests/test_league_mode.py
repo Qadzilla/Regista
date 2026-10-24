@@ -26,10 +26,11 @@ from regista.synth.report import (INDIVIDUAL_NORMS, LEAGUE_NORMS, NORMS, PHYSICA
 ROOT = Path(__file__).resolve().parents[1]
 LEAGUE_PATH = ROOT / "data" / "season" / "league.json"
 FIXTURES = (0, 1, 2)          # fixtures generated for the fast tests
-# (fixture index, seed shift): league fixtures replayed with seeds shifted as the audit's extra seasons shift them. The
-# committed season (generator 0.5.0) has no penalty and no red card: they are rare, about 0.07 and 0.05 a 30-minute match.
-PENALTY = (22, 3000)          # rl_r08_eas_cal, fourth season: a penalty (and a through ball)
-RED = (19, 1000)              # rl_r07_dun_fai, second season: a red card (and a through ball)
+# (fixture index, seed shift): league fixtures, replayed with seeds shifted as the audit's extra seasons shift them when
+# the committed season lacks an event. Penalties and red cards are rare (about 0.07 and 0.03 a 30-minute match); the
+# committed season (generator 0.6.0) has four penalties and no red card.
+PENALTY = (0, 0)              # rl_r01_ash_fai, the committed season: a penalty (and a through ball)
+RED = (26, 3000)              # rl_r09_eas_fai, fourth season: a red card (and a through ball)
 
 
 @pytest.fixture(scope="module")
@@ -100,12 +101,12 @@ def test_ratings_for_only_some_players_are_refused(league):
 
 # ---------------------------------------------------------------------------- the committed season, pinned
 
-# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.5.0. A generator
+# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.6.0. A generator
 # edit that moves them changes the season every page shows: re-record these, then re-check the demo's claims and clip ids
 # (src/regista/static/shared/demo.js, docs/demo-storyboard.md) and regenerate data/season/summaries.json.
-LEAGUE_PINS = {0: "cb877893809169dc4ac0235481becdeb129ff5b23dc3fe6fc4dc8c3ce8e556c9",
-               1: "d10aaf2de5079f82b48c29fb72f83c7a3cbd9ccc43810c3f94de15922d8f7ec3",
-               2: "c4ffdb5c9531439326a8b6c7798f8c06beb0d4aa5e22f8af1caca497ff971326"}
+LEAGUE_PINS = {0: "961eda4450051ca704f8b783f01f9dd86a761ea50ddc44a739e4b91deac4fc41",
+               1: "75959e9fadd11ea69e5b0d091cd4c8f84f114175e3ddf3403d631af285834bc9",
+               2: "65609184e40e9b9e17ee8bbc45b11aca17bd91d92a0d9a84c38a07360126b96a"}
 DEMO_JS = ROOT / "src" / "regista" / "static" / "shared" / "demo.js"
 
 
@@ -345,6 +346,34 @@ def test_shot_keeper_and_take_on_bands_are_computed(matches):
     assert m["shot_outcomes"].startswith("goal ")
 
 
+def test_role_shapes_and_leader_gaps_are_computed_and_reported(matches):
+    """Review closing round 1: role shapes (ROLE_SHAPES, an order between roles with StatMuse examples), the leader's
+    lead over the next player and the largest share of a club's npxG; touches in the box have no leader band (Regista's
+    touch records are not FBref's touches)."""
+    from regista.synth.report import LEADER_V, ROLE_SHAPES, render_markdown, role_shape_checks, role_shape_verdicts
+
+    m = compute_metrics([r for res in matches.values() for r in res.stream])
+    assert "touches_in_box" not in LEADER_V and "leader_touches_in_box_per90" not in INDIVIDUAL_NORMS
+    for key in ("leader_npxg_gap", "leader_goals_gap", "top_npxg_share"):
+        assert key in INDIVIDUAL_NORMS and key in m, key
+    assert "StatMuse" in INDIVIDUAL_NORMS["top_npxg_share"][3] and "Haaland" in INDIVIDUAL_NORMS["leader_npxg_gap"][3]
+    assert set(m["role_per90"]) >= {"passes", "touches", "crosses", "tackles_won", "fouls_won"}
+    assert all(isinstance(m[f"shape_{k}"], bool) for k in ROLE_SHAPES)
+    assert all(v.endswith("(under 6 seasons)") for v in role_shape_verdicts(m).values())   # three matches: indicative
+    assert all("StatMuse" in src or "LEADER_V" in src or "Palhinha" in src for _o, src in ROLE_SHAPES.values())
+    md = render_markdown(m, "three matches", "league")
+    assert "## Role shapes (league mode)" in md and all(f"| {k} |" in md for k in ROLE_SHAPES)
+    # the orders themselves, on a hand-made table: 0.5.0's role means (review closing round 1) fail every check
+    old = {"passes": {"CB": 32.0, "DM": 40.9, "ST": 62.6}, "touches": {"CB": 41.4, "DM": 55.3, "ST": 84.6},
+           "crosses": {"FB": 0.31, "W": 6.46}, "tackles_won": {"CB": 1.45, "FB": 2.17, "DM": 3.14, "ST": 2.96},
+           "fouls_won": {"CB": 1.26, "W": 0.89, "ST": 0.98}}
+    assert not any(role_shape_checks(old).values())
+    new = {"passes": {"CB": 44.0, "DM": 56.0, "ST": 30.0}, "touches": {"CB": 53.0, "DM": 70.0, "ST": 46.0},
+           "crosses": {"FB": 3.1, "W": 7.9}, "tackles_won": {"CB": 1.9, "FB": 1.7, "DM": 3.6, "ST": 1.1},
+           "fouls_won": {"CB": 0.5, "W": 1.7, "ST": 1.5}}
+    assert all(role_shape_checks(new).values())
+
+
 # ---------------------------------------------------------------------------- physical: motion at 10 Hz
 
 def _physical(result):
@@ -430,7 +459,7 @@ def test_femi_toure_is_the_leagues_top_scorer(league, season):
 
 @pytest.mark.slow
 def test_the_demos_goal_count_is_the_stars(league, season):
-    """demo.js says how many goals Femi Toure scored this season ("Four goals this season"): it must be his tally."""
+    """demo.js says how many goals Femi Toure scored this season ("Three goals this season"): it must be his tally."""
     import re
 
     from regista.season.audit import top_scorers
@@ -489,7 +518,8 @@ def test_the_committed_season_sits_in_every_band_that_is_a_verdict_on_one_season
 @pytest.mark.slow
 def test_six_seasons_sit_in_every_event_league_and_leader_band(league, pooled):
     """Event rates, league-mode rates (penalties, red cards, crosses completed, progressive passes per carry) and the
-    individual leaders (each league leader against the Premier League's third best, regista.synth.report.LEADER_V)."""
+    individual leaders (each league leader against the Premier League's third best, regista.synth.report.LEADER_V; the
+    leader's lead over the next player; the largest share of a club's npxG)."""
     m = _metrics(pooled)
     for norms in (NORMS, LEAGUE_NORMS, INDIVIDUAL_NORMS, PHYSICAL_NORMS):
         bad = {k: (m[k], norms[k][:2]) for k, v in verdicts(m, norms).items() if v != "in band"}
@@ -509,12 +539,40 @@ def test_centre_backs_win_the_most_aerial_duels(pooled):
 @pytest.mark.slow
 def test_the_star_leads_the_league_in_npxg_over_six_seasons(league, pooled):
     """Finishing is worth a realistic edge (about a quarter over xG), so any scoring chart over a few matches is partly
-    luck (generator 0.5.0: he is the outright top scorer in 10 of 12 regenerated seasons, the committed one included).
-    What the star's ratings decide is the chances: he has the most non-penalty xG by a distance."""
+    luck (generator 0.6.0: he is the outright top scorer in 4 of 12 regenerated seasons, the committed one included;
+    a season's top scorer has three or four goals). What the star's ratings decide is the chances: he has the most
+    non-penalty xG by a distance, but not by an unrealistic one (the leader-gap bands, below)."""
     from regista.season.audit import top_scorers
 
     chart = sorted(top_scorers(league, pooled, n=200), key=lambda r: -r["np_xg"])
     assert chart[0]["global_id"] == "pl_bro_09" and chart[0]["np_xg"] > 1.3 * chart[1]["np_xg"], chart[:2]
+
+
+@pytest.mark.slow
+def test_the_star_is_not_the_leagues_only_scoring_threat(pooled):
+    """Review closing round 1: over six seasons the star had 2.4 times the next player's npxG per 90 and took 46% of his
+    club's npxG. Now the leader's lead over the second best and the largest share of a club's chances are banded
+    (regista.synth.report: leader_npxg_gap, leader_goals_gap, top_npxg_share, each with its source)."""
+    from regista.synth.report import INDIVIDUAL_NORMS
+
+    m = _metrics(pooled)
+    for key in ("leader_npxg_gap", "leader_goals_gap", "top_npxg_share"):
+        lo, hi = INDIVIDUAL_NORMS[key][:2]
+        assert lo <= m[key] <= hi, (key, m[key], (lo, hi))
+
+
+@pytest.mark.slow
+def test_roles_make_the_numbers_they_make_in_football(season, pooled):
+    """Review closing round 1: strikers passed and touched the ball the most, full-backs hardly crossed, strikers won as
+    many tackles as holding midfielders and were fouled the least. regista.synth.report.ROLE_SHAPES checks the order
+    between roles, each against StatMuse's Premier League examples; it holds over six seasons and in the committed one."""
+    from regista.synth.report import ROLE_SHAPES, role_shape_verdicts
+
+    for matches in (pooled, season):
+        m = _metrics(matches)
+        v = role_shape_verdicts(m)
+        assert set(v) == set(ROLE_SHAPES)
+        assert all(x.startswith("holds") for x in v.values()), (v, m["role_per90"])
 
 
 @pytest.mark.slow

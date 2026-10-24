@@ -290,12 +290,14 @@ _CATALOGUE: list[Metric] = [
        num="final_third_passes_completed", den="final_third_passes", min_den="attempts", **PCT),
     # -------------------------------------------------------------------------------------------- carrying and dribbling
     _m("touches", "Touches", "carrying", "per90", "touches", "Times the player touched the ball: Regista writes one touch "
-       "record per 1.8 s on the ball (generator 0.5.0; per 0.8 s before, about twice FBref's count). Not FBref's Touches: "
+       "record per 1.7 s on the ball (generator 0.6.0; 1.8 s in 0.5.0, 0.8 s before, about twice FBref's count). Not FBref's Touches: "
        "compare players with each other, not with FBref.", "Regista touch records (not FBref Touches)", "FB-POS",
        positions=EVERYONE),
     _m("touches_in_box", "Touches in the box", "carrying", "per90", "touches",
        "Touches in the opponent's penalty area: touch records there, plus the touch that ends each carry into it (Regista "
-       "places a possession's touch records where it starts).", "FBref Att Pen touches", "FB-POS, SB-RAD", positions=ATTACK),
+       "places a possession's touch records where it starts). Counted from Regista's touch records, so not FBref's Att "
+       "Pen: compare players with each other, not with FBref.", "Regista touch records in the box (after FBref Att Pen)",
+       "FB-POS, SB-RAD", positions=ATTACK),
     _m("passes_received", "Passes received", "carrying", "per90", "passes", "Completed passes the player received.",
        "FBref Rec", "FB-POS"),
     _m("progressive_passes_received", "Progressive passes received", "carrying", "per90", "passes",
@@ -518,7 +520,8 @@ DEFAULT_COLUMNS = {
 }
 
 # Is the league's level of this metric checked against the Premier League? ``bands`` name the bands in
-# ``regista.synth.report`` (league aggregates or the league's leader, each with its source there) that cover it; a metric
+# ``regista.synth.report`` (league aggregates or the league's leader, each with its source there; ``shape_*`` names a
+# role-shape check there, ROLE_SHAPES: which roles make the numbers, an order between roles) that cover it; a metric
 # with none says so, and where a reviewer found it likely off, says how. Synthetic data: a band in range shows the
 # simulator is football-like, not that a player's number is real.
 _BANDED = "checked: the league's level sits inside a Premier League band in regista.synth.report"
@@ -528,13 +531,15 @@ REALISM: dict[str, Record] = {
         "shots": ["shots_per90", "leader_shots_per90", "top_shooter_share"],
         "shots_on_target": ["leader_shots_on_target_per90"], "npxg": ["leader_npxg_per90"], "xg": ["leader_npxg_per90"],
         "npxg_per_shot": ["xg_per_shot"], "key_passes": ["leader_key_passes_per90"], "xa": ["leader_xa_per90"],
-        "crosses": ["leader_crosses_per90"], "cross_pct": ["cross_completion"], "passes": ["passes_per90"],
+        "crosses": ["leader_crosses_per90", "shape_fb_crosses_third_of_w"], "cross_pct": ["cross_completion"],
+        "passes": ["passes_per90", "shape_passes_cb_dm_over_st"],
         "pass_pct": ["pass_completion"], "progressive_passes": ["prog_pass_carry_ratio"],
         "progressive_carries": ["prog_pass_carry_ratio", "leader_progressive_carries_per90"],
-        "touches_in_box": ["leader_touches_in_box_per90"], "take_ons": ["take_ons_per90"], "take_on_pct": ["take_on_success"],
-        "nutmegs": ["nutmegs_per90"], "tackles_won": ["tackles_per90", "leader_tackles_won_per90"],
+        "take_ons": ["take_ons_per90"], "take_on_pct": ["take_on_success"],
+        "nutmegs": ["nutmegs_per90"], "tackles_won": ["tackles_per90", "leader_tackles_won_per90",
+                                                                     "shape_st_tackles_below_fb_cb_dm"],
         "interceptions": ["interceptions_per90", "leader_interceptions_per90"], "aerial_duels": ["aerial_duels_per90"],
-        "fouls": ["fouls_per90"], "offsides": ["offsides_per90"], "red_cards": ["red_cards_per90"], "save_pct": ["save_pct"],
+        "fouls": ["fouls_per90"], "fouls_won": ["fouls_per90", "shape_fouls_won_w_st_over_cb"], "offsides": ["offsides_per90"], "red_cards": ["red_cards_per90"], "save_pct": ["save_pct"],
         "distance": ["distance_per90_km", "distance_per90_min_km", "distance_per90_max_km"],
         "hi_distance": ["hi_distance_per90_m", "cb_hi_distance_per90_m"], "sprint_distance": ["sprint_distance_per90_m"],
         "sprints": ["sprints_per90"], "peak_speed": ["peak_speed_max_kmh"], "peak_speed_mean": ["peak_speed_mean_kmh"],
@@ -547,9 +552,15 @@ REALISM: dict[str, Record] = {
                       "note": _BANDED + ". The band is the share of keepers' passes of 32 m or more with goal kicks "
                               "included (Opta Analyst); this metric is FBref's Launch%, open-play passes over 40 yards, so "
                               "it reads lower than the band"},
-    "touches": {"checked": False, "bands": [], "note": "not comparable: Regista writes a touch record every 1.8 s on the "
+    "touches": {"checked": False, "bands": [], "note": "not comparable: Regista writes a touch record every 1.7 s on the "
                 "ball (about 600 per team per 90; every 0.8 s before generator 0.5.0, about twice FBref's count). No FBref "
-                "team figure was read: compare players with each other only"},
+                "team figure was read: compare players with each other only. The order between roles is checked (centre-"
+                "backs and holding midfielders touch the ball more than strikers: shape_touches_cb_dm_over_st in "
+                "regista.synth.report)"},
+    "touches_in_box": {"checked": False, "bands": [], "note": "not comparable: counted from the same touch records as "
+                       "Touches (one per 1.7 s on the ball) plus the carries into the box, so it is not FBref's Att Pen "
+                       "touches (about 12-14 per team per 90 here). No FBref team figure was read: compare players with "
+                       "each other only"},
     "clean_sheets": {"checked": False, "bands": [], "note": "not comparable: 30-minute matches give far more clean sheets "
                      "than 90 (keepers here 20-90% of full matches, Premier League keepers about 25-35%, a reviewer's "
                      "figure)"},

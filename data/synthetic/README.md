@@ -158,7 +158,7 @@ Added in 0.1.1, both optional:
 ### League mode (schema 0.2.0): what the generator emits when players have ratings
 
 When both squads carry hidden ratings (`regista.season.league.generate_kwargs`, the Regista League's fixtures), the
-generator runs in **league mode** (`regista.synth.generator`, generator version 0.5.0 (`LEAGUE_GENERATOR_VERSION`),
+generator runs in **league mode** (`regista.synth.generator`, generator version 0.6.0 (`LEAGUE_GENERATOR_VERSION`),
 profile `league`; the stream is stamped schema 0.2.0). Outcomes then depend on the players involved, and these appear:
 
 | Event | Fields | When |
@@ -185,13 +185,35 @@ Also in league mode:
   three, less often for a better distributor and on a side of good passers (team style `keep`), so about 47% of keepers'
   passes travel 32 m or more, the Premier League's share (Opta Analyst).
 - **Shot outcomes** (0.5.0): a shot that is not a goal is saved 25% of the time (a little more for good finishers), and
-  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 70% (six seasons),
+  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 71% (six seasons, 0.6.0),
   inside the Premier League's bands (`regista.synth.report`). Before 0.5.0, 60% of unblocked shots were on target.
-- **Take-ons** succeed about 41% of the time (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
+- **Take-ons** succeed about 38% of the time (six seasons, 0.6.0) (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
   tackle, a foul, or (0.5.0) the ball running loose to whoever else is nearest.
-- **Touch records** (0.5.0): one per 1.8 s on the ball (one per 0.8 s before, about twice FBref's count).
-- **xG** is still distance-based (`e^(-0.12·d)`, 0.02-0.85; `1.1·e^(-0.12·d)` before 0.4.0), with headers at 0.40 and
-  first-time shots from a cross at 0.45 of a shot from the same spot.
+- **Touch records** (0.5.0): one per 1.89 s on the ball (1.82 s in 0.5.0, 0.8 s before, about twice FBref's count). The
+  interval also reshuffles every random draw of a season; 0.6.0 picked 1.89 from a scan of 1.60-2.00 so that the
+  committed season has the star as its outright top scorer and every one-season band in.
+- **xG** is still distance-based (`0.95·e^(-0.12·d)`, 0.02-0.85; `e^(-0.12·d)` in 0.4.0-0.5.0, `1.1·e^(-0.12·d)` before),
+  with headers at 0.40 and first-time shots from a cross at 0.45 of a shot from the same spot.
+- **Roles shape the game** (0.6.0). Before, a pass looked for a teammate about 16 m away, tilted forward, and whoever
+  was nearest the ball won it, so strikers passed and touched the ball more than anyone, full-backs hardly crossed,
+  pressing strikers won as many tackles as holding midfielders, and wingers and strikers were fouled least. Now:
+  - **who receives** is weighted by role (`receive_role`): in his own 60% a passer looks for centre-backs, the holding
+    midfielder and full-backs, and for good passers (`receive_passing`); further forward (`receive_role_attack`) the
+    ball is also recycled back through midfield;
+  - **what the holder does** depends on his role (`pass_role`, `take_on_role`): forwards pass less and shoot, take
+    players on and lose the ball more; centre-backs rarely take a man on;
+  - **who wins the ball**: the nearest opponent presses, but the tackle (or the challenge on a take-on) goes to one of
+    the opponents within 10 m by role (`tackle_role`: defenders and midfielders, rarely strikers), who closes the last
+    metres; forwards pressing win it less often (`lose_role`);
+  - **fouls**: a forward's challenge is more often a foul (`foul_role`), and forwards and wingers on the ball are fouled
+    most (`fouled_role`);
+  - **crosses**: a full-back crosses from 42 m out from his own goal line (early and overlapping deliveries), a winger
+    from 66 m, everyone else from the final third (70 m).
+  Each order is checked by `regista.synth.report.ROLE_SHAPES` (pass/fail, sourced from StatMuse's Premier League
+  examples): over six pooled seasons, per 90, passes CB 44 and DM 56 against ST 30; touches CB 53 and DM 70 against ST
+  46; crosses FB 3.1 against W 8.0; tackles won ST 1.1 against FB 1.7, CB 1.9, DM 3.6; fouls won W 1.7 and ST 1.6
+  against CB 0.5. The star's edge in chances is softened (`shot_drive` 0.19, `find_finisher` 0.13): over six seasons
+  his npxG per 90 is 1.5 times the next player's and he takes 31% of his club's npxG, both banded.
 
 **How ratings move outcomes.** A rating enters as a skill `z = (rating - centre) / 7`, where the centre is the rating of
 the average league player who performs that action (`SKILL_CENTRE`, measured over league seasons: finishing 66, passing
@@ -201,14 +223,14 @@ stays the quality of the chance while finishing decides who beats it: goals minu
 | Outcome | Ratings involved |
 |---|---|
 | pass completion | passer's `passing` (and `vision` on a through ball), against the `defending` of the defender nearest where the ball comes down, and of the marker when under pressure |
-| chance creation | `vision`: forward runners are picked more often, forward balls into the final third lead the receiver into space, through balls are tried more; in the final third teammates look for good `finishing` |
+| chance creation | `vision`: forward runners are picked more often, forward balls into the final third lead the receiver into space, through balls are tried more; in build-up teammates look for good `passing` (0.6.0), in the final third for good `finishing` |
 | who shoots, from where (0.4.0) | each role has its own shot propensity in three distance bands (`LEAGUE["shot_role"]`: strikers from close in, midfielders and defenders from further out), and `finishing` pulls a player's shots closer in (`shot_drive`) |
 | shot outcome | `finishing` (`aerial` for headers), strong or weak foot, against the keeper's `shot_stopping`; finishers hit the target a little more |
 | team style (0.4.0) | `TEAM_STYLE` from each starting XI's ratings: `keep` (passing and vision) completes more passes and loses the ball less; `press` (defending and stamina) dispossesses more in the opponents' own 60% |
 | keepers in build-up (0.4.0, 0.5.0) | a defender in his own half plays it back to the keeper more often (`gk_target`); the keeper launches long less with better `distribution` and on a side with more `keep` |
 | save held or parried | keeper's `handling` |
 | take-ons | `dribbling` against the defender's `defending`; good dribblers try more, and nutmeg and skill more |
-| tackles, interceptions, fouls | `defending`: winning the ball from a carrier, reading a loose pass (the better of the two nearest defenders tends to get there), fouling less |
+| tackles, interceptions, fouls | `defending`: winning the ball from a carrier (since 0.6.0 the tackler is one of the opponents within 10 m, by role), reading a loose pass (the better of the two nearest defenders tends to get there), fouling less |
 | aerial duels | `aerial` and height (per 10 cm), against the opponent's |
 | who comes off | `stamina` |
 

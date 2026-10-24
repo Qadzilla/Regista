@@ -17,7 +17,7 @@ A metric whose split-half ``r`` is below ``NOISE_R`` (0.3) is marked ``noisy``: 
 is mostly luck. The synthetic league is the reason: ten 30-minute matches a club, so a regular plays about 300 minutes.
 
 The file is committed beside the league (like ``summaries.json``) and stamped with the generator's league version and
-the league file's fingerprint; a test checks both, and a slow test recomputes it.
+a fingerprint of the league file and the generator's source; a test checks both, and a slow test recomputes it.
 """
 
 from __future__ import annotations
@@ -40,8 +40,13 @@ FILE_NAME = "reliability.json"
 
 
 def league_fingerprint(league: Record) -> str:
-    """Changes when anything that shapes the league's matches changes (clubs, squads, ratings, fixtures, seeds)."""
+    """Changes when anything that shapes the league's matches changes: clubs, squads, ratings, fixtures, seeds, and the
+    source of the code that generates the events (``regista.season.build.GENERATED_BY``), so a retune within one generator
+    version marks the committed table stale until it is recomputed."""
+    from regista.season.build import GENERATED_BY, code_fingerprint
+
     data = {k: league[k] for k in ("clubs", "fixtures", "generator") if k in league}
+    data["source"] = code_fingerprint(GENERATED_BY)
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 

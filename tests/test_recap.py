@@ -26,7 +26,7 @@ def league_match(tmp_path_factory):
     from regista.season.league import load_league
 
     league = load_league(LEAGUE)
-    # fixture 0 (rl_r01_ash_fai) has an assisted goal (generator 0.5.0: 1-0, assisted)
+    # fixture 0 (rl_r01_ash_fai) has assisted goals (generator 0.6.0: 2-1, a penalty and two assisted goals)
     return materialise(league, league["fixtures"][0], tmp_path_factory.mktemp("league"))
 
 

@@ -14,12 +14,13 @@ from regista.season import reliability
 from regista.season.league import load_league, new_league, save_league
 from regista.season.metrics import CATALOGUE, DEFAULT_COLUMNS, REALISM, build_season, realism
 from regista.synth.generator import LEAGUE_GENERATOR_VERSION
-from regista.synth.report import INDIVIDUAL_NORMS, LEAGUE_NORMS, NORMS, PHYSICAL_NORMS, STYLE_NORMS
+from regista.synth.report import INDIVIDUAL_NORMS, LEAGUE_NORMS, NORMS, PHYSICAL_NORMS, ROLE_SHAPES, STYLE_NORMS
 
 ROOT = Path(__file__).resolve().parents[1]
 LEAGUE_PATH = ROOT / "data" / "season" / "league.json"
 STAR = "pl_bro_09"
-BANDS = set(NORMS) | set(LEAGUE_NORMS) | set(INDIVIDUAL_NORMS) | set(PHYSICAL_NORMS) | set(STYLE_NORMS)
+BANDS = set(NORMS) | set(LEAGUE_NORMS) | set(INDIVIDUAL_NORMS) | set(PHYSICAL_NORMS) | set(STYLE_NORMS) \
+    | {f"shape_{k}" for k in ROLE_SHAPES}
 
 
 # ---------------------------------------------------------------------------- the committed table
@@ -75,12 +76,17 @@ def test_every_metric_says_how_far_its_level_is_checked():
         assert r["checked"] is bool(r["bands"]), m.key
     assert set(REALISM) <= set(CATALOGUE) | {"ppda", "possession_pct", "field_tilt_pct"}
     # the metrics the reviewers found off or not comparable say so
-    for key in ("passes_into_box", "pressure_regain_pct", "medium_pass_pct", "long_pass_pct", "touches", "clean_sheets",
+    for key in ("passes_into_box", "pressure_regain_pct", "medium_pass_pct", "long_pass_pct", "touches", "touches_in_box",
+                "clean_sheets",
                 "clean_sheet_pct", "gk_avg_pass_length", "xt_added"):
         assert realism(key)["checked"] is False and realism(key)["note"].split(":")[0] in (
             "unchecked", "unchecked, likely low", "not comparable"), key
     for key in ("save_pct", "shot_on_target_pct", "gk_launch_pct", "take_on_pct", "cross_pct", "pass_pct"):
         assert realism(key)["checked"] is True, key
+    # review closing round 1: the metrics whose league level was checked but whose roles were not now name a role shape
+    for key, shape in (("passes", "passes_cb_dm_over_st"), ("crosses", "fb_crosses_third_of_w"),
+                       ("tackles_won", "st_tackles_below_fb_cb_dm"), ("fouls_won", "fouls_won_w_st_over_cb")):
+        assert f"shape_{shape}" in realism(key)["bands"], key
 
 
 def test_clean_sheets_and_touches_say_what_they_count():

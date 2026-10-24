@@ -70,6 +70,34 @@ def test_a_season_match_carries_global_ids_and_validates(built):
     assert not (d / "tracks.jsonl").exists()  # tracks only when video needs them
 
 
+def test_a_change_to_the_code_that_builds_a_folder_makes_it_stale(built, monkeypatch, tmp_path):
+    """A retune within one generator version (review closing round 1): the fingerprint hashes the generator's source,
+    so a folder built by older code is not served, and the committed reliability table reads as stale."""
+    import shutil
+
+    from regista.season import build, reliability
+
+    small, root, _ = built
+    fx = small["fixtures"][0]
+    materialise(small, fx, root)
+    assert is_current(small, fx, root)
+    before = reliability.league_fingerprint(small)
+    for rel in build.BUILT_BY:
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(build._SRC / rel, tmp_path / rel)
+    gen = tmp_path / "regista" / "synth" / "generator.py"
+    gen.write_text(gen.read_text().replace('"pass_bias": 0.25,', '"pass_bias": 0.26,'))
+    monkeypatch.setattr(build, "_SRC", tmp_path)
+    build.code_fingerprint.cache_clear()
+    try:
+        assert not is_current(small, fx, root)
+        assert reliability.league_fingerprint(small) != before
+    finally:
+        monkeypatch.undo()
+        build.code_fingerprint.cache_clear()
+    assert is_current(small, fx, root)
+
+
 def test_rebuilding_is_deterministic_and_tracks_match_a_fresh_generate(built):
     small, root, _ = built
     fx = small["fixtures"][1]

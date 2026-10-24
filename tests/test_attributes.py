@@ -130,7 +130,7 @@ def test_regenerates_exactly_and_leaves_names_and_fixtures_alone(league):
                        for c in league["clubs"]], "fixtures": league["fixtures"]}
     assert hashlib.sha256(json.dumps(core, sort_keys=True).encode()).hexdigest() == \
         "6ef762c94d856aa980e2021d96c3c57de165c8ea05e665d22f82ab2692007de7"
-    assert league["generator"] == {"name": "regista-synth", "version": "0.5.0", "profile": "league", "minutes": 15.0,
+    assert league["generator"] == {"name": "regista-synth", "version": "0.6.0", "profile": "league", "minutes": 15.0,
                                    "periods": 2, "track_hz": 1.0}
 
 

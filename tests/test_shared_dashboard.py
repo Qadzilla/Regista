@@ -99,8 +99,8 @@ def test_one_conversation_store_for_both_sides():
     assert out["after"] == {"player": 1, "scout": 2}       # Femi read Maya's; his reply is unread in her inbox
     assert out["top"] == "pl_bro_09" and out["last"]["from"] == "player"
     clip = out["last"]["clips"][0]
-    assert clip["match_id"] == "rl_r04_dun_bro" and clip["clip_id"] == "cl_t_away_09_000011"
-    assert clip["video_url"] == "/api/matches/rl_r04_dun_bro/clips/cl_t_away_09_000011.mp4"
+    assert clip["match_id"] == "rl_r07_bro_cal" and clip["clip_id"] == "cl_t_home_09_000005"
+    assert clip["video_url"] == "/api/matches/rl_r07_bro_cal/clips/cl_t_home_09_000005.mp4"
     assert out["refused"] is None and out["started"] == out["same"] == "cv_maya_ash_10" and out["empty"] == 0
     assert out["when"] is True
 
