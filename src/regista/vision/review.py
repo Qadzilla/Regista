@@ -32,7 +32,7 @@ from typing import Any
 
 import numpy as np
 
-from regista.schema import SCHEMA_VERSION
+from regista.schema import LEGACY_SCHEMA_VERSION as SCHEMA_VERSION  # vision output uses nothing added in 0.2.0
 
 Record = dict[str, Any]
 QUEUE_FILE = "identity_review.json"

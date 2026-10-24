@@ -39,3 +39,6 @@ def test_the_image_carries_the_league_and_builds_its_matches():
     assert _excluded("data/season/matches/rl_r01_ash_fai/events.jsonl") and not _excluded("data/season/league.json")
     # the Profile agent's summaries ship beside the league (regista.season.summaries.summaries_path)
     assert "COPY data/season/summaries.json ./data/season/summaries.json" in docker and not _excluded("data/season/summaries.json")
+    # ... and the split-half reliability that marks noisy metrics (regista.season.reliability.load)
+    assert "COPY data/season/reliability.json ./data/season/reliability.json" in docker
+    assert not _excluded("data/season/reliability.json")

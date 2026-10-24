@@ -11,6 +11,12 @@ The rule, from CLAUDE.md §2.3 step 4:
 2. Any replay, highlight, or closeup the player appears in becomes a clip, on or off the ball.
 3. Main view, off the ball: no clip. Otherwise the output would be the whole game.
 
+The 0.2.0 events (league mode): a substitution is not a moment (``NOT_MOMENTS``). An aerial duel is one event for both
+players (winner in ``player_id``, loser in ``related_player_id``), between possessions like a tackle: it is in a clip of
+either player when it falls inside one, and tags the winner's clip ``aerial_duel``. A penalty is a set piece (the
+``penalty`` event) followed by a shot with the ``penalty`` qualifier inside the taker's possession, so the taker's clip
+carries both and the replay of the kick is a ``replay_appearance`` like any other.
+
 Two steps, two owners: ``cut_clips`` is the Clip Agent's job, ``label_clips`` the Label
 Agent's. ``derive_clips`` runs both for callers that want the whole thing.
 """
@@ -33,10 +39,13 @@ TAG_WEIGHTS: dict[str, float] = {
     "assist": 0.85,
     "skill_move": 0.8,
     "penalty": 0.8,
+    "penalty_won": 0.6,
     "shot": 0.7,
     "save": 0.65,
     "take_on": 0.6,
     "key_pass": 0.55,
+    "card_red": 0.5,
+    "through_ball": 0.5,
     "highlight_appearance": 0.5,
     "cross": 0.45,
     "tackle": 0.45,
@@ -44,6 +53,7 @@ TAG_WEIGHTS: dict[str, float] = {
     "interception": 0.4,
     "dribble": 0.4,
     "block": 0.35,
+    "aerial_duel": 0.35,
     "replay_appearance": 0.35,
     "carry": 0.3,
     "recovery": 0.3,
@@ -55,8 +65,12 @@ TAG_WEIGHTS: dict[str, float] = {
     "pass": 0.2,
     "pressure": 0.15,
     "throw_in": 0.1,
+    "offside": 0.1,
     "touch": 0.1,
 }
+# Events that are not moments of play (schema 0.2.0): never a clip's event, tag or headline. A substitution happens at a
+# stoppage; the player's clips come from what he does on the ball before and after it.
+NOT_MOMENTS = {"substitution"}
 
 APPEARANCE_REASONS = {
     "replay": "replay_appearance",
@@ -125,10 +139,11 @@ class StreamIndex:
         return None
 
 
-def _envelope(match_id: str, prefix: str, n: int, player_id: str) -> Record:
+def _envelope(match_id: str, prefix: str, n: int, player_id: str, version: str = SCHEMA_VERSION) -> Record:
     # Ids are unique within a match across players (cl_t_home_09_000001), because clips of several players
     # share clips.jsonl and the same Cosmos DB partition, where a repeated id would overwrite another player's clip.
-    return {"type": None, "id": f"{prefix}_{player_id}_{n:06d}", "match_id": match_id, "schema_version": SCHEMA_VERSION,
+    # A clip carries the schema version of the stream it was cut from (0.1.1 for a stream without 0.2.0 events).
+    return {"type": None, "id": f"{prefix}_{player_id}_{n:06d}", "match_id": match_id, "schema_version": version,
             "source": "derived", "confidence": 1.0}
 
 
@@ -178,7 +193,7 @@ def cut_clips(index: StreamIndex, player_id: str, *, pre_roll_s: float = 2.0, po
         relevant = _relevant_events(index, c, player_id)
         key_event = _key_event(relevant, c, player_id)
         keyframe_t = key_event["t"] if key_event and c["t"] <= key_event["t"] < c["t_end"] else round((c["t"] + c["t_end"]) / 2, 2)
-        clip = _envelope(match_id, "cl", n, player_id)
+        clip = _envelope(match_id, "cl", n, player_id, index.match.get("schema_version", SCHEMA_VERSION))
         clip.update(
             type="clip", player_id=player_id, t=round(c["t"], 2), t_end=round(c["t_end"], 2), segment_ids=c["segment_ids"],
             reason=c["reason"], event_ids=[e["id"] for e in relevant], possession_ids=c["possession_ids"], keyframe_t=round(keyframe_t, 2),
@@ -189,7 +204,8 @@ def cut_clips(index: StreamIndex, player_id: str, *, pre_roll_s: float = 2.0, po
 
 
 def _relevant_events(index: StreamIndex, c: Record, player_id: str) -> list[Record]:
-    mine = [e for e in index.events if c["t"] <= e["t"] < c["t_end"] and (e.get("player_id") == player_id or e.get("related_player_id") == player_id)]
+    mine = [e for e in index.events if c["t"] <= e["t"] < c["t_end"] and e["event_type"] not in NOT_MOMENTS
+            and (e.get("player_id") == player_id or e.get("related_player_id") == player_id)]
     replayed = [index.events_by_id[i] for i in c.get("replay_of", []) if i in index.events_by_id]
     return mine + [e for e in replayed if e not in mine]
 
@@ -251,7 +267,7 @@ def label_clips(index: StreamIndex, clips: list[Record], *, model: str = "rules-
         else:
             title = f"{who}: close-up at {when}"
 
-        label = _envelope(match_id, "lb", n, player_id)
+        label = _envelope(match_id, "lb", n, player_id, index.match.get("schema_version", SCHEMA_VERSION))
         label.update(
             type="label", clip_id=clip["id"], player_id=player_id, tags=tags, title=title,
             summary=_summary(player, clip["reason"], relevant, when),
@@ -297,6 +313,8 @@ def _summary(player: Record, reason: str, events: list[Record], when: str) -> st
 TAG_PHRASES: dict[str, str] = {
     "take_on": "a take-on", "throw_in": "a throw-in", "kick_off": "the kick-off", "recovery": "a ball won back",
     "pressure": "some pressing", "touch": "a simple touch", "card_yellow": "a yellow card", "card_red": "a red card",
+    "aerial_duel": "an aerial duel won", "penalty_won": "a penalty won", "through_ball": "a through ball",
+    "offside": "an offside",
     "var_review": "a VAR check",
     # On the receiving end (related_player_id): the clip's player is the one beaten, fouled, or the one who set up the goal.
     "nutmeg_against": "being nutmegged", "take_on_against": "being taken on", "foul_against": "being fouled", "goal_against": "a goal",
@@ -321,7 +339,8 @@ _CUT_BECAUSE = {"on_ball_main": "{name} had the ball in the main camera", "repla
 
 # A tag as one word or two, the way a person writes it in a title or a list ("take-on", not "take on" or "take_on").
 TAG_WORDS: dict[str, str] = {"take_on": "take-on", "throw_in": "throw-in", "kick_off": "kick-off", "card_yellow": "yellow card",
-                             "card_red": "red card", "var_review": "VAR check", "recovery": "ball won back", "ball_won": "ball won"}
+                             "card_red": "red card", "var_review": "VAR check", "recovery": "ball won back", "ball_won": "ball won",
+                             "aerial_duel": "aerial duel won", "penalty_won": "penalty won"}
 # In a title, the player's part when the moment is someone else's: the goal they set up, the nutmeg they suffered.
 _TITLE_AGAINST = {"goal_against": "assist", "nutmeg_against": "nutmegged", "take_on_against": "taken on", "foul_against": "fouled"}
 

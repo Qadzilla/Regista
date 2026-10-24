@@ -1,0 +1,27 @@
+# The slow tests: whole league seasons regenerated in memory (minutes, so the push workflow leaves them out with
+# pytest's default "-m 'not slow'"). They guard part A's goals: Femi Toure is the league's top scorer, the season sits
+# in every realism band (event, league-mode, physical, style and individual-leader bands), and players in one role differ.
+#
+# Runs every night and on demand (Actions > slow-tests > Run workflow). Reads nothing from Azure and pushes nothing.
+name: slow-tests
+
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[dev,vision]"
+      - run: python -m pytest -q -m slow

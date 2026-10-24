@@ -24,13 +24,14 @@ import re
 from collections.abc import Callable
 from typing import Any
 
-from regista.season.profiles import HEADLINE, RATIOS, STATS, Season, card
+from regista.season.profiles import CARD_BIO, HEADLINE, RATIOS, STATS, Season, card
 
 Record = dict[str, Any]
 
 POSITIONS = {"GK": ("goalkeeper", "goalkeepers"), "DF": ("defender", "defenders"), "MF": ("midfielder", "midfielders"),
              "FW": ("forward", "forwards")}
-MIN_SHARE = 0.4  # rankings count players with at least this share of the most minutes (the percentiles' rule too)
+# Rankings count players with the qualifying minutes, the percentiles' rule (a third of a club's minutes: Season.min_minutes,
+# the same as the Scout terminal's regista.season.metrics.qualifying_minutes).
 RATIO_MIN = {"pass_accuracy": 50, "take_on_success": 5, "shot_accuracy": 5}  # attempts a ratio needs before it ranks
 MAX_LIMIT = 20
 DEFAULT_LIMIT = 5
@@ -56,8 +57,7 @@ def _eligible(season: Season) -> list[Record]:
 
 
 def default_min_minutes(season: Season) -> float:
-    most = max((p["minutes"] for p in _eligible(season)), default=0.0)
-    return round(MIN_SHARE * most, 1)
+    return season.min_minutes
 
 
 def stat_of(p: Record, key: str, rank: tuple[int, int, int] | None = None) -> Record:
@@ -108,7 +108,7 @@ def search_players(season: Season, *, position: str | None = None, club: str | N
                    min_minutes: float | None = None, sort: str = "minutes", order: str = "desc", limit: int = 10,
                    ids: list[str] | None = None) -> Record:
     """Players filtered and sorted. ``sort`` is a stat key (per 90), a ratio key, "minutes" or "name"; ``order`` desc
-    (most first) or asc; ``ids`` keeps only those global ids. ``min_minutes`` None means the default for rankings (40% of the most minutes; 0 for sorts by
+    (most first) or asc; ``ids`` keeps only those global ids. ``min_minutes`` None means the default for rankings (the qualifying minutes, a third of a club's; 0 for sorts by
     minutes or name). Ratios also need a few attempts (``RATIO_MIN``). Unknown values come back as ``error``."""
     if sort not in sort_keys():
         return {"error": f"unknown sort {sort!r}", "sort_keys": sort_keys()}
@@ -181,7 +181,9 @@ def get_profile(season: Season, who: str, *, moments: int = 5) -> Record:
     stats = {k: stat_of(p, k, rank_in_position(season, p, k)) for k in [*STATS, *RATIOS]}
     summary = summary_for(season, p)
     return {"global_id": p["global_id"], "name": p["name"], "club": p["club"], "position": p["position"], "kit_number": p["kit_number"],
-            "appearances": p["appearances"], "minutes": p["minutes"], "stats": stats,
+            "appearances": p["appearances"], "minutes": p["minutes"],
+            "bio": {k: p.get(k) for k in CARD_BIO},  # synthetic: age at 1 August 2026, height, foot, nationality
+            "stats": stats,
             "best_moments": [{k: m[k] for k in ("match_id", "round", "clip_id", "title", "tags", "watchability", "video_url")}
                              for m in p["moments"][:moments]],
             "matches": [{k: m[k] for k in ("round", "opponent", "home", "score")} for m in p["matches"]],

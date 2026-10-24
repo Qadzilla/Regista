@@ -20,15 +20,17 @@ counts there, with ``source: upload`` (and the ``upload_id``) in the match list.
 from __future__ import annotations
 
 import json
+import statistics
 import threading
-from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from regista.schema import iter_jsonl
 from regista.season.build import materialise
-from regista.season.league import club_by_id, load_league, people
+from regista.season.league import bio, club_by_id, load_league, people
+from regista.season.metrics import fbref_percentile, qualifying_minutes, rank_value
+from regista.season.playing_time import played_seconds
 from regista.synth.generator import PITCH_L, PITCH_W
 
 Record = dict[str, Any]
@@ -47,8 +49,9 @@ STATS: dict[str, tuple[str, Any]] = {
     "take_ons": ("Take-ons", lambda e: e["event_type"] == "take_on"),
     "take_ons_won": ("Take-ons won", lambda e: e["event_type"] == "take_on" and e.get("outcome") == "success"),
     "nutmegs": ("Nutmegs", lambda e: e["event_type"] == "nutmeg"),
-    "shots": ("Shots", lambda e: e["event_type"] == "shot"),
-    "shots_on_target": ("Shots on target", lambda e: e["event_type"] == "shot" and
+    # penalty kicks count here (the Scout terminal's Shots follow FBref and leave them out): the labels say so
+    "shots": ("Shots (incl. penalties)", lambda e: e["event_type"] == "shot"),
+    "shots_on_target": ("Shots on target (incl. penalties)", lambda e: e["event_type"] == "shot" and
                         bool({"goal", "saved"} & set(e.get("qualifiers", [])))),
     "goals": ("Goals", lambda e: e["event_type"] == "goal"),
     "tackles_won": ("Tackles won", lambda e: e["event_type"] == "tackle" and e.get("outcome") == "success"),
@@ -56,15 +59,30 @@ STATS: dict[str, tuple[str, Any]] = {
     "recoveries": ("Ball recoveries", lambda e: e["event_type"] == "recovery"),
     "clearances": ("Clearances", lambda e: e["event_type"] == "clearance"),
     "pressures": ("Pressures", lambda e: e["event_type"] == "pressure"),
-    "saves": ("Saves", lambda e: e["event_type"] == "save"),
+    "saves": ("Saves (incl. penalties)", lambda e: e["event_type"] == "save"),
     "fouls_won": ("Fouls won", lambda e: e["event_type"] == "foul_won"),
+    # Schema 0.2.0 (the league's generator since ratings; real footage has none of these yet):
+    "aerial_duels_won": ("Aerial duels won", lambda e: e["event_type"] == "aerial_duel"),
+    "aerial_duels_lost": ("Aerial duels lost", lambda e: e["event_type"] == "aerial_duel"),   # counted for related_player_id
+    "through_balls": ("Through balls", lambda e: e["event_type"] == "pass" and "through_ball" in e.get("qualifiers", [])),
+    "offsides": ("Offsides", lambda e: e["event_type"] == "offside"),
+    "penalties_won": ("Penalties won", lambda e: e["event_type"] == "foul_won" and "penalty_won" in e.get("qualifiers", [])),
+    "penalty_goals": ("Penalty goals", lambda e: e["event_type"] == "goal" and "penalty" in e.get("qualifiers", [])),
 }
+# Stats credited to the event's related_player_id (the other side of a contest), not its player_id.
+RELATED_STATS = {"aerial_duels_lost"}
 # Shown on profiles and scout cards, in this order; the rest are in the full table.
 HEADLINE = ["goals", "assists", "shots", "key_passes", "take_ons_won", "nutmegs", "passes_completed", "tackles_won",
             "interceptions", "recoveries", "saves"]
 RATIOS = {"pass_accuracy": ("Pass accuracy", "passes_completed", "passes"),
           "take_on_success": ("Take-on success", "take_ons_won", "take_ons"),
-          "shot_accuracy": ("Shots on target", "shots_on_target", "shots")}
+          "shot_accuracy": ("Shots on target % (incl. penalties)", "shots_on_target", "shots"),
+          "aerial_win": ("Aerial duels won %", "aerial_duels_won", "aerial_duels")}
+# Counts made from other counts (not events), kept beside them so ratios and rates can use them.
+DERIVED_COUNTS = {"aerial_duels": ("Aerial duels", ("aerial_duels_won", "aerial_duels_lost"))}
+# A profile stat's Scout terminal metric where the keys differ (the reliability table is keyed by terminal metric).
+METRIC_OF = {"pass_accuracy": "pass_pct", "take_on_success": "take_on_pct", "shot_accuracy": "shot_on_target_pct",
+             "aerial_win": "aerial_win_pct"}
 GRID_X, GRID_Y = 12, 8
 MOMENTS_KEPT = 40
 MAX_EVIDENCE = 60
@@ -81,6 +99,10 @@ class Season:
     claimed: list[Record] = field(default_factory=list)  # the claimed matches that were counted, for the API and the trace
     uploads: list[Record] = field(default_factory=list)  # Player-view uploads: {match_id, match_dir, players, claims}
     uploaded: list[Record] = field(default_factory=list)  # the uploaded matches that were counted
+    min_minutes: float = 0.0   # the percentile pool's qualifying minutes (the Scout terminal's rule: a third of a club's minutes)
+    reliability: Record = field(default_factory=lambda: {"metrics": {}})   # regista.season.reliability (load_season)
+    _club_minutes: dict[str, float] = field(default_factory=dict)
+    _club_matches: dict[str, int] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ build
     @classmethod
@@ -89,6 +111,9 @@ class Season:
         """The season from the league's fixtures, plus the matches of ``claimed`` (``regista.season.claims.claimed_matches``:
         one row per confirmed claim) and of ``uploaded`` (``regista.player_api.uploaded_matches``: one row per finished
         Player-view upload)."""
+        from regista.season.build import build_all
+
+        build_all(league, root)   # a cold folder is generated in parallel first (the loop below then only reads)
         s = cls(league, Path(root), extra=_group_claims(claimed or []),
                 uploads=_group_claims([{**u, "claim_id": u["upload_id"]} for u in uploaded or []]))
         s._aggregate()
@@ -98,6 +123,7 @@ class Season:
         clubs = club_by_id(self.league)
         who = people(self.league)
         acc: dict[str, Record] = {gid: _empty(p) for gid, p in who.items()}
+        club_minutes: dict[str, float] = {cid: 0.0 for cid in clubs}
         table = {cid: {"club_id": cid, "club": c["name"], "short_name": c["short_name"], "kit": c["kit"], "played": 0, "won": 0,
                        "drawn": 0, "lost": 0, "goals_for": 0, "goals_against": 0, "points": 0} for cid, c in clubs.items()}
         for fx in self.league["fixtures"]:
@@ -109,18 +135,24 @@ class Season:
             team_club = {t["team_id"]: t.get("club_id") for t in header["teams"]}
             opp = {header["home_team_id"]: clubs[fx["away"]]["name"], header["away_team_id"]: clubs[fx["home"]]["name"]}
             self._table_row(table, fx, score)
+            match_minutes = sum(per["t_end"] - per["t"] for per in header.get("periods", [])) / 60.0
+            for cid in (fx["home"], fx["away"]):
+                club_minutes[cid] = club_minutes.get(cid, 0.0) + match_minutes
             self.matches.append({"match_id": fx["match_id"], "round": fx["round"], "date": fx["date"], "home": fx["home"],
                                  "away": fx["away"], "score": score, "title": _manifest_title(d)})
             _add_match(acc, d, stream, local_to_global, round_no=fx["round"], date=fx["date"],
                        entry=lambda p: {"club_id": team_club[p["team_id"]], "opponent": opp[p["team_id"]], "source": "league"},
-                       counts=lambda p: bool(p["starter"]))
+                       counts=lambda p, played=set(played_seconds(stream)): p["player_id"] in played)
         for e in self.extra:
             self._add_claimed(acc, e)
         for e in self.uploads:
             self._add_claimed(acc, e, source="upload")
         for gid, a in acc.items():
             self.profiles[gid] = _finish(a)
-        _percentiles(self.profiles)
+        self._club_minutes = club_minutes
+        self._club_matches = {cid: sum(1 for fx in self.league["fixtures"] if cid in (fx["home"], fx["away"])) for cid in clubs}
+        self.min_minutes = qualifying_minutes(max(club_minutes.values(), default=0.0))
+        _percentiles(self.profiles, self.min_minutes)
         self.table = sorted(table.values(), key=lambda r: (-r["points"], -(r["goals_for"] - r["goals_against"]), -r["goals_for"], r["club"]))
         for i, r in enumerate(self.table, start=1):
             r["position"] = i
@@ -175,6 +207,26 @@ class Season:
                 row["lost"] += 1
 
     # ------------------------------------------------------------------ queries
+    def sample(self) -> Record:
+        """How much football a profile's per-90s and percentiles rest on (the same facts the Scout terminal states)."""
+        club = max(self._club_minutes.values(), default=0.0)
+        n = max(self._club_matches.values(), default=0)
+        pool = sorted(p["minutes"] for p in self.profiles.values() if p["appearances"] and p["minutes"] >= self.min_minutes)
+        median = statistics.median(pool) if pool else 0.0
+        return {"matches_per_club": n, "match_minutes": round(club / n, 1) if n else None,
+                "qualifying_minutes": round(self.min_minutes, 1), "median_qualified_minutes": round(median, 1),
+                "median_full_matches": round(median / 90.0, 1),
+                "note": f"Small sample: a club plays {n} league matches of about {round(club / n) if n else 0} minutes, so a "
+                        f"regular's season is about {round(median)} minutes ({median / 90.0:.1f} full matches). Numbers "
+                        "marked noisy cannot yet separate players in the same role over one season."}
+
+    def noisy(self) -> list[str]:
+        """The profile's stats and rates whose Scout terminal metric is mostly noise over one season within a role
+        (``regista.season.reliability``: split-half r below 0.3)."""
+        rel = self.reliability.get("metrics", {})
+        keys = [k for k in [*STATS, *DERIVED_COUNTS, *RATIOS] if (rel.get(METRIC_OF.get(k, k)) or {}).get("noisy")]
+        return keys
+
     def player(self, gid: str) -> Record | None:
         return self.profiles.get(gid)
 
@@ -219,6 +271,7 @@ def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_g
     match_id = d.name  # the folder is the match id the API serves (an upload may be stored under a new one)
     score = header.get("score", {})
     minutes = sum(p["t_end"] - p["t"] for p in header.get("periods", [])) / 60.0
+    on_pitch = played_seconds(stream)
     ltr = {p["period"]: p.get("left_to_right_team_id") for p in header.get("periods", [])}
     clip_of_event, moments = _clips_and_moments(d, local_to_global, stream=stream, round_no=round_no, derive_for=derive_for)
     for p in header["players"]:
@@ -226,19 +279,30 @@ def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_g
         if gid and gid in acc and counts(p):
             a = acc[gid]
             a["appearances"] += 1
-            a["minutes"] += minutes
+            # time on the pitch: substitutions and red cards (schema 0.2.0) cut it; a stream without them, or a
+            # claimed player the team sheet does not start, counts the whole match as before
+            a["minutes"] += on_pitch[p["player_id"]] / 60.0 if p["player_id"] in on_pitch else minutes
             a["matches"].append({"match_id": match_id, "round": round_no, "date": date, "player_id": p["player_id"],
                                  **entry(p), "home": p["team_id"] == header.get("home_team_id"),
                                  # a vision match whose header has no score (nothing counted the goals) shows none
                                  "score": f"{score.get('t_home', 0)}–{score.get('t_away', 0)}" if score else None})
     for rec in stream:
-        if rec["type"] != "event" or not rec.get("player_id"):
+        if rec["type"] != "event":
+            continue
+        other = local_to_global.get(rec.get("related_player_id") or "")
+        if other and other in acc:
+            for key in RELATED_STATS:
+                if STATS[key][1](rec):
+                    _count(acc[other], key, rec, match_id, rec["related_player_id"], clip_of_event)
+        if not rec.get("player_id"):
             continue
         gid = local_to_global.get(rec["player_id"])
         if not gid or gid not in acc:
             continue
         a = acc[gid]
         for key, (_label, test) in STATS.items():
+            if key in RELATED_STATS:
+                continue
             if test(rec):
                 a["counts"][key] += 1
                 if len(a["evidence"][key]) < MAX_EVIDENCE:
@@ -257,6 +321,13 @@ def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_g
             acc[gid]["moments"] += ms
 
 
+def _count(a: Record, key: str, rec: Record, match_id: str, player_id: str, clip_of_event: dict[tuple[str, str], str]) -> None:
+    a["counts"][key] += 1
+    if len(a["evidence"][key]) < MAX_EVIDENCE:
+        a["evidence"][key].append({"match_id": match_id, "player_id": player_id, "event_id": rec["id"], "t": rec["t"],
+                                   "clip_id": clip_of_event.get((player_id, rec["id"]))})
+
+
 def _sort_key(p: Record, sort: str) -> Any:
     if sort == "name":
         return p["name"]
@@ -269,9 +340,13 @@ def _sort_key(p: Record, sort: str) -> Any:
     raise ValueError(f"unknown sort {sort!r}")
 
 
+CARD_BIO = ("age", "height_cm", "preferred_foot", "nationality")  # the public bio on a card (never the hidden ratings)
+
+
 def card(p: Record) -> Record:
     """What a scout list shows: who, where, how much, and the headline rates."""
-    keep = ("global_id", "name", "club_id", "club", "short_name", "kit", "kit_number", "position", "appearances", "minutes")
+    keep = ("global_id", "name", "club_id", "club", "short_name", "kit", "kit_number", "position", "appearances", "minutes",
+            *CARD_BIO)
     return {**{k: p[k] for k in keep}, "headline": {k: {"label": STATS[k][0], "count": p["counts"][k], "per90": p["per90"][k],
                                                         "percentile": p["percentiles"].get(k)} for k in HEADLINE},
             "ratios": p["ratios"], "best_moment": p["moments"][0] if p["moments"] else None}
@@ -280,17 +355,21 @@ def card(p: Record) -> Record:
 def _empty(person: Record) -> Record:
     return {"global_id": person["global_id"], "name": person["name"], "kit_number": person["kit_number"],
             "position": person["position"], "starter": person["starter"], "club_id": person["club_id"], "club": person["club"],
-            "short_name": person["short_name"], "kit": person["kit"],
+            "short_name": person["short_name"], "kit": person["kit"], **bio(person),
             "appearances": 0, "minutes": 0.0, "matches": [], "counts": {k: 0 for k in STATS},
             "evidence": {k: [] for k in STATS}, "grid": [[0] * GRID_X for _ in range(GRID_Y)], "moments": []}
 
 
 def _finish(a: Record) -> Record:
+    for key, (_label, parts) in DERIVED_COUNTS.items():
+        a["counts"][key] = sum(a["counts"][k] for k in parts)
     m = a["minutes"]
     a["minutes"] = round(m, 1)
+    a["_minutes_exact"] = m   # for the percentiles (dropped after them): rates ranked unrounded, as the terminal ranks them
     a["per90"] = {k: round(v * 90.0 / m, 2) if m else 0.0 for k, v in a["counts"].items()}
     a["ratios"] = {k: (round(a["counts"][num] / a["counts"][den], 3) if a["counts"][den] else None) for k, (_l, num, den) in RATIOS.items()}
-    a["stat_labels"] = {k: lbl for k, (lbl, _t) in STATS.items()} | {k: lbl for k, (lbl, _n, _d) in RATIOS.items()}
+    a["stat_labels"] = {k: lbl for k, (lbl, _t) in STATS.items()} | {k: lbl for k, (lbl, _n, _d) in RATIOS.items()} \
+        | {k: lbl for k, (lbl, _p) in DERIVED_COUNTS.items()}
     # A claimed match has no round: it sorts after the league's rounds at equal watchability.
     a["moments"].sort(key=lambda r: (-r["watchability"], r["round"] is None, r["round"] or 0, r["t"]))
     a["moments"] = a["moments"][:MOMENTS_KEPT]
@@ -298,19 +377,28 @@ def _finish(a: Record) -> Record:
     return a
 
 
-def _percentiles(profiles: dict[str, Record]) -> None:
-    """Each per-90 rate's percentile (0-100) among players in the same position with at least 40% of the most minutes."""
+PERCENTILE_RULE = ("FBref's percentile rank, the same rule as the Scout terminal (regista.season.metrics.fbref_percentile): "
+                   "the mean of the share of position peers strictly below and the share at or below, among players with "
+                   "the qualifying minutes (a third of a club's minutes, FBref's 30 minutes per squad game)")
+
+
+def _percentiles(profiles: dict[str, Record], min_minutes: float) -> None:
+    """Each per-90 rate's percentile (0-100) among players in the same position with the qualifying minutes, by FBref's rule
+    (:data:`PERCENTILE_RULE`): one number for one stat, on the profile and in the Scout terminal alike."""
     by_pos: dict[str, list[Record]] = {}
-    most = max((p["minutes"] for p in profiles.values()), default=0.0)
     for p in profiles.values():
-        if p["appearances"] and p["minutes"] >= 0.4 * most:
+        exact = p.pop("_minutes_exact", p["minutes"])
+        if p["appearances"] and exact >= min_minutes:
+            p["_rates"] = {k: rank_value(c * 90.0 / exact) for k, c in p["counts"].items()}
             by_pos.setdefault(p["position"], []).append(p)
     for group in by_pos.values():
         for key in STATS:
-            values = sorted(p["per90"][key] for p in group)
+            values = sorted(p["_rates"][key] for p in group)
             for p in group:
-                below = bisect_left(values, p["per90"][key])
-                p["percentiles"][key] = round(100.0 * below / max(1, len(values) - 1)) if len(values) > 1 else None
+                p["percentiles"][key] = round(fbref_percentile(values, p["_rates"][key])) if len(values) > 1 else None
+    for group in by_pos.values():
+        for p in group:
+            del p["_rates"]
 
 
 def _manifest_title(d: Path) -> str | None:
@@ -379,7 +467,11 @@ def load_season(league_path: Path | str, root: Path | str, claimed: list[Record]
     with _cache_lock:
         s = _cache.get(key)
         if s is None:
-            s = Season.build(load_league(league_path), root, claimed, uploaded)
+            from regista.season.reliability import load as load_reliability
+
+            league = load_league(league_path)
+            s = Season.build(league, root, claimed, uploaded)
+            s.reliability = load_reliability(league_path, league)
             _cache.clear()
             _cache[key] = s
         return s

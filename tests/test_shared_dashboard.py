@@ -99,8 +99,8 @@ def test_one_conversation_store_for_both_sides():
     assert out["after"] == {"player": 1, "scout": 2}       # Femi read Maya's; his reply is unread in her inbox
     assert out["top"] == "pl_bro_09" and out["last"]["from"] == "player"
     clip = out["last"]["clips"][0]
-    assert clip["match_id"] == "rl_r02_cal_bro" and clip["clip_id"] == "cl_t_away_09_000010"
-    assert clip["video_url"] == "/api/matches/rl_r02_cal_bro/clips/cl_t_away_09_000010.mp4"
+    assert clip["match_id"] == "rl_r08_bro_fai" and clip["clip_id"] == "cl_t_home_09_000005"
+    assert clip["video_url"] == "/api/matches/rl_r08_bro_fai/clips/cl_t_home_09_000005.mp4"
     assert out["refused"] is None and out["started"] == out["same"] == "cv_maya_ash_10" and out["empty"] == 0
     assert out["when"] is True
 
@@ -148,19 +148,103 @@ def test_reset_also_forgets_the_old_scout_shortlist():
     assert "pl_cal_07" not in out["list"] and out["old"] is False
 
 
-def test_seeded_moments_are_femi_tourés_real_clips():
-    # The seeds' clips must exist in the league as generated from data/season/league.json (clip ids repeat across
-    # matches, so each is checked by match and clip id).
-    out = run("return D.seeds().reports[0].sections.flatMap(s => s.cites).concat(D.seeds().conversations[0].msgs[1].clips);")
+def _season():
+    from regista import api
     from regista.season.profiles import load_season
+
+    return load_season(api.SEASON_LEAGUE, api.SEASON_ROOT, [], [])
+
+
+def _clip_events(match_id: str, clip_id: str) -> list[dict]:
+    """The events a clip was cut from, read from the league's match folder."""
     from regista import api
 
-    p = load_season(api.SEASON_LEAGUE, api.SEASON_ROOT, [], []).player("pl_bro_09")
+    folder = api.SEASON_ROOT / match_id
+    clip = next(r for r in map(json.loads, (folder / "clips.jsonl").read_text().splitlines())
+                if r.get("type") == "clip" and r["id"] == clip_id)
+    events = {r["id"]: r for r in map(json.loads, (folder / "events.jsonl").read_text().splitlines()) if r.get("type") == "event"}
+    return [events[i] for i in clip["event_ids"] if i in events]
+
+
+def test_seeded_moments_are_femi_tourés_real_clips():
+    # The seeds' clips must exist in the league as generated from data/season/league.json (clip ids repeat across
+    # matches, so each is checked by match and clip id), and each must show what the text citing it says.
+    out = run("""
+      const s = D.seeds();
+      return { sections: s.reports[0].sections.map(x => ({ name: x.name, text: x.text, cites: x.cites })),
+               sent: s.conversations[0].msgs[1].clips };
+    """)
+    p = _season().player("pl_bro_09")
     have = {(m["match_id"], m["clip_id"]): m for m in p["moments"]}
-    for ref in out:
+    refs = [r for sec in out["sections"] for r in sec["cites"]] + out["sent"]
+    for ref in refs:
         m = have.get((ref["match_id"], ref["clip_id"]))
         assert m is not None, ref
-        assert m["title"] == ref["title"] and m["video_url"] == ref["video_url"]
+        assert m["title"] == ref["title"] and m["video_url"] == ref["video_url"] and m["t"] == ref["t"], ref
+        assert m["round"] == ref["round"] and m["reason"] == ref["reason"], ref
+    by_name = {sec["name"]: sec for sec in out["sections"]}
+    goal_refs = by_name["Summary"]["cites"] + by_name["Strengths"]["cites"] + out["sent"]
+    for ref in goal_refs:  # his goals: each clip holds his goal event
+        assert any(e["event_type"] == "goal" and e["player_id"] == have[(ref["match_id"], ref["clip_id"])]["player_id"]
+                   for e in _clip_events(ref["match_id"], ref["clip_id"])), ref
+    # The Summary cites all five league goals, in four matches.
+    summary = by_name["Summary"]["cites"]
+    assert {(r["match_id"], r["clip_id"]) for r in summary} == {(e["match_id"], e["clip_id"]) for e in p["evidence"]["goals"]}
+    assert len(summary) == 5 and len({r["match_id"] for r in summary}) == 4
+    for ref in by_name["Concerns"]["cites"]:  # take-ons that did not come off
+        pid = have[(ref["match_id"], ref["clip_id"])]["player_id"]
+        assert any(e["event_type"] == "take_on" and e["player_id"] == pid and e["outcome"] == "fail"
+                   for e in _clip_events(ref["match_id"], ref["clip_id"])), ref
+
+
+def test_seeded_claims_hold_in_the_league():
+    # Maya's messages, notes and report quote league counts and ranks; they must be what the league as generated says.
+    s = _season()
+    q = s.sample()["qualifying_minutes"]
+    profiles = [p for p in s.profiles.values() if p["appearances"]]
+
+    def rank(gid: str, pos: str, key: str) -> int:
+        rows = [p for p in profiles if p["position"] == pos and p["minutes"] >= q]
+        rows.sort(key=lambda p: -p["counts"][key] / p["minutes"])
+        return [p["global_id"] for p in rows].index(gid) + 1
+
+    femi = s.player("pl_bro_09")
+    c = femi["counts"]
+    # "Five league goals, two more than anyone else in the league", "none from the penalty spot", "in four different matches"
+    assert c["goals"] == 5 and c["penalty_goals"] == 0
+    assert max(p["counts"]["goals"] for p in profiles if p["global_id"] != "pl_bro_09") == 3
+    assert len({e["match_id"] for e in femi["evidence"]["goals"]}) == 4
+    # "the most per 90 of its 18 regular forwards"
+    assert len([p for p in profiles if p["position"] == "FW" and p["minutes"] >= q]) == 18
+    assert rank("pl_bro_09", "FW", "goals") == 1
+    # "the most shots on target of the league's forwards, in total and per 90"
+    assert rank("pl_bro_09", "FW", "shots_on_target") == 1
+    assert all(p["counts"]["shots_on_target"] < c["shots_on_target"] for p in profiles
+               if p["position"] == "FW" and p["global_id"] != "pl_bro_09")
+    # "Won one of his fourteen take-ons in league matches"
+    assert (c["take_ons"], c["take_ons_won"]) == (14, 1)
+    # "four of his five goals from inside 12 metres"
+    shots = {e["match_id"] + e["clip_id"]: next(x for x in _clip_events(e["match_id"], e["clip_id"]) if x["event_type"] == "goal")
+             for e in femi["evidence"]["goals"]}
+    assert sorted(g["metrics"]["shot_distance_m"] < 12 for g in shots.values()) == [False, True, True, True, True]
+    # "you carry it into the box yourself and finish" (the first clip he sends Maya, round 8): his carry ends in the box,
+    # then his shot
+    r08 = _clip_events("rl_r08_bro_fai", "cl_t_home_09_000005")
+    carry = next(e for e in r08 if e["event_type"] == "carry" and e["player_id"] == "t_home_09")
+    assert carry["pitch"]["x"] < 105 - 16.5 < carry["pitch_end"]["x"] and abs(carry["pitch_end"]["y"] - 34) < 20.16
+    assert [e["event_type"] for e in r08 if e["player_id"] == "t_home_09"][-2:] == ["shot", "goal"]
+    # "Your two goals at Eastwick in round 1"
+    assert sum(e["match_id"] == "rl_r01_eas_bro" for e in femi["evidence"]["goals"]) == 2
+    # The round 1 goal at 56' is not called a header: the generator stages it as Femi's 6 m carry along the ground, then
+    # a headed shot (a completed cross becomes an ordinary possession; review C round 1), so the seeds only call it a goal.
+    demo = (SHARED / "demo.js").read_text()
+    assert "header" not in demo.lower() and "in the air" not in demo
+    # The shortlist's notes.
+    assert rank("pl_ash_10", "MF", "take_ons_won") == 4
+    assert rank("pl_ash_09", "FW", "shots") == 2
+    assert rank("pl_dun_06", "MF", "passes") == 3
+    assert rank("pl_eas_03", "DF", "key_passes") == 9
+    assert "key_passes" in s.noisy()
 
 
 def test_the_sections_helper_and_the_shared_styles():

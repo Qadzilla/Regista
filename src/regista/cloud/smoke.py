@@ -6,7 +6,8 @@ No Azure credentials and no network calls needed.
 CI runs this inside the freshly built image (.github/workflows/build-image.yml), because the Azure MCP Server is a
 .NET binary whose runtime needs (ICU, OpenSSL) differ between a laptop and the slim Linux image. Listing tools is an
 MCP handshake only: nothing is queried. The file checks catch a build that forgot package data (the Product and Studio
-pages ship as ``regista/static``) or a ``.dockerignore`` that dropped a sample match.
+pages ship as ``regista/static``) or a ``.dockerignore`` that dropped a sample match. The season check compares the
+league the image built with the committed pins, on the platform the live app runs on.
 """
 
 from __future__ import annotations
@@ -81,8 +82,24 @@ def vision_checks() -> list[dict]:
     return [{"check": "vision-libraries", "ok": not missing, "missing": missing}]
 
 
+def season_checks(league_path: Path | None = None, root: Path | None = None) -> list[dict]:
+    """The Regista League the Dockerfile built inside the image is the committed season, bit for bit
+    (``regista.season.pins``): league matches are generated on the server's platform, and libm's last bits once made
+    Linux generate different matches than the Mac they were checked on (docs/scout-terminal/build/determinism.md)."""
+    from regista.season.league import load_league
+    from regista.season.pins import drift
+
+    league_path = league_path or Path(os.environ.get("REGISTA_SEASON", "data/season/league.json"))
+    root = root or Path(os.environ.get("REGISTA_SEASON_ROOT", "data/season/matches"))
+    try:
+        moved = drift(load_league(league_path), root)
+    except Exception as exc:  # noqa: BLE001 - reported, then the exit code says it failed
+        return [{"check": "season-pins", "ok": False, "error": f"{type(exc).__name__}: {exc}"}]
+    return [{"check": "season-pins", "ok": not moved, "root": str(root), "differs": moved}]
+
+
 def main() -> int:
-    results = file_checks() + vision_checks() + asyncio.run(checks())
+    results = file_checks() + vision_checks() + season_checks() + asyncio.run(checks())
     for r in results:
         print(json.dumps(r))
     return 0 if all(r["ok"] for r in results) else 1

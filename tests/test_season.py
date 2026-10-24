@@ -9,8 +9,8 @@ from fastapi.testclient import TestClient
 
 from regista.schema import iter_jsonl, validate_match_dir
 from regista.season.build import ensure_tracks, fingerprint, is_current, materialise
-from regista.season.league import generate_kwargs, new_league, people, save_league
-from regista.season.profiles import STATS, Season
+from regista.season.league import age_on, generate_kwargs, new_league, people, save_league
+from regista.season.profiles import RELATED_STATS, STATS, Season
 from regista.season_api import MAX_PROFILE_REEL
 from regista.synth.generator import generate
 
@@ -70,6 +70,34 @@ def test_a_season_match_carries_global_ids_and_validates(built):
     assert not (d / "tracks.jsonl").exists()  # tracks only when video needs them
 
 
+def test_a_change_to_the_code_that_builds_a_folder_makes_it_stale(built, monkeypatch, tmp_path):
+    """A retune within one generator version (review closing round 1): the fingerprint hashes the generator's source,
+    so a folder built by older code is not served, and the committed reliability table reads as stale."""
+    import shutil
+
+    from regista.season import build, reliability
+
+    small, root, _ = built
+    fx = small["fixtures"][0]
+    materialise(small, fx, root)
+    assert is_current(small, fx, root)
+    before = reliability.league_fingerprint(small)
+    for rel in build.BUILT_BY:
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(build._SRC / rel, tmp_path / rel)
+    gen = tmp_path / "regista" / "synth" / "generator.py"
+    gen.write_text(gen.read_text().replace('"pass_bias": 0.25,', '"pass_bias": 0.26,'))
+    monkeypatch.setattr(build, "_SRC", tmp_path)
+    build.code_fingerprint.cache_clear()
+    try:
+        assert not is_current(small, fx, root)
+        assert reliability.league_fingerprint(small) != before
+    finally:
+        monkeypatch.undo()
+        build.code_fingerprint.cache_clear()
+    assert is_current(small, fx, root)
+
+
 def test_rebuilding_is_deterministic_and_tracks_match_a_fresh_generate(built):
     small, root, _ = built
     fx = small["fixtures"][1]
@@ -94,11 +122,15 @@ def test_profile_counts_are_the_events(built):
         stream = list(iter_jsonl(root / fx["match_id"] / "events.jsonl"))
         local = {q["player_id"]: q["global_player_id"] for q in stream[0]["players"]}
         for e in stream:
-            if e["type"] == "event" and local.get(e.get("player_id")) == gid:
-                for key, (_label, test) in STATS.items():
+            if e["type"] != "event":
+                continue
+            for key, (_label, test) in STATS.items():  # most stats are the player's own; a few the other side's
+                who = e.get("related_player_id") if key in RELATED_STATS else e.get("player_id")
+                if local.get(who) == gid:
                     want[key] += bool(test(e))
     assert {k: p["counts"][k] for k in STATS} == {k: want[k] for k in STATS}
-    assert p["per90"]["passes"] == round(p["counts"]["passes"] * 90 / p["minutes"], 2)
+    # per 90 from the exact minutes; the profile shows minutes to 0.1 (substitutions make them uneven)
+    assert p["per90"]["passes"] == pytest.approx(p["counts"]["passes"] * 90 / p["minutes"], abs=0.1)
     assert sum(map(sum, p["grid"])) > 0
 
 
@@ -167,7 +199,10 @@ def test_season_lists_each_clubs_squad_from_the_league_file(client, built):
     clubs = client.get("/api/season").json()["clubs"]
     assert [c["club_id"] for c in clubs] == [c["club_id"] for c in small["clubs"]]
     for got, want in zip(clubs, small["clubs"]):
-        assert got["squad"] == [{k: p[k] for k in ("global_id", "name", "kit_number", "position", "starter")} for p in want["squad"]]
+        # ... plus the public bio (age at season start computed from the date of birth), never the hidden ratings
+        assert got["squad"] == [{**{k: p[k] for k in ("global_id", "name", "kit_number", "position", "starter", "date_of_birth",
+                                                       "height_cm", "preferred_foot", "nationality")}, "age": age_on(p["date_of_birth"])}
+                                for p in want["squad"]]
         assert len(got["squad"]) == 18 and all(p["global_id"].startswith("pl_") for p in got["squad"])
         assert set(got) == {"club_id", "name", "short_name", "kit", "ground", "squad"}
 
@@ -240,3 +275,38 @@ def test_the_reel_options_are_validated(client, built):
     assert client.get(url, params={"n": 9}).status_code == 422
     r = client.get(url, params={"tag": "nutmeg_of_the_year", "reason": "on_ball_main"})
     assert r.status_code == 404 and "with reason on_ball_main" in r.json()["detail"]
+
+
+def test_a_folder_another_process_finished_is_kept_not_deleted(tmp_path, monkeypatch):
+    """Review A round 2: build_all's worker processes do not share materialise's thread lock, so two writers can build one
+    fixture. The second must not delete the first's finished folder under a reader: it keeps it and drops its own."""
+    import shutil
+
+    from regista.season import build
+
+    league = new_league(2026)
+    fx = league["fixtures"][0]
+    theirs = build.materialise(league, fx, tmp_path / "other")
+    root = tmp_path / "season"
+    real = build.generate
+
+    def racing(**kw):
+        out = real(**kw)
+        shutil.copytree(theirs, root / fx["match_id"])          # the other process renames its folder into place meanwhile
+        (root / fx["match_id"] / "marker").write_text("theirs")
+        return out
+
+    monkeypatch.setattr(build, "generate", racing)
+    dest = build.materialise(league, fx, root)
+    assert (dest / "marker").read_text() == "theirs" and is_current(league, fx, root)
+    assert [p.name for p in root.iterdir()] == [fx["match_id"]]  # our temporary folder is gone
+
+
+def test_one_build_all_at_a_time(tmp_path, monkeypatch):
+    """The warm-up and a request arriving during it would each start a process pool on the same cold folder."""
+    from regista.season import build
+
+    seen = []
+    monkeypatch.setattr(build, "_build_all", lambda league, root, workers: seen.append(build._build_all_lock.locked()) or [])
+    build.build_all(new_league(2026), tmp_path)
+    assert seen == [True] and not build._build_all_lock.locked()

@@ -16,16 +16,21 @@ from jsonschema import Draft202012Validator, FormatChecker
 
 Record = dict[str, Any]
 
-SCHEMA_VERSION = "0.1.1"  # 0.1.1: annotation.context (additive). Since 2026-10-22 the match record also accepts the
-# optional season fields teams[].club_id and players[].global_player_id (regista.season); optional and additive, so
-# every 0.1.1 record stays valid and the version was not bumped (that would restamp every committed match).
+SCHEMA_VERSION = "0.2.0"  # 0.2.0 (2026-10-23): the Regista League's events. New event type ``aerial_duel``; the generator
+# now emits ``substitution``, ``penalty``, ``card_red`` and ``offside`` (already in the enum) in league mode; possession
+# ``lost_by`` gains ``offside``; record type ``physical`` (one per player who played: his 10 Hz motion summarised,
+# regista.synth.physical). Additive only: every 0.1.x record stays valid.
+LEGACY_SCHEMA_VERSION = "0.1.1"  # the stamp of a stream that uses nothing added in 0.2.0. The generator without league
+# attributes keeps writing it, so the committed samples and the vision layer's seeds stay byte-identical.
+# 0.1.1: annotation.context (additive). Since 2026-10-22 the match record also accepts the optional season fields
+# teams[].club_id and players[].global_player_id (regista.season); optional and additive, so the version was not bumped.
 # The schemas ship inside the package so validation works from any install, not only a repo checkout.
 SCHEMA_DIR = Path(__file__).resolve().parent / "schemas"
 EVENTS_SCHEMA = SCHEMA_DIR / "regista-events.schema.json"
 CLIPS_SCHEMA = SCHEMA_DIR / "regista-clips.schema.json"
 
 # Which schema validates which record type.
-EVENT_TYPES = ("match", "camera_segment", "track", "appearance", "possession", "event", "annotation")
+EVENT_TYPES = ("match", "camera_segment", "track", "appearance", "possession", "event", "annotation", "physical")
 CLIP_TYPES = ("clip", "label")
 
 

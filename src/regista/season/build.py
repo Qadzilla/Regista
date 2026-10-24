@@ -1,17 +1,20 @@
 """Regenerate the league's matches from ``league.json`` into match folders the rest of Regista reads.
 
-Each match folder looks like a committed sample: ``events.jsonl``, ``clips.jsonl`` (every starter's clips, labelled by
-the rules labeller) and ``manifest.json`` (title, round, ``collection: season``). ``tracks.jsonl`` (about 17 MB for a
+Each match folder looks like a committed sample: ``events.jsonl``, ``clips.jsonl`` (the clips of every player who played,
+labelled by the rules labeller) and ``manifest.json`` (title, round, ``collection: season``). ``tracks.jsonl`` (about 17 MB for a
 30-minute match) is written only when something needs positions, such as video (``ensure_tracks``); profiles need only
 the events. A folder is written
 into a temporary name and renamed into place, so a reader never sees half a match, and it is rebuilt when the league
-definition changes (``manifest.json`` records a fingerprint of the fixture and generator settings).
+definition or the code that builds it changes (``manifest.json`` records a fingerprint of the fixture, the generator
+settings and the source of the modules in ``BUILT_BY``).
 """
 
 from __future__ import annotations
 
+import functools
 import hashlib
 import json
+import os
 import shutil
 import tempfile
 import threading
@@ -21,17 +24,43 @@ from typing import Any
 from regista.clips import derive_clips
 from regista.schema import write_jsonl
 from regista.season.league import club_by_id, generate_kwargs
-from regista.synth.generator import generate
+from regista.season.playing_time import played_seconds
+from regista.synth.generator import LEAGUE_GENERATOR_VERSION, generate
 
 Record = dict[str, Any]
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
+_build_all_lock = threading.Lock()   # one build_all at a time in this process: two would start two pools on one fixture
+
+
+# The modules a match folder is made by: the generator, its motion and camera models, the clip rule and the playing-time
+# rule. Their source is hashed into the fingerprint, so a folder built by older code (a retune within one generator
+# version, a clip-rule change) is rebuilt rather than served. A rebuild takes a few seconds; comment-only edits rebuild too.
+BUILT_BY = ("regista/synth/generator.py", "regista/synth/physical.py", "regista/camera.py", "regista/detmath.py",
+            "regista/clips.py", "regista/season/playing_time.py")
+# The modules a match's events come from (no clips): what the committed reliability table depends on.
+GENERATED_BY = BUILT_BY[:4]
+_SRC = Path(__file__).resolve().parents[2]   # the directory holding the regista package
+
+
+@functools.lru_cache(maxsize=None)
+def code_fingerprint(modules: tuple[str, ...] = BUILT_BY) -> str:
+    """sha256 (16 hex) of the named source files, in order. Read once per process: the code does not change under a
+    running process (a reloading dev server starts a new one)."""
+    h = hashlib.sha256()
+    for rel in modules:
+        h.update(rel.encode())
+        h.update((_SRC / rel).read_bytes())
+    return h.hexdigest()[:16]
 
 
 def fingerprint(league: Record, fixture: Record) -> str:
-    """Changes whenever anything that shapes this match changes: the fixture, both squads, the generator settings."""
+    """Changes whenever anything that shapes this match changes: the fixture, both squads, the generator settings in the
+    league file, the generator's league version, and the source of the code that builds the folder (``BUILT_BY``), so a
+    folder built by older code is rebuilt even when neither the league file nor the version changed."""
     kw = generate_kwargs(league, fixture)
-    return hashlib.sha256(json.dumps({"kw": kw, "gen": league["generator"]}, sort_keys=True).encode()).hexdigest()[:16]
+    data = {"kw": kw, "gen": league["generator"], "code": LEAGUE_GENERATOR_VERSION, "source": code_fingerprint()}
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def title(league: Record, fixture: Record, score: dict[str, int]) -> str:
@@ -65,10 +94,10 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
         root.mkdir(parents=True, exist_ok=True)
         result = generate(**generate_kwargs(league, fixture))
         stream = result.stream
-        starters = [p for p in result.match["players"] if p["starter"]]
+        played = played_seconds(stream)  # starters, and substitutes who came on (league mode)
         clips: list[Record] = []
         labels: list[Record] = []
-        for p in starters:
+        for p in (p for p in result.match["players"] if p["player_id"] in played):
             c, lb = derive_clips(stream, p["player_id"])
             clips += c
             labels += lb
@@ -81,12 +110,17 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
                 "round": fixture["round"], "date": fixture["date"], "home": fixture["home"], "away": fixture["away"],
                 "title": title(league, fixture, result.score),
                 "subtitle": f"{league['league']} {league['season']}, round {fixture['round']}: thirty generated minutes, "
-                            "every starter's moments cut and labelled.",
+                            "every player's moments cut and labelled.",
                 "score": result.score, "fingerprint": fingerprint(league, fixture),
                 "generator": {**league["generator"], "seed": fixture["seed"]},
                 "video_duration_s": result.match["video"]["duration_s"], "clip_count": len(clips),
             }
             (tmp / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+            if is_current(league, fixture, root):
+                # another process got there first (build_all's worker processes do not share this thread lock): keep its
+                # folder rather than delete it under a reader, and drop ours (identical: same fixture, same seed)
+                shutil.rmtree(tmp, ignore_errors=True)
+                return dest
             if dest.exists():
                 shutil.rmtree(dest)
             tmp.rename(dest)
@@ -96,7 +130,35 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
     return dest
 
 
-def build_all(league: Record, root: Path | str) -> list[Path]:
+def _materialise_one(args: tuple[Record, Record, str]) -> str:
+    league, fixture, root = args
+    return str(materialise(league, fixture, root))
+
+
+def build_all(league: Record, root: Path | str, workers: int | None = None) -> list[Path]:
+    """Every fixture's folder. Missing or stale ones are generated in parallel processes (a league match takes about a
+    second to generate, so a cold season of 30 takes about 35 s on one core and a few seconds on several); ``workers`` 1
+    builds them here, one by one. One call runs at a time per process (the warm-up and a request arriving during it would
+    otherwise both spawn pools that generate the same fixtures); the second waits and then finds every folder current.
+    Worker processes are spawned, so a script that calls this must guard its entry point with
+    ``if __name__ == "__main__":`` (each worker imports the script again)."""
+    with _build_all_lock:
+        return _build_all(league, Path(root), workers)
+
+
+def _build_all(league: Record, root: Path, workers: int | None) -> list[Path]:
+    stale = [f for f in league["fixtures"] if not is_current(league, f, root)]
+    workers = min(len(stale), workers or os.cpu_count() or 1)
+    if workers > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        import multiprocessing
+
+        root.mkdir(parents=True, exist_ok=True)
+        try:
+            with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn")) as pool:
+                list(pool.map(_materialise_one, [(league, f, str(root)) for f in stale]))
+        except Exception:  # noqa: BLE001 - no worker processes here (an interactive or piped __main__): the loop below builds
+            pass
     return [materialise(league, f, root) for f in league["fixtures"]]
 
 

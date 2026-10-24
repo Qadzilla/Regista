@@ -101,7 +101,7 @@ def test_search_players_sorts_filters_and_explains(season):
     out = scout.search_players(season, position="FW", sort="shots", limit=50)
     vals = [r["stat"]["value"] for r in out["players"]]
     assert vals == sorted(vals, reverse=True) and len(vals) <= scout.MAX_LIMIT
-    assert out["note"].startswith("players with at least") and out["sort_label"] == "Shots"
+    assert out["note"].startswith("players with at least") and out["sort_label"] == "Shots (incl. penalties)"
     asc = scout.search_players(season, position="FW", sort="shots", order="asc")
     assert [r["stat"]["value"] for r in asc["players"]] == sorted(r["stat"]["value"] for r in asc["players"])
     acc = scout.search_players(season, sort="pass_accuracy")
@@ -339,6 +339,17 @@ def test_a_stored_summary_is_served_only_while_its_numbers_hold(season, tmp_path
     assert summaries.summary_for(season, p, path)["model"] == "rules-v0 (live)"
 
 
+def test_a_summary_goes_stale_when_only_its_rank_moves(season, monkeypatch):
+    """A summary says "3rd of the league's 24 defenders": when other players' numbers move, that rank can change while the
+    player's own counts stay put, so the basis covers the ranks (a basis of his own numbers only kept stale summaries,
+    which then failed their own check: "the number 5 is not in the facts that sentence cites")."""
+    p = summaries.players_with_minutes(season)[0]
+    before = summaries.basis(season, p)
+    real = summaries.rank_in_position
+    monkeypatch.setattr(summaries, "rank_in_position", lambda s, q, k: (real(s, q, k)[0] + 1,) + real(s, q, k)[1:])
+    assert summaries.basis(season, p) != before
+
+
 def test_the_committed_summaries_match_the_committed_league():
     """Every player with minutes has a stored summary written from today's numbers, and it holds up."""
     path = ROOT / "data" / "season" / "summaries.json"
@@ -348,9 +359,25 @@ def test_the_committed_summaries_match_the_committed_league():
     assert set(doc["players"]) == {p["global_id"] for p in players}
     for p in players:
         s = doc["players"][p["global_id"]]
-        assert s["basis"] == summaries.basis(p), f"{p['global_id']}: summary written from other numbers; run summarise again"
+        assert s["basis"] == summaries.basis(full, p), f"{p['global_id']}: summary written from other numbers; run summarise again"
         summaries.check_sentences({"sentences": s["sentences"]}, summaries.facts(full, p))
         assert summaries.summary_for(full, p, path) == s
+
+
+def test_the_scout_agents_example_answer_holds_in_the_committed_league():
+    """The Foundry Scout agent's instructions show one answer as an example; a model may repeat it, so its player, club
+    and numbers must be the rules Scout's answer to the same question on the committed league."""
+    import re
+
+    from regista.cloud.foundry import SCOUT_INSTRUCTIONS
+
+    m = re.search(r'"(.+?) \((.+?)\) wins the most take-ons among forwards, ([0-9.]+) per 90 \((\d+) in (\d+) minutes\)',
+                  SCOUT_INSTRUCTIONS)
+    assert m, "the example answer's wording changed: update this test"
+    full = load_season(ROOT / "data" / "season" / "league.json", ROOT / "data" / "season" / "matches")
+    top = scout.search_players(full, position="FW", sort="take_ons_won", limit=1)["players"][0]
+    assert (m[1], m[2]) == (top["name"], top["club"])
+    assert (float(m[3]), int(m[4]), int(m[5])) == (top["stat"]["value"], top["stat"]["count"], round(top["minutes"]))
 
 
 def test_rate_limits_are_waited_out_and_a_rerun_keeps_current_summaries(season, monkeypatch):

@@ -54,3 +54,5 @@ regista = ["static/*/*.html", "static/*/*.js", "static/*/*.css", "static/*/*.svg
 [tool.pytest.ini_options]
 pythonpath = ["src"]
 testpaths = ["tests"]
+addopts = "-m 'not slow'"
+markers = ["slow: regenerates whole league seasons (minutes); run with  python3 -m pytest -m slow"]

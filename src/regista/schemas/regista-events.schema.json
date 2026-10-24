@@ -10,7 +10,8 @@
     { "$ref": "#/$defs/appearance" },
     { "$ref": "#/$defs/possession" },
     { "$ref": "#/$defs/event" },
-    { "$ref": "#/$defs/annotation" }
+    { "$ref": "#/$defs/annotation" },
+    { "$ref": "#/$defs/physical" }
   ],
   "$defs": {
     "id": { "type": "string", "minLength": 1, "pattern": "^[a-z]{2}_[A-Za-z0-9_.:-]+$" },
@@ -246,7 +247,7 @@
         },
         "lost_by": {
           "type": "string",
-          "enum": ["pass", "shot", "dispossessed", "tackled", "clearance", "out_of_play", "foul", "period_end", "unknown"]
+          "enum": ["pass", "shot", "dispossessed", "tackled", "clearance", "out_of_play", "foul", "offside", "period_end", "unknown"]
         },
         "touches": { "type": "integer", "minimum": 0 },
         "pitch": { "$ref": "#/$defs/pitch_point" },
@@ -268,7 +269,7 @@
           "type": "string",
           "enum": [
             "touch", "pass", "cross", "carry", "dribble", "take_on", "nutmeg", "skill_move",
-            "shot", "goal", "assist", "save", "block", "header",
+            "shot", "goal", "assist", "save", "block", "header", "aerial_duel",
             "tackle", "interception", "clearance", "recovery", "pressure",
             "foul", "foul_won", "offside", "card_yellow", "card_red", "substitution",
             "kick_off", "throw_in", "corner", "free_kick", "goal_kick", "penalty",
@@ -302,6 +303,62 @@
         }
       },
       "required": ["type", "t", "event_type", "outcome", "confidence"],
+      "unevaluatedProperties": false
+    },
+
+    "physical": {
+      "description": "0.2.0, league mode only: one per player who played, his 10 Hz motion summarised (regista.synth.physical has every metric's definition and source). Synthetic and exact: no tracking noise.",
+      "allOf": [{ "$ref": "#/$defs/envelope" }],
+      "properties": {
+        "type": { "const": "physical" },
+        "t": { "$ref": "#/$defs/seconds" },
+        "t_end": { "$ref": "#/$defs/seconds" },
+        "player_id": { "type": "string", "minLength": 1 },
+        "team_id": { "type": "string", "minLength": 1 },
+        "played_s": { "type": "number", "minimum": 0 },
+        "metrics": {
+          "type": "object",
+          "properties": {
+            "distance_m": { "type": "number", "minimum": 0 },
+            "zone1_m": { "type": "number", "minimum": 0 },
+            "zone2_m": { "type": "number", "minimum": 0 },
+            "zone3_m": { "type": "number", "minimum": 0 },
+            "zone4_m": { "type": "number", "minimum": 0 },
+            "zone5_m": { "type": "number", "minimum": 0 },
+            "hi_distance_m": { "type": "number", "minimum": 0 },
+            "sprint_distance_m": { "type": "number", "minimum": 0 },
+            "walking_s": { "type": "number", "minimum": 0 },
+            "jogging_s": { "type": "number", "minimum": 0 },
+            "hi_efforts": { "type": "integer", "minimum": 0 },
+            "sprints": { "type": "integer", "minimum": 0 },
+            "peak_speed_kmh": { "type": "number", "minimum": 0, "maximum": 45 },
+            "accelerations_medium": { "type": "integer", "minimum": 0 },
+            "accelerations_high": { "type": "integer", "minimum": 0 },
+            "decelerations_medium": { "type": "integer", "minimum": 0 },
+            "decelerations_high": { "type": "integer", "minimum": 0 },
+            "relocated_m": { "type": "number", "minimum": 0 }
+          },
+          "required": ["distance_m", "zone1_m", "zone2_m", "zone3_m", "zone4_m", "zone5_m", "hi_distance_m", "sprint_distance_m",
+                       "sprints", "peak_speed_kmh"],
+          "additionalProperties": false
+        },
+        "periods": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "period": { "type": "integer", "minimum": 1, "maximum": 5 },
+              "played_s": { "type": "number", "minimum": 0 },
+              "distance_m": { "type": "number", "minimum": 0 },
+              "hi_distance_m": { "type": "number", "minimum": 0 }
+            },
+            "required": ["period", "played_s", "distance_m", "hi_distance_m"],
+            "additionalProperties": false
+          }
+        },
+        "method": { "type": "object" }
+      },
+      "required": ["type", "t", "t_end", "player_id", "team_id", "played_s", "metrics"],
       "unevaluatedProperties": false
     },
 

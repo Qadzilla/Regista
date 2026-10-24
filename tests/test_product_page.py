@@ -288,7 +288,8 @@ def test_what_the_page_reads_for_a_league_match_is_there(season_client):
     assert all(re.fullmatch(r"pl_[a-z0-9_]{1,40}", p["global_player_id"]) for p in m["players"])
     clips = c.get(f"/api/matches/{mid}/clips").json()
     assert clips and all(re.fullmatch(r"cl_(.+)_\d{6}", x["id"]).group(1) == x["player_id"] for x in clips)
-    assert {x["player_id"] for x in clips} == {p["player_id"] for p in m["players"] if p["starter"]}  # every starter: the player picker works
+    # every starter (and every substitute who came on): the player picker works
+    assert {p["player_id"] for p in m["players"] if p["starter"]} <= {x["player_id"] for x in clips} <= {p["player_id"] for p in m["players"]}
     one = clips[0]
     assert c.get(f"/api/matches/{mid}/moments.csv", params={"player": one["player_id"]}).status_code == 200
     assert c.get("/api/matches/rl_r99_nob_ody").status_code == 404  # an unknown league id: the page falls back

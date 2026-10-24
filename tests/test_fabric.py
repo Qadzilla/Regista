@@ -10,12 +10,12 @@ from pathlib import Path
 import pytest
 
 from regista.cloud import fabric as fb
-from regista.cloud.fabric_notebook import STAT_SQL, definition
+from regista.cloud.fabric_notebook import LEADERS_SQL, STAT_SQL, definition, leaders_rule
 from regista.cloud.fabric_tables import SCHEMAS, UPLOAD_STATS, player_season_rows, season_tables, to_arrow, upload_rows
 from regista.player.store import LocalStore, UploadRecord, match_id_for
 from regista.schema import iter_jsonl
 from regista.season.build import materialise
-from regista.season.league import new_league, people
+from regista.season.league import load_league, new_league, people
 from regista.season.profiles import STATS, Season
 
 ME = "al-qadi.z@northeastern.edu"
@@ -286,10 +286,13 @@ def test_player_season_is_what_the_profiles_show(tables):
 
 def test_matches_rows_give_the_minutes_the_profiles_count(tables):
     small, _root, season, t = tables
-    played = {m["match_id"]: m["played_s"] for m in t["matches"]}
+    played = {(r["match_id"], r["global_id"]): r["played_s"] for r in t["lineups"]}
     for gid, p in season.profiles.items():
         if p["appearances"]:
-            assert p["minutes"] == round(sum(played[m["match_id"]] for m in p["matches"]) / 60.0, 1)
+            assert p["minutes"] == round(sum(played[(m["match_id"], gid)] for m in p["matches"]) / 60.0, 1)
+    # time on the pitch never exceeds the match, and substitutes who came on have some
+    whole = {m["match_id"]: m["played_s"] for m in t["matches"]}
+    assert all(r["played_s"] <= whole[r["match_id"]] + 1e-6 for r in t["lineups"])
     goals = {m["match_id"]: m["home_goals"] + m["away_goals"] for m in t["matches"]}
     for mid, n in goals.items():
         assert n == sum(1 for e in t["events"] if e["match_id"] == mid and e["event_type"] == "goal")
@@ -389,6 +392,38 @@ def test_the_season_compared_with_itself_matches(tables):
     _small, _root, _season, t = tables
     r = fb.compare(t["player_season"], [dict(x) for x in t["player_season"]])
     assert r["ok"] and r["players"] == 108 and r["checked"] == 108 * len(fb.CHECK_STATS)
+
+
+def test_the_notebooks_rule_reproduces_the_profiles_offline(tables):
+    """The notebook's SQL rule (pool, rank value, FBref percentile), applied in Python to the tables Fabric reads, gives
+    the numbers Season.build gives: so the check can pass in Fabric before it is run there."""
+    small, _root, season, t = tables
+    mine = leaders_rule(t)
+    r = fb.compare(t["player_season"], mine)
+    assert r["ok"], fb.report_lines(r)
+    assert r["checked"] == 108 * len(fb.CHECK_STATS)
+    # the pool is a third of the most minutes any club played, so some players who appeared are not ranked
+    assert season.min_minutes > 0
+    appeared = [x for x in mine if x["appearances"] > 0 and x["stat"] == "goals"]
+    assert any(x["percentile"] is None for x in appeared) and any(x["percentile"] is not None for x in appeared)
+
+
+def test_the_notebooks_sql_states_regista_percentile_rule():
+    sql = " ".join(LEADERS_SQL.split())
+    assert "ROUND(MAX(club_min) / 3.0D, 1) AS min_minutes" in sql          # metrics.qualifying_minutes
+    assert "r.minutes_raw >= pool.min_minutes" in sql                        # unrounded minutes, as the profile's pool
+    assert "/ r.minutes_raw, 6)" in sql                                      # metrics.rank_value
+    assert "BROUND(CAST(r.below + r.at_or_below AS DOUBLE) * 50.0D / r.n, 0)" in sql   # metrics.fbref_percentile
+    assert "0.4D" not in sql and "(r.n - 1)" not in sql                      # the old rule is gone
+
+
+@pytest.mark.slow
+def test_the_notebooks_rule_reproduces_the_whole_committed_season(tmp_path):
+    league = load_league("data/season/league.json")
+    season = Season.build(league, tmp_path)
+    t = season_tables(league, tmp_path, season)
+    r = fb.compare(t["player_season"], leaders_rule(t))
+    assert r["ok"] and r["checked"] == 756, fb.report_lines(r)
 
 
 def test_cli_needs_setup_first(monkeypatch, capsys, tmp_path):

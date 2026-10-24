@@ -28,7 +28,8 @@
   // the numerator's.
   const RATIOS = { pass_accuracy: ['passes_completed', 'passes', 'passes completed'],
                    shot_accuracy: ['shots_on_target', 'shots', 'shots on target'],
-                   take_on_success: ['take_ons_won', 'take_ons', 'take-ons won'] };
+                   take_on_success: ['take_ons_won', 'take_ons', 'take-ons won'],
+                   aerial_win: ['aerial_duels_won', 'aerial_duels', 'aerial duels won'] };
   // Kinds of moment worth a reel of their own, in the order the buttons show them (only those the player has).
   const REEL_TAGS = ['goal', 'assist', 'nutmeg', 'take_on', 'skill_move', 'key_pass', 'shot', 'save', 'tackle', 'interception',
                      'ball_won', 'cross'];
@@ -128,6 +129,10 @@
     const group = GROUP[P.position] || 'players';
     const label = (k) => (P.stat_labels && P.stat_labels[k]) || tagLabel(k);
     const counts = P.counts || {}, per90 = P.per90 || {}, pcts = P.percentiles || {};
+    // Stats whose ranking within a role is mostly luck over one season (split-half reliability below 0.3).
+    const noisy = new Set(Array.isArray(P.noisy) ? P.noisy : []);
+    const NOISY_TEXT = 'Mostly noise over one season: this number cannot yet separate players in the same role';
+    const noisyMark = (k) => (noisy.has(k) ? ` <span class="pf-noisy muted small" title="${esc(NOISY_TEXT)}">(noisy)</span>` : '');
     const headline = (HEADLINE[P.position] || HEADLINE.FW).filter((k) => counts[k] !== undefined);
     const top = best(P);
 
@@ -318,12 +323,13 @@
 
     // ---------------------------------------------------------------- numbers
     q('statsSub').textContent = `Across ${P.appearances} ${P.appearances === 1 ? 'match' : 'matches'} this season, against the league's other ${group}. `
-      + 'Every number links to the moment it came from: pick one to see each event behind it.';
+      + 'Every number links to the moment it came from: pick one to see each event behind it.'
+      + (P.sample && P.sample.note ? ` ${P.sample.note}` : '');
     q('tiles').innerHTML = headline.map((k) => `<button type="button" class="pf-tile" data-stat="${esc(k)}" aria-pressed="false" aria-controls="${id}-ev">
       <span class="pf-n">${esc(counts[k])}</span><span class="pf-k">${esc(label(k))}</span>
       <span class="pf-rate">${esc(rate(per90[k]))} per 90 minutes</span>
       <span class="pf-pbar" aria-hidden="true"><i data-w="${pcts[k] === null || pcts[k] === undefined ? 0 : Math.max(3, pcts[k])}"></i></span>
-      <span class="pf-pct">${esc(pctText(pcts[k], P.position))}</span></button>`).join('');
+      <span class="pf-pct">${esc(pctText(pcts[k], P.position))}${noisyMark(k)}</span></button>`).join('');
     q('ratios').innerHTML = Object.entries(P.ratios || {}).filter(([, v]) => v !== null && v !== undefined).map(([k, v]) => {
       const [num, den, said] = RATIOS[k] || [null, null, label(k).toLowerCase()];
       const of = num && den && counts[num] !== undefined && counts[den] !== undefined ? ` <span class="muted">(${esc(counts[num])} of ${esc(counts[den])})</span>` : '';
@@ -334,7 +340,7 @@
     const statRows = Object.keys(per90).filter((k) => counts[k] !== undefined).map((k) => `<tr>
       <th scope="row"><button type="button" class="link" data-stat="${esc(k)}" aria-controls="${id}-ev">${esc(label(k))}</button></th>
       <td>${esc(counts[k])}</td><td>${esc(rate(per90[k]))}</td>
-      <td>${pcts[k] === null || pcts[k] === undefined ? '–' : esc(pcts[k] >= 100 ? 'The best' : `Higher than ${pcts[k]}%`)}</td></tr>`).join('');
+      <td>${pcts[k] === null || pcts[k] === undefined ? '–' : esc(pcts[k] >= 100 ? 'The best' : `Higher than ${pcts[k]}%`)}${noisyMark(k)}</td></tr>`).join('');
     const ratioRows = Object.entries(P.ratios || {}).map(([k, v]) => {
       const [num, den] = RATIOS[k] || [null, null];
       return `<tr><th scope="row">${num && counts[num] !== undefined ? `<button type="button" class="link" data-stat="${esc(num)}" aria-controls="${id}-ev">${esc(label(k))}</button>` : esc(label(k))}</th>
@@ -345,7 +351,7 @@
       <tbody>${statRows}</tbody></table>
       <table class="pf-numbers-table"><caption class="sr">Rates</caption>
       <thead><tr><th scope="col">Rate</th><th scope="col">Share</th><th scope="col">From</th></tr></thead><tbody>${ratioRows}</tbody></table></div>
-      <p class="muted small">Comparisons use per-90 numbers against the other ${esc(group)} in the league who played enough minutes.</p>`;
+      <p class="muted small">Comparisons use per-90 numbers against the other ${esc(group)} in the league who played enough minutes.${noisy.size ? ` Marked (noisy): ${esc(NOISY_TEXT.toLowerCase())}.` : ''}</p>`;
     q('tableToggle').addEventListener('click', () => {
       const open = q('table').hidden;
       q('table').hidden = !open;

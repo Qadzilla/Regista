@@ -54,9 +54,11 @@ MIN_COUNT = 3  # a stat counted fewer times than this is not a claim worth makin
 GENDERED = re.compile(r"\b(he|him|his|himself|she|her|hers|herself)\b", re.I)
 
 
-def basis(p: Record) -> str:
-    """Fingerprint of what a summary is written from: minutes, every count, the best moments."""
-    data = {"minutes": p["minutes"], "counts": p["counts"], "moments": [(m["match_id"], m["clip_id"]) for m in p["moments"][:3]]}
+def basis(season: Season, p: Record, fs: list[Record] | None = None) -> str:
+    """Fingerprint of what a summary is written from: its facts (minutes, every candidate stat with its rank among the
+    position, the best moments). The ranks are in it because they move when *other* players' numbers move: a player
+    whose own counts are unchanged can still have dropped from 3rd to 5th, and a summary saying "3rd" is then stale."""
+    data = {"facts": fs if fs is not None else facts(season, p), "counts": p["counts"]}
     return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 
@@ -162,7 +164,9 @@ def rules_summary(season: Season, p: Record, model: str = RULES_MODEL) -> Record
     if best:
         against = f" against {best['opponent']}" if best.get("opponent") else ""
         sentences.append((f"Best moment: {_moment_words(best['title'])} in round {best['round']}{against}.", [best["id"]]))
-    return _summary(sentences, fs, model, basis(p))
+    if len(sentences) < 2:  # a substitute with a few minutes and nothing to rank: say so rather than overclaim
+        sentences.append((f"{surname} has played too little so far for rates to mean much.", ["P1"]))
+    return _summary(sentences, fs, model, basis(season, p, fs))
 
 
 def _group_word(p: Record) -> str:
@@ -252,7 +256,7 @@ async def foundry_summary(season: Season, p: Record, runner: Runner, model: str)
         try:
             text = await runner(SUMMARY_INSTRUCTIONS, prompt if why is None else f"{prompt}\n\nYour last answer was refused: {why}. "
                                 f"Answer again, JSON only.")
-            return _summary(check_sentences(_extract_json(text), fs), fs, model, basis(p)), None
+            return _summary(check_sentences(_extract_json(text), fs), fs, model, basis(season, p, fs)), None
         except Exception as exc:  # noqa: BLE001 - a bad answer gets one retry, then the rules summary
             if _rate_limited(exc) and waits < RATE_LIMIT_WAITS:  # the deployment's quota, not the answer: wait, ask again
                 waits += 1
@@ -296,7 +300,7 @@ def summarise(season: Season, *, runner: Runner | None = None, model: str | None
     players = players_with_minutes(season)
     kept = {p["global_id"]: keep[p["global_id"]] for p in players
             if keep and p["global_id"] in keep and keep[p["global_id"]].get("model") == (model or RULES_MODEL)
-            and keep[p["global_id"]].get("basis") == basis(p)}
+            and keep[p["global_id"]].get("basis") == basis(season, p)}
     todo = [p for p in players if p["global_id"] not in kept]
     notes: dict[str, str] = {}
     if runner is None:
@@ -356,6 +360,6 @@ def summary_for(season: Season, p: Record, path: Path | str | None = None) -> Re
     if not p["appearances"] or not p["minutes"]:
         return None
     stored = load_summaries(path or summaries_path()).get("players", {}).get(p["global_id"])
-    if stored and stored.get("basis") == basis(p):
+    if stored and stored.get("basis") == basis(season, p):
         return stored
     return rules_summary(season, p, model=f"{RULES_MODEL} (live)")

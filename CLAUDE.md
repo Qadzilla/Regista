@@ -135,10 +135,18 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 | `/players/{id}` | **Player profile** | one player across every match: reel, per-90 stats, touch map, matches, Foundry summary, "Add a match" |
 | `/studio` | **Studio** (as built) | the operator; adds a Claims tab ("that's me" confirmations) |
 
-- **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 8 minutes, generator
-  profile `realistic`, fixed squads of 18 with **global player ids** (`pl_…`) on every roster entry. The league definition
+- **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 2 x 15 minutes,
+  generator profile `league` (league mode: hidden player ratings drive outcomes and roles shape who makes which numbers,
+  generator 0.7.1, the same season bit for bit on macOS and Linux since it takes its transcendental functions from
+  `regista.detmath`, not libm; `regista.synth.report` checks league bands, leaders, the star's lead and role shapes, where crosses start and who receives them), fixed squads of 18
+  with **global player ids** (`pl_…`) on every roster entry. A regular plays about 300 minutes a season, so the Scout
+  terminal and profiles state the sample size and mark metrics whose split-half reliability is below 0.3 as noisy
+  (`regista.season.reliability`, `data/season/reliability.json`). The league definition
   (`data/season/league.json`: clubs, squads, fixtures, seeds) is committed; matches regenerate deterministically from it
-  on the server (0.2 s each) and are not committed.
+  and are not committed. Since league mode (player ratings, 10 Hz motion) a match takes about 1.3 s to generate (median
+  of five, generator 0.7.0, measured 2026-10-24 on Zaid's 10-core Mac; 1.23 s with 0.7.1), so a cold season is built in parallel processes
+  (`regista.season.build.build_all`: 5.9 s on 10 cores, 37 s on one); the Docker image builds the season in at
+  `docker build` time, so a fresh revision starts warm.
 - **Profiles** are aggregated from the event streams: appearances, minutes, counts and per-90 rates, a touch map (attack
   left to right), best moments across matches, and every stat links to the moments it came from ("verified by Regista").
   The **Profile agent** refreshes a profile when a match is added and has Foundry write a summary whose claims cite clips.
@@ -146,12 +154,11 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 - **Add a match / claims:** on the live app a player adds a match as the vision layer's output (events + tracks, as
   uploads do today) and claims "that's me" (kit number + team); the claim is a human annotation confirmed in the Studio.
   On the operator's laptop the same flow accepts a video file and runs the vision layer locally first. Cloud video
-  processing is **planned**, not built (scope: models in Azure, video storage, a job runner).
+  processing for this flow is **planned**; the Player view's uploads (§2.6) already run the vision layer in the cloud.
 - **No real players' profiles for now.** Zaid's recorded match can appear in the Clip view (with consent) but gets no
   profiles. Profiles are synthetic players only.
 - **Out of scope:** accounts and sign-in, footage-rights handling (post-hackathon), payments. Messaging exists only
-  per visitor in the browser (§2.9). **Microsoft
-  Fabric** fits season analytics but is **planned**, not built.
+  per visitor in the browser (§2.9). **Microsoft Fabric** is built (§2.7).
 
 ### 2.6 The third view: Player (decided 2026-10-22, part of the Oct 27 submission)
 
@@ -193,9 +200,10 @@ packages), scouts (Scout: profiles where every stat opens its moment), players (
 
 - **The pitch and the demo video follow this order:** (1) the clip powerhouse, (2) Microsoft, AI and agents shown
   working in the app, (3) the paths. The close says where it goes next.
-- **Not a scouting-only product.** The brief names studio, broadcast and fans and calls metrics-only incomplete. A
-  Bloomberg-style scouting terminal (workspaces, linked panels, ⌘K) is a direction for the Scout path, shown only as
-  "where it goes next", never as working.
+- **Not a scouting-only product.** The brief names studio, broadcast and fans and calls metrics-only incomplete. The
+  Bloomberg-style scouting terminal (workspaces, linked panels, ⌘K) serves the Scout path; its decisions are in §2.10.
+  The demo shows only the part that is built (the engine and its API) and keeps the terminal's screens for "where it
+  goes next" until they exist.
 - `docs/demo-storyboard.md` is written to this structure (2026-10-23). UI/UX work continues in the sandbox
   (`ux/sandbox`); its small wins (yellow current view, centred nav, search-first Home) fold into the app later.
 
@@ -219,13 +227,42 @@ Designed in the sandbox (`ux/sandbox`, `sandbox/`), ported by PR (branch `ux/das
 - The left panel shows a dashboard's sections under its parent link (second row of tabs on phones). `/api/season` lists
   each club's squad (read-only, from `league.json`).
 
+### 2.10 The Scout terminal (decided 2026-10-23 and 2026-10-24)
+
+Research first: `docs/scout-terminal/{industry-metrics,regista-data,catalogue}.md` (the industry's metrics, what
+Regista's data can compute, the chosen catalogue). Build reports, verification and review rounds:
+`docs/scout-terminal/build/`.
+- **Part A, the engine (built on `feature/terminal-engine`, not yet merged or deployed):**
+  - **Player attributes:** every league player has a public bio (date of birth, height, foot, nationality) and hidden
+    ratings (1-99 skills, keeper skills, top speed, acceleration) in `data/season/league.json`. The generator reads them.
+    No API, MCP tool or page serves them; tests check every public payload.
+  - **League mode in the generator** (generator 0.7.1, schema 0.2.0): ratings drive outcomes and roles shape who makes
+    which numbers. League matches use `regista.detmath` (fdlibm ports) instead of libm, so Linux (CI, the live app) and
+    macOS generate the same season; `regista.season.pins` pins every fixture, checked in CI and inside the image. It adds substitutions, penalties, aerial duels, through balls, red cards and offsides. Output without
+    ratings stays byte-identical to `main`.
+  - **10 Hz physical motion** (`synth/physical.py`): every player within their own pace, tiring with stamina. Physical
+    metrics are built for real from the motion (distance, speed zones, sprints, top speed, accelerations), not faked.
+  - **The metrics engine** (`season/metrics.py`: 127 player and 19 team-style metrics, each with definition, rule and
+    source) and **its API** (`terminal_api.py`). `regista.synth.report --league` checks the season against Premier
+    League bands (`docs/realism-report.md`), and `regista.season.audit` measures split-half reliability.
+- **Part B, the terminal's screens (next):** to be built first in the sandbox (`ux/sandbox`), then ported into Scout as a
+  **Terminal** section. They are not shown as working until they run.
+- **Femi Toure (pl_bro_09) is clearly the star** (Zaid, 2026-10-24): the league's top scorer with 5 league goals, none a
+  penalty, two more than anyone (rounds 1, 1, 6, 8, 10), and the leader in goals, non-penalty goals and npxG per 90 in
+  the terminal; the demo's hook. His hidden ratings do it (league attributes version 2, `STAR_RATINGS`: finishing 99,
+  dribbling 72), no match is rigged, and over six pooled seasons his npxG lead (1.56 times the next) stays in band
+  (docs/scout-terminal/build/femi-edge.md). Tests keep him on top, two clear.
+- **Honest numbers:** no metric without its definition and source; the sample size is stated (a regular plays about 300
+  minutes a season); metrics whose split-half reliability is below 0.3 are marked noisy.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
-**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.1.1: adds `annotation.context`, `label.prior_watchability`, `label.review`). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
+**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.2.0 since 2026-10-23: the league's events `substitution`, `penalty`, `aerial_duel`, `card_red`, `offside`, and the record type `physical` (each player's 10 Hz motion summarised: distance, FIFA speed zones, sprints, top speed, accelerations), all from the generator in league mode only; streams without them, every committed sample and the vision layer's output
+included, stay 0.1.1: `regista.vision`, Who's who answers, verdicts and claims stamp `LEGACY_SCHEMA_VERSION`). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
 
 ### 3.0 Code layout and how to run it
 
@@ -247,15 +284,29 @@ src/regista/season/          the Regista League (Scout view data): league.py (6 
 src/regista/player/          the Player view: store.py (Blob + Queue or a local folder: uploads, jobs, matches, models), film.py
                              (synthetic footage of a friendly between league clubs; roster_for gives the vision team sheet)
 src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
+src/regista/season/metrics.py the Scout terminal's metrics engine: 127 player metrics + 19 team-style metrics from the league's
+                             event streams and physical records (FBref/Opta/StatsBomb/Wyscout rules, xT fitted on the season),
+                             per 90, percentiles vs position peers (FBref rule, qualifying minutes = a third of a club's), evidence
+                             per number, form, similar players, team style; python -m regista.season.metrics [--rank K | --player ID]
+src/regista/terminal_api.py  /api/metrics, /api/terminal/{screen,rank,scatter}, /api/players/{id}/{metrics,form,similar},
+                             /api/teams[/{club_id}/style]: public reads, never the hidden ratings
 src/regista/player_api.py    the Player view (/me): uploads to the store (admin), progress, "is this you?" answers through the
                              identity review, finished pv_ matches fetched from the store and served via _match_dir and profiles
+src/regista/season/playing_time.py  time on the pitch from substitutions and red cards (profiles, build, Fabric lineups)
+src/regista/season/audit.py  can a scout trust it: split-half reliability within a kit slot, the scoring chart (python -m regista.season.audit)
+src/regista/season/reliability.py  split-half reliability per metric (data/season/reliability.json); below 0.3 is marked noisy
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
                              on the claimed match, whose profiles executor (the Profile agent, after persist) refreshes the profile
 src/regista/static/player/add-match.js  "Add a match" on a profile: upload events + tracks (or, locally, a video through a vision-run
                              job), then "which one is you?" (team + kit number) as a claim; the Studio's Claims tab decides
-src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
+src/regista/synth/physical.py league mode's motion meters: Body (a player's velocity, reserve, meters), the physical record's
+                             metrics with definitions and sources (DEFINITIONS); the generator (since 0.3.0) moves all 22 at 10 Hz within each
+                             player's top_speed_kmh / acceleration_ms2, tiring with stamina
+src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; with --league [--repeat N] also league-mode,
+                             physical, team-style, leader and role-shape bands (docs/realism-report.md); generator profiles
+                             demo/realistic/league. League mode: hidden ratings drive outcomes (data/synthetic/README.md)
 src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
                              /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline
 src/regista/access.py        who may do what: Product open, Studio behind the view or admin key, writes admin-only
@@ -324,6 +375,10 @@ python3 -m regista.mcp_server --list-tools        # or without the flag: stdio M
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
 python3 -m regista.season build && python3 -m regista.season table && python3 -m regista.season players --position FW --sort take_ons_won
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
+python3 -m regista.synth.report --league [--repeat 6] [--out docs/realism-report.md]   # the league against every band (6 seasons pooled)
+python3 -m regista.season.audit                                # split-half reliability, the top scorers (Femi Toure first)
+python3 -m regista.season.metrics --rank goals --position FW   # the terminal's metrics engine; --player pl_bro_09 for one player
+python3 -m pytest -q -m slow                                   # the slow tests (their own CI workflow)
 python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
 uvicorn regista.api:app          # viewer at http://localhost:8000, OpenAPI at /docs
 az login && ./infra/provision.sh # Azure: writes .env; then add --cloud to regista.agents (Foundry + Cosmos)
@@ -447,7 +502,47 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-23 (evening).** The Player and Scout dashboards are live (PR #34, merge c4a7b26, revision
+**As of 2026-10-24.** Part A of the Scout terminal (§2.10) is built on `feature/terminal-engine` and **merge-ready**
+(PR #36: CI green on Linux, the season pins checked inside the image; not merged, not deployed): player attributes,
+league mode (generator 0.7.1, schema 0.2.0), 10 Hz physical motion, the metrics engine (127 player, 19 team-style
+metrics) and its API, after two review rounds and three closing rounds (`docs/scout-terminal/build/`; closing round 3
+was **not signed off**, see below). On the committed season: 13 of 13 event bands, 14 of 14 physical, 10 of 11
+league-mode (penalties low: one in the season; penalties and red cards are indicative on one season), 12 of 14 leaders
+(indicative: Femi Toure's 6.23 shots per 90 and 46% of Brookfield's npxG are high). Over six pooled seasons every band
+holds (`docs/realism-report.md`). Femi Toure is the top scorer with 5 league goals, two clear; his Goal reel runs
+42.2 s. 798 tests plus 13 slow pass (Mac); CI runs the quick suite on Linux. The dashboards' seeds, the storyboard, README, criteria, architecture and the data README quote this
+league (refreshed and checked against it: docs/scout-terminal/build/refresh-2.md).
+**Cross-platform determinism (2026-10-24):** PR #36's CI failed on Linux (a league fixture and the summaries differed
+from the Mac). Cause: libm's last bits (macOS vs glibc) tipping rng comparisons. Fixed in generator 0.7.1 with
+`regista.detmath`; the season was regenerated, summaries, reliability and the demo seeds follow it, CI is green on
+Linux (docs/scout-terminal/build/determinism.md).
+**Femi Toure's edge (2026-10-24, Zaid's decision):** his hidden ratings are now finishing 99 (the league's only 99)
+and dribbling 72 (`STAR_RATINGS`, league attributes version 2; generator unchanged at 0.7.1). Only Brookfield's ten
+fixtures changed (the other 20 are byte-identical; `season/pins.py` re-recorded). Committed season: 5 goals in 274
+minutes, none a penalty (1.64 per 90), npxG 3.51 (1.15 per 90), next best 3 goals and 0.77 npxG per 90; six pooled
+seasons: every band, npxG gap 1.56, goals gap 1.88. The committed draw is a favourable one: with these ratings he is top
+scorer by two or more and leads both per-90 charts in 8 of 24 regenerated seasons (2 of 24 before), and the pair was
+chosen from 13 Femi-only candidates tried on the committed season (docs/scout-terminal/build/femi-edge.md). Beat 7's
+midfielder is now Sami Okafor (Calder Town, 12.82 recoveries per 90).
+**Fabric (2026-10-24):** the 0.7.0 season's check first matched 328 of 756 (old percentile rule); `LEADERS_SQL` now
+uses Regista's rule (FBref's percentile, unrounded rates, a third of a club's minutes) and `tests/test_fabric.py` checks
+that rule offline against `Season.build`. Then the season the app serves (0.7.1, the star's version 2 ratings) was
+pushed (events 33,758 rows, clips 10,661, player_season 3,024, uploads 1) and the notebook's check matched **756 of
+756** (run 52 s), so beat 5 can show it. No goal is called a header in the demo seeds or the storyboard: the
+generator stages headed goals after the header's own carry (the round 1 goal at 56' is a 6 m carry, then a headed
+shot), an open finding below.
+**Open from closing round 3 (not fixed, not yet accepted; Zaid's call):** review-a-final3 #1, nobody attacks the box at
+corners (62 of 107 corners in the committed season, 70 of 115 before the star's version 2 ratings, 66 of 111 with 0.7.0, are followed by the taker's cross; the rest by a carry, pass, take-on, shot or the ball going
+dead); review-b-final3 #1, headed shots and goals at about half the Premier League rate (a completed cross becomes an
+ordinary possession, so many headed shots come within 3 s of the header's own carry: 7 of 17 in the committed season, 8 of 14 in the review's 0.7.0 count); #2, progressive passes low in every
+role; #3, wide players in the crossing zone almost always cross (`cross_choice` 1.0). Fixing any of them changes the
+generator, so the league regenerates: every quoted number, the dashboards' seeds, `reliability.json` and the Fabric push
+move with it, and Femi Toure must stay top scorer, two clear.
+Left: merge PR #36 and deploy (then re-check storyboard beats 1, 5 and 7 on the live app, read-only), those findings
+(fix or accept), part B (the terminal's screens, sandbox first, then ported into Scout as a Terminal section), Zaid's
+match, the video, the pitch, the public repo, submit by 2026-10-27.
+
+**Earlier, 2026-10-23 (evening).** The Player and Scout dashboards are live (PR #34, merge c4a7b26, revision
 `regista-api--d1023210106`; §2.9): `/me` (Femi Toure: Overview, My profile, Matches & videos, Messages, Team,
 Settings), `/scout` (Maya Lindqvist, Fairhaven FC: Overview, Find players, Shortlist, Reports, Messages, Team, Settings),
 and `/players/{id}` as the one shared profile with a scout bar. Messages, stages, notes, reports, needs and settings are
