@@ -25,6 +25,16 @@ ACCESS = {
     "GET /api/players/{gid}/reel.mp4": "public",
     "GET /api/compare": "public",
     "POST /api/scout/ask": "public",  # the Scout agent: reads only; Foundry behind the Ask limits, player tools only
+    # The Scout terminal's metrics (open, reads only: synthetic players, never the hidden ratings)
+    "GET /api/metrics": "public",
+    "GET /api/terminal/screen": "public",
+    "GET /api/terminal/rank": "public",
+    "GET /api/terminal/scatter": "public",
+    "GET /api/players/{gid}/metrics": "public",
+    "GET /api/players/{gid}/form": "public",
+    "GET /api/players/{gid}/similar": "public",
+    "GET /api/teams": "public",
+    "GET /api/teams/{club_id}/style": "public",
     # The Player view (reads open: synthetic players, records without paths or keys; writes admin-only)
     "GET /me": "public",
     "GET /api/player/uploads": "public",

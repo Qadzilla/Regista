@@ -61,6 +61,9 @@ def warm_season() -> None:
         try:
             season()
             WARM["state"] = "ready"
+            from regista.terminal_api import warm_metrics
+
+            warm_metrics()  # the Scout terminal's metrics, after the profiles
         except Exception as exc:  # noqa: BLE001 - reported by /api/season, never fatal to the app
             WARM.update(state="failed", error=f"{type(exc).__name__}: {exc}")
 

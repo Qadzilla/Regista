@@ -247,6 +247,12 @@ src/regista/season/          the Regista League (Scout view data): league.py (6 
 src/regista/player/          the Player view: store.py (Blob + Queue or a local folder: uploads, jobs, matches, models), film.py
                              (synthetic footage of a friendly between league clubs; roster_for gives the vision team sheet)
 src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
+src/regista/season/metrics.py the Scout terminal's metrics engine: 127 player metrics + 19 team-style metrics from the league's
+                             event streams and physical records (FBref/Opta/StatsBomb/Wyscout rules, xT fitted on the season),
+                             per 90, percentiles vs position peers (FBref rule, qualifying minutes = a third of a club's), evidence
+                             per number, form, similar players, team style; python -m regista.season.metrics [--rank K | --player ID]
+src/regista/terminal_api.py  /api/metrics, /api/terminal/{screen,rank,scatter}, /api/players/{id}/{metrics,form,similar},
+                             /api/teams[/{club_id}/style]: public reads, never the hidden ratings
 src/regista/player_api.py    the Player view (/me): uploads to the store (admin), progress, "is this you?" answers through the
                              identity review, finished pv_ matches fetched from the store and served via _match_dir and profiles
 src/regista/season/playing_time.py  time on the pitch from substitutions and red cards (profiles, build, Fabric lineups)
