@@ -2,8 +2,8 @@
 // with Bloomberg-style mnemonics (TOURE <GO>, RANK FW npxg, CMP, SCAT, SIM, SHOT, FORM, TEAM, HELP) over linked panels:
 // screener, player, radar or pizza vs position peers, clips, shot map, heat map, form, scatter, team style. Selecting a
 // player in any panel updates the others; every number opens the moments behind it (the engine's evidence) in the clips
-// panel, which plays them from the app named in terminal.json ("app": the live app, which serves this league since part A merged;
-// league). terminal.json is part A's metrics engine exported by tools/export_terminal.py; it holds no hidden ratings.
+// panel, which plays them from the app named in terminal.json ("app": the live app, which serves this league since part A merged).
+// terminal.json is part A's metrics engine exported by tools/export_terminal.py; it holds no hidden ratings.
 // Three workspaces (panels, players, columns) are kept in this browser only (localStorage, wrapped in try/catch).
 (function () {
   'use strict';
