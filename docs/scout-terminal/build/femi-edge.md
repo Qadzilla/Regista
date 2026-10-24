@@ -170,7 +170,12 @@ ratings roughly quadruple his chance of all three, but they do not guarantee it.
 - **Updated:** the dashboard seed tests check every new claim against the league: the counts, the ranks, the round 8
   carry ending in the box, the goal distances, and the two goals in round 1.
 - **Results on the Mac (Python 3.13):** 798 passed, 13 slow passed, `tests/test_backcompat.py` 9 passed.
-- **CI on Linux:** see below.
+- **CI on Linux (Python 3.11, numpy 2.4.x), commit ec47e56:** both runs green.
+  - Push run: https://github.com/Qadzilla/Regista/actions/runs/40132000170
+  - PR run: https://github.com/Qadzilla/Regista/actions/runs/40132001275
+  - 797 passed, 1 skipped.
+  - The image's smoke test printed `{"check": "season-pins", "ok": true, ..., "differs": {}}`, so Linux
+    generates the same season.
 
 ## Open issues
 
