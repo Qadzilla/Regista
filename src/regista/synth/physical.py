@@ -12,8 +12,9 @@ exactly (no tracking noise), not anybody's real output.
 
 from __future__ import annotations
 
-import math
 from typing import Any
+
+from regista import detmath
 
 Record = dict[str, Any]
 
@@ -183,7 +184,7 @@ class Body:
         self.hi_t = self.sp_t = 0.0
         self._end_acc()
         self._end_dec()
-        self.s_prev = math.hypot(self.vx, self.vy)
+        self.s_prev = detmath.hypot(self.vx, self.vy)   # league mode only: the same bits on every platform
 
     def metrics(self) -> dict[str, float]:
         z = self.zone

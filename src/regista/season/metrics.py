@@ -33,6 +33,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
+from regista import detmath
 from regista.schema import iter_jsonl
 from regista.season.playing_time import played_seconds
 
@@ -1054,7 +1055,7 @@ def _pass(mm: MatchMetrics, r: Record, pid: str, team: str, start: tuple[float, 
     et = r["event_type"]
     ok = r.get("outcome") == "success"
     if start and end:
-        dist = float(metrics.get("pass_distance_m") or math.hypot(end[0] - start[0], end[1] - start[1]))
+        dist = float(metrics.get("pass_distance_m") or detmath.hypot(end[0] - start[0], end[1] - start[1]))
     else:
         dist = float(metrics.get("pass_distance_m") or 0.0)
     possession = poss_by_id.get(r.get("possession_id") or "")
@@ -1130,7 +1131,7 @@ def _carry(mm: MatchMetrics, r: Record, pid: str, start: tuple[float, float] | N
     mm.add(pid, "carries", 1, r)
     if not (start and end):
         return
-    dist = float(metrics.get("carry_distance_m") or math.hypot(end[0] - start[0], end[1] - start[1]))
+    dist = float(metrics.get("carry_distance_m") or detmath.hypot(end[0] - start[0], end[1] - start[1]))
     mm.add(pid, "carry_distance", dist, r)
     mm.add(pid, "progressive_carry_distance", max(0.0, end[0] - start[0]), r)
     ref = max([start[0], *team_chain])
@@ -1660,7 +1661,7 @@ class SeasonMetrics:
                 per_match.append(_match_value(m, row))
             rates = [v for v, row in zip(per_match, ps.matches) if v is not None and row["minutes"] >= FORM_MIN_MINUTES]
             mean = sum(rates) / len(rates) if rates else None
-            sd = math.sqrt(sum((v - mean) ** 2 for v in rates) / (len(rates) - 1)) if len(rates) > 1 else None
+            sd = math.sqrt(sum((v - mean) * (v - mean) for v in rates) / (len(rates) - 1)) if len(rates) > 1 else None
             last3 = [v for v in per_match[-3:] if v is not None]
             season_v = ps.values.get(key)
             out[key] = {"values": [None if v is None else round(v, m.digits) for v in per_match],
@@ -1687,7 +1688,7 @@ class SeasonMetrics:
         for k in keys:
             vals = [ps.values[k] for ps in pool if ps.values.get(k) is not None]
             mu = sum(vals) / len(vals) if vals else 0.0
-            sd = math.sqrt(sum((v - mu) ** 2 for v in vals) / len(vals)) if vals else 0.0
+            sd = math.sqrt(sum((v - mu) * (v - mu) for v in vals) / len(vals)) if vals else 0.0
             stats[k] = (mu, sd)
 
         def z(ps: PlayerSeason) -> list[float]:

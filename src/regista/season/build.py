@@ -36,10 +36,10 @@ _build_all_lock = threading.Lock()   # one build_all at a time in this process: 
 # The modules a match folder is made by: the generator, its motion and camera models, the clip rule and the playing-time
 # rule. Their source is hashed into the fingerprint, so a folder built by older code (a retune within one generator
 # version, a clip-rule change) is rebuilt rather than served. A rebuild takes a few seconds; comment-only edits rebuild too.
-BUILT_BY = ("regista/synth/generator.py", "regista/synth/physical.py", "regista/camera.py", "regista/clips.py",
-            "regista/season/playing_time.py")
+BUILT_BY = ("regista/synth/generator.py", "regista/synth/physical.py", "regista/camera.py", "regista/detmath.py",
+            "regista/clips.py", "regista/season/playing_time.py")
 # The modules a match's events come from (no clips): what the committed reliability table depends on.
-GENERATED_BY = BUILT_BY[:3]
+GENERATED_BY = BUILT_BY[:4]
 _SRC = Path(__file__).resolve().parents[2]   # the directory holding the regista package
 
 

@@ -83,7 +83,7 @@ def compute(league: Record, seasons: int = DEFAULT_SEASONS) -> Record:
             out[key] = {"r": None, "season_r": None, "n": n, "noisy": None}
             continue
         out[key] = {"r": round(r, 3), "season_r": round(2 * r / (1 + r), 3) if r > 0 else 0.0, "n": n,
-                    "noisy": r < NOISE_R}
+                    "noisy": round(r, 3) < NOISE_R}   # decided on the r it shows, so the table reads consistently
     return {"generator_version": LEAGUE_GENERATOR_VERSION, "league_fingerprint": league_fingerprint(league),
             "seasons": seasons, "noise_r": NOISE_R, "synthetic": True,
             "method": "split-half reliability within role: rounds 1-5 against rounds 6-10 of each season, each half computed "

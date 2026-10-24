@@ -4,7 +4,7 @@
  "seed": 2026,
  "generator": {
   "name": "regista-synth",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "profile": "league",
   "minutes": 15.0,
   "periods": 2,

@@ -339,6 +339,17 @@ def test_a_stored_summary_is_served_only_while_its_numbers_hold(season, tmp_path
     assert summaries.summary_for(season, p, path)["model"] == "rules-v0 (live)"
 
 
+def test_a_summary_goes_stale_when_only_its_rank_moves(season, monkeypatch):
+    """A summary says "3rd of the league's 24 defenders": when other players' numbers move, that rank can change while the
+    player's own counts stay put, so the basis covers the ranks (a basis of his own numbers only kept stale summaries,
+    which then failed their own check: "the number 5 is not in the facts that sentence cites")."""
+    p = summaries.players_with_minutes(season)[0]
+    before = summaries.basis(season, p)
+    real = summaries.rank_in_position
+    monkeypatch.setattr(summaries, "rank_in_position", lambda s, q, k: (real(s, q, k)[0] + 1,) + real(s, q, k)[1:])
+    assert summaries.basis(season, p) != before
+
+
 def test_the_committed_summaries_match_the_committed_league():
     """Every player with minutes has a stored summary written from today's numbers, and it holds up."""
     path = ROOT / "data" / "season" / "summaries.json"
@@ -348,7 +359,7 @@ def test_the_committed_summaries_match_the_committed_league():
     assert set(doc["players"]) == {p["global_id"] for p in players}
     for p in players:
         s = doc["players"][p["global_id"]]
-        assert s["basis"] == summaries.basis(p), f"{p['global_id']}: summary written from other numbers; run summarise again"
+        assert s["basis"] == summaries.basis(full, p), f"{p['global_id']}: summary written from other numbers; run summarise again"
         summaries.check_sentences({"sentences": s["sentences"]}, summaries.facts(full, p))
         assert summaries.summary_for(full, p, path) == s
 

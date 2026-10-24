@@ -101,12 +101,28 @@ def test_ratings_for_only_some_players_are_refused(league):
 
 # ---------------------------------------------------------------------------- the committed season, pinned
 
-# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.7.0. A generator
-# edit that moves them changes the season every page shows: re-record these, then re-check the demo's claims and clip ids
-# (src/regista/static/shared/demo.js, docs/demo-storyboard.md) and regenerate data/season/summaries.json.
-LEAGUE_PINS = {0: "0ea2fbf9bd6b0c98a45e92b3f1373127d3b646c319d7c6b87d521def908eedc2",
-               1: "9f6735b15513cd97200d054c8920a0ec807bb55d289f58464873e1d9967481c8",
-               2: "7333c6c48ddd3c5541198095c1786c20ebbee5670edffaefa04fba94f46923c4"}
+# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.7.1. A generator
+# edit that moves them changes the season every page shows: re-record these and SEASON_PINS, then re-check the demo's
+# claims and clip ids (src/regista/static/shared/demo.js, docs/demo-storyboard.md), regenerate data/season/summaries.json
+# and data/season/reliability.json. Recorded on macOS; CI checks them on Linux, where the live app builds the league
+# (they agree since 0.7.1, which takes its transcendental functions from regista.detmath instead of libm).
+LEAGUE_PINS = {0: "f1c2807a9f3883ebdc0ae53195a7d6c9f74837cb62690e3deabf00c5029a4936",
+               1: "afc1b9d9b86a2508e86bccb1931ef9ab7a4bcef496565a98d7ddfaac9ae97a65",
+               2: "0172a8f04cba71b0e3e1d11c8bc46f6cbdcc8f6c1ff51f38eefee1c470f6e808"}
+# The first 16 hex digits of every committed fixture's events.jsonl as regista.season.build writes it: the whole season,
+# so a platform or Python version that generates any match differently fails here and names the matches.
+SEASON_PINS = {
+    "rl_r01_ash_fai": "f1c2807a9f3883eb", "rl_r01_eas_bro": "afc1b9d9b86a2508", "rl_r01_cal_dun": "0172a8f04cba71b0",
+    "rl_r02_eas_ash": "7e6b8baea53bb494", "rl_r02_fai_dun": "1281f3025b9aaf87", "rl_r02_cal_bro": "f189d10f4a055dda",
+    "rl_r03_ash_dun": "08818645da5240c0", "rl_r03_cal_eas": "5cfe351519e61c2e", "rl_r03_fai_bro": "5dcdb9de6c398038",
+    "rl_r04_cal_ash": "13479646c6dbc3a5", "rl_r04_dun_bro": "07795b9217ece9fa", "rl_r04_fai_eas": "2c9eda5285559326",
+    "rl_r05_ash_bro": "803ae3d1c7a9b2fe", "rl_r05_fai_cal": "71dd5c0b9d3ce00f", "rl_r05_dun_eas": "c3bb78aec66c12c0",
+    "rl_r06_fai_ash": "48317e2bebe792bf", "rl_r06_bro_eas": "1d921912871dd7a4", "rl_r06_dun_cal": "e1eaf403e6d70963",
+    "rl_r07_ash_eas": "6e819c246f6fafa6", "rl_r07_dun_fai": "4475724a4c7b6605", "rl_r07_bro_cal": "3204fbbc308a04c2",
+    "rl_r08_dun_ash": "7c8557ffab43cedd", "rl_r08_eas_cal": "81d528741a7faddf", "rl_r08_bro_fai": "7fbe8ac8e1f746c9",
+    "rl_r09_ash_cal": "3d7ae0ea4ce1612e", "rl_r09_bro_dun": "37049415e5f7f2a7", "rl_r09_eas_fai": "c4d528ce9fa50e0f",
+    "rl_r10_bro_ash": "a7851dfbe0d97891", "rl_r10_cal_fai": "fad35dca4f094f30", "rl_r10_eas_dun": "454f07db023b3ff4",
+}
 DEMO_JS = ROOT / "src" / "regista" / "static" / "shared" / "demo.js"
 
 
@@ -116,6 +132,20 @@ def test_the_committed_season_is_pinned(matches, tmp_path):
     for i, want in LEAGUE_PINS.items():
         write_jsonl(tmp_path / f"{i}.jsonl", matches[i].stream)
         assert hashlib.sha256((tmp_path / f"{i}.jsonl").read_bytes()).hexdigest() == want, i
+
+
+def test_the_whole_committed_season_is_the_same_on_every_platform(league):
+    """Every fixture of the committed season, built as the server builds it (regista.season.build), matches the hashes
+    recorded on macOS. On CI this runs on Linux: before 0.7.1 libm's last bits made fixtures differ there."""
+    from regista.season.build import build_all
+
+    root = ROOT / "data" / "season" / "matches"
+    build_all(league, root)
+    got = {fx["match_id"]: hashlib.sha256((root / fx["match_id"] / "events.jsonl").read_bytes()).hexdigest()[:16]
+           for fx in league["fixtures"]}
+    assert set(got) == set(SEASON_PINS)
+    drift = sorted(m for m in got if got[m] != SEASON_PINS[m])
+    assert not drift, f"{len(drift)} of {len(got)} matches generated differently here: {drift}"
 
 
 def test_every_clip_the_demo_cites_exists_and_shows_what_its_title_says(league, tmp_path):

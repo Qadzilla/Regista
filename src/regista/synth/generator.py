@@ -16,13 +16,14 @@ import random
 from dataclasses import dataclass, field
 from typing import Any
 
+from regista import detmath
 from regista.camera import MAIN_K, MAIN_WINDOW_M, camera_centre, screen_x
 from regista.schema import LEGACY_SCHEMA_VERSION, SCHEMA_VERSION
 from regista.synth.physical import METHOD as PHYSICAL_METHOD, Body
 
 GENERATOR_NAME = "regista-synth"
 GENERATOR_VERSION = "0.1.0"          # without player attributes: unchanged since 0.1.0, byte for byte
-LEAGUE_GENERATOR_VERSION = "0.7.0"   # with them (league mode): player ratings drive outcomes, plus the 0.2.0 events;
+LEAGUE_GENERATOR_VERSION = "0.7.1"   # with them (league mode): player ratings drive outcomes, plus the 0.2.0 events;
 # 0.3.0: every player moves at 10 Hz within his own pace and acceleration, and each gets a ``physical`` record
 # 0.4.0: retuned against individual leader bands (review round 1): shots spread by role, finishing worth a realistic edge,
 #        centre-backs attack the high balls, shorter carries, crosses completed at the Premier League's rate, hard braking
@@ -31,6 +32,8 @@ LEAGUE_GENERATOR_VERSION = "0.7.0"   # with them (league mode): player ratings d
 #        cross, midfielders and defenders win the tackles, forwards are fouled; the star's edge in chances softened
 # 0.7.0: crosses decided first and aimed at the players attacking the box, from the final 35-40 m (review closing round 2);
 #        the back line steps up in possession, full-backs and wingers hold the width, centre-backs hit some balls long
+# 0.7.1: the same match on every platform: exp, log, sin, cos, hypot and Gaussians from ``regista.detmath`` instead of
+#        libm, whose last bits differ between macOS and Linux (a league fixture came out different on CI); same tuning
 
 PITCH_L = 105.0
 PITCH_W = 68.0
@@ -359,12 +362,13 @@ SUB_GROUPS = {"FB": "DEF", "CB": "DEF", "DM": "MID", "CM": "MID", "AM": "MID", "
 
 
 def _logit(p: float) -> float:
+    """Log-odds (league mode only, so through ``detmath``: the same bits on every platform)."""
     p = clamp(p, 1e-4, 1 - 1e-4)
-    return math.log(p / (1 - p))
+    return detmath.log(p / (1 - p))
 
 
 def _sigmoid(v: float) -> float:
-    return 1.0 / (1.0 + math.exp(-v))
+    return 1.0 / (1.0 + detmath.exp(-v))
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
@@ -373,6 +377,12 @@ def clamp(v: float, lo: float, hi: float) -> float:
 
 def dist(a: Point, b: Point) -> float:
     return math.hypot(a[0] - b[0], a[1] - b[1])
+
+
+def _det_dist(a: Point, b: Point) -> float:
+    """``dist`` for league mode: ``detmath.hypot``, the same bits on every platform."""
+    dx, dy = a[0] - b[0], a[1] - b[1]
+    return detmath.sqrt(dx * dx + dy * dy)
 
 
 def pt(x: float, y: float) -> dict[str, float]:
@@ -478,6 +488,12 @@ class MatchSim:
         # League mode: the squads carry hidden ratings. Everything it changes is behind ``self.league``.
         self.league = any("attributes" in m for spec in self.team_specs for m in spec.get("squad") or [])
         self.schema_version = SCHEMA_VERSION if self.league else LEGACY_SCHEMA_VERSION
+        # League matches are built on demand on the server (Linux) and must be the same match on every machine, so they
+        # draw their transcendental functions and Gaussians from ``detmath`` (the same bits everywhere) rather than
+        # from the platform's libm, whose last bits differ between macOS and glibc. Without ratings: ``math`` and
+        # ``random.Random`` as always, so that output is byte-identical to the 0.1 generator's.
+        self.m: Any = detmath if self.league else math
+        self.dist = _det_dist if self.league else dist
         self.period = 1
         self.period_start_t = 0.0
         self.period_table: list[dict[str, Any]] = []
@@ -485,7 +501,7 @@ class MatchSim:
         self.minutes = minutes  # per period
         self.track_hz = track_hz
         self.fps = fps
-        self.rng = random.Random(seed)
+        self.rng = detmath.Random(seed) if self.league else random.Random(seed)
         # Track sampling has its own stream so the camera model and --track-hz never change the match itself.
         self.track_rng = random.Random(seed * 7919 + 1)
         self.match_id = match_id or f"syn_{seed:04d}"
@@ -533,7 +549,7 @@ class MatchSim:
         if self.league:
             self._plan_substitutions()
             # Motion has its own random stream, so the wander of 22 players never reorders the match's own draws.
-            self.move_rng = random.Random(seed * 104729 + 3)
+            self.move_rng = detmath.Random(seed * 104729 + 3)
             for p in self.players.values():
                 a = p.attrs or {}
                 stz = (a.get("stamina", SKILL_CENTRE["stamina"]) - SKILL_CENTRE["stamina"]) / RATING_SD
@@ -603,7 +619,7 @@ class MatchSim:
 
     def nearest(self, point: Point, team: Team, exclude: Player | None = None, outfield: bool = False) -> Player:
         cands = [p for p in team.starters if p is not exclude and (not outfield or p.position != "GK")]
-        return min(cands, key=lambda p: dist(p.pos, point))
+        return min(cands, key=lambda p: self.dist(p.pos, point))
 
     # ------------------------------------------------------------------ league mode: skills and helpers
     def z(self, p: Player, key: str) -> float:
@@ -699,7 +715,7 @@ class MatchSim:
         outs = [q for q in team.starters if q.position != "GK" and q.player_id not in self.subbed and q is not self.holder]
         if not bench or not outs:
             return
-        weights = [math.exp(-0.8 * self.z(q, "stamina")) for q in outs]
+        weights = [self.m.exp(-0.8 * self.z(q, "stamina")) for q in outs]
         off = rng.choices(outs, weights=weights)[0]
         same = [q for q in bench if q.role == off.role]
         line = [q for q in bench if SUB_GROUPS.get(q.role) == SUB_GROUPS.get(off.role)]
@@ -797,7 +813,7 @@ class MatchSim:
         if live and holder is not None:
             hx, hy = holder.x, holder.y
             near = sorted((q for q in self.other(holder.team).starters if q.position != "GK"),
-                          key=lambda q: (q.x - hx) ** 2 + (q.y - hy) ** 2)
+                          key=lambda q: (q.x - hx) * (q.x - hx) + (q.y - hy) * (q.y - hy))
             press = near[0]
             if recovering and len(near) > 1:
                 cover = near[1]            # just after losing it, a second man joins the press (a counter-press)
@@ -813,7 +829,7 @@ class MatchSim:
         jog, run, high, gain, walk = M["jog"], M["run"], M["high"], M["gain"], M["walk"]
         ramp = M["ramp"]
         comfort = M["comfort_acc"]
-        hypot = math.hypot
+        hypot = self.m.hypot
         for team in (self.home, self.away):
             sign = team.attack_sign
             sh = self.shift[team.team_id]
@@ -958,7 +974,7 @@ class MatchSim:
         as ``relocated_m`` and never counted as distance."""
         if p.body is not None:
             if self.in_period and p.on:
-                p.body.relocated += math.hypot(x - p.x, y - p.y)
+                p.body.relocated += self.m.hypot(x - p.x, y - p.y)
             if stop:
                 p.body.vx = p.body.vy = 0.0
         p.x, p.y = x, y
@@ -969,7 +985,7 @@ class MatchSim:
         if self.league:
             self.chasers[p.player_id] = point
             end = self.t + max_s
-            while self.t < end - 1e-9 and p.on and dist(p.pos, point) > MOTION["reach_m"]:
+            while self.t < end - 1e-9 and p.on and self.dist(p.pos, point) > MOTION["reach_m"]:
                 self.advance(SIM_DT)
             self.chasers.pop(p.player_id, None)
         self._place(p, point[0], point[1])
@@ -993,7 +1009,7 @@ class MatchSim:
         """The nearest outfield player of each team runs to where the ball is going (league mode)."""
         if self.league:
             for team in teams:
-                q = min((q for q in team.starters if q.position != "GK"), key=lambda q: (dist(q.pos, point), q.player_id))
+                q = min((q for q in team.starters if q.position != "GK"), key=lambda q: (self.dist(q.pos, point), q.player_id))
                 self.chasers[q.player_id] = point
 
     def _physical(self) -> list[Record]:
@@ -1050,7 +1066,7 @@ class MatchSim:
                 else:
                     tx, ty = ax, ay
                 dx, dy = tx - p.x, ty - p.y
-                d = math.hypot(dx, dy)
+                d = self.m.hypot(dx, dy)
                 if d > 1e-6:
                     move = min(d, PLAYER_SPEED * step)
                     p.x += dx / d * move + self.rng.gauss(0, 0.05)
@@ -1108,7 +1124,7 @@ class MatchSim:
         across 1 m in front and wins the ball or the foul. Only ``_apply_duels`` reads this, after the match is over;
         the match itself, its events and every random draw are unchanged."""
         dx, dy = past[0] - start[0], past[1] - start[1]
-        n = math.hypot(dx, dy) or 1.0
+        n = self.m.hypot(dx, dy) or 1.0
         u = (dx / n, dy / n)
         normal = (-u[1], u[0])
         # Go round on the side facing the middle of the pitch, so nobody is pushed off it; deterministic, no random draw.
@@ -1150,7 +1166,7 @@ class MatchSim:
                     dx, dy = w0[d["defender"]]
                     moved[d["defender"]] = (dx + (d["spot"][0] - dx) * w, dy + (d["spot"][1] - dy) * w)
                 if d["kind"] in ("beat", "nutmeg") and d["t0"] <= t <= d["t1"]:
-                    bump = math.sin(math.pi * (t - d["t0"]) / max(1e-6, d["t1"] - d["t0"]))
+                    bump = self.m.sin(math.pi * (t - d["t0"]) / max(1e-6, d["t1"] - d["t0"]))
                     ox, oy = d["offset"][0] * bump, d["offset"][1] * bump
                     if d["attacker"] in w0:
                         moved[d["attacker"]] = (w0[d["attacker"]][0] + ox, w0[d["attacker"]][1] + oy)
@@ -1379,7 +1395,7 @@ class MatchSim:
         sign = team.attack_sign
 
         marker = self.nearest(p.pos, opp)
-        pressure = dist(marker.pos, p.pos) < 3.5
+        pressure = self.dist(marker.pos, p.pos) < 3.5
         if pressure:
             self.cur_pos["under_pressure"] = True
             self._event("pressure", marker, related=p, pitch=marker.pos, under_pressure=False)
@@ -1394,27 +1410,27 @@ class MatchSim:
         # Carry: drift toward goal when there is space.
         start = p.pos
         ahead = self.nearest((p.x + 6 * sign, p.y), opp)
-        space = dist(ahead.pos, (p.x + 6 * sign, p.y)) > 5.0
-        carry_p = 0.7 if not self.league else clamp(0.7 * math.exp(LEAGUE["carry_drive"] * self.z(p, "dribbling"))
+        space = self.dist(ahead.pos, (p.x + 6 * sign, p.y)) > 5.0
+        carry_p = 0.7 if not self.league else clamp(0.7 * self.m.exp(LEAGUE["carry_drive"] * self.z(p, "dribbling"))
                                                     * LEAGUE["carry_role"].get(p.role or "", 1.0), 0.0, 0.95)
         if space and rng.random() < carry_p:
-            speed = rng.uniform(*LEAGUE["carry_speed"]) * math.exp(LEAGUE["carry_pace"] * clamp(self.z(p, "dribbling"), -2.0, 4.0)) \
+            speed = rng.uniform(*LEAGUE["carry_speed"]) * self.m.exp(LEAGUE["carry_pace"] * clamp(self.z(p, "dribbling"), -2.0, 4.0)) \
                 if self.league else rng.uniform(3.0, 7.0)
             side = LEAGUE["carry_side_m"] if self.league else 4.0
             target = (clamp(p.x + sign * speed * hold, 1.0, PITCH_L - 1.0), clamp(p.y + rng.gauss(0, side), 1.0, PITCH_W - 1.0))
         else:
             target = (clamp(p.x + rng.gauss(0, 1.0), 1.0, PITCH_L - 1.0), clamp(p.y + rng.gauss(0, 1.0), 1.0, PITCH_W - 1.0))
         t0 = self.t
-        self.ball_speed = dist(start, target) / hold
+        self.ball_speed = self.dist(start, target) / hold
         self.advance(hold, ball_to=target)
         self.ball_speed = 0.0
-        carried = dist(start, p.pos)
+        carried = self.dist(start, p.pos)
         if carried > 3.0:
             self._event("carry", p, t=t0, t_end=self.t, pitch=start, pitch_end=p.pos, outcome="success", under_pressure=pressure,
                         metrics={"carry_distance_m": carried, "sprint_speed_kmh": carried / hold * 3.6},
                         qualifiers=["dribble"] if pressure else None)
 
-        dgoal = dist(p.pos, team.goal)
+        dgoal = self.dist(p.pos, team.goal)
         d1, w1, d2, w2, d3, w3 = self.tune["shot_weights"]
         w_pass = 0.6
         w_take_on = (0.07 + (0.12 if pressure else 0.0)) * self.tune["take_on"]
@@ -1422,19 +1438,19 @@ class MatchSim:
         w_lose = (0.02 + (0.08 if pressure else 0.0)) * self.tune["lose"]
         w_out = 0.02
         if self.league:  # who has the ball matters: dribblers take players on, finishers shoot, good markers win it
-            w_take_on *= math.exp(LEAGUE["take_on_drive"] * self.z(p, "dribbling")) * LEAGUE["take_on_role"].get(p.role or "", 1.0)
+            w_take_on *= self.m.exp(LEAGUE["take_on_drive"] * self.z(p, "dribbling")) * LEAGUE["take_on_role"].get(p.role or "", 1.0)
             w_pass *= LEAGUE["pass_role"].get(p.role or "", 1.0)
             band = 0 if dgoal < d1 else 1 if dgoal < d2 else 2
-            w_shot *= math.exp(LEAGUE["shot_drive"] * LEAGUE["shot_drive_band"][band] * self.z(p, "finishing")) \
+            w_shot *= self.m.exp(LEAGUE["shot_drive"] * LEAGUE["shot_drive_band"][band] * self.z(p, "finishing")) \
                 * LEAGUE["shot_role"].get(p.role or "", (1.0,) * 3)[band]
             if self.pos_pass is not None:  # chance creation: a pass from a player with vision sets up a shot more often
-                w_shot *= math.exp(LEAGUE["create_shot"] * self.z(self.players[self.pos_pass["player_id"]], "vision"))
+                w_shot *= self.m.exp(LEAGUE["create_shot"] * self.z(self.players[self.pos_pass["player_id"]], "vision"))
                 if self.pos_pass["event_type"] == "cross":   # a cross met in a crowded box is a shot less often
                     w_shot *= LEAGUE["after_cross_shot"]
-            w_lose *= math.exp(LEAGUE["lose_defender"] * self.z(marker, "defending") - LEAGUE["lose_dribbler"] * self.z(p, "dribbling")
+            w_lose *= self.m.exp(LEAGUE["lose_defender"] * self.z(marker, "defending") - LEAGUE["lose_dribbler"] * self.z(p, "dribbling")
                                - LEAGUE["keep_lose"] * team.style.get("keep", 0.0))
             if self.att_x(team, p.x) < PITCH_L * 0.6:   # in his own 60%: the opponents' press (their PPDA zone)
-                w_lose *= LEAGUE["press_base"] * math.exp(LEAGUE["press_lose"] * opp.style.get("press", 0.0))
+                w_lose *= LEAGUE["press_base"] * self.m.exp(LEAGUE["press_lose"] * opp.style.get("press", 0.0))
             w_lose *= LEAGUE["lose_role"].get(marker.role or "", 1.0)
         action = rng.choices(["pass", "take_on", "shot", "lose", "out"], weights=[w_pass, w_take_on, w_shot, w_lose, w_out])[0]
         if action == "pass":
@@ -1447,7 +1463,7 @@ class MatchSim:
             foul_p = self.tune["foul_on_tackle"]
             if self.league:
                 marker = self._tackler(p, marker)
-                foul_p = clamp(foul_p * math.exp(-LEAGUE["foul_discipline"] * self.z(marker, "defending"))
+                foul_p = clamp(foul_p * self.m.exp(-LEAGUE["foul_discipline"] * self.z(marker, "defending"))
                                * LEAGUE["foul_role"].get(marker.role or "", 1.0) * LEAGUE["fouled_role"].get(p.role or "", 1.0),
                                0.0, 0.9)
             if rng.random() < foul_p:
@@ -1464,7 +1480,7 @@ class MatchSim:
         opponents within ``tackle_reach_m`` steps in, by role (``tackle_role``: per man, defenders most and strikers least;
         midfielders are within reach most often, so they win the most); he closes the last metres before the tackle."""
         cands = sorted((q for q in self.other(p.team).starters if q.position != "GK"
-                        and dist(q.pos, p.pos) < LEAGUE["tackle_reach_m"]), key=lambda q: q.player_id)
+                        and self.dist(q.pos, p.pos) < LEAGUE["tackle_reach_m"]), key=lambda q: q.player_id)
         if marker not in cands:
             cands.append(marker)
         tackler = self.rng.choices(cands, weights=[LEAGUE["tackle_role"].get(q.role or "", 1.0) for q in cands])[0]
@@ -1478,21 +1494,22 @@ class MatchSim:
         for q in p.team.starters:
             if q is p:
                 continue
-            d = dist(p.pos, q.pos)
+            d = self.dist(p.pos, q.pos)
             forward = (q.x - p.x) * sign
             tilt = (LEAGUE["forward_tilt"] + LEAGUE["vision_forward"] * self.z(p, "vision")) if self.league else 0.06
-            w = math.exp(-(((d - 16.0) / 13.0) ** 2)) * (1.0 + tilt * clamp(forward, -10.0, 30.0)) + 0.02
+            u = (d - 16.0) / 13.0
+            w = self.m.exp(-(u * u if self.league else u ** 2)) * (1.0 + tilt * clamp(forward, -10.0, 30.0)) + 0.02
             if q.position == "GK":
                 # league mode: a defender in his own half plays it back to the keeper far more often (Premier League
                 # keepers make about 30 passes a match; 0.1.0's weight left some without a touch in a half)
                 w *= LEAGUE["gk_target"] if self.league and self.att_x(p.team, p.x) < PITCH_L / 2 else 0.15
             if self.league:  # teammates look for the good passers, and near goal for the good finishers
                 if self.att_x(p.team, p.x) < LEAGUE["attack_from"]:   # build-up looks for the good passers
-                    w *= LEAGUE["receive_role"].get(q.role or "", 1.0) * math.exp(LEAGUE["receive_passing"] * self.z(q, "passing"))
+                    w *= LEAGUE["receive_role"].get(q.role or "", 1.0) * self.m.exp(LEAGUE["receive_passing"] * self.z(q, "passing"))
                 else:
                     w *= LEAGUE["receive_role_attack"].get(q.role or "", 1.0)
                 if self.att_x(p.team, q.x) > 70:
-                    w *= math.exp(LEAGUE["find_finisher"] * self.z(q, "finishing"))
+                    w *= self.m.exp(LEAGUE["find_finisher"] * self.z(q, "finishing"))
             cands.append((q, max(w, 0.001)))
         players, weights = zip(*cands)
         return self.rng.choices(players, weights=weights)[0]
@@ -1507,7 +1524,7 @@ class MatchSim:
                  and PITCH_L - self.att_x(team, q.x) < LEAGUE["cross_box_m"]]
         if not cands:
             return None
-        weights = [LEAGUE["cross_role"].get(q.role or "", 0.5) * math.exp(-dist(q.pos, aim) / LEAGUE["cross_near_m"]
+        weights = [LEAGUE["cross_role"].get(q.role or "", 0.5) * self.m.exp(-self.dist(q.pos, aim) / LEAGUE["cross_near_m"]
                    + LEAGUE["cross_finisher"] * self.z(q, "finishing")) for q in cands]
         return self.rng.choices(cands, weights=weights)[0]
 
@@ -1519,7 +1536,7 @@ class MatchSim:
         team, opp = p.team, self.other(p.team)
         sign = team.attack_sign
         target = self._pick_pass_target(p)
-        d = max(dist(p.pos, target.pos), 1.0)
+        d = max(self.dist(p.pos, target.pos), 1.0)
         forward = (target.x - p.x) * sign
         success_p = clamp(0.97 - 0.008 * d - (0.12 if pressure else 0.0) - (0.06 if forward > 20 else 0.0), 0.4, 0.97)
         ok = rng.random() < success_p
@@ -1578,10 +1595,10 @@ class MatchSim:
             self._event("clearance", winner, related=p, pitch=winner.pos, outcome="success")
             far = (clamp(winner.x + opp.attack_sign * rng.uniform(25.0, 40.0), 1, PITCH_L - 1), clamp(winner.y + rng.gauss(0, 10.0), 1, PITCH_W - 1))
             self.ball_speed = 18.0
-            self.advance(dist(winner.pos, far) / 18.0, ball_to=far)
+            self.advance(self.dist(winner.pos, far) / 18.0, ball_to=far)
             self.ball_speed = 0.0
             cands = team.starters + opp.starters
-            taker = min(cands, key=lambda q: dist(q.pos, far))
+            taker = min(cands, key=lambda q: self.dist(q.pos, far))
             taker.x, taker.y = far
             self._event("recovery", taker, pitch=far, outcome="success")
             self._start_possession(taker, "loose_ball", from_player=winner)
@@ -1597,9 +1614,9 @@ class MatchSim:
         win_p, nutmeg_p, skill_p, foul_p = 0.5, self.tune["nutmeg"], self.tune["skill"], self.tune["foul_on_take_on"]
         if self.league:  # dribbling against the defender's defending
             win_p = self.take_on_probability(p, defender)
-            flair = math.exp(LEAGUE["flourish"] * self.z(p, "dribbling"))
+            flair = self.m.exp(LEAGUE["flourish"] * self.z(p, "dribbling"))
             nutmeg_p, skill_p = nutmeg_p * flair, skill_p * flair
-            foul_p = clamp(foul_p * LEAGUE["take_on_foul"] * math.exp(-LEAGUE["foul_discipline"] * self.z(defender, "defending"))
+            foul_p = clamp(foul_p * LEAGUE["take_on_foul"] * self.m.exp(-LEAGUE["foul_discipline"] * self.z(defender, "defending"))
                            * LEAGUE["foul_role"].get(defender.role or "", 1.0) * LEAGUE["fouled_role"].get(p.role or "", 1.0),
                            0.0, 0.9)
         if rng.random() < win_p:
@@ -1640,7 +1657,7 @@ class MatchSim:
             self.ball_speed = 0.0
             self.chasers.clear()
             # the dribbler has lost it: anyone else nearest gets there first
-            winner = min((q for q in team.starters + opp.starters if q is not p), key=lambda q: (dist(q.pos, loose), q.player_id))
+            winner = min((q for q in team.starters + opp.starters if q is not p), key=lambda q: (self.dist(q.pos, loose), q.player_id))
             self._reach(winner, loose)
             self._event("recovery", winner, pitch=loose, outcome="success")
             self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=p)
@@ -1693,8 +1710,8 @@ class MatchSim:
         rng = self.rng
         team, opp = p.team, self.other(p.team)
         goal = team.goal
-        d = max(dist(p.pos, goal), 1.0)
-        xg = clamp(1.1 * math.exp(-0.12 * d), 0.02, 0.85)
+        d = max(self.dist(p.pos, goal), 1.0)
+        xg = clamp(1.1 * self.m.exp(-0.12 * d), 0.02, 0.85)
         speed_kmh = rng.uniform(65.0, 115.0)
         headed = self.last_pass is not None and self.last_pass["event_type"] == "cross" and rng.random() < 0.6
         body_part = "head" if headed else ("right_foot" if rng.random() < 0.7 else "left_foot")
@@ -1718,7 +1735,7 @@ class MatchSim:
             self._queue_replay(shot)
         self._end_possession("shot")
         self.ball_speed = speed_kmh / 3.6
-        self.advance(dist(p.pos, end) / self.ball_speed, ball_to=end)
+        self.advance(self.dist(p.pos, end) / self.ball_speed, ball_to=end)
         self.ball_speed = 0.0
 
         if result == "goal":
@@ -1757,7 +1774,7 @@ class MatchSim:
             self.advance(0.7, ball_to=loose)
             self.ball_speed = 0.0
             cands = team.starters + opp.starters
-            winner = min(cands, key=lambda q: dist(q.pos, loose))
+            winner = min(cands, key=lambda q: self.dist(q.pos, loose))
             winner.x, winner.y = loose
             self._event("recovery", winner, pitch=loose, outcome="success")
             self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=p)
@@ -1803,7 +1820,7 @@ class MatchSim:
         long_ball = False
         if target is None and not (goal_kick or launch) and self.att_x(team, p.x) < PITCH_L / 2:
             share = LEAGUE["long_ball_role"].get(p.role or "", 0.0)
-            long_ball = share > 0 and rng.random() < share * math.exp(LEAGUE["long_ball_passing"] * self.z(p, "passing"))
+            long_ball = share > 0 and rng.random() < share * self.m.exp(LEAGUE["long_ball_passing"] * self.z(p, "passing"))
         if goal_kick or launch or long_ball:  # hit long to one of the three players furthest forward
             front = sorted((q for q in team.starters if q.position != "GK"), key=lambda q: (-self.att_x(team, q.x), q.player_id))[:3]
             target = rng.choice(front)
@@ -1814,7 +1831,7 @@ class MatchSim:
         through = False
         if kind == "pass" and not (goal_kick or launch) and target.position != "GK" and forward > 6 \
                 and self.att_x(team, target.x) > 60:
-            through = rng.random() < LEAGUE["through_ball"] * math.exp(LEAGUE["through_vision"] * self.z(p, "vision"))
+            through = rng.random() < LEAGUE["through_ball"] * self.m.exp(LEAGUE["through_vision"] * self.z(p, "vision"))
         if through:  # into the space behind the defence, ahead of the runner
             ahead = clamp(self.att_x(team, target.x) + rng.uniform(6.0, 12.0), 0.0, PITCH_L - 3.0)
             aim = (ahead if sign > 0 else PITCH_L - ahead, clamp(target.y + rng.gauss(0, 2.0), 2.0, PITCH_W - 2.0))
@@ -1824,7 +1841,7 @@ class MatchSim:
             lead = LEAGUE["lead_m"] * clamp(1.0 + 0.5 * self.z(p, "vision"), 0.0, 2.0) * rng.uniform(0.5, 1.0)
             ahead = clamp(self.att_x(team, target.x) + lead, 0.0, PITCH_L - 2.0)
             aim = (ahead if sign > 0 else PITCH_L - ahead, target.y)
-        d = max(dist(p.pos, aim), 1.0)
+        d = max(self.dist(p.pos, aim), 1.0)
         forward_aim = (aim[0] - p.x) * sign
         long = d > 30
         if through:
@@ -1853,7 +1870,7 @@ class MatchSim:
         high_ball = kind == "cross" or (long and (forward_aim > 10 or goal_kick))   # balls played back or across stay low
         # a cross hangs in the air long enough for defenders to come across from further away
         reach = LEAGUE["aerial_reach_cross_m"] if kind == "cross" else LEAGUE["aerial_reach_m"]
-        if not offside and not through and high_ball and dist(defender.pos, aim) < reach:
+        if not offside and not through and high_ball and self.dist(defender.pos, aim) < reach:
             header = self._aerial_defender(aim, opp, reach)
             if kind == "cross" and rng.random() < LEAGUE["aerial_cross"]:
                 # a contested cross is won in the air: the attacker's header is the cross arriving (Opta counts a cross
@@ -1865,7 +1882,7 @@ class MatchSim:
                 att_wins = rng.random() < self.aerial_probability(target, header)
                 duel = (target, header) if att_wins else (header, target)
                 ok = att_wins
-            elif kind != "cross" and not ok and dist(target.pos, aim) < LEAGUE["aerial_reach_m"] \
+            elif kind != "cross" and not ok and self.dist(target.pos, aim) < LEAGUE["aerial_reach_m"] \
                     and rng.random() < LEAGUE["aerial_failed"]:
                 # a ball that does not arrive is still contested: the defender heads it away, or the attacker wins the
                 # header but cannot keep it (it runs loose); either way the duel is won in the air as often as on a
@@ -1930,10 +1947,10 @@ class MatchSim:
     def _aerial_defender(self, aim: Point, opp: Team, reach: float) -> Player:
         """Who attacks a high ball coming down at ``aim``: one of the opponents' outfielders within ``reach``, centre-backs
         first, then by aerial rating (``LEAGUE["aerial_role"]``); the nearest when nobody else is in reach."""
-        cands = sorted((q for q in opp.starters if q.position != "GK" and dist(q.pos, aim) < reach), key=lambda q: q.player_id)
+        cands = sorted((q for q in opp.starters if q.position != "GK" and self.dist(q.pos, aim) < reach), key=lambda q: q.player_id)
         if not cands:
             return self.nearest(aim, opp, outfield=True)
-        weights = [LEAGUE["aerial_role"].get(q.role or "", 1.0) * math.exp(LEAGUE["aerial_pick"] * self.z(q, "aerial"))
+        weights = [LEAGUE["aerial_role"].get(q.role or "", 1.0) * self.m.exp(LEAGUE["aerial_pick"] * self.z(q, "aerial"))
                    for q in cands]
         if sum(weights) <= 0:
             return self.nearest(aim, opp, outfield=True)
@@ -1947,10 +1964,10 @@ class MatchSim:
         rng = self.rng
         team, opp = p.team, self.other(p.team)
         here = (self.ball[0], self.ball[1])
-        near = sorted(opp.starters, key=lambda q: (dist(q.pos, here), q.player_id))[:LEAGUE["interception_near"]]
-        winner = rng.choices(near, weights=[math.exp(LEAGUE["interception_skill"] * self.z(q, "defending")) for q in near])[0]
+        near = sorted(opp.starters, key=lambda q: (self.dist(q.pos, here), q.player_id))[:LEAGUE["interception_near"]]
+        winner = rng.choices(near, weights=[self.m.exp(LEAGUE["interception_skill"] * self.z(q, "defending")) for q in near])[0]
         fp = dict(self.tune["failed_pass"])
-        fp["interception"] *= math.exp(LEAGUE["interception_skill"] * self.z(winner, "defending")) \
+        fp["interception"] *= self.m.exp(LEAGUE["interception_skill"] * self.z(winner, "defending")) \
             * (LEAGUE["long_interception"] if long else 1.0) * LEAGUE["interception_rate"]
         how = rng.choices(list(fp), weights=list(fp.values()))[0]
         if how == "out" or (kind == "cross" and rng.random() < 0.3):
@@ -1984,11 +2001,11 @@ class MatchSim:
                clamp(defender.y + rng.gauss(0, 10.0), 1, PITCH_W - 1))
         self._chase(far, self.home, self.away)
         self.ball_speed = 18.0
-        self.advance(dist(defender.pos, far) / 18.0, ball_to=far)
+        self.advance(self.dist(defender.pos, far) / 18.0, ball_to=far)
         self.ball_speed = 0.0
         self.chasers.clear()
         cands = self.home.starters + self.away.starters
-        taker = min(cands, key=lambda q: dist(q.pos, far))
+        taker = min(cands, key=lambda q: self.dist(q.pos, far))
         self._reach(taker, far)
         self._event("recovery", taker, pitch=far, outcome="success")
         self._start_possession(taker, "loose_ball", from_player=defender)
@@ -2007,10 +2024,10 @@ class MatchSim:
                 clamp(defender.y + rng.gauss(0, 5.0), 1, PITCH_W - 1))
         self._chase(drop, self.home, self.away)
         self.ball_speed = 12.0
-        self.advance(dist(defender.pos, drop) / 12.0, ball_to=drop)
+        self.advance(self.dist(defender.pos, drop) / 12.0, ball_to=drop)
         self.ball_speed = 0.0
         self.chasers.clear()
-        taker = min(self.home.starters + self.away.starters, key=lambda q: (dist(q.pos, drop), q.player_id))
+        taker = min(self.home.starters + self.away.starters, key=lambda q: (self.dist(q.pos, drop), q.player_id))
         self._reach(taker, drop)
         self._event("recovery", taker, pitch=drop, outcome="success")
         self._start_possession(taker, "loose_ball", from_player=defender)
@@ -2113,11 +2130,11 @@ class MatchSim:
             d, xg, headed = 11.0, LEAGUE["penalty_xg"], False
             body_part, weak = self.foot_for(p, 0.95)
         else:
-            d = max(dist(p.pos, goal), 1.0)
+            d = max(self.dist(p.pos, goal), 1.0)
             crossed = kp is not None and kp["event_type"] == "cross"
             headed = crossed and rng.random() < 0.6
             factor = LEAGUE["header_xg"] if headed else LEAGUE["cross_volley_xg"] if crossed else 1.0
-            xg = clamp(LEAGUE["xg_scale"] * math.exp(-0.12 * d) * factor, 0.02, 0.85)
+            xg = clamp(LEAGUE["xg_scale"] * self.m.exp(-0.12 * d) * factor, 0.02, 0.85)
             body_part, weak = ("head", False) if headed else self.foot_for(p, 0.8)
         speed_kmh = rng.uniform(40.0, 75.0) if headed else rng.uniform(65.0, 115.0)
         skill = self.z(p, "aerial" if headed else "finishing")
@@ -2148,7 +2165,7 @@ class MatchSim:
         if result in ("goal", "saved"):
             self.chasers[keeper.player_id] = end     # the keeper goes for it
         self.ball_speed = speed_kmh / 3.6
-        self.advance(dist(p.pos, end) / self.ball_speed, ball_to=end)
+        self.advance(self.dist(p.pos, end) / self.ball_speed, ball_to=end)
         self.ball_speed = 0.0
         self.chasers.clear()
         self.last_pass = None
@@ -2182,10 +2199,10 @@ class MatchSim:
                          clamp(goal[1] + rng.gauss(0, 7.0), 1, PITCH_W - 1))
                 self._chase(loose, team, opp)
                 self.ball_speed = 8.0
-                self.advance(dist((self.ball[0], self.ball[1]), loose) / 8.0, ball_to=loose)
+                self.advance(self.dist((self.ball[0], self.ball[1]), loose) / 8.0, ball_to=loose)
                 self.ball_speed = 0.0
                 self.chasers.clear()
-                winner = min(team.starters + opp.starters, key=lambda q: (dist(q.pos, loose), q.player_id))
+                winner = min(team.starters + opp.starters, key=lambda q: (self.dist(q.pos, loose), q.player_id))
                 self._reach(winner, loose)
                 self._event("recovery", winner, pitch=loose, outcome="success")
                 self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=keeper)
@@ -2201,7 +2218,7 @@ class MatchSim:
             self.advance(0.7, ball_to=loose)
             self.ball_speed = 0.0
             self.chasers.clear()
-            winner = min(team.starters + opp.starters, key=lambda q: dist(q.pos, loose))
+            winner = min(team.starters + opp.starters, key=lambda q: self.dist(q.pos, loose))
             self._reach(winner, loose)
             self._event("recovery", winner, pitch=loose, outcome="success")
             self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=p)
@@ -2225,7 +2242,7 @@ class MatchSim:
         self._event("touch", p, pitch=p.pos, pitch_end=out_pt, outcome="fail", qualifiers=["out_of_play"])
         self._end_possession("out_of_play")
         self.ball_speed = 8.0
-        self.advance(dist(p.pos, out_pt) / 8.0, ball_to=out_pt)
+        self.advance(self.dist(p.pos, out_pt) / 8.0, ball_to=out_pt)
         self.ball_speed = 0.0
         if self.league:
             line = (out_pt[0], clamp(side, 0.5, PITCH_W - 0.5))

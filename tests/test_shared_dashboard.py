@@ -221,8 +221,8 @@ def test_seeded_claims_hold_in_the_league():
     assert rank("pl_bro_09", "FW", "shots_on_target") == 1
     assert all(p["counts"]["shots_on_target"] < c["shots_on_target"] for p in profiles
                if p["position"] == "FW" and p["global_id"] != "pl_bro_09")
-    # "Won one of his seven take-ons in league matches"
-    assert (c["take_ons"], c["take_ons_won"]) == (7, 1)
+    # "Won one of his ten take-ons in league matches"
+    assert (c["take_ons"], c["take_ons_won"]) == (10, 1)
     # "struck from outside the box" (round 5)
     goals = {e["match_id"]: e for e in femi["evidence"]["goals"]}
     r05 = next(e for e in _clip_events("rl_r05_ash_bro", goals["rl_r05_ash_bro"]["clip_id"]) if e["event_type"] == "goal")
@@ -238,8 +238,8 @@ def test_seeded_claims_hold_in_the_league():
     # The shortlist's notes.
     assert rank("pl_ash_10", "MF", "take_ons_won") == 3
     assert rank("pl_ash_09", "FW", "shots") == 3
-    assert rank("pl_dun_06", "MF", "passes") == 2
-    assert rank("pl_eas_03", "DF", "key_passes") == 5
+    assert rank("pl_dun_06", "MF", "passes") == 3
+    assert rank("pl_eas_03", "DF", "key_passes") == 6
     assert "key_passes" in s.noisy()
 
 
