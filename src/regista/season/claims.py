@@ -28,7 +28,8 @@ from pathlib import Path
 from typing import Any
 
 from regista.feedback import ANNOTATOR_RE, feedback_dir, new_annotation_id
-from regista.schema import SCHEMA_VERSION, events_validator, iter_jsonl
+from regista.schema import LEGACY_SCHEMA_VERSION as SCHEMA_VERSION  # annotations use nothing added in 0.2.0
+from regista.schema import events_validator, iter_jsonl
 
 Record = dict[str, Any]
 

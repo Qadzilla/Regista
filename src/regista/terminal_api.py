@@ -96,6 +96,10 @@ def _season_meta(sm: SeasonMetrics) -> dict[str, Any]:
                                "where lower is better; only players with the qualifying minutes (and, for a ratio, the "
                                "minimum attempts) are in the pool or get a percentile",
             "scope": "Regista League fixtures (synthetic); claimed and uploaded matches count on profiles only",
+            "sample": sm.sample(),
+            "reliability": {"noise_r": sm.reliability.get("noise_r"), "seasons": sm.reliability.get("seasons"),
+                            "method": sm.reliability.get("method"), "stale": sm.reliability.get("stale"),
+                            "noisy": sorted(k for k in CATALOGUE if sm.noisy(k))},
             "synthetic": True, "note": SYNTHETIC_NOTE}
 
 
@@ -109,7 +113,8 @@ def _filters(sm: SeasonMetrics, position, role, club, min_minutes, age_min, age_
 @router.get("/api/metrics")
 async def get_metrics() -> dict[str, Any]:
     sm = await run_in_threadpool(metrics)
-    return {**catalogue(), "season": _season_meta(sm), "xt": sm.xt.public() if sm.xt else None}
+    return {**catalogue(), "metrics": [sm.describe(k) for k in CATALOGUE], "season": _season_meta(sm),
+            "xt": sm.xt.public() if sm.xt else None}
 
 
 @router.get("/api/terminal/screen")
@@ -127,7 +132,7 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
     def run() -> dict[str, Any]:
         sm = metrics()
         rows = sm.sort(_filters(sm, position, role, club, min_minutes, age_min, age_max, foot, q), sort_key, order)
-        return {"columns": [CATALOGUE[k].public() for k in keys], "sort": sort_key, "total": len(rows),
+        return {"columns": [sm.describe(k) for k in keys], "sort": sort_key, "total": len(rows),
                 "players": [{**sm.card(ps), "values": {k: sm.cell(ps, k) for k in keys}} for ps in rows[:limit]],
                 "season": _season_meta(sm)}
 
@@ -155,7 +160,7 @@ async def rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], position: POS
                 place, prev = i, v
             out.append({"rank": place, **sm.card(ps), **sm.cell(ps, key),
                         "evidence_count": sum(len(ps.evidence.get(k, [])) for k in m.evidence_keys())})
-        return {"metric": m.public(), "players": out[:limit], "ranked": len(ranked),
+        return {"metric": sm.describe(key), "players": out[:limit], "ranked": len(ranked),
                 "unranked": [{**sm.card(ps), **sm.cell(ps, key)} for ps in rest[:limit]],
                 "season": _season_meta(sm)}
 
@@ -182,7 +187,7 @@ async def scatter(x: Annotated[str, Query(pattern=KEY_PATTERN)], y: Annotated[st
         def med(vals: list[float]) -> float | None:
             return round(statistics.median(vals), 4) if vals else None
 
-        return {"x": CATALOGUE[kx].public(), "y": CATALOGUE[ky].public(), "points": pts,
+        return {"x": sm.describe(kx), "y": sm.describe(ky), "points": pts,
                 "median": {"x": med([p["x"] for p in pts]), "y": med([p["y"] for p in pts])}, "season": _season_meta(sm)}
 
     return await run_in_threadpool(run)
@@ -203,8 +208,7 @@ async def player_metrics(gid: str, evidence: Annotated[str | None, Query(pattern
         sm = metrics()
         ps = _player(sm, gid)
         if evidence:
-            m = CATALOGUE[evidence]
-            return {"global_id": gid, "name": ps.info["name"], "metric": m.public(), **sm.cell(ps, evidence),
+            return {"global_id": gid, "name": ps.info["name"], "metric": sm.describe(evidence), **sm.cell(ps, evidence),
                     "evidence": sm.evidence(ps, evidence, limit=MAX_EVIDENCE if evidence_limit is None else evidence_limit),
                     "synthetic": True}
         keys = [k for k, m in CATALOGUE.items() if not group or m.group == group]
@@ -213,7 +217,7 @@ async def player_metrics(gid: str, evidence: Annotated[str | None, Query(pattern
         limit = TABLE_EVIDENCE if evidence_limit is None else evidence_limit
         return {**sm.card(ps), "metrics": {k: {**sm.cell(ps, k), "evidence": sm.evidence(ps, k, limit=limit)}
                                            for k in keys},
-                "catalogue": {k: CATALOGUE[k].public() for k in keys}, "season": _season_meta(sm)}
+                "catalogue": {k: sm.describe(k) for k in keys}, "season": _season_meta(sm)}
 
     return await run_in_threadpool(run)
 
@@ -228,7 +232,7 @@ async def player_form(gid: str, metrics_: Annotated[str | None, Query(alias="met
         sm = metrics()
         ps = _player(sm, gid)
         keys = _keys(metrics_, default=DEFAULT_COLUMNS.get(ps.info["position"], DEFAULT_COLUMNS[None]))
-        return {**sm.card(ps), **sm.form(ps, keys), "catalogue": {k: CATALOGUE[k].public() for k in keys},
+        return {**sm.card(ps), **sm.form(ps, keys), "catalogue": {k: sm.describe(k) for k in keys},
                 "consistency_rule": "Regista: coefficient of variation (sd / mean) of per-match values over matches with "
                                     "at least 15 minutes; lower is steadier. Thirty-minute matches make it noisy.",
                 "synthetic": True, "note": SYNTHETIC_NOTE}

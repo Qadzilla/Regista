@@ -20,6 +20,7 @@ counts there, with ``source: upload`` (and the ``upload_id``) in the match list.
 from __future__ import annotations
 
 import json
+import statistics
 import threading
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -48,8 +49,9 @@ STATS: dict[str, tuple[str, Any]] = {
     "take_ons": ("Take-ons", lambda e: e["event_type"] == "take_on"),
     "take_ons_won": ("Take-ons won", lambda e: e["event_type"] == "take_on" and e.get("outcome") == "success"),
     "nutmegs": ("Nutmegs", lambda e: e["event_type"] == "nutmeg"),
-    "shots": ("Shots", lambda e: e["event_type"] == "shot"),
-    "shots_on_target": ("Shots on target", lambda e: e["event_type"] == "shot" and
+    # penalty kicks count here (the Scout terminal's Shots follow FBref and leave them out): the labels say so
+    "shots": ("Shots (incl. penalties)", lambda e: e["event_type"] == "shot"),
+    "shots_on_target": ("Shots on target (incl. penalties)", lambda e: e["event_type"] == "shot" and
                         bool({"goal", "saved"} & set(e.get("qualifiers", [])))),
     "goals": ("Goals", lambda e: e["event_type"] == "goal"),
     "tackles_won": ("Tackles won", lambda e: e["event_type"] == "tackle" and e.get("outcome") == "success"),
@@ -57,7 +59,7 @@ STATS: dict[str, tuple[str, Any]] = {
     "recoveries": ("Ball recoveries", lambda e: e["event_type"] == "recovery"),
     "clearances": ("Clearances", lambda e: e["event_type"] == "clearance"),
     "pressures": ("Pressures", lambda e: e["event_type"] == "pressure"),
-    "saves": ("Saves", lambda e: e["event_type"] == "save"),
+    "saves": ("Saves (incl. penalties)", lambda e: e["event_type"] == "save"),
     "fouls_won": ("Fouls won", lambda e: e["event_type"] == "foul_won"),
     # Schema 0.2.0 (the league's generator since ratings; real footage has none of these yet):
     "aerial_duels_won": ("Aerial duels won", lambda e: e["event_type"] == "aerial_duel"),
@@ -74,10 +76,13 @@ HEADLINE = ["goals", "assists", "shots", "key_passes", "take_ons_won", "nutmegs"
             "interceptions", "recoveries", "saves"]
 RATIOS = {"pass_accuracy": ("Pass accuracy", "passes_completed", "passes"),
           "take_on_success": ("Take-on success", "take_ons_won", "take_ons"),
-          "shot_accuracy": ("Shots on target", "shots_on_target", "shots"),
+          "shot_accuracy": ("Shots on target % (incl. penalties)", "shots_on_target", "shots"),
           "aerial_win": ("Aerial duels won %", "aerial_duels_won", "aerial_duels")}
 # Counts made from other counts (not events), kept beside them so ratios and rates can use them.
 DERIVED_COUNTS = {"aerial_duels": ("Aerial duels", ("aerial_duels_won", "aerial_duels_lost"))}
+# A profile stat's Scout terminal metric where the keys differ (the reliability table is keyed by terminal metric).
+METRIC_OF = {"pass_accuracy": "pass_pct", "take_on_success": "take_on_pct", "shot_accuracy": "shot_on_target_pct",
+             "aerial_win": "aerial_win_pct"}
 GRID_X, GRID_Y = 12, 8
 MOMENTS_KEPT = 40
 MAX_EVIDENCE = 60
@@ -95,6 +100,9 @@ class Season:
     uploads: list[Record] = field(default_factory=list)  # Player-view uploads: {match_id, match_dir, players, claims}
     uploaded: list[Record] = field(default_factory=list)  # the uploaded matches that were counted
     min_minutes: float = 0.0   # the percentile pool's qualifying minutes (the Scout terminal's rule: a third of a club's minutes)
+    reliability: Record = field(default_factory=lambda: {"metrics": {}})   # regista.season.reliability (load_season)
+    _club_minutes: dict[str, float] = field(default_factory=dict)
+    _club_matches: dict[str, int] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ build
     @classmethod
@@ -141,6 +149,8 @@ class Season:
             self._add_claimed(acc, e, source="upload")
         for gid, a in acc.items():
             self.profiles[gid] = _finish(a)
+        self._club_minutes = club_minutes
+        self._club_matches = {cid: sum(1 for fx in self.league["fixtures"] if cid in (fx["home"], fx["away"])) for cid in clubs}
         self.min_minutes = qualifying_minutes(max(club_minutes.values(), default=0.0))
         _percentiles(self.profiles, self.min_minutes)
         self.table = sorted(table.values(), key=lambda r: (-r["points"], -(r["goals_for"] - r["goals_against"]), -r["goals_for"], r["club"]))
@@ -197,6 +207,26 @@ class Season:
                 row["lost"] += 1
 
     # ------------------------------------------------------------------ queries
+    def sample(self) -> Record:
+        """How much football a profile's per-90s and percentiles rest on (the same facts the Scout terminal states)."""
+        club = max(self._club_minutes.values(), default=0.0)
+        n = max(self._club_matches.values(), default=0)
+        pool = sorted(p["minutes"] for p in self.profiles.values() if p["appearances"] and p["minutes"] >= self.min_minutes)
+        median = statistics.median(pool) if pool else 0.0
+        return {"matches_per_club": n, "match_minutes": round(club / n, 1) if n else None,
+                "qualifying_minutes": round(self.min_minutes, 1), "median_qualified_minutes": round(median, 1),
+                "median_full_matches": round(median / 90.0, 1),
+                "note": f"Small sample: a club plays {n} league matches of about {round(club / n) if n else 0} minutes, so a "
+                        f"regular's season is about {round(median)} minutes ({median / 90.0:.1f} full matches). Numbers "
+                        "marked noisy cannot yet separate players in the same role over one season."}
+
+    def noisy(self) -> list[str]:
+        """The profile's stats and rates whose Scout terminal metric is mostly noise over one season within a role
+        (``regista.season.reliability``: split-half r below 0.3)."""
+        rel = self.reliability.get("metrics", {})
+        keys = [k for k in [*STATS, *DERIVED_COUNTS, *RATIOS] if (rel.get(METRIC_OF.get(k, k)) or {}).get("noisy")]
+        return keys
+
     def player(self, gid: str) -> Record | None:
         return self.profiles.get(gid)
 
@@ -437,7 +467,11 @@ def load_season(league_path: Path | str, root: Path | str, claimed: list[Record]
     with _cache_lock:
         s = _cache.get(key)
         if s is None:
-            s = Season.build(load_league(league_path), root, claimed, uploaded)
+            from regista.season.reliability import load as load_reliability
+
+            league = load_league(league_path)
+            s = Season.build(league, root, claimed, uploaded)
+            s.reliability = load_reliability(league_path, league)
             _cache.clear()
             _cache[key] = s
         return s

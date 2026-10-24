@@ -247,3 +247,38 @@ def test_the_reel_options_are_validated(client, built):
     assert client.get(url, params={"n": 9}).status_code == 422
     r = client.get(url, params={"tag": "nutmeg_of_the_year", "reason": "on_ball_main"})
     assert r.status_code == 404 and "with reason on_ball_main" in r.json()["detail"]
+
+
+def test_a_folder_another_process_finished_is_kept_not_deleted(tmp_path, monkeypatch):
+    """Review A round 2: build_all's worker processes do not share materialise's thread lock, so two writers can build one
+    fixture. The second must not delete the first's finished folder under a reader: it keeps it and drops its own."""
+    import shutil
+
+    from regista.season import build
+
+    league = new_league(2026)
+    fx = league["fixtures"][0]
+    theirs = build.materialise(league, fx, tmp_path / "other")
+    root = tmp_path / "season"
+    real = build.generate
+
+    def racing(**kw):
+        out = real(**kw)
+        shutil.copytree(theirs, root / fx["match_id"])          # the other process renames its folder into place meanwhile
+        (root / fx["match_id"] / "marker").write_text("theirs")
+        return out
+
+    monkeypatch.setattr(build, "generate", racing)
+    dest = build.materialise(league, fx, root)
+    assert (dest / "marker").read_text() == "theirs" and is_current(league, fx, root)
+    assert [p.name for p in root.iterdir()] == [fx["match_id"]]  # our temporary folder is gone
+
+
+def test_one_build_all_at_a_time(tmp_path, monkeypatch):
+    """The warm-up and a request arriving during it would each start a process pool on the same cold folder."""
+    from regista.season import build
+
+    seen = []
+    monkeypatch.setattr(build, "_build_all", lambda league, root, workers: seen.append(build._build_all_lock.locked()) or [])
+    build.build_all(new_league(2026), tmp_path)
+    assert seen == [True] and not build._build_all_lock.locked()

@@ -27,9 +27,9 @@ ROOT = Path(__file__).resolve().parents[1]
 LEAGUE_PATH = ROOT / "data" / "season" / "league.json"
 FIXTURES = (0, 1, 2)          # fixtures generated for the fast tests
 # (fixture index, seed shift): league fixtures replayed with seeds shifted as the audit's extra seasons shift them. The
-# committed season (generator 0.4.0) has no penalty and no red card: they are rare, about 0.3 and 0.1 a match.
-PENALTY = (4, 1000)           # rl_r02_fai_dun, second season: a penalty (and a through ball)
-RED = (9, 1000)               # rl_r04_cal_ash, second season: a red card (and through balls)
+# committed season (generator 0.5.0) has no penalty and no red card: they are rare, about 0.07 and 0.05 a 30-minute match.
+PENALTY = (22, 3000)          # rl_r08_eas_cal, fourth season: a penalty (and a through ball)
+RED = (19, 1000)              # rl_r07_dun_fai, second season: a red card (and a through ball)
 
 
 @pytest.fixture(scope="module")
@@ -100,12 +100,12 @@ def test_ratings_for_only_some_players_are_refused(league):
 
 # ---------------------------------------------------------------------------- the committed season, pinned
 
-# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.4.0. A generator
+# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.5.0. A generator
 # edit that moves them changes the season every page shows: re-record these, then re-check the demo's claims and clip ids
 # (src/regista/static/shared/demo.js, docs/demo-storyboard.md) and regenerate data/season/summaries.json.
-LEAGUE_PINS = {0: "e79b572dd1ba03782c462de4b58121826574034340d735e790461e695335e6aa",
-               1: "e5edf0790b116767b8f885ba5efe51edea0ab5932a157d0b0896b8a7ac5a115b",
-               2: "45227d1f657bd0f16c5230c5015dc1288c4d8c0aff8819607e748c45a40a7969"}
+LEAGUE_PINS = {0: "cb877893809169dc4ac0235481becdeb129ff5b23dc3fe6fc4dc8c3ce8e556c9",
+               1: "d10aaf2de5079f82b48c29fb72f83c7a3cbd9ccc43810c3f94de15922d8f7ec3",
+               2: "c4ffdb5c9531439326a8b6c7798f8c06beb0d4aa5e22f8af1caca497ff971326"}
 DEMO_JS = ROOT / "src" / "regista" / "static" / "shared" / "demo.js"
 
 
@@ -313,6 +313,38 @@ def test_report_has_league_bands_only_for_league_streams(matches):
     assert set(NORMS) <= set(old) and not set(LEAGUE_NORMS) & set(old)
 
 
+def test_one_seasons_leaders_and_rare_events_are_indicative(matches):
+    """Review round 2: the report the realism rule names printed failures for one season's leaders. A regular's season is
+    about 300 minutes, so leader bands (and penalties and red cards) are a verdict only over six pooled seasons; on fewer
+    they are marked indicative, with each leader's minutes beside his value."""
+    from regista.synth.report import (INDICATIVE, LEADER_SEASONS, LEADER_V, individual_verdicts, league_verdicts,
+                                      render_markdown)
+
+    m = compute_metrics([r for res in matches.values() for r in res.stream])
+    assert m["seasons"] == 1
+    assert all(v.endswith(INDICATIVE) or v == "n/a" for v in individual_verdicts(m).values())
+    lv = league_verdicts(m)
+    assert lv["penalties_per90"].endswith(INDICATIVE) and lv["red_cards_per90"].endswith(INDICATIVE)
+    assert not any(lv[k].endswith(INDICATIVE) for k in ("cross_completion", "save_pct", "shot_accuracy_ex_blocks"))
+    assert all(f"leader_{k}_minutes" in m for k in LEADER_V)
+    pooled = dict(m, seasons=LEADER_SEASONS)
+    assert individual_verdicts(pooled) == verdicts(pooled, INDIVIDUAL_NORMS)
+    assert league_verdicts(pooled) == verdicts(pooled, LEAGUE_NORMS)
+    md = render_markdown(m, "three fixtures", "league")
+    assert INDICATIVE in md and " min) |" in md
+
+
+def test_shot_keeper_and_take_on_bands_are_computed(matches):
+    """Round 2's new league bands, each with its source in LEAGUE_NORMS: shot accuracy without blocks, save %, keepers'
+    long-pass share and take-on success; and the leader's shots on target among the leader bands."""
+    m = compute_metrics([r for res in matches.values() for r in res.stream])
+    for key in ("shot_accuracy_ex_blocks", "save_pct", "gk_long_pass_share", "take_on_success"):
+        assert key in LEAGUE_NORMS and 0.0 < m[key] < 1.0, key
+        assert any(w in LEAGUE_NORMS[key][3] for w in ("premierleague.com", "Opta Analyst")), key
+    assert "leader_shots_on_target_per90" in INDIVIDUAL_NORMS and m["leader_shots_on_target_per90"] > 0
+    assert m["shot_outcomes"].startswith("goal ")
+
+
 # ---------------------------------------------------------------------------- physical: motion at 10 Hz
 
 def _physical(result):
@@ -413,10 +445,10 @@ def test_the_demos_goal_count_is_the_stars(league, season):
 def test_players_in_the_same_role_now_differ(league, pooled):
     """The audit's split-half test (docs/scout-terminal/regista-data.md, section 0): before ratings, r within a kit
     slot was about 0 for every stat. Now the stats ratings drive must repeat from one half of the season to the other.
-    Measured over three seasons: since generator 0.4.0 ratings move outcomes by realistic margins (the leaders sit near
-    real leaders), so one season's halves (about five full matches each) are too short; goals (r about 0.25-0.3 over
-    three seasons), tackles, interceptions and pressures no longer separate players in a role clearly
-    (docs/scout-terminal/build/review-fixes-1.md, open issues)."""
+    Measured over six seasons: since generator 0.4.0 ratings move outcomes by realistic margins (the leaders sit near
+    real leaders), so one season's halves (about five full matches each) are too short; goals, tackles, interceptions and
+    pressures no longer separate players in a role clearly over one season, and the Scout terminal marks such metrics
+    noisy (regista.season.reliability, data/season/reliability.json)."""
     from regista.season.audit import split_half
 
     r = split_half(league, pooled)
@@ -426,12 +458,14 @@ def test_players_in_the_same_role_now_differ(league, pooled):
 
 @pytest.fixture(scope="module")
 def pooled(league):
-    """Three seasons (seeds +0, +1000, +2000): about 900 minutes per regular, the Premier League pool's minimum, and about
-    30 full matches, so rare events and leaders are measured on enough football. One season is about ten full matches:
-    its goals per 90 alone swing by about 0.5 from seed to seed."""
+    """Six seasons (seeds +0, +1000, ..., +5000): about 1,800 minutes per regular and about 60 full matches, so rare events
+    and leaders are measured on enough football (regista.synth.report.LEADER_SEASONS). One season is about ten full
+    matches: its goals per 90 alone swing by about 0.5 from seed to seed, and three seasons proved too few in review round
+    2 (the first three hold one penalty where about six are expected)."""
     from regista.season.audit import season_matches
+    from regista.synth.report import LEADER_SEASONS
 
-    return season_matches(league, seasons=3)
+    return season_matches(league, seasons=LEADER_SEASONS)
 
 
 def _metrics(matches):
@@ -439,15 +473,21 @@ def _metrics(matches):
 
 
 @pytest.mark.slow
-def test_the_committed_season_sits_in_every_physical_and_style_band(league, season):
+def test_the_committed_season_sits_in_every_band_that_is_a_verdict_on_one_season(league, season):
+    """The season every page shows: event, league-mode (shot accuracy, save %, keepers' long passes, take-ons, crosses,
+    ...), physical and style bands. Leaders, penalties and red cards are verdicts over six seasons (below)."""
+    from regista.synth.report import INDICATIVE, league_verdicts
+
     m = _metrics(season)
-    for norms in (PHYSICAL_NORMS, STYLE_NORMS):
+    for norms in (NORMS, PHYSICAL_NORMS, STYLE_NORMS):
         assert all(v == "in band" for v in verdicts(m, norms).values()), {k: (m[k], norms[k][:2]) for k, v in
                                                                           verdicts(m, norms).items() if v != "in band"}
+    bad = {k: (m[k], LEAGUE_NORMS[k][:2]) for k, v in league_verdicts(m).items() if v != "in band" and INDICATIVE not in v}
+    assert not bad, bad
 
 
 @pytest.mark.slow
-def test_three_seasons_sit_in_every_event_league_and_leader_band(league, pooled):
+def test_six_seasons_sit_in_every_event_league_and_leader_band(league, pooled):
     """Event rates, league-mode rates (penalties, red cards, crosses completed, progressive passes per carry) and the
     individual leaders (each league leader against the Premier League's third best, regista.synth.report.LEADER_V)."""
     m = _metrics(pooled)
@@ -457,17 +497,20 @@ def test_three_seasons_sit_in_every_event_league_and_leader_band(league, pooled)
 
 
 @pytest.mark.slow
-def test_centre_backs_contest_the_most_aerial_duels(pooled):
-    """FBref 2023/24 (via Football365): three of the five players with the most aerial duels won were centre-backs."""
+def test_centre_backs_win_the_most_aerial_duels(pooled):
+    """FBref 2023/24 (via Football365): three of the five players with the most aerial duels won were centre-backs, the
+    other two target forwards. Since generator 0.5.0 keepers launch long to the front three, so strikers contest about as
+    many duels as centre-backs; centre-backs must still win the most, and contest more than any other defender."""
     m = _metrics(pooled)
-    assert m["cb_aerial_rank"] == 1, m["aerial_duels_per90_by_role"]
+    assert m["cb_aerial_won_rank"] == 1, m["aerial_duels_won_per90_by_role"]
+    assert m["cb_aerial_rank"] <= 2, m["aerial_duels_per90_by_role"]
 
 
 @pytest.mark.slow
-def test_the_star_leads_the_league_in_npxg_over_three_seasons(league, pooled):
+def test_the_star_leads_the_league_in_npxg_over_six_seasons(league, pooled):
     """Finishing is worth a realistic edge (about a quarter over xG), so any scoring chart over a few matches is partly
-    luck: over these three seasons Ustinov outscores him 8 to 6 from about 5 npxG to his 7.6 (over six, Toure leads 17
-    to 15). What the star's ratings decide is the chances: he has the most non-penalty xG by a distance."""
+    luck (generator 0.5.0: he is the outright top scorer in 10 of 12 regenerated seasons, the committed one included).
+    What the star's ratings decide is the chances: he has the most non-penalty xG by a distance."""
     from regista.season.audit import top_scorers
 
     chart = sorted(top_scorers(league, pooled, n=200), key=lambda r: -r["np_xg"])

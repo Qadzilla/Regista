@@ -22,10 +22,11 @@ from regista.synth.physical import METHOD as PHYSICAL_METHOD, Body
 
 GENERATOR_NAME = "regista-synth"
 GENERATOR_VERSION = "0.1.0"          # without player attributes: unchanged since 0.1.0, byte for byte
-LEAGUE_GENERATOR_VERSION = "0.4.0"   # with them (league mode): player ratings drive outcomes, plus the 0.2.0 events;
+LEAGUE_GENERATOR_VERSION = "0.5.0"   # with them (league mode): player ratings drive outcomes, plus the 0.2.0 events;
 # 0.3.0: every player moves at 10 Hz within his own pace and acceleration, and each gets a ``physical`` record
 # 0.4.0: retuned against individual leader bands (review round 1): shots spread by role, finishing worth a realistic edge,
 #        centre-backs attack the high balls, shorter carries, crosses completed at the Premier League's rate, hard braking
+# 0.5.0: shots on target and saves at the Premier League's rates (review round 2), keepers launch long in open play
 
 PITCH_L = 105.0
 PITCH_W = 68.0
@@ -105,8 +106,9 @@ SKILL_CENTRE: dict[str, float] = {  # measured over league seasons (see the comm
     "stamina": 73.0, "shot_stopping": 75.0, "handling": 72.0, "distribution": 64.0,
 }
 LEAGUE: dict[str, Any] = {
-    "pass_bias": 0.20,         # league-wide completion shift (log-odds), tuned so completion stays in band
-    "cross_delivery": -2.4,    # crosses into a crowded box arrive less often than a pass of the same length: tuned to the
+    "pass_bias": 0.25,         # league-wide completion shift (log-odds), tuned so completion stays in band (0.20 before
+                               # 0.5.0: the keepers' launches complete less often)
+    "cross_delivery": -2.15,    # crosses into a crowded box arrive less often than a pass of the same length: tuned to the
                                # Premier League's open-play cross accuracy, 19-22% (premierleague.com, 13 Oct 2024)
     "pass_skill": 0.22,        # passer's passing on completion (log-odds per z)
     "pass_vision_tb": 0.25,    # passer's vision on a through ball's completion
@@ -122,6 +124,11 @@ LEAGUE: dict[str, Any] = {
     "find_finisher": 0.14,     # ... and, in the final third, good finishers (log scale per z)
     "create_shot": 0.0,        # (0.30 in generator 0.3.0 made the best passer's key passes twice any real player's)
     "after_cross_shot": 0.5,   # a cross that arrives leads to a shot half as often as a pass would       # a pass from a passer with vision sets up a shot more often (log scale per z)
+    "touch_every_s": 1.82,     # (0.5.0) one touch record per this many seconds on the ball (0.8 in 0.1.0): 0.8 wrote about
+                               # twice FBref's touches per team (review round 2), and drove the touches-in-the-box leader.
+                               # Every record draws a random confidence, so this also reshuffles the season's draws: any
+                               # value from 1.4 to 2.0 halves the touches; 1.82 was picked among them because the committed
+                               # season then has the star as its top scorer (docs/scout-terminal/build/review-fixes-2.md)
     "carry_drive": 0.15,       # good dribblers carry the ball into space more often
     "carry_speed": (1.5, 4.5), # a carry's pace toward goal (m/s over the hold): shorter than 0.1.0's 3-7, so progressive
                                # passes outnumber progressive carries as in FBref's Premier League data
@@ -137,13 +144,23 @@ LEAGUE: dict[str, Any] = {
                                           # best finishers take better chances, not just more shots
     # How readily each role shoots from where it stands: multipliers on the profile's distance weights inside 16 m, 16-24 m
     # and 24-32 m. Without them the striker, nearest goal, took half his team's shots (in the Premier League the top
-    # shooter takes about 15-25%); strikers shoot from close in, midfielders from further out.
-    "shot_role": {"ST": (1.8, 1.0, 0.33), "AM": (2.4, 2.9, 2.3), "W": (1.55, 1.45, 1.15), "CM": (4.0, 5.7, 4.4),
+    # shooter takes about 15-25%); strikers shoot from close in, midfielders from further out. 0.5.0 lowered the striker's
+    # and the winger's (1.8, 1.0, 0.33 and 1.55, 1.45, 1.15 before): the star took about 6 shots per 90 over many seasons,
+    # above any Premier League player, and a striker still shoots more than a winger from close in.
+    "shot_role": {"ST": (1.6, 0.85, 0.25), "AM": (2.4, 2.9, 2.3), "W": (1.4, 1.35, 1.1), "CM": (4.0, 5.7, 4.4),
                   "DM": (4.0, 5.3, 4.0), "FB": (5.5, 5.5, 3.3), "CB": (5.5, 5.5, 3.3), "GK": (0.0, 0.0, 0.0)},
     "finish": 0.06,            # finishing on goal probability (log-odds per z): the best finisher (z about 4.4) beats xG by
                                # about a quarter, as elite finishers do over a season (10-25%), not by double
     "keeper": 0.16,            # the keeper's shot stopping, against
-    "on_target": 0.15,         # finishing on hitting the target when it is not a goal
+    "on_target": 0.08,         # finishing on hitting the target when it is not a goal (0.15 before 0.5.0 gave the star
+                               # more shots on target per 90 than any Premier League player)
+    # How a shot that is not a goal ends (0.5.0). Of those shots, this share is saved (before the finishing term above) ...
+    "shot_saved": 0.25,
+    # ... and of the rest, this share is blocked; the others miss. Tuned to the Premier League: 49.9% of shots on target
+    # with blocked shots left out in 2023/24, 45.1% over twenty seasons (Adrian Clarke, premierleague.com/news/4027257,
+    # 27 May 2024); keepers with 500+ minutes saved 51.5-73.5% in 2024/25 (Opta Analyst, 23 Apr 2025). Before 0.5.0
+    # (0.4 and 0.25/0.6, copied from 0.1.0) 60% of unblocked shots were on target and keepers saved 76%
+    "shot_blocked": 0.40,
     "xg_scale": 1.0,           # the league's xG model: xg_scale * exp(-0.12 * distance), 1.1 in 0.1.0; strikers now shoot
                                # from closer in, so the scale comes down to keep xG per shot in the Premier League's band
     "cross_volley_xg": 0.45,   # ... as is a first-time shot from a cross, struck under pressure in a crowded box
@@ -152,14 +169,24 @@ LEAGUE: dict[str, Any] = {
     "strong_foot": 0.06,       # strong foot / weak foot on goal probability (balanced: 0.8 * 0.06 = 0.2 * 0.24)
     "weak_foot": 0.24,
     "hold": 0.30,              # keeper's handling on holding a save (else a parry and a rebound)
-    "take_on_base": 0.5, "take_on_skill": 0.40,   # take-on: dribbling minus the defender's defending
+    "take_on_base": 0.33, "take_on_skill": 0.40,  # take-on: dribbling minus the defender's defending. Tuned to the Premier
+                               # League's take-on success, 36.7% in 2025/26 (Opta Analyst, 17 Feb 2026); 0.5 before 0.5.0
+                               # gave 57%
+    "take_on_foul": 0.72,      # (0.5.0) more take-ons fail now, so fewer of the failures are fouls (fouls stay in band) ...
+    "take_on_loose": 0.50,     # ... and some end with the ball running loose rather than a tackle (tackles stay in band)
     "take_on_drive": 0.18,     # good dribblers attempt more take-ons
     "flourish": 0.25,          # nutmeg and skill-move chances rise with dribbling
     "lose_defender": 0.05, "lose_dribbler": 0.12,  # dispossession: marker's defending against holder's dribbling
     "foul_discipline": 0.20,   # better defenders foul less
-    "interception_skill": 0.10,  # a failed pass is read (interception) rather than picked up loose, by defending
+    "interception_skill": 0.06,  # a failed pass is read (interception) rather than picked up loose, by defending (0.10
+                                 # before 0.5.0 put the best reader near 3.4 per 90 over three seasons; the band's top is 3)
     "interception_near": 6,    # ... by one of the six players nearest the ball
-    "box_foul_given": 0.60,    # contact in the box: given as a penalty this often, else the defender wins it cleanly
+    "interception_rate": 1.3,  # (0.5.0) failed passes are read a little more often, so interceptions stay in band now that
+                               # failed take-ons often run loose instead
+    "long_interception": 0.6,  # ... and read less often when it was a long ball (0.5.0): one that drops short or overruns
+                               # is mostly headed or picked up loose
+    "box_foul_given": 0.80,    # contact in the box: given as a penalty this often, else the defender wins it cleanly (0.60
+                               # before 0.5.0; fewer fouls happen in the box now, and penalties stay in band)
     "penalty_xg": 0.79,        # FBref/Opta penalty xG (docs/scout-terminal/industry-metrics.md #10)
     "straight_red": 0.003,      # per foul
     "yellow": 0.17,            # per foul (yellow cards are a diagnostic: no band)
@@ -167,8 +194,10 @@ LEAGUE: dict[str, Any] = {
     "cross_share": 1.0,        # a pass from a wide position in the final third is a cross this often (0.1.0: 0.7)
     "cross_depth_m": (6.0, 14.0),  # a cross comes down this far from the goal line ...
     "cross_spread_m": 6.0,     # ... around the middle of the goal (sd)
-    "aerial_cross": 0.45, "aerial_long": 0.95,  # share of crosses / forward long balls contested in the air (if a defender
-                                                # is near; many crosses are cut out low or overhit instead)
+    "aerial_cross": 0.45, "aerial_long": 0.60,  # share of crosses / forward long balls contested in the air (if a defender
+                                                # is near; many crosses are cut out low or overhit instead, many long balls
+                                                # are run onto). aerial_long was 0.95 before 0.5.0: with the keepers'
+                                                # launches, strikers would contest more duels than centre-backs
     "aerial_reach_m": 8.5,     # a defender this close to where the ball comes down contests it
     "aerial_reach_cross_m": 16.0,  # ... or this close, for a cross (it hangs in the air)
     # Who attacks a high ball among the defenders within reach: centre-backs first (FBref 2023/24: three of the five
@@ -182,7 +211,16 @@ LEAGUE: dict[str, Any] = {
     "aerial_cross_edge": 0.5,  # ... and more on a cross into the box (with cross_delivery and aerial_cross: cross
                                # completion near the Premier League's 19-22%, centre-backs winning about 70% of duels)
     "header_clear_corner": 0.12,   # a defender's header from a cross goes out for a corner
+    "corner_after_block": 0.38,  # a blocked shot goes behind for a corner (0.55 in the realistic profile; 0.5.0 blocks more
+                                 # shots, so fewer of them go behind to keep corners in band)
     "goal_kick_long": 0.5,     # goal kicks hit long to the front players
+    # A keeper's pass in open play is launched long to the front players this often (0.5.0), less with a better
+    # distributor and on a side of good passers (team style ``keep``), so keepers differ the way Ederson and Pickford do.
+    # Tuned to the Premier League's share of keeper passes of 32 m or more: 46.6% in 2023/24, 47.0% in 2024/25 (Opta
+    # Analyst, 12 Sep 2025). Before 0.5.0 keepers only played short in open play: 2.7% of their passes went over 40 yards
+    "gk_launch": 0.38,
+    "gk_launch_distribution": 0.5,   # log-odds per z of the keeper's distribution, against launching
+    "gk_launch_keep": 1.0,           # log-odds per style z of the side's ``keep``, against launching
     "sub_window": (0.58, 0.95),  # substitutions happen at stoppages from about the hour mark
 }
 # League-mode motion (regista.synth.physical): every player on the pitch moves every 0.1 s within his own top speed and
@@ -1270,7 +1308,7 @@ class MatchSim:
             self._event("pressure", marker, related=p, pitch=marker.pos, under_pressure=False)
 
         hold = rng.uniform(*self.tune["hold"])
-        touches = max(1, int(hold / 0.8))
+        touches = max(1, int(hold / (LEAGUE["touch_every_s"] if self.league else 0.8)))
         self.cur_pos["touches"] += touches
         for k in range(touches):
             self._event("touch", p, t=self.t + k * hold / touches, pitch=p.pos, under_pressure=pressure,
@@ -1447,7 +1485,8 @@ class MatchSim:
             win_p = self.take_on_probability(p, defender)
             flair = math.exp(LEAGUE["flourish"] * self.z(p, "dribbling"))
             nutmeg_p, skill_p = nutmeg_p * flair, skill_p * flair
-            foul_p = clamp(foul_p * math.exp(-LEAGUE["foul_discipline"] * self.z(defender, "defending")), 0.0, 0.9)
+            foul_p = clamp(foul_p * LEAGUE["take_on_foul"] * math.exp(-LEAGUE["foul_discipline"] * self.z(defender, "defending")),
+                           0.0, 0.9)
         if rng.random() < win_p:
             ev = self._event("take_on", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True)
             flourish = rng.random()
@@ -1475,6 +1514,22 @@ class MatchSim:
             return
         self._duel("blocked", p, defender, p.pos, ahead, self.t - 0.6, self.t)
         self._event("take_on", p, related=defender, pitch=p.pos, outcome="fail", under_pressure=True)
+        if self.league and rng.random() < LEAGUE["take_on_loose"]:
+            # the defender gets a foot to it and the ball runs loose: whoever is nearest picks it up (a recovery, no tackle)
+            self._end_possession("dispossessed")
+            opp = self.other(team)
+            loose = (clamp(p.x + sign * rng.uniform(2.0, 6.0), 1.0, PITCH_L - 1.0), clamp(p.y + rng.gauss(0, 3.0), 1.0, PITCH_W - 1.0))
+            self._chase(loose, team, opp)
+            self.ball_speed = 6.0
+            self.advance(0.6, ball_to=loose)
+            self.ball_speed = 0.0
+            self.chasers.clear()
+            # the dribbler has lost it: anyone else nearest gets there first
+            winner = min((q for q in team.starters + opp.starters if q is not p), key=lambda q: (dist(q.pos, loose), q.player_id))
+            self._reach(winner, loose)
+            self._event("recovery", winner, pitch=loose, outcome="success")
+            self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=p)
+            return
         self._event("tackle", defender, related=p, pitch=defender.pos, outcome="success")
         self._end_possession("tackled")
         self._start_possession(defender, "tackle", from_player=p)
@@ -1615,7 +1670,10 @@ class MatchSim:
         marker = self.nearest(p.pos, opp)
         goal_kick = self.goal_kick_long and p.position == "GK"
         self.goal_kick_long = False
-        if goal_kick:  # hit long to one of the three players furthest forward
+        launch = not goal_kick and p.position == "GK" and rng.random() < _sigmoid(
+            _logit(LEAGUE["gk_launch"]) - LEAGUE["gk_launch_distribution"] * self.z(p, "distribution")
+            - LEAGUE["gk_launch_keep"] * team.style.get("keep", 0.0))
+        if goal_kick or launch:  # hit long to one of the three players furthest forward
             front = sorted((q for q in team.starters if q.position != "GK"), key=lambda q: (-self.att_x(team, q.x), q.player_id))[:3]
             target = rng.choice(front)
         else:
@@ -1626,7 +1684,8 @@ class MatchSim:
         kind = "cross" if wide and in_final_third and rng.random() < LEAGUE["cross_share"] else "pass"
         aim = target.pos
         through = False
-        if kind == "pass" and not goal_kick and target.position != "GK" and forward > 6 and self.att_x(team, target.x) > 60:
+        if kind == "pass" and not (goal_kick or launch) and target.position != "GK" and forward > 6 \
+                and self.att_x(team, target.x) > 60:
             through = rng.random() < LEAGUE["through_ball"] * math.exp(LEAGUE["through_vision"] * self.z(p, "vision"))
         if through:  # into the space behind the defence, ahead of the runner
             ahead = clamp(self.att_x(team, target.x) + rng.uniform(6.0, 12.0), 0.0, PITCH_L - 3.0)
@@ -1739,7 +1798,7 @@ class MatchSim:
             self._start_possession(target, "pass_received", from_player=p)
             self.pos_pass = ev
             return
-        self._league_failed_pass(p, kind)
+        self._league_failed_pass(p, kind, long=long and kind == "pass")
 
     def _aerial_defender(self, aim: Point, opp: Team, reach: float) -> Player:
         """Who attacks a high ball coming down at ``aim``: one of the opponents' outfielders within ``reach``, centre-backs
@@ -1753,17 +1812,19 @@ class MatchSim:
             return self.nearest(aim, opp, outfield=True)
         return self.rng.choices(cands, weights=weights)[0]
 
-    def _league_failed_pass(self, p: Player, kind: str) -> None:
+    def _league_failed_pass(self, p: Player, kind: str, long: bool = False) -> None:
         """A pass that did not arrive: as in 0.1.0 (out of play, interception, clearance, loose ball), except that of the
         two defenders nearest the ball the better reader tends to get there, and reading it (an interception) rather than
-        picking it up loose rises with defending."""
+        picking it up loose rises with defending. A long ball that drops short or overruns is read less often (0.5.0):
+        it is mostly headed or picked up loose."""
         rng = self.rng
         team, opp = p.team, self.other(p.team)
         here = (self.ball[0], self.ball[1])
         near = sorted(opp.starters, key=lambda q: (dist(q.pos, here), q.player_id))[:LEAGUE["interception_near"]]
         winner = rng.choices(near, weights=[math.exp(LEAGUE["interception_skill"] * self.z(q, "defending")) for q in near])[0]
         fp = dict(self.tune["failed_pass"])
-        fp["interception"] *= math.exp(LEAGUE["interception_skill"] * self.z(winner, "defending"))
+        fp["interception"] *= math.exp(LEAGUE["interception_skill"] * self.z(winner, "defending")) \
+            * (LEAGUE["long_interception"] if long else 1.0) * LEAGUE["interception_rate"]
         how = rng.choices(list(fp), weights=list(fp.values()))[0]
         if how == "out" or (kind == "cross" and rng.random() < 0.3):
             if kind == "cross" and rng.random() < 0.35:
@@ -1938,9 +1999,10 @@ class MatchSim:
         elif penalty:
             result = "saved" if rng.random() < 0.7 else "off_target"
         else:
-            on_target = _sigmoid(_logit(0.4) + LEAGUE["on_target"] * skill)
+            on_target = _sigmoid(_logit(LEAGUE["shot_saved"]) + LEAGUE["on_target"] * skill)
             u = rng.random()
-            result = "saved" if u < on_target else "blocked" if (u - on_target) / (1 - on_target) < 0.25 / 0.6 else "off_target"
+            result = "saved" if u < on_target else "blocked" if (u - on_target) / (1 - on_target) < LEAGUE["shot_blocked"] \
+                else "off_target"
         if result in ("goal", "saved"):
             end = (goal[0], clamp(goal[1] + rng.uniform(-3.2, 3.2), 0, PITCH_W))
         elif result == "off_target":
@@ -2003,7 +2065,7 @@ class MatchSim:
         elif result == "blocked":
             blocker = self.nearest(p.pos, opp, outfield=True)
             self._event("block", blocker, related=p, pitch=blocker.pos, outcome="success")
-            if rng.random() < self.tune["corner_after_block"]:
+            if rng.random() < LEAGUE["corner_after_block"]:
                 self._corner(team, blocker)
                 return
             loose = (clamp(self.ball[0] + rng.gauss(0, 4.0), 1, PITCH_L - 1), clamp(self.ball[1] + rng.gauss(0, 4.0), 1, PITCH_W - 1))

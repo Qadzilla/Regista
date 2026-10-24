@@ -124,12 +124,13 @@ def test_regenerates_exactly_and_leaves_names_and_fixtures_alone(league):
     assert new_league(2027)["clubs"][0]["squad"][0]["attributes"] != league["clubs"][0]["squad"][0]["attributes"]
     # Squads (ids, names, numbers, positions) and fixtures (seeds included) hash as on main (e3da71d) before attributes.
     # The generator settings changed on purpose with league mode (profile "league", generator 0.2.0), with motion at
-    # 10 Hz and physical records (generator 0.3.0) and with the retune against individual leader bands (0.4.0).
+    # 10 Hz and physical records (generator 0.3.0), with the retune against individual leader bands (0.4.0) and with shot
+    # outcomes, keepers' launches and take-ons at the Premier League's rates (0.5.0).
     core = {"squads": [[{k: p[k] for k in ("global_id", "name", "kit_number", "position", "starter")} for p in c["squad"]]
                        for c in league["clubs"]], "fixtures": league["fixtures"]}
     assert hashlib.sha256(json.dumps(core, sort_keys=True).encode()).hexdigest() == \
         "6ef762c94d856aa980e2021d96c3c57de165c8ea05e665d22f82ab2692007de7"
-    assert league["generator"] == {"name": "regista-synth", "version": "0.4.0", "profile": "league", "minutes": 15.0,
+    assert league["generator"] == {"name": "regista-synth", "version": "0.5.0", "profile": "league", "minutes": 15.0,
                                    "periods": 2, "track_hz": 1.0}
 
 

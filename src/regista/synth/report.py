@@ -2,14 +2,16 @@
 
     python -m regista.synth.report data/synthetic/sample/syn_0294
     python -m regista.synth.report --profile realistic --seeds 11 12 13 --minutes 20
-    python -m regista.synth.report --league data/season/league.json [--repeat 3]
+    python -m regista.synth.report --league data/season/league.json [--repeat 6]
 
 League streams also carry ``physical`` records (every player's 10 Hz motion summarised, regista.synth.physical); the
 report checks them against physical bands from the Premier League (The Analyst / Opta) and the 2022 World Cup (FIFA's
 tracking, Bradley 2023), each band with its source below. League streams also get team-style bands (PPDA, possession)
 and individual-leader bands (each metric's top player against the Premier League's third best), computed with the Scout
-terminal's own engine (regista.season.metrics). A season is about ten full matches: check rare events and leaders over
-three seasons (``--league --repeat 3``).
+terminal's own engine (regista.season.metrics). A season is about ten full matches, so the leader bands and the
+rare-event bands (penalties, red cards) are a verdict only over six pooled seasons (``--league --repeat 6``, about 1,800
+minutes a regular); on fewer (one season: about 300 minutes a regular, a handful of penalties) those verdicts are
+printed as indicative, with each leader's minutes beside the value.
 
 The generator has two profiles. ``demo`` packs a 3-minute sample with action so a
 short clip reel has something in it; ``realistic`` is tuned to land inside the bands
@@ -69,6 +71,21 @@ LEAGUE_NORMS: dict[str, tuple[float, float, str, str]] = {
     "cross_completion": (0.16, 0.26, "ratio", "open-play crosses completed: Premier League 18.8% (2020/21), 19.6%, 21.1%, "
                          "20.9% (2023/24), 21.7% (2024/25 after seven rounds), 10-season average 19.5% (Adrian Clarke, "
                          "premierleague.com/news/4148090, 13 Oct 2024). The margins either side are ours"),
+    "shot_accuracy_ex_blocks": (0.40, 0.54, "ratio", "non-penalty shots on target (goals and saves) / shots, blocked shots "
+                                "left out, Opta's way: Premier League 49.9% in 2023/24 (a record), 45.1% over the twenty seasons "
+                                "since 2003/04; the ten most accurate teams of 2023/24 ran from 50.3% to 57.3% (Adrian Clarke, "
+                                "premierleague.com/news/4027257, 27 May 2024). The margins are ours"),
+    "save_pct": (0.58, 0.735, "ratio", "non-penalty saves / non-penalty shots on target faced, FBref's Save% rule. Premier "
+                 "League 2024/25 keepers with 500+ minutes ran from 51.5% (Walton) to 73.5% (Raya, the best) (Opta Analyst, "
+                 "'The Best Goalkeeper Stats from the 2024-25 Premier League', 23 Apr 2025). The league as a whole sits between "
+                 "its worst and best keepers; no league-wide figure could be read, so the band is ours inside that range"),
+    "take_on_success": (0.30, 0.45, "ratio", "take-ons won / attempted: Premier League league average 36.7% in 2025/26 (Ryan "
+                        "Benson, 'Creating Chaos: Who Are the Premier League's Most Impactful Dribblers?', Opta Analyst, 17 "
+                        "Feb 2026; mid-season). The margins are ours"),
+    "gk_long_pass_share": (0.37, 0.57, "ratio", "share of keepers' passes, goal kicks included, of 32 m or more: Premier League "
+                           "46.6% in 2023/24 and 47.0% in 2024/25, down from 79.3% in 2014/15 (Opta Analyst, Ali Tweedale, "
+                           "12 Sep 2025). Across 36 leagues in 2021/22 the share of keepers' passes of 40 m or more ran from "
+                           "35.7% to 58.4% by league (CIES Football Observatory, Weekly Post 381). The margins are ours"),
     "prog_pass_carry_ratio": (1.2, 3.0, "ratio", "progressive passes per progressive carry (FBref rules, regista.season.metrics). "
                               "FBref 2023/24 via Football365 (20 May 2024): the five most progressive passers made 1,602, the five "
                               "most progressive carriers 840, about 1.9 to 1 (our arithmetic). A derived band: no league total "
@@ -88,6 +105,9 @@ LEADER_V: dict[str, tuple[float, str, float, float]] = {   # key: (V, where it c
               "Wilson 9 in 991 (0.82)", 0.75, 2.0),
     "key_passes": (3.03, "1 De Bruyne 3.54, 2 Robertson 3.19, 3 Bruno Fernandes 3.03", 0.75, 1.5),
     "xa": (0.34, "1 De Bruyne 0.53, 2 Olise 0.35, 3 Saka 0.34", 0.75, 1.5),
+    "shots_on_target": (2.08, "the leader, not the third best (the rest of the ranking could not be read): Haaland 2.08 "
+                        "non-penalty and penalty shots on target per 90, 59 in all (StatMuse, Opta data, read 2026-10-24)",
+                        0.5, 1.5),
     "touches_in_box": (9.33, "1 Doku 14.32, 2 Gabriel Jesus 9.55, 3 Garnacho 9.33", 0.75, 1.5),
     "tackles_won": (4.28, "tackles (Regista's tackle events are the tackles the league band counts): 1 Palhinha 5.14, "
                     "2 Joao Gomes 4.35, 3 Vinicius Souza 4.28", 0.75, 1.5),
@@ -169,10 +189,13 @@ WIDE_ROLES = ("W", "FB")
 CENTRAL_ROLES = ("CB", "DM", "CM")
 LEAGUE_DIAGNOSTICS = ("matches", "through_balls_per90", "yellow_cards_per90", "penalty_conversion", "npxg_per90",
                       "np_goals_minus_xg", "key_passes_per_shot", "progressive_passes_team_per90",
-                      "progressive_carries_team_per90")
-# Shape checks without a numeric band (league mode): centre-backs contest among the most aerial duels (FBref 2023/24 via
-# Football365: three of the five players with the most aerial duels won were centre-backs).
-SHAPE_DIAGNOSTICS = ("aerial_duels_per90_by_role", "cb_aerial_rank", "field_tilt_team_range")
+                      "progressive_carries_team_per90", "shot_outcomes", "gk_launch_pct_range", "gk_avg_pass_length_range")
+# Shape checks without a numeric band (league mode): centre-backs win the most aerial duels (FBref 2023/24 via
+# Football365: three of the five players with the most aerial duels won were centre-backs, the other two target
+# forwards). Contests are a diagnostic: since generator 0.5.0 keepers launch long to the front three, so strikers contest
+# about as many as centre-backs (and win far fewer), as target forwards do.
+SHAPE_DIAGNOSTICS = ("aerial_duels_won_per90_by_role", "cb_aerial_won_rank", "aerial_duels_per90_by_role", "cb_aerial_rank",
+                     "field_tilt_team_range")
 DIAGNOSTICS = ("replays_per_goal", "tracks_kit_number_share", "minutes", "possession_changes_per90", "carries_per90", "pressures_per90")
 
 
@@ -235,7 +258,16 @@ def _league_metrics(events: list[Record], shots: list[Record], counts: Counter, 
     crosses = [e for e in events if e["event_type"] == "cross"]
     npxg = sum(s.get("metrics", {}).get("xg", 0.0) for s in open_play)
     key_passes = sum(1 for e in events if e["event_type"] in ("pass", "cross") and "key_pass" in e.get("qualifiers", []))
+    outcome = Counter("goal" if s["outcome"] == "success" else next((q for q in s.get("qualifiers", [])
+                      if q in ("saved", "blocked", "off_target")), "other") for s in open_play)
+    unblocked = len(open_play) - outcome["blocked"]
+    on_target = outcome["goal"] + outcome["saved"]
     return {
+        "shot_accuracy_ex_blocks": round(on_target / unblocked, 3) if unblocked else 0.0,
+        "take_on_success": round(sum(1 for e in events if e["event_type"] == "take_on" and e["outcome"] == "success")
+                                 / counts["take_on"], 3) if counts["take_on"] else 0.0,
+        "save_pct": round(outcome["saved"] / on_target, 3) if on_target else 0.0,
+        "shot_outcomes": "/".join(f"{k} {outcome[k]}" for k in ("goal", "saved", "blocked", "off_target")),
         "matches": matches,
         "penalties_per90": round(counts["penalty"] * scale, 2),
         "red_cards_per90": round(counts["card_red"] * scale, 2),
@@ -270,10 +302,16 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
     club_of: dict[str, str] = {}
     role_of: dict[str, str] = {}
     clubs: dict[str, Counter] = {}
+    gk_passes = gk_long = 0
     for recs in groups:
         header = next((r for r in recs if r["type"] == "match"), None)
         if header is None:
             continue
+        keepers = {p["player_id"] for p in header["players"] if p.get("position") == "GK"}
+        for r in recs:   # keepers' passes, goal kicks included, and how many travel 32 m or more (Opta's long pass)
+            if r.get("event_type") in ("pass", "cross") and r.get("player_id") in keepers:
+                gk_passes += 1
+                gk_long += r.get("metrics", {}).get("pass_distance_m", 0.0) >= 32.0
         mm = analyse_match(recs)
         club = {t["team_id"]: t.get("club_id") or t["team_id"] for t in header["teams"]}
         for p in header["players"]:
@@ -290,9 +328,18 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
     qual = qualifying_minutes(max(club_minutes.values(), default=0.0))
     pool = [g for g in people if minutes[g] >= qual and minutes[g] > 0]
     out: dict[str, Any] = {}
+    ids = [h["match_id"] for h in (next((r for r in recs if r["type"] == "match"), None) for recs in groups) if h]
+    out["seasons"] = max(1, round(len(ids) / max(1, len(set(ids)))))   # pooled seasons repeat every match id
     for key in LEADER_V:
-        rates = [people[g].get(key, 0.0) * 90.0 / minutes[g] for g in pool]
-        out[f"leader_{key}_per90"] = round(max(rates), 2) if rates else 0.0
+        rates = sorted(((people[g].get(key, 0.0) * 90.0 / minutes[g], g) for g in pool), reverse=True)
+        out[f"leader_{key}_per90"] = round(rates[0][0], 2) if rates else 0.0
+        out[f"leader_{key}_minutes"] = round(minutes[rates[0][1]]) if rates else 0
+    out["gk_long_pass_share"] = round(gk_long / gk_passes, 3) if gk_passes else 0.0
+    gks = [c for g, c in people.items() if role_of[g] == "GK" and c.get("gk_open_passes", 0.0) >= 10]
+    launch = [100.0 * c.get("gk_launches", 0.0) / c["gk_open_passes"] for c in gks]
+    length = [c.get("gk_pass_length_sum", 0.0) / c["gk_open_passes"] for c in gks]
+    out["gk_launch_pct_range"] = f"{min(launch):.1f}-{max(launch):.1f}%" if launch else "n/a"
+    out["gk_avg_pass_length_range"] = f"{min(length):.1f}-{max(length):.1f} m" if length else "n/a"
     shots: dict[str, Counter] = {}
     for g, c in people.items():
         shots.setdefault(club_of[g], Counter())[g] += c.get("shots", 0.0)
@@ -314,14 +361,20 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
     out["progressive_passes_team_per90"] = round(prog_p * 90.0 / team_minutes, 1)
     out["progressive_carries_team_per90"] = round(prog_c * 90.0 / team_minutes, 1)
     roles: dict[str, list[float]] = {}
+    won: dict[str, list[float]] = {}
     for g in pool:
         if role_of[g] != "GK":
             duels = people[g].get("aerial_duels_won", 0.0) + people[g].get("aerial_duels_lost", 0.0)
             roles.setdefault(role_of[g], []).append(duels * 90.0 / minutes[g])
+            won.setdefault(role_of[g], []).append(people[g].get("aerial_duels_won", 0.0) * 90.0 / minutes[g])
     by_role = {r: round(sum(v) / len(v), 2) for r, v in sorted(roles.items())}
+    won_by_role = {r: round(sum(v) / len(v), 2) for r, v in sorted(won.items())}
     out["aerial_duels_per90_by_role"] = by_role
+    out["aerial_duels_won_per90_by_role"] = won_by_role
     order = sorted(by_role, key=lambda r: -by_role[r])
     out["cb_aerial_rank"] = order.index("CB") + 1 if "CB" in order else 0
+    order = sorted(won_by_role, key=lambda r: -won_by_role[r])
+    out["cb_aerial_won_rank"] = order.index("CB") + 1 if "CB" in order else 0
     return out
 
 
@@ -435,6 +488,37 @@ def physical_metrics(stream: list[Record]) -> dict[str, float]:
     }
 
 
+# Individual leader bands and rare events (penalties, red cards) are a verdict over at least this many pooled seasons
+# (``--repeat 6``, about 1,800 minutes a regular). Three seasons proved too few in review round 2: the first three hold one
+# penalty where about six are expected, and one season's star can sit a tenth above a leader band by chance.
+LEADER_SEASONS = 6
+INDICATIVE = f"indicative (under {LEADER_SEASONS} seasons)"
+
+
+RARE_EVENTS = ("penalties_per90", "red_cards_per90")   # about 0.3 and 0.1 a match: a season holds a handful of each
+
+
+def league_verdicts(metrics: dict[str, Any]) -> dict[str, str]:
+    """The league-mode bands' verdicts. Penalties and red cards are rare (a season of 30 thirty-minute matches has about
+    five penalties and one or two red cards; none at all is common), so below ``LEADER_SEASONS`` pooled seasons their
+    verdicts are marked indicative, like the leaders'. Every other league-mode band is a verdict on one season."""
+    v = verdicts(metrics, LEAGUE_NORMS)
+    if metrics.get("seasons", 1) >= LEADER_SEASONS:
+        return v
+    return {k: f"{x}, {INDICATIVE}" if k in RARE_EVENTS and x != "n/a" else x for k, x in v.items()}
+
+
+def individual_verdicts(metrics: dict[str, Any]) -> dict[str, str]:
+    """The leader bands' verdicts. One season gives a regular about 300 minutes (about three full matches), so a single
+    season's leaders are a small sample: below ``LEADER_SEASONS`` pooled seasons each verdict is marked indicative, and
+    only the pooled check (``--league --repeat 6``, about 1,800 minutes a regular, twice the Premier League pool's
+    900-minute minimum) is the rule the tests apply."""
+    v = verdicts(metrics, INDIVIDUAL_NORMS)
+    if metrics.get("seasons", 1) >= LEADER_SEASONS:
+        return v
+    return {k: f"{x}, {INDICATIVE}" if x != "n/a" else x for k, x in v.items()}
+
+
 def verdicts(metrics: dict[str, float], norms: dict[str, tuple[float, float, str, str]] | None = None) -> dict[str, str]:
     out = {}
     for key, (lo, hi, _unit, _note) in (NORMS if norms is None else norms).items():
@@ -466,13 +550,15 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
     inb = sum(1 for x in v.values() if x == "in band")
     lines += ["", f"**{inb} of {len(NORMS)} metrics in band.**", "", "Diagnostics (no band): " + ", ".join(f"{k}={metrics[k]}" for k in DIAGNOSTICS if k in metrics), ""]
     if "penalties_per90" in metrics:
-        lv = verdicts(metrics, LEAGUE_NORMS)
+        lv = league_verdicts(metrics)
         lines += ["## League mode (schema 0.2.0 events, players with ratings)", "",
-                  "Rare events: a season is 30 thirty-minute matches (about ten full matches), so check these over several "
-                  "seasons (`--repeat`).", "", "| Metric | Value | Band | Verdict | Source |", "|---|---|---|---|---|"]
+                  "Rare events: a season is 30 thirty-minute matches (about ten full matches), so penalties and red cards "
+                  f"are a verdict only over {LEADER_SEASONS} or more pooled seasons (`--repeat {LEADER_SEASONS}`); on one "
+                  f"season they are marked '{INDICATIVE}'.", "", "| Metric | Value | Band | Verdict | Source |",
+                  "|---|---|---|---|---|"]
         for key, (lo, hi, unit, note_) in LEAGUE_NORMS.items():
             lines.append(f"| {key} | {metrics.get(key)} {unit} | {lo}–{hi} | {lv[key]} | {note_} |")
-        linb = sum(1 for x in lv.values() if x == "in band")
+        linb = sum(1 for x in lv.values() if x.startswith("in band"))
         lines += ["", f"**{linb} of {len(LEAGUE_NORMS)} league-mode metrics in band.**", "",
                   "Diagnostics (no band): " + ", ".join(f"{k}={metrics[k]}" for k in LEAGUE_DIAGNOSTICS if k in metrics), ""]
     if "distance_per90_km" in metrics:
@@ -492,15 +578,22 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
                  "(PPDA, the Scout terminal's rule) and the clubs with the most and least of the ball. Field tilt (no "
                  f"published Premier League norm we could cite): {metrics.get('field_tilt_team_range')}%."),
                 ("Individual leaders (league mode)", INDIVIDUAL_NORMS, "Each metric's top qualified player (the Scout "
-                 "terminal's engine and pool) against the Premier League's third best (LEADER_V). One season gives a regular "
-                 "about 300 minutes, so check leaders over three seasons (`--repeat 3`, about 900 minutes each, the "
-                 "Premier League pool's minimum)."),
+                 "terminal's engine and pool) against the Premier League's third best (LEADER_V), with the leader's minutes "
+                 "beside the value. One season gives a regular about 300 minutes (about three full matches), so these bands "
+                 f"are a verdict only over {LEADER_SEASONS} or more pooled seasons (`--repeat {LEADER_SEASONS}`, about "
+                 "1,800 minutes each, twice the Premier League pool's 900-minute minimum); on fewer every verdict is marked "
+                 f"'{INDICATIVE}'. This stream: {metrics.get('seasons', 1)} season(s)."),
         ):
-            v = verdicts(metrics, norms)
+            leaders = norms is INDIVIDUAL_NORMS
+            v = individual_verdicts(metrics) if leaders else verdicts(metrics, norms)
             lines += [f"## {title}", "", intro, "", "| Metric | Value | Band | Verdict | Source |", "|---|---|---|---|---|"]
             for key, (lo, hi, unit, note_) in norms.items():
-                lines.append(f"| {key} | {metrics.get(key)} {unit} | {lo}–{hi} | {v[key]} | {note_} |")
-            lines += ["", f"**{sum(1 for x in v.values() if x == 'in band')} of {len(norms)} in band.**", ""]
+                mins = metrics.get(key.replace("_per90", "_minutes")) if leaders and key.startswith("leader_") else None
+                shown = f"{metrics.get(key)} {unit}" + (f" ({mins} min)" if mins is not None else "")
+                lines.append(f"| {key} | {shown} | {lo}–{hi} | {v[key]} | {note_} |")
+            inb = sum(1 for x in v.values() if x.startswith("in band"))
+            lines += ["", f"**{inb} of {len(norms)} in band" + (f" ({INDICATIVE}).**" if leaders and
+                                                                  metrics.get("seasons", 1) < LEADER_SEASONS else ".**"), ""]
         lines += ["Shape checks (no numeric band): " + ", ".join(f"{k}={metrics[k]}" for k in SHAPE_DIAGNOSTICS if k in metrics), ""]
     return "\n".join(lines)
 
@@ -564,12 +657,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         out = {"metrics": metrics, "verdicts": verdicts(metrics)}
         if "penalties_per90" in metrics:
-            out["league_verdicts"] = verdicts(metrics, LEAGUE_NORMS)
+            out["league_verdicts"] = league_verdicts(metrics)
         if "distance_per90_km" in metrics:
             out["physical_verdicts"] = verdicts(metrics, PHYSICAL_NORMS)
         if "leader_shots_per90" in metrics:
             out["style_verdicts"] = verdicts(metrics, STYLE_NORMS)
-            out["individual_verdicts"] = verdicts(metrics, INDIVIDUAL_NORMS)
+            out["individual_verdicts"] = individual_verdicts(metrics)
+            out["individual_rule"] = (f"leader bands are a verdict over {LEADER_SEASONS}+ pooled seasons (--repeat "
+                                      f"{LEADER_SEASONS}); this stream has {metrics.get('seasons', 1)}")
         print(json.dumps(out, indent=2))
     else:
         print(md)

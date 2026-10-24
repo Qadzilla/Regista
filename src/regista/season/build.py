@@ -28,6 +28,7 @@ from regista.synth.generator import LEAGUE_GENERATOR_VERSION, generate
 Record = dict[str, Any]
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
+_build_all_lock = threading.Lock()   # one build_all at a time in this process: two would start two pools on one fixture
 
 
 def fingerprint(league: Record, fixture: Record) -> str:
@@ -92,6 +93,11 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
                 "video_duration_s": result.match["video"]["duration_s"], "clip_count": len(clips),
             }
             (tmp / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
+            if is_current(league, fixture, root):
+                # another process got there first (build_all's worker processes do not share this thread lock): keep its
+                # folder rather than delete it under a reader, and drop ours (identical: same fixture, same seed)
+                shutil.rmtree(tmp, ignore_errors=True)
+                return dest
             if dest.exists():
                 shutil.rmtree(dest)
             tmp.rename(dest)
@@ -109,8 +115,15 @@ def _materialise_one(args: tuple[Record, Record, str]) -> str:
 def build_all(league: Record, root: Path | str, workers: int | None = None) -> list[Path]:
     """Every fixture's folder. Missing or stale ones are generated in parallel processes (a league match takes about a
     second to generate, so a cold season of 30 takes about 35 s on one core and a few seconds on several); ``workers`` 1
-    builds them here, one by one."""
-    root = Path(root)
+    builds them here, one by one. One call runs at a time per process (the warm-up and a request arriving during it would
+    otherwise both spawn pools that generate the same fixtures); the second waits and then finds every folder current.
+    Worker processes are spawned, so a script that calls this must guard its entry point with
+    ``if __name__ == "__main__":`` (each worker imports the script again)."""
+    with _build_all_lock:
+        return _build_all(league, Path(root), workers)
+
+
+def _build_all(league: Record, root: Path, workers: int | None) -> list[Path]:
     stale = [f for f in league["fixtures"] if not is_current(league, f, root)]
     workers = min(len(stale), workers or os.cpu_count() or 1)
     if workers > 1:

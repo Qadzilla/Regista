@@ -101,7 +101,7 @@ def test_search_players_sorts_filters_and_explains(season):
     out = scout.search_players(season, position="FW", sort="shots", limit=50)
     vals = [r["stat"]["value"] for r in out["players"]]
     assert vals == sorted(vals, reverse=True) and len(vals) <= scout.MAX_LIMIT
-    assert out["note"].startswith("players with at least") and out["sort_label"] == "Shots"
+    assert out["note"].startswith("players with at least") and out["sort_label"] == "Shots (incl. penalties)"
     asc = scout.search_players(season, position="FW", sort="shots", order="asc")
     assert [r["stat"]["value"] for r in asc["players"]] == sorted(r["stat"]["value"] for r in asc["players"])
     acc = scout.search_players(season, sort="pass_accuracy")

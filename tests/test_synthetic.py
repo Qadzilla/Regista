@@ -410,3 +410,15 @@ def test_clip_and_label_ids_are_unique_across_players_in_a_match(result):
         ids += [c["id"] for c in clips] + [lb["id"] for lb in labels]
         assert all(pid in c["id"] for c in clips)
     assert len(ids) == len(set(ids))
+
+
+def test_vision_output_and_annotations_stamp_the_legacy_version():
+    """Streams that use nothing added in 0.2.0 stay 0.1.1 (data/synthetic/README.md): the vision layer (the Player view's
+    cloud worker included), Who's who answers, Keep/Drop verdicts and claims. So committed vis_0201 still reproduces."""
+    import importlib
+
+    for name in ("regista.vision.pipeline", "regista.vision.identity", "regista.vision.shots", "regista.vision.possession",
+                 "regista.vision.events", "regista.vision.review", "regista.feedback", "regista.season.claims"):
+        assert importlib.import_module(name).SCHEMA_VERSION == LEGACY_SCHEMA_VERSION, name
+    vis = list(iter_jsonl(Path(__file__).resolve().parents[1] / "data/synthetic/sample/vis_0201/events.jsonl"))
+    assert {r["schema_version"] for r in vis} == {LEGACY_SCHEMA_VERSION}

@@ -25,6 +25,7 @@ League fixtures only: confirmed claims and Player-view uploads (vision streams, 
 from __future__ import annotations
 
 import math
+import statistics
 import threading
 from bisect import bisect_left, bisect_right
 from collections import defaultdict, deque
@@ -143,7 +144,8 @@ class Metric:
                 "definition": self.definition, "rule": self.rule, "sources": list(self.sources),
                 "positions": list(self.positions), "higher_is_better": self.higher_is_better,
                 "per90": self.kind == "per90", "ratio": self.kind == "ratio",
-                "components": [k for k in (self.num, self.den) if k], "evidence_from": list(self.evidence_keys())}
+                "components": [k for k in (self.num, self.den) if k], "evidence_from": list(self.evidence_keys()),
+                "realism": realism(self.key)}
 
     def evidence_keys(self) -> tuple[str, ...]:
         if self.evidence:
@@ -287,8 +289,10 @@ _CATALOGUE: list[Metric] = [
        "Completed / attempted passes starting in the final third.", "FBref pass zones (Regista's thirds)", "FB-PA, FB-POS",
        num="final_third_passes_completed", den="final_third_passes", min_den="attempts", **PCT),
     # -------------------------------------------------------------------------------------------- carrying and dribbling
-    _m("touches", "Touches", "carrying", "per90", "touches", "Times the player touched the ball (Regista writes one touch per "
-       "0.8 s on the ball).", "FBref Touches", "FB-POS", positions=EVERYONE),
+    _m("touches", "Touches", "carrying", "per90", "touches", "Times the player touched the ball: Regista writes one touch "
+       "record per 1.8 s on the ball (generator 0.5.0; per 0.8 s before, about twice FBref's count). Not FBref's Touches: "
+       "compare players with each other, not with FBref.", "Regista touch records (not FBref Touches)", "FB-POS",
+       positions=EVERYONE),
     _m("touches_in_box", "Touches in the box", "carrying", "per90", "touches",
        "Touches in the opponent's penalty area: touch records there, plus the touch that ends each carry into it (Regista "
        "places a possession's touch records where it starts).", "FBref Att Pen touches", "FB-POS, SB-RAD", positions=ATTACK),
@@ -389,11 +393,15 @@ _CATALOGUE: list[Metric] = [
     _m("save_pct", "Save %", "goalkeeping", "ratio", "%", "Saves / shots on target faced, i.e. (SoTA - GA) / SoTA, penalty "
        "kicks excluded from both, as FBref's Save% does.",
        "FBref Save%", "FB-GK", num="saves", den="sot_faced", min_den="sot_faced", positions=KEEPER, **PCT),
-    _m("clean_sheets", "Clean sheets", "goalkeeping", "total", "matches", "Full matches played without conceding.",
-       "Opta clean sheet", "OPTA-DEF", positions=KEEPER, digits=0),
+    _m("clean_sheets", "Clean sheets (30-min matches)", "goalkeeping", "total", "matches",
+       "Full 30-minute league matches played without conceding. A clean sheet is far likelier over 30 minutes than over 90, "
+       "so the count is not comparable with a Premier League keeper's.", "Opta clean sheet (30-minute matches)", "OPTA-DEF",
+       positions=KEEPER, digits=0),
     _m("full_matches", "Full matches", "goalkeeping", "total", "matches", "Matches played from start to finish.", "FBref",
        "FB-PT2", positions=KEEPER, digits=0),
-    _m("clean_sheet_pct", "Clean sheet %", "goalkeeping", "ratio", "%", "Clean sheets / full matches played.", "FBref CS%",
+    _m("clean_sheet_pct", "Clean sheet % (30-min matches)", "goalkeeping", "ratio", "%",
+       "Clean sheets / full 30-minute matches played. Keepers here run far above the Premier League's rate because a match "
+       "lasts 30 minutes: compare keepers with each other only.", "FBref CS% (30-minute matches)",
        "FB-GK, OPTA-DEF", num="clean_sheets", den="full_matches", min_den="matches", positions=KEEPER, **PCT),
     _m("penalties_faced", "Penalties faced", "goalkeeping", "total", "penalties", "Opponent penalty kicks while on the pitch.",
        "FBref PKatt (against)", "FB-GK", positions=KEEPER, higher_is_better=None, digits=0),
@@ -504,9 +512,79 @@ DEFAULT_COLUMNS = {
            "pressure_regains"),
     "DF": ("progressive_passes", "pass_pct", "tkl_int_padj", "tackle_success_pct", "interceptions", "clearances",
            "aerial_win_pct", "blocks"),
-    "GK": ("save_pct", "goals_conceded", "saves", "clean_sheets", "gk_pass_pct", "gk_launch_pct"),
+    "GK": ("save_pct", "goals_conceded", "saves", "sot_faced", "gk_pass_pct", "gk_launch_pct"),   # clean sheets: 30-minute
+                                                                                                # matches, not first
     None: ("npxg", "xa", "sca", "progressive_passes", "progressive_carries", "take_ons_won", "tkl_int_padj", "distance"),
 }
+
+# Is the league's level of this metric checked against the Premier League? ``bands`` name the bands in
+# ``regista.synth.report`` (league aggregates or the league's leader, each with its source there) that cover it; a metric
+# with none says so, and where a reviewer found it likely off, says how. Synthetic data: a band in range shows the
+# simulator is football-like, not that a player's number is real.
+_BANDED = "checked: the league's level sits inside a Premier League band in regista.synth.report"
+REALISM: dict[str, Record] = {
+    **{k: {"checked": True, "bands": b, "note": _BANDED} for k, b in {
+        "goals": ["goals_per90", "leader_goals_per90"], "np_goals": ["goals_per90", "leader_goals_per90"],
+        "shots": ["shots_per90", "leader_shots_per90", "top_shooter_share"],
+        "shots_on_target": ["leader_shots_on_target_per90"], "npxg": ["leader_npxg_per90"], "xg": ["leader_npxg_per90"],
+        "npxg_per_shot": ["xg_per_shot"], "key_passes": ["leader_key_passes_per90"], "xa": ["leader_xa_per90"],
+        "crosses": ["leader_crosses_per90"], "cross_pct": ["cross_completion"], "passes": ["passes_per90"],
+        "pass_pct": ["pass_completion"], "progressive_passes": ["prog_pass_carry_ratio"],
+        "progressive_carries": ["prog_pass_carry_ratio", "leader_progressive_carries_per90"],
+        "touches_in_box": ["leader_touches_in_box_per90"], "take_ons": ["take_ons_per90"], "take_on_pct": ["take_on_success"],
+        "nutmegs": ["nutmegs_per90"], "tackles_won": ["tackles_per90", "leader_tackles_won_per90"],
+        "interceptions": ["interceptions_per90", "leader_interceptions_per90"], "aerial_duels": ["aerial_duels_per90"],
+        "fouls": ["fouls_per90"], "offsides": ["offsides_per90"], "red_cards": ["red_cards_per90"], "save_pct": ["save_pct"],
+        "distance": ["distance_per90_km", "distance_per90_min_km", "distance_per90_max_km"],
+        "hi_distance": ["hi_distance_per90_m", "cb_hi_distance_per90_m"], "sprint_distance": ["sprint_distance_per90_m"],
+        "sprints": ["sprints_per90"], "peak_speed": ["peak_speed_max_kmh"], "peak_speed_mean": ["peak_speed_mean_kmh"],
+        "walking_share": ["walking_share_min", "walking_share_max"], "decelerations_high": ["dec_acc_high_ratio"],
+    }.items()},
+    "shot_on_target_pct": {"checked": True, "bands": ["shot_accuracy_ex_blocks"],
+                           "note": _BANDED + ". The band leaves blocked shots out (Opta); this metric follows FBref's SoT% "
+                                   "and keeps them in, so it reads lower than the band"},
+    "gk_launch_pct": {"checked": True, "bands": ["gk_long_pass_share"],
+                      "note": _BANDED + ". The band is the share of keepers' passes of 32 m or more with goal kicks "
+                              "included (Opta Analyst); this metric is FBref's Launch%, open-play passes over 40 yards, so "
+                              "it reads lower than the band"},
+    "touches": {"checked": False, "bands": [], "note": "not comparable: Regista writes a touch record every 1.8 s on the "
+                "ball (about 600 per team per 90; every 0.8 s before generator 0.5.0, about twice FBref's count). No FBref "
+                "team figure was read: compare players with each other only"},
+    "clean_sheets": {"checked": False, "bands": [], "note": "not comparable: 30-minute matches give far more clean sheets "
+                     "than 90 (keepers here 20-90% of full matches, Premier League keepers about 25-35%, a reviewer's "
+                     "figure)"},
+    "clean_sheet_pct": {"checked": False, "bands": [], "note": "not comparable: 30-minute matches give far more clean sheets "
+                        "than 90 (keepers here 20-90% of full matches, Premier League keepers about 25-35%, a reviewer's "
+                        "figure)"},
+    "passes_into_box": {"checked": False, "bands": [], "note": "unchecked, likely low: no Premier League figure was read; "
+                        "a reviewer estimated FBref's passes into the penalty area at about 9 per team per 90 (unsourced), "
+                        "against about 4 here"},
+    "pressure_regain_pct": {"checked": False, "bands": [], "note": "unchecked, likely low: no figure was read; a reviewer "
+                            "recalled about 30% for pressure success on FBref's StatsBomb-era tables (unsourced, and the "
+                            "definitions differ), against about 14% here"},
+    "medium_pass_pct": {"checked": False, "bands": [], "note": "unchecked, likely low: no figure was read; a reviewer "
+                        "estimated about 87% for FBref's medium passes (unsourced), against about 79% here"},
+    "long_pass_pct": {"checked": False, "bands": [], "note": "unchecked, likely low: no figure was read; a reviewer "
+                      "estimated about 55% for FBref's long passes (unsourced), against about 49% here"},
+    "gk_avg_pass_length": {"checked": False, "bands": [], "note": "unchecked: no league-wide Premier League figure was read. "
+                           "For scale, the longest average successful keeper pass in the 2024/25 Premier League was 36.7 m "
+                           "(Sels; Opta Analyst, 23 Apr 2025)"},
+    "ppda": {"checked": True, "bands": ["ppda_team_min", "ppda_team_max"], "note": _BANDED},
+    "possession_pct": {"checked": True, "bands": ["possession_team_max", "possession_team_min"], "note": _BANDED},
+    "field_tilt_pct": {"checked": False, "bands": [], "note": "unchecked: no citable Premier League norm was found"},
+    "xt_added": {"checked": False, "bands": [], "note": "unchecked: no sourced norm. Carries earn most of the league's xT "
+                 "added (about two thirds), so carriers outrank passers on it"},
+    "xt_carries": {"checked": False, "bands": [], "note": "unchecked: no sourced norm. Carries earn most of the league's "
+                   "xT added (about two thirds)"},
+}
+UNCHECKED: Record = {"checked": False, "bands": [], "note": "unchecked: no Premier League band covers this metric in "
+                     "regista.synth.report"}
+
+
+def realism(key: str) -> Record:
+    """How far this metric's league-wide level is checked against the Premier League (``REALISM``)."""
+    return REALISM.get(key, UNCHECKED)
+
 
 TEAM_CATALOGUE: dict[str, Metric] = {m.key: m for m in [
     _m("possession_pct", "Possession", "team", "ratio", "%",
@@ -1242,6 +1320,8 @@ class SeasonMetrics:
         self.matches_per_club = 0
         self.thresholds: dict[str, Record] = {}
         self.peer_pools: dict[tuple[str, str], list[float]] = {}
+        # split-half reliability per metric (regista.season.reliability; load_metrics fills it from reliability.json)
+        self.reliability: Record = {"metrics": {}, "stale": "not loaded"}
 
     # ------------------------------------------------------------------ build
     @classmethod
@@ -1381,6 +1461,29 @@ class SeasonMetrics:
                 pct = fbref_percentile(vals, rank_value(ps.values[m.key]))
                 ps.percentiles[m.key] = round(100.0 - pct if m.higher_is_better is False else pct)
 
+    def describe(self, key: str) -> Record:
+        """A metric's public description plus its split-half reliability in this league (None when not measured)."""
+        return {**CATALOGUE[key].public(), "reliability": self.reliability.get("metrics", {}).get(key)}
+
+    def noisy(self, key: str) -> bool:
+        """Within a role, is one season's ranking on this metric mostly luck (split-half r below NOISE_R)?"""
+        return bool((self.reliability.get("metrics", {}).get(key) or {}).get("noisy"))
+
+    def sample(self) -> Record:
+        """How much football the season holds: what every per-90 and percentile here rests on."""
+        pool = sorted(ps.minutes for ps in self.players.values() if ps.minutes >= self.min_minutes)
+        club = max((t["totals"].get("minutes", 0.0) for t in self.teams.values()), default=0.0)
+        median = statistics.median(pool) if pool else 0.0
+        return {"matches_per_club": self.matches_per_club, "match_minutes": round(club / self.matches_per_club, 1)
+                if self.matches_per_club else None, "club_minutes": round(club, 1),
+                "qualifying_minutes": round(self.min_minutes, 1), "qualified_players": len(pool),
+                "median_qualified_minutes": round(median, 1), "median_full_matches": round(median / 90.0, 1),
+                "note": f"Small sample: a club plays {self.matches_per_club} matches of about "
+                        f"{round(club / self.matches_per_club) if self.matches_per_club else 0} minutes, so a qualified "
+                        f"player's season is about {round(median)} minutes ({median / 90.0:.1f} full matches). Per-90s "
+                        "and percentiles rest on that; a metric marked noisy cannot yet separate players in the same "
+                        "role over one season (split-half reliability, regista.season.reliability)."}
+
     def cell(self, ps: PlayerSeason, key: str) -> Record:
         """One metric for one player: the value people read, the count behind it, the percentile and the peer pool."""
         m = CATALOGUE[key]
@@ -1395,6 +1498,7 @@ class SeasonMetrics:
         if m.kind == "padj":
             out["opponent_possession_min"] = round(ps.totals.get("opp_possession_s", 0.0) / 60.0, 1)
         out["peers"] = len(self.peer_pools.get((key, ps.info["position"]), []))
+        out["noisy"] = self.noisy(key)
         return out
 
     # ------------------------------------------------------------------ evidence
@@ -1682,7 +1786,11 @@ def load_metrics(league_path: Path | str, root: Path | str) -> SeasonMetrics:
     with _lock:
         hit = _cache.get(key)
         if hit is None:
-            hit = build_season(load_league(league_path), root)
+            league = load_league(league_path)
+            hit = build_season(league, root)
+            from regista.season.reliability import load as load_reliability
+
+            hit.reliability = load_reliability(league_path, league)
             _cache.clear()
             _cache[key] = hit
         return hit

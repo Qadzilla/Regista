@@ -47,7 +47,7 @@ python -m regista.season.audit                          # split-half reliability
 | `clock` | Match clock on events: `{period, minute, second}`. Derived from `match.periods`. |
 | Pitch coordinates | Metres, absolute frame: `x` 0–105 along the length, `y` 0–68 along the width, origin at the corner to the main camera's left. Which team attacks toward `x = 105` is in `match.periods[].left_to_right_team_id`. Consumers flip when they need an attacking frame. |
 | Image coordinates | `bbox` is `{x, y, w, h}` normalised 0–1 of the frame, top-left origin. |
-| Versioning | `schema_version` is semver; the current version is **0.2.0** (`regista.schema.SCHEMA_VERSION`). Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. 0.2.0 added the event type `aerial_duel`, the possession `lost_by` value `offside` (see "League mode" below) and the record type `physical` (league mode only); every 0.1.x stream stays valid. The generator stamps a match **0.2.0** only in league mode; without player ratings it writes exactly what it wrote before, stamped **0.1.1** (`LEGACY_SCHEMA_VERSION`), so committed samples and the vision layer's seeds do not move a byte. |
+| Versioning | `schema_version` is semver; the current version is **0.2.0** (`regista.schema.SCHEMA_VERSION`). Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. 0.2.0 added the event type `aerial_duel`, the possession `lost_by` value `offside` (see "League mode" below) and the record type `physical` (league mode only); every 0.1.x stream stays valid. The generator stamps a match **0.2.0** only in league mode; without player ratings it writes exactly what it wrote before, stamped **0.1.1** (`LEGACY_SCHEMA_VERSION`), so committed samples and the vision layer's seeds do not move a byte. The same rule holds outside the generator: the vision layer (`regista.vision`, including the Player view's cloud worker), Who's who answers, Keep/Drop verdicts and claims use nothing added in 0.2.0, so they stamp **0.1.1** too (committed `vis_0201` reproduces byte for byte). |
 
 ## Record types (vision layer → `regista-events.schema.json`)
 
@@ -158,14 +158,14 @@ Added in 0.1.1, both optional:
 ### League mode (schema 0.2.0): what the generator emits when players have ratings
 
 When both squads carry hidden ratings (`regista.season.league.generate_kwargs`, the Regista League's fixtures), the
-generator runs in **league mode** (`regista.synth.generator`, generator version 0.2.0, profile `league`). Outcomes then
-depend on the players involved, and these appear:
+generator runs in **league mode** (`regista.synth.generator`, generator version 0.5.0 (`LEAGUE_GENERATOR_VERSION`),
+profile `league`; the stream is stamped schema 0.2.0). Outcomes then depend on the players involved, and these appear:
 
 | Event | Fields | When |
 |---|---|---|
 | `substitution` | `player_id` the player coming **off**, `related_player_id` the player coming **on**, `team_id`, `pitch` where the player going off stood | 2-5 per team (mean 3.9, the Premier League's 2023-24 rate), at the first stoppage after a time drawn from 58-95% of the match (about the hour mark onward). Who comes off is weighted toward low stamina; a bench player of the same role, else the same line, comes on and takes his place in the shape. Keepers are not substituted. Not a moment: the clip rule never uses it |
 | `penalty` | the taker (his team's best finisher on the pitch), `pitch` the spot, 11 m out | a foul whose victim is inside the box he attacks; the `foul` carries the qualifier `penalty_conceded` and the `foul_won` `penalty_won`. The kick is the next `shot`, in the taker's possession, with the qualifier `penalty` and `metrics.xg` 0.79 (FBref/Opta's penalty xG). Most contact in the box is not given: the defender wins the ball cleanly (a `tackle`) instead |
-| `aerial_duel` | winner in `player_id` and `team_id`, loser in `related_player_id`, `pitch` where the ball came down, `outcome` success; qualifier `cross`, `long_ball` or `goal_kick` | a cross, a long ball (over 30 m) or a long goal kick that a defender is near enough to contest. One record per contest: aerial duels won are records where the player is `player_id`, lost where he is `related_player_id` (Opta and FBref count both sides). The winner's height and `aerial` rating decide it, with a small edge to the defender |
+| `aerial_duel` | winner in `player_id` and `team_id`, loser in `related_player_id`, `pitch` where the ball came down, `outcome` success; qualifier `cross`, `long_ball` or `goal_kick` | a high ball a defender can reach: a cross (it comes down in the box, 6-14 m from the goal line; a defender within 16 m can come across, and 45% of crosses are contested in the air), a **forward** long ball (over 30 m and over 10 m forward, a launched keeper pass or a long goal kick included; a defender within 8.5 m; 60% of them are contested, 95% before generator 0.5.0), and a long ball that does **not** arrive (still contested 95% of the time when the target is near it). Balls played back or across stay low. The defender is picked among those in reach by role, centre-backs first (`LEAGUE["aerial_role"]`), then by `aerial` rating. One record per contest: aerial duels won are records where the player is `player_id`, lost where he is `related_player_id` (Opta and FBref count both sides). Height and `aerial` rating decide it, with an edge to the defender, larger on a cross. A cross won by the attacker counts as completed (Opta's rule) |
 | `card_red` | the player sent off; qualifier `second_yellow` (after a second `card_yellow`) or `straight_red` | rare. The player leaves and his team plays on with ten. Keepers are not sent off (no substitute keeper is modelled) |
 | `offside` | the attacker flagged, `related_player_id` the passer, `pitch` where his run started | a mistimed run on a through ball, or a forward pass to the furthest man forward. The pass is `fail` with the qualifier `offside`; the possession ends with `lost_by: offside`; an indirect `free_kick` (qualifier `indirect`) restarts for the defending side |
 
@@ -180,19 +180,32 @@ Also in league mode:
 - **Body part** follows `preferred_foot`: 82% of passes and 80% of shots with the strong foot (95% for penalties),
   50/50 for two-footed players.
 - **Saves** carry the qualifier `held` (the keeper keeps it) or `parried` (it runs loose for a rebound).
-- **Goal kicks** are sometimes hit long (qualifier `goal_kick` on the pass) to one of the three players furthest forward.
-- **xG** is still distance-based (`1.1·e^(-0.12·d)`, 0.02-0.85), with headers at 0.65 of a shot from the same spot.
+- **Goal kicks** are hit long half the time (qualifier `goal_kick` on the pass) to one of the three players furthest
+  forward. **Keepers also launch long in open play** (0.5.0): about a third of their open-play passes go to the front
+  three, less often for a better distributor and on a side of good passers (team style `keep`), so about 47% of keepers'
+  passes travel 32 m or more, the Premier League's share (Opta Analyst).
+- **Shot outcomes** (0.5.0): a shot that is not a goal is saved 25% of the time (a little more for good finishers), and
+  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 70% (six seasons),
+  inside the Premier League's bands (`regista.synth.report`). Before 0.5.0, 60% of unblocked shots were on target.
+- **Take-ons** succeed about 41% of the time (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
+  tackle, a foul, or (0.5.0) the ball running loose to whoever else is nearest.
+- **Touch records** (0.5.0): one per 1.8 s on the ball (one per 0.8 s before, about twice FBref's count).
+- **xG** is still distance-based (`e^(-0.12·d)`, 0.02-0.85; `1.1·e^(-0.12·d)` before 0.4.0), with headers at 0.40 and
+  first-time shots from a cross at 0.45 of a shot from the same spot.
 
 **How ratings move outcomes.** A rating enters as a skill `z = (rating - centre) / 7`, where the centre is the rating of
-the average league player who performs that action (`SKILL_CENTRE`: shots are mostly taken by forwards, so the finishing
-centre is 75), added in log-odds with a weight in `LEAGUE`. So league-wide rates stay where the profile was tuned, and xG
+the average league player who performs that action (`SKILL_CENTRE`, measured over league seasons: finishing 66, passing
+68, defending 62, ...), added in log-odds with a weight in `LEAGUE`. So league-wide rates stay where the profile was tuned, and xG
 stays the quality of the chance while finishing decides who beats it: goals minus xG is a real finishing signal.
 
 | Outcome | Ratings involved |
 |---|---|
 | pass completion | passer's `passing` (and `vision` on a through ball), against the `defending` of the defender nearest where the ball comes down, and of the marker when under pressure |
-| chance creation | `vision`: forward runners are picked more often, forward balls into the final third lead the receiver into space, through balls are tried more |
-| shot outcome | `finishing` (`aerial` for headers), strong or weak foot, against the keeper's `shot_stopping`; finishers also shoot a little more often and hit the target more |
+| chance creation | `vision`: forward runners are picked more often, forward balls into the final third lead the receiver into space, through balls are tried more; in the final third teammates look for good `finishing` |
+| who shoots, from where (0.4.0) | each role has its own shot propensity in three distance bands (`LEAGUE["shot_role"]`: strikers from close in, midfielders and defenders from further out), and `finishing` pulls a player's shots closer in (`shot_drive`) |
+| shot outcome | `finishing` (`aerial` for headers), strong or weak foot, against the keeper's `shot_stopping`; finishers hit the target a little more |
+| team style (0.4.0) | `TEAM_STYLE` from each starting XI's ratings: `keep` (passing and vision) completes more passes and loses the ball less; `press` (defending and stamina) dispossesses more in the opponents' own 60% |
+| keepers in build-up (0.4.0, 0.5.0) | a defender in his own half plays it back to the keeper more often (`gk_target`); the keeper launches long less with better `distribution` and on a side with more `keep` |
 | save held or parried | keeper's `handling` |
 | take-ons | `dribbling` against the defender's `defending`; good dribblers try more, and nutmeg and skill more |
 | tackles, interceptions, fouls | `defending`: winning the ball from a carrier, reading a loose pass (the better of the two nearest defenders tends to get there), fouling less |

@@ -375,7 +375,8 @@ def test_the_profile_and_the_terminal_give_one_percentile_for_one_stat(small):
     league, root, sm = small
     season = Season.build(league, root)
     assert season.min_minutes == sm.min_minutes
-    # (the profile's "shots" include penalty kicks; the terminal's follow FBref and leave them out, so they are not here)
+    # (the profile's "shots" include penalty kicks, and say so in their label; the terminal's follow FBref and leave them
+    # out, so they are not here)
     same = {"goals": "goals", "key_passes": "key_passes", "interceptions": "interceptions", "take_ons_won": "take_ons_won",
             "assists": "assists"}
     checked = 0
@@ -384,8 +385,8 @@ def test_the_profile_and_the_terminal_give_one_percentile_for_one_stat(small):
         if ps is None or not p["appearances"]:
             continue
         for pk, mk in same.items():
-            if p["per90"][pk] != pytest.approx(round(ps.values[mk], 2), abs=0.011):
-                continue   # the two count a stat differently (none of these today); only equal values must rank equally
+            # the two pages must count a shared stat the same way (review A round 2: skipping differences hid that bug class)
+            assert p["per90"][pk] == pytest.approx(round(ps.values[mk], 2), abs=0.011), (gid, pk)
             if p["percentiles"].get(pk) is not None and ps.percentiles.get(mk) is not None:
                 assert p["percentiles"][pk] == ps.percentiles[mk], (gid, pk, p["percentiles"][pk], ps.percentiles[mk])
                 checked += 1

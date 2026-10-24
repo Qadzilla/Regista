@@ -24,7 +24,8 @@ from typing import Any
 
 import numpy as np
 
-from regista.schema import SCHEMA_VERSION, validate_match_dir, write_jsonl
+from regista.schema import LEGACY_SCHEMA_VERSION as SCHEMA_VERSION  # vision output uses nothing added in 0.2.0
+from regista.schema import validate_match_dir, write_jsonl
 from regista.vision.frames import VideoInfo, probe
 from regista.vision.identity import IdentityConfig, IdentityResult, appearance_records, run_identity, track_records
 from regista.vision.kitnumber import DigitClassifierReader, KitNumberReader

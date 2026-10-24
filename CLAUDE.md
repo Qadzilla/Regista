@@ -135,8 +135,11 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 | `/players/{id}` | **Player profile** | one player across every match: reel, per-90 stats, touch map, matches, Foundry summary, "Add a match" |
 | `/studio` | **Studio** (as built) | the operator; adds a Claims tab ("that's me" confirmations) |
 
-- **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 8 minutes, generator
-  profile `realistic`, fixed squads of 18 with **global player ids** (`pl_…`) on every roster entry. The league definition
+- **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 2 x 15 minutes,
+  generator profile `league` (league mode: hidden player ratings drive outcomes, generator 0.5.0), fixed squads of 18
+  with **global player ids** (`pl_…`) on every roster entry. A regular plays about 300 minutes a season, so the Scout
+  terminal and profiles state the sample size and mark metrics whose split-half reliability is below 0.3 as noisy
+  (`regista.season.reliability`, `data/season/reliability.json`). The league definition
   (`data/season/league.json`: clubs, squads, fixtures, seeds) is committed; matches regenerate deterministically from it
   and are not committed. Since league mode (player ratings, 10 Hz motion) a match takes about 1.1 s to generate, so a
   cold season is built in parallel processes (`regista.season.build.build_all`: about 6 s on 10 cores, about 35 s on
@@ -227,7 +230,8 @@ Designed in the sandbox (`ux/sandbox`, `sandbox/`), ported by PR (branch `ux/das
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
-**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.2.0 since 2026-10-23: the league's events `substitution`, `penalty`, `aerial_duel`, `card_red`, `offside`, and the record type `physical` (each player's 10 Hz motion summarised: distance, FIFA speed zones, sprints, top speed, accelerations), all from the generator in league mode only; streams without them, every committed sample included, stay 0.1.1). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
+**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.2.0 since 2026-10-23: the league's events `substitution`, `penalty`, `aerial_duel`, `card_red`, `offside`, and the record type `physical` (each player's 10 Hz motion summarised: distance, FIFA speed zones, sprints, top speed, accelerations), all from the generator in league mode only; streams without them, every committed sample and the vision layer's output
+included, stay 0.1.1: `regista.vision`, Who's who answers, verdicts and claims stamp `LEGACY_SCHEMA_VERSION`). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
 
 ### 3.0 Code layout and how to run it
 
