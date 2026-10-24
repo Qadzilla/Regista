@@ -69,6 +69,8 @@ docs/demo/
 
 # Python build output
 build/
+# ...but the Scout terminal's build reports are docs, tracked
+!docs/scout-terminal/build/
 *.egg-info/
 
 # Workflow checkpoints and paused reviews (run state, not source)

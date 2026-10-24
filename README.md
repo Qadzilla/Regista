@@ -65,11 +65,18 @@ The system emits a **synthetic, football-realistic event dataset** (touches, pos
 - **Event-driven in Azure, keyless:** the app stores the video in **Azure Blob Storage** and queues a message on an **Azure Storage Queue**; an **Azure Container Apps Job** (KEDA queue scaler, signing in with its managed identity) starts one execution per upload, runs the vision workflow (**Microsoft Agent Framework**) with models from a private Blob container, and writes the match back. A 3-minute upload takes about 3 minutes.
 - **Synthetic footage:** `python -m regista.player.film` renders a friendly between two league clubs in the vision layer's format; both squads carry their global player ids, so the match joins profiles with no mapping. Uploads need the admin token.
 
-**Regista Scout (`/scout`, `/players/{id}`), open to everyone.** Every player in the **Regista League**, a synthetic season (6 clubs, 30 thirty-minute matches, fixed squads), searchable like a scout would:
-- **League table, filters and sort** by any of 22 per-90 stats or three ratios, with percentiles among players in the same position; **shortlist** and **compare** two or three players side by side.
+**Regista Scout (`/scout`, `/players/{id}`), open to everyone.** Every player in the **Regista League**, a synthetic season (6 clubs, 30 matches of two 15-minute halves, fixed squads of 18), searchable like a scout would. Each player has a public bio (age, height, foot, nationality) and hidden ratings that drive the generator; the ratings are never served by any API, MCP tool or page (they sit in `data/season/league.json`, which the generator reads):
+- **League table, filters and sort** by any of 28 per-90 stats or four ratios, with percentiles among players in the same position (FBref's percentile rule; the pool is players with at least a third of a club's minutes, 100.5 this season); **shortlist** and **compare** two or three players side by side. A regular plays about 300 minutes a season, so stats whose split-half reliability is below 0.3 are marked noisy (`python3 -m regista.season.audit`).
 - **Ask the Scout agent** ("midfielders who win the ball back"): **Instant** rules, or a **Microsoft Foundry** agent through Regista's MCP player tools (`search_players`, `get_profile`, `compare_players`), rate-limited like Ask Foundry, and it says how it understood the question.
 - **Player profiles:** a summary written by Foundry with its sources, a best-of reel across matches, every stat linked to the events and clips it was counted from, a touch map, moments and matches. Each moment opens in the Clip view at that clip (`/?match=…&player=…&clip=…`), and the Clip view links back to the profile.
 - **Add a match and claims:** a player adds a match (the vision layer's output) and says which player is them; the claim waits in the Studio's **Claims** tab for the operator, and a confirmed claim joins the profile through the workflow's Profile agent step. Video processing runs on the operator's machine (cloud video processing is planned). No real players' profiles: synthetic players only.
+
+**The Scout terminal's engine (built in this repository, not yet on the live app; the terminal's screens come next).** Part A of the Scout terminal:
+- **League mode in the generator** (league generator 0.7.0, event schema 0.2.0): player ratings drive outcomes, and the league's matches carry substitutions, penalties, aerial duels, through balls, red cards and offsides. Streams without them (every committed sample, the vision layer's output) stay schema 0.1.1 and byte-identical (`tests/test_backcompat.py`).
+- **Physical output at 10 Hz** (`regista.synth.physical`): all 22 players move within their own top speed and acceleration and tire with stamina. Each match records distance, the FIFA speed zones, sprints, top speed, accelerations and decelerations per player.
+- **The metrics engine** (`regista.season.metrics`): 127 player metrics and 19 team-style metrics, each with its definition, rule and source (FBref, Opta, StatsBomb, Wyscout; xT fitted on the season). Per 90, percentiles among position peers, and the events and clip behind every number, plus form, similar players and team style. `python3 -m regista.season.metrics --rank goals`.
+- **Its API** (`regista.terminal_api`, read-only and public): `/api/metrics`, `/api/terminal/screen`, `/api/terminal/rank`, `/api/terminal/scatter`, `/api/players/{id}/metrics|form|similar`, `/api/teams[/{club_id}/style]`.
+- **Realism:** on the committed season, every event band (13 of 13) and every physical band (14 of 14) holds; over six pooled seasons every band holds, including the leaders' and the rare events' ([docs/realism-report.md](docs/realism-report.md)). Build reports and reviews: `docs/scout-terminal/build/`.
 
 One app serves two dashboards, locally and on Azure:
 
@@ -109,7 +116,7 @@ One app serves two dashboards, locally and on Azure:
 
 **Learning from people.** When the Label agent is unsure (its rules prior and the model disagree, or a score sits on the keep/drop line) the workflow pauses and asks. Verdicts come from Keep/Drop in the app (the Studio's review queue), the `--review` terminal prompt, or the review API, and are stored as human annotations. A watchability model is retrained from them and becomes the Label agent's prior. This is learning from human feedback, not reinforcement learning.
 
-**Microsoft Fabric.** The season and the Player-view uploads land in a Fabric lakehouse as Delta tables in OneLake (keyless), and a Fabric notebook recomputes the league leaders so Regista can check they match its own numbers: 756 of 756 rows on 2026-10-23 (`python -m regista.season.fabric setup|push|check`, `docs/architecture.md`).
+**Microsoft Fabric.** The season and the Player-view uploads land in a Fabric lakehouse as Delta tables in OneLake (keyless), and a Fabric notebook recomputes the league leaders so Regista can check they match its own numbers (`python -m regista.season.fabric setup|push|check`, `docs/architecture.md`). On 2026-10-23 it matched all 756 rows. On 2026-10-24 the regenerated season was pushed (events 33,624 rows, player_season 3,024), and the check matched 328 of 756 rows. Counts, minutes and per-90 rates agree on every row; the differences are all percentiles, because the notebook still ranks them by the old rule while Regista now uses FBref's. The notebook's SQL has to be brought in line, then the check run again.
 
 **Planned, not wired:** Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator (the app is English only). GitHub Copilot Agent Mode is not used; the project is built with Claude Code.
 
@@ -125,6 +132,9 @@ python3 -m regista.render.clips data/synthetic/sample/syn_0294 --player t_home_0
 python3 -m regista.librarian data/synthetic/sample/syn_0294 "find me Castellanos doing a nutmeg"
 python3 -m regista.mcp_server --list-tools
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
+python3 -m regista.season build && python3 -m regista.synth.report --league   # the league season and its realism report
+python3 -m regista.season.audit              # split-half reliability and the top scorers
+python3 -m regista.season.metrics --rank goals   # the Scout terminal's metrics engine
 python3 -m regista.agents data/synthetic/sample/syn_0294 --player t_home_09 --query "find me Castellanos doing a nutmeg"
 uvicorn regista.api:app                      # then open http://localhost:8000
 docker build -t regista . && docker run -p 8000:8000 regista
@@ -138,8 +148,9 @@ The generator also does two halves (`--periods 2`), custom clubs (`--home "Name,
 
 ## Status
 
-As of 2026-10-23: four views live on Azure (Clips, Scout, Player, Studio), deployed by CI from `main`; the match recap
-and Microsoft Fabric added; 595 tests. What is planned rather than built is listed in [docs/criteria.md](docs/criteria.md).
+As of 2026-10-24: four views live on Azure (Clips, Scout, Player, Studio), deployed by CI from `main`; the match recap
+and Microsoft Fabric added. Part A of the Scout terminal (league mode, 10 Hz physical output, the metrics engine and its
+API) is built on `feature/terminal-engine`, not yet merged or deployed; 760 tests plus 12 slow ones (`-m slow`). What is planned rather than built is listed in [docs/criteria.md](docs/criteria.md).
 
 ## Licence
 

@@ -20,10 +20,17 @@ Regista turns a football broadcast into a searchable library of one player's mom
 
 Everything crossing the boundary is JSON Lines validated by two JSON Schemas (`data/synthetic/README.md` documents them record by record):
 
-- **Event stream** (vision layer out): `match`, `camera_segment`, `track`, `appearance`, `possession`, `event`, `annotation`.
+- **Event stream** (vision layer out): `match`, `camera_segment`, `track`, `appearance`, `possession`, `event`, `annotation`,
+  and, from the generator in league mode only, `physical`.
+
+Schema 0.2.0 (since 2026-10-23) adds the league's events `substitution`, `penalty`, `aerial_duel`, `card_red` and
+`offside`, through balls as a pass qualifier, and the record type `physical`: each player's 10 Hz motion summarised as
+distance, the FIFA speed zones, sprints, top speed, accelerations and decelerations. Streams without them stay 0.1.1:
+every committed sample, the vision layer's output, and Who's who answers, verdicts and claims (`LEGACY_SCHEMA_VERSION`).
+`tests/test_backcompat.py` checks that output without ratings is byte-identical to `main`.
 - **Clip stream** (intelligence layer out): `clip`, `label`.
 
-Not a pixel of footage crosses it. The synthetic generator produces the same stream from nothing, which is what the demo and the tests run on. The realistic profile sits inside Premier League per-90 bands (`docs/realism-report.md`); the demo profile packs a 3-minute sample with action.
+Not a pixel of footage crosses it. The synthetic generator produces the same stream from nothing, which is what the demo and the tests run on. It has three profiles. The realistic profile sits inside Premier League per-90 bands. The league profile (league mode, generator 0.7.0) adds player ratings and 10 Hz motion, and is checked against event, league-mode, physical, team-style, leader and role-shape bands (`docs/realism-report.md`). The demo profile packs a 3-minute sample with action.
 
 ## The agents
 
@@ -73,10 +80,49 @@ Four views, one FastAPI app, the same code locally and on Azure (all live since 
 | **Studio** | `/studio` | the operator | review, Who's who, training, claims, runs |
 
 **Scout data: the Regista League** (`src/regista/season/`, CLAUDE.md §2.5). Six synthetic clubs with fixed squads, a
-double round robin of 30 thirty-minute matches. Only `data/season/league.json` is committed; matches regenerate from it
-deterministically (built into the image, tracks only when video needs them). Every roster entry carries a global player
-id (`pl_bro_09`), so profiles aggregate across matches: per-90 rates, percentiles by position, a touch map, best
-moments, and for every stat the events and clips it was counted from.
+double round robin of 30 matches of two 15-minute halves. Only `data/season/league.json` is committed; matches regenerate
+from it deterministically (built into the image at `docker build` time, tracks only when video needs them). A match takes
+about 1.3 s to generate in league mode, and a cold season about 6 s in parallel on 10 cores (37 s on one;
+`regista.season.build.build_all`). Every roster entry carries a global player id (`pl_bro_09`), so profiles aggregate
+across matches: per-90 rates, percentiles by position (FBref's rule, among players with at least a third of a club's
+minutes), a touch map, best moments, and for every stat the events and clips it was counted from. Every player also has
+a public bio (age, height, foot, nationality) and hidden ratings (finishing, passing, vision, dribbling, defending,
+aerial, stamina, keeper skills, top speed, acceleration). The generator reads the ratings. They are in the committed
+`league.json`, but no API, MCP tool or page serves them: `people()` drops them, and `tests/test_attributes.py` and
+`tests/test_metrics.py` check every public payload. Scouts judge players by what they do.
+
+**The Scout terminal's engine** (part A, built on `feature/terminal-engine`, not yet deployed; the terminal's screens are
+part B). Three pieces:
+
+- **League mode** (`regista.synth.generator`, `LEAGUE_GENERATOR_VERSION` 0.7.0): the ratings move the probabilities of
+  every action, and roles shape who makes which numbers (centre-backs pass and win headers, wingers cross and carry,
+  strikers shoot).
+- **Physical motion** (`regista.synth.physical`): all 22 players move at 10 Hz within their own `top_speed_kmh` and
+  `acceleration_ms2`, tiring with stamina. Each match writes one `physical` record per player. `DEFINITIONS` gives each
+  measure's definition and source.
+- **Metrics** (`regista.season.metrics`): 127 player metrics in eight groups (shooting, creation, passes, carrying,
+  defence, goalkeeping, physical, value) and 19 team-style metrics, each with a definition, a rule (FBref, Opta,
+  StatsBomb, Wyscout) and sources. xT is fitted on the season. The engine gives per-90s, percentiles among position
+  peers, the events and clip behind every number, form, similar players (cosine on standardised per-90s) and team style
+  (possession, field tilt, PPDA, directness, set-piece xG). `regista.season.reliability` marks metrics whose split-half
+  reliability is below 0.3 as noisy (`data/season/reliability.json`). A regular plays about 300 minutes a season, so
+  every response states the sample.
+
+`regista.terminal_api` serves it read-only and open, like the rest of Scout:
+
+| Route | What |
+|---|---|
+| `GET /api/metrics` | the catalogue: every metric's definition, rule, sources, unit, kind, direction and positions; groups; the season's thresholds; the fitted xT grid |
+| `GET /api/terminal/screen` | players with chosen metric columns; filters position, role, club, minutes, age, foot, name; sort by any metric |
+| `GET /api/terminal/rank` | one metric's leaderboard (rank, value, percentile, how many events back it) |
+| `GET /api/terminal/scatter` | two metrics per player, plus the pool's medians |
+| `GET /api/players/{id}/metrics`, `/form`, `/similar` | every metric for one player with percentiles and evidence; per-match values and consistency; the most similar players in the same position |
+| `GET /api/teams`, `/api/teams/{club_id}/style` | every club's style metrics; one club's with ranks |
+
+`python3 -m regista.season.metrics --rank KEY | --player ID` prints the same from the command line;
+`python3 -m regista.season.audit` prints split-half reliability and the top scorers; `python3 -m regista.synth.report
+--league [--repeat N]` checks the season against the bands. Build reports, independent verification and review rounds:
+`docs/scout-terminal/build/`.
 
 **The Player view's cloud path** (`src/regista/player/`, `src/regista/player_api.py`, CLAUDE.md §2.6):
 
@@ -106,7 +152,7 @@ The two original dashboards in detail (plan: `docs/plan-two-dashboards.md`):
 
 | Routes | No key | View key | Admin key |
 |---|---|---|---|
-| The Product: `/`, health, matches, clips, clip and match video, reel, moments, report, search, `/ask`, `/chat`; the `/studio` page itself (no data in it) | ✔ | ✔ | ✔ |
+| The Product: `/`, health, matches, clips, clip and match video, reel, moments, report, search, `/ask`, `/chat`; Scout and the terminal's metrics (`/api/metrics`, `/api/terminal/*`, `/api/teams*`); the `/studio` page itself (no data in it) | ✔ | ✔ | ✔ |
 | Studio reads: `/api/studio/*`, `GET /api/feedback`, `GET …/review`, `GET …/identity-review` and its crops | – | ✔ | ✔ |
 | Writes: upload, verdicts, workflow review, Who's who answers, retraining, vision jobs | – | 403 | ✔ |
 
@@ -224,8 +270,20 @@ Regista on all 756 rows checked (108 players x 7 stats; 462 of them carry a perc
 below the minutes bar or on the bench). The first run failed before any comparison: `leaders_check` had deletion vectors
 on. That was fixed in the notebook.
 
+**Second run, 2026-10-24** (the season regenerated in league mode, generator 0.7.0): `push` wrote clubs 6, players 108,
+matches 30, lineups 1,080, events 33,624, clips 10,620, labels 10,620, player_season 3,024 and uploads 1 rows in 23 s.
+`check` ran the notebook in 42 s and matched **328 of 756** rows. Appearances, minutes, counts and per-90 rates agree on
+all 756. Every difference is in the percentile: Regista now uses FBref's rule (the average of the share of position
+peers strictly below and the share at or below), ranks unrounded rates, and pools players with at least a third of a
+club's minutes (100.5). The notebook's `LEADERS_SQL` still uses `(RANK()-1)/(n-1)`, rates rounded to 2 decimals, and
+40% of the top player's minutes. Applying Regista's rule to Fabric's own counts reproduced Regista's percentile on 750 of
+756 rows. The other 6 are ties that only change when minutes are rounded, which ranking on `minutes_raw` avoids. Until
+`LEADERS_SQL` is brought in line, the check fails. The lakehouse already holds the new season, so after the fix only
+`check` needs running again: `REGISTA_DOTENV= python3 -m regista.season.fabric check`. The row counts above are what
+`fabric_tables.season_tables` builds offline from the same season.
+
 ## What is deliberately not here
 
 - No real footage, anywhere. The vision layer v0 is trained and measured only on Regista's own rendered broadcast; its evaluation matches were used during development, so they are a development set, not a held-out test. `docs/vision.md` has the numbers and what changes for real footage.
-- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above). Azure AI Vision, Video Indexer, Speech, Translator, Blob Storage, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
+- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above). Since the Player view, Blob Storage, a Storage queue and a Container Apps Job run too. Azure AI Vision, Video Indexer, Speech, Translator, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.

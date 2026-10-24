@@ -13,18 +13,30 @@ Everything named here runs; what is planned is listed as planned. (Replaces `doc
 | **Azure MCP** | Microsoft's Azure MCP Server runs inside the container beside Regista's own MCP server (10 tools); the Foundry Librarian calls both | live: Ask Foundry lists `search_index_query`; `python -m regista.mcp_server --list-tools` |
 | **Azure Apps and AI services** | Container Apps (the app, one replica) and an event-driven **Container Apps Job** (vision, KEDA queue scaler); Blob Storage and a Storage queue; Application Insights with Foundry tracing | `infra/`, `docs/architecture.md` ("Deployment", "The views") |
 | **Azure databases** | Cosmos DB serverless (matches, clips, labels, human annotations); Azure AI Search index `regista-clips` | `src/regista/cloud/` |
-| **Microsoft Fabric** | The season and the Player-view uploads in a Fabric lakehouse (9 Delta tables in OneLake); a Fabric notebook recomputes the league leaders, and Regista checks they match its own (756 of 756 rows) | `python -m regista.season.fabric check`; `docs/architecture.md` ("Microsoft Fabric") |
+| **Microsoft Fabric** | The season and the Player-view uploads in a Fabric lakehouse (9 Delta tables in OneLake); a Fabric notebook recomputes the league leaders, and Regista checks they match its own. 756 of 756 rows matched on 2026-10-23. After the league was regenerated (2026-10-24), the check matched 328 of 756: counts, minutes and per-90 rates all agree, but the notebook still ranks percentiles by the old rule. Fix pending | `python -m regista.season.fabric check`; `docs/architecture.md` ("Microsoft Fabric") |
 | **GitHub CLI** | Provisioning sets the deploy variables with `gh`; CI on GitHub Actions deploys with a federated identity (no stored secret) | `infra/provision.sh`, `.github/workflows/build-image.yml` |
 | GitHub Copilot Agent Mode, GitHub SDK | **Not used.** Regista is built with Claude Code; nothing claims otherwise | – |
 
-**Code quality.** 595 tests (`python3 -m pytest -q`), run with the image build and an in-image smoke test on every push;
+**Code quality.** 760 tests (`python3 -m pytest -q`), run with the image build and an in-image smoke test on every push,
+plus 12 slow ones (`python3 -m pytest -q -m slow`: whole seasons regenerated) in a nightly workflow;
 a schema-validated contract between the layers (`data/synthetic/README.md`); one-command provisioning (`infra/SETUP.md`);
 keyless Azure (Entra ID roles, shared-key login off on Cosmos DB, Search and Storage).
 
 **Synthetic data quality.** The generator's realistic profile sits inside Premier League per-90 bands
 (`docs/realism-report.md`); a 2D broadcast renderer with director cuts and replays gives exact ground truth; the Regista
-League is a full synthetic season with fixed squads; the vision layer is measured against that truth on matches it never
-saw (`docs/vision.md`: fresh matches, clips 0.76 recall / 0.94 precision; a full 90-minute match, all 5 goals).
+League is a full synthetic season with fixed squads, generated in league mode. Hidden player ratings drive outcomes and
+are never served by any API, MCP tool or page. Schema 0.2.0 adds substitutions, penalties, aerial duels, red cards and
+offsides, and every player moves at 10 Hz within their own pace (`regista.synth.physical`). On the committed season all 13
+event bands and all 14 physical bands hold; over six pooled seasons every band holds, the league-mode, leader and team
+bands included (`python3 -m regista.synth.report --league [--repeat 6]`). Split-half reliability is measured
+(`python3 -m regista.season.audit`), and noisy stats are flagged as such. The vision layer is measured against that truth on matches it never
+saw (`docs/vision.md`: fresh matches with the v4 models, clips 0.75 recall / 0.94 precision; a full 90-minute match, all 5 goals).
+
+**The Scout terminal's engine** (part A, built on `feature/terminal-engine`, not yet deployed; its screens are next):
+127 player metrics and 19 team-style metrics, each with its definition, rule and source (FBref, Opta, StatsBomb,
+Wyscout; xT fitted on the season), percentiles among position peers (FBref's rule), and the events and clip behind every
+number. Served read-only by `regista.terminal_api` (`/api/metrics`, `/api/terminal/screen|rank|scatter`,
+`/api/players/{id}/metrics|form|similar`, `/api/teams`). Check: `tests/test_metrics.py`, `docs/scout-terminal/build/`.
 
 ## 2. Agentic design and innovation
 
@@ -62,4 +74,5 @@ Microsoft Agent Framework.
 ## Planned, not built
 
 Azure AI Vision and Video Indexer for the vision layer; Azure AI Speech and Translator (the app is English only, by
-decision); a Fabric data agent; real broadcast footage (the vision layer is trained and measured on rendered footage).
+decision); a Fabric data agent; the Scout terminal's screens (part B: to be built in the sandbox, then ported into Scout as a
+Terminal section); real broadcast footage (the vision layer is trained and measured on rendered footage).
