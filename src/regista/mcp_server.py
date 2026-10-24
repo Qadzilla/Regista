@@ -156,11 +156,13 @@ def _season():
 
 
 def _player_tool_docs() -> str:
+    from regista.season.profiles import RATIOS
     from regista.season.scout import sort_keys
 
+    ratios = list(RATIOS)
     return ("Search the synthetic Regista League's players (6 clubs, 10 rounds) and rank them. position: GK, DF, MF or FW "
             "(wingers and strikers are FW). club: name or short name. q: words of a player's name. sort: one of "
-            + ", ".join(sort_keys()) + " (stats are per 90; pass_accuracy, take_on_success and shot_accuracy are ratios). "
+            + ", ".join(sort_keys()) + " (stats are per 90; " + ", ".join(ratios[:-1]) + " and " + ratios[-1] + " are ratios). "
             "order: desc (most first) or asc. min_minutes: leave empty for the default (the qualifying minutes when ranking: a third of a club's minutes). "
             "Returns each player's global_id, club, minutes, the sorted stat with its count and rank among the same position, "
             "and their headline rates per 90.")

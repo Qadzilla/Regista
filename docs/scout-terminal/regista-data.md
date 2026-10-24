@@ -5,6 +5,12 @@ Audited 2026-10-23 on `main` (9b00972), read-only. Sources: `data/synthetic/READ
 `src/regista/vision/{events,possession,identity,package,pitch}.py`, `docs/vision.md`, the committed samples `syn_0294` (demo
 profile) and `vis_0201` (vision output), and all 30 Regista League fixtures regenerated in memory (nothing written, no Azure).
 
+> **A snapshot (stale-number check, 2026-10-24).** The counts below describe `main`'s league at 9b00972, before league mode.
+> The regenerated league (generator 0.7.0, schema 0.2.0) has substitutions, so starters no longer all play every minute
+> (the most minutes anyone played is 301.6), 28 per-90 stats and 4 ratios, and FBref's percentile rule over players with a
+> third of a club's minutes (100.5). CLAUDE.md §2.5 now says 2 x 15 minutes. Current figures: `docs/realism-report.md`,
+> `data/synthetic/README.md` (league mode), `python3 -m regista.season.audit`.
+
 **How to read the verdicts.** COMPUTABLE NOW: the metric is a count, filter or ratio over fields that are already emitted
 (no geometry, no chaining); "built" means `profiles.py` already computes it. DERIVABLE: the data supports it, but it needs new
 code (attacking-direction geometry, linking records into sequences, a fitted model, or tracks). NEEDS GENERATOR CHANGE: the

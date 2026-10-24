@@ -150,7 +150,7 @@ The generator also does two halves (`--periods 2`), custom clubs (`--home "Name,
 
 As of 2026-10-24: four views live on Azure (Clips, Scout, Player, Studio), deployed by CI from `main`; the match recap
 and Microsoft Fabric added. Part A of the Scout terminal (league mode, 10 Hz physical output, the metrics engine and its
-API) is built on `feature/terminal-engine`, not yet merged or deployed; 760 tests plus 12 slow ones (`-m slow`). What is planned rather than built is listed in [docs/criteria.md](docs/criteria.md).
+API) is built on `feature/terminal-engine`, not yet merged or deployed; 761 tests plus 12 slow ones (`-m slow`). What is planned rather than built is listed in [docs/criteria.md](docs/criteria.md).
 
 ## Licence
 

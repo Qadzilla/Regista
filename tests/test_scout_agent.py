@@ -353,6 +353,22 @@ def test_the_committed_summaries_match_the_committed_league():
         assert summaries.summary_for(full, p, path) == s
 
 
+def test_the_scout_agents_example_answer_holds_in_the_committed_league():
+    """The Foundry Scout agent's instructions show one answer as an example; a model may repeat it, so its player, club
+    and numbers must be the rules Scout's answer to the same question on the committed league."""
+    import re
+
+    from regista.cloud.foundry import SCOUT_INSTRUCTIONS
+
+    m = re.search(r'"(.+?) \((.+?)\) wins the most take-ons among forwards, ([0-9.]+) per 90 \((\d+) in (\d+) minutes\)',
+                  SCOUT_INSTRUCTIONS)
+    assert m, "the example answer's wording changed: update this test"
+    full = load_season(ROOT / "data" / "season" / "league.json", ROOT / "data" / "season" / "matches")
+    top = scout.search_players(full, position="FW", sort="take_ons_won", limit=1)["players"][0]
+    assert (m[1], m[2]) == (top["name"], top["club"])
+    assert (float(m[3]), int(m[4]), int(m[5])) == (top["stat"]["value"], top["stat"]["count"], round(top["minutes"]))
+
+
 def test_rate_limits_are_waited_out_and_a_rerun_keeps_current_summaries(season, monkeypatch):
     monkeypatch.setattr(summaries, "RATE_LIMIT_WAIT_S", 0.0)
     p = summaries.players_with_minutes(season)[0]

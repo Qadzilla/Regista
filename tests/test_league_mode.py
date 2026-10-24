@@ -27,8 +27,8 @@ ROOT = Path(__file__).resolve().parents[1]
 LEAGUE_PATH = ROOT / "data" / "season" / "league.json"
 FIXTURES = (0, 1, 2)          # fixtures generated for the fast tests
 # (fixture index, seed shift): league fixtures, replayed with seeds shifted as the audit's extra seasons shift them when
-# the committed season lacks an event. Penalties and red cards are rare (about 0.07 and 0.03 a 30-minute match); the
-# committed season (generator 0.7.0) has one penalty and two red cards.
+# the committed season lacks an event. Penalties and red cards are rare (about 0.07 and 0.06 a 30-minute match: 0.2 and
+# 0.17 per 90 over six seasons, generator 0.7.0); the committed season has one penalty and two red cards.
 PENALTY = (5, 0)              # rl_r02_cal_bro, the committed season: a penalty
 RED = (2, 1000)               # rl_r01_cal_dun, second season: a red card (and a through ball)
 
@@ -578,8 +578,8 @@ def test_centre_backs_win_the_most_aerial_duels(pooled):
 @pytest.mark.slow
 def test_the_star_leads_the_league_in_npxg_over_six_seasons(league, pooled):
     """Finishing is worth a realistic edge (about a quarter over xG), so any scoring chart over a few matches is partly
-    luck (generator 0.6.0: he is the outright top scorer in 4 of 12 regenerated seasons, the committed one included;
-    a season's top scorer has three or four goals). What the star's ratings decide is the chances: he has the most
+    luck (generator 0.7.0: he is the outright top scorer in 5 of 12 regenerated seasons, the committed one included;
+    a season's top scorer has three to six goals; 4 of 12 with 0.6.0). What the star's ratings decide is the chances: he has the most
     non-penalty xG by a distance, but not by an unrealistic one (the leader-gap bands, below)."""
     from regista.season.audit import top_scorers
 

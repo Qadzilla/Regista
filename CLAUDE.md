@@ -502,7 +502,7 @@ deployed): player attributes, league mode (generator 0.7.0, schema 0.2.0), 10 Hz
 (127 player, 19 team-style metrics) and its API, after two review rounds and three closing rounds
 (`docs/scout-terminal/build/`). On the committed season: 13 of 13 event bands, 14 of 14 physical, 10 of 11 league-mode
 (penalties low, indicative on one season), 12 of 14 leaders (indicative). Over six pooled seasons every band holds
-(`docs/realism-report.md`). Femi Toure is the top scorer with 3 league goals; his Goal reel runs 23.6 s. 760 tests
+(`docs/realism-report.md`). Femi Toure is the top scorer with 3 league goals; his Goal reel runs 23.6 s. 761 tests
 plus 12 slow pass. The dashboards' seeds, the storyboard, README, criteria and architecture quote this league.
 **Fabric:** the new season is pushed (events 33,624 rows, player_season 3,024), but the notebook's check matches only
 328 of 756 rows. Its `LEADERS_SQL` (`src/regista/cloud/fabric_notebook.py`) still ranks percentiles the old way; it

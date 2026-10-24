@@ -194,7 +194,8 @@ Also in league mode:
   record per 2.3 s on the ball, about 560 per team per 90 in the committed season (`regista.season.metrics.TOUCH_RECORDS`
   states it for the terminal, from these parameters). The interval also reshuffles every random draw of a season; 0.7.0
   picked 1.92 from a scan of 1.80-2.00 so that the committed season has the star as its outright top scorer and every
-  one-season band in, and six pooled seasons pass every band and role shape.
+  band one season can judge in (penalties and the individual leaders are judged over six pooled seasons), and six
+  pooled seasons pass every band and role shape.
 - **xG** is still distance-based (`e^(-0.12·d)`, 0.02-0.85, as in 0.4.0-0.5.0; `0.95·e^(-0.12·d)` in 0.6.0, `1.1·e^(-0.12·d)` before),
   with headers at 0.40 and first-time shots from a cross at 0.45 of a shot from the same spot.
 - **Roles shape the game** (0.6.0). Before, a pass looked for a teammate about 16 m away, tilted forward, and whoever
