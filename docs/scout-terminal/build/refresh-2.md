@@ -106,7 +106,9 @@ REGISTA_DOTENV= python3 -m regista.season.fabric check --json <scratch>/fabric-c
 - `tests/test_backcompat.py` and `tests/test_shared_dashboard.py`: 18 passed.
 - `python3 -m regista.synth.report --league` (and `--repeat 6`, and the realistic profile): as above.
 - `python3 -m regista.season.audit`: Femi Toure first with 5 (non-penalty 5, npxG 3.51, 19 shots).
-- CI on Linux: see the commit's runs below.
+- CI on Linux (Python 3.11), commit d670d90: green. Push run https://github.com/Qadzilla/Regista/actions/runs/40135431517
+  (797 passed, 1 skipped; the image's smoke test printed `{"check": "season-pins", "ok": true, ..., "differs": {}}`)
+  and PR run https://github.com/Qadzilla/Regista/actions/runs/40135433252.
 
 ## Open
 
