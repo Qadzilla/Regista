@@ -286,7 +286,7 @@
       full: `${APP}/api/players/${encodeURIComponent(pid)}/metrics?evidence=${encodeURIComponent(mk)}`, note: '' };
     if (!ev) { r.note = 'No evidence for this number.'; return r; }
     if (ev.per_match) {
-      r.items = ev.items.map(it => ({ when: `R${it.round} v ${short(it.opponent)}`, minute: null, val: `${fmt(m, it.value)}`, note: `${Math.round(it.minutes)} min`, video: null, match_id: it.match_id }));
+      r.items = ev.items.map(it => ({ when: `R${it.round} v ${short(it.opponent)}`, minute: null, val: `${fmt(m, it.value)}${['m', 'km/h'].includes(m.unit) ? ' ' + m.unit : ''}`, note: `${Math.round(it.minutes)} min`, video: null, match_id: it.match_id }));
       r.unit = 'match';
       r.note = 'Physical numbers come from the 10 Hz motion record: one value per match, no single clip.';
     } else {
@@ -745,7 +745,7 @@
       let done = false;
       for (let j = toks.length; j > i; j--) {
         const r = resolvePlayer(toks.slice(i, j).join(' '), true);
-        if (r.p) { outp.push({ q: toks.slice(i, j).join(' '), p: r.p }); i = j; done = true; break; }
+        if (r.p) { outp.push({ q: toks.slice(i, j).join(' '), p: r.p, alts: r.alts }); i = j; done = true; break; }
       }
       if (!done) { const r = resolvePlayer(toks[i]); outp.push({ q: toks[i], ...r }); i++; }
     }
@@ -785,7 +785,7 @@
     return null;
   }
   function run(text) {
-    const t = String(text || '').trim(); if (!t) return;
+    const t = String(text || '').trim().replace(/\s*<GO>$/i, '').trim(); if (!t) return;
     if (store.hist[store.hist.length - 1] !== t) { store.hist.push(t); if (store.hist.length > 50) store.hist.shift(); save(); }
     histAt = -1;
     const toks = t.split(/\s+/), head = toks[0].toUpperCase().replace(/<GO>$/, ''), rest = t.slice(toks[0].length).replace(/<GO>\s*$/i, '').trim();
@@ -805,7 +805,7 @@
       select(p.id, true); showPanel(PANEL_CMD[head]);
       let line;
       if (head === 'SIM') { const h = $('txSimHead'); if (h) h.scrollIntoView({ block: 'nearest' }); line = `SIM ${p.name}: ${(p.similar || []).map(s => `${s.name} ${s.similarity.toFixed(2)}`).join(', ') || 'none'}.`; }
-      else if (head === 'SHOT') line = `SHOT ${p.name}: ${(p.shots || []).length} shots, ${(p.shots || []).filter(s => s.outcome === 'goal').length} goals. Each shot plays its clip.`;
+      else if (head === 'SHOT') line = `SHOT ${p.name}: ${(p.shots || []).length} shots, ${((g) => `${g} goal${g === 1 ? '' : 's'}`)((p.shots || []).filter(s => s.outcome === 'goal').length)}. Each shot plays its clip.`;
       else if (head === 'FORM') line = `FORM ${p.name}: ${(p.form && p.form.matches || []).length} matches. Bars open that match's moments.`;
       else line = `${head} ${p.name} · ${p.club}.`;
       out('', '', esc(line) + altsHtml(r.alts, head));
@@ -878,10 +878,10 @@
     else ps = D.players.filter(p => score(p) < 9).sort((a, b) => score(a) - score(b) || b.minutes - a.minutes);
     return ps.slice(0, 7).map(p => ({ kind: 'PLAYER', text: p.name, detail: `${p.short_name} ${p.position} #${p.kit_number}`, insert: p.name, k, run }));
   }
-  function metricSugs(q, k, run, prefix = '') {
+  function metricSugs(q, k, run, prefix = '', pos = null) {
     const n = norm(q), kk = n.replace(/[\s-]+/g, '_');
     const score = (m) => { if (!n) return 0; if (m.key.startsWith(kk)) return 0; const l = norm(m.label); if (l.startsWith(n)) return 1; if (l.split(' ').some(w => w.startsWith(n))) return 2; if (m.key.includes(kk) || l.includes(n)) return 3; const ws = n.replace(/%/g, ' pct ').split(/[\s\-()+,/_]+/).filter(Boolean), mw = mwords(m); if (ws.length && ws.every(w => mw.some(x => x.startsWith(w)))) return 4; return 9; };
-    const base = n ? D.metrics : (D.default_columns[PID.get(S.focus).position] || D.default_columns.all).map(x => MK.get(x)).filter(Boolean);
+    const base = n ? D.metrics : (D.default_columns[pos || PID.get(S.focus).position] || D.default_columns.all).map(x => MK.get(x)).filter(Boolean);
     return base.filter(m => score(m) < 9).sort((a, b) => score(a) - score(b)).slice(0, 8)
       .map(m => ({ kind: 'METRIC', text: `${m.label}${m.noisy ? ' ≈' : ''}`, detail: m.key, insert: prefix + m.key, k, run, mk: m.key }));
   }
@@ -905,7 +905,7 @@
     else if (head === 'RANK') {
       const args = toks.slice(1);
       if (args.length === 1) s = [...['ALL', ...POS].filter(p => p.startsWith(cur.toUpperCase())).map(p => ({ kind: 'POS', text: p, detail: p === 'ALL' ? 'every position' : POSN[p], insert: p, k: 1, run: false })), ...metricSugs(cur, 1, true)];
-      else s = metricSugs(posOf(args[0]) ? args.slice(1).join(' ') : args.join(' '), posOf(args[0]) ? args.length - 1 : args.length, true);
+      else s = metricSugs(posOf(args[0]) ? args.slice(1).join(' ') : args.join(' '), posOf(args[0]) ? args.length - 1 : args.length, true, '', posOf(args[0]) === 'ALL' ? 'all' : posOf(args[0]));
     } else if (head === 'SCAT') {
       const args = toks.slice(1), done = args.slice(0, -1).filter(a => MK.has(norm(a))).length;
       if (done >= 2) s = ['ALL', ...POS].filter(p => p.startsWith(cur.toUpperCase())).map(p => ({ kind: 'POS', text: p, detail: p === 'ALL' ? 'every position' : POSN[p], insert: p, k: 1, run: true }));
@@ -952,7 +952,7 @@
     h.hidden = false; h._opener = opener || null;
     $('txHelpH').focus();
   }
-  function closeHelp() { const h = $('txHelp'); if (h.hidden) return; h.hidden = true; (h._opener && document.contains(h._opener) ? h._opener : $('txIn')).focus(); }
+  function closeHelp() { const h = $('txHelp'); if (h.hidden) return; h.hidden = true; if (/^Help is open/.test($('txOut').textContent)) out('Help closed.'); (h._opener && document.contains(h._opener) ? h._opener : $('txIn')).focus(); }
 
   // ------------------------------------------------------------------ events
   function act(t, e) {
