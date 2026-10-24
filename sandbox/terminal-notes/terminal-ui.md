@@ -31,7 +31,7 @@ the suggestions and Tab takes one. A player or club at the top level runs at onc
 **Escape** closes the suggestions, then clears the line. It also closes help and tooltips.
 **Alt+1 to Alt+9** jump to panels F1 to F9.
 
-## Panels (function-key row F1 to F9; each can be hidden, moved earlier or later, and sized S, M or L)
+## Panels (function-key row F1 to F9; each can be hidden, moved earlier or later, and sized S, M, L or XL: 4, 6, 8 or 12 of 12 columns)
 
 - **F1 SCRN Screener.** A sortable table with position filters, a name or club filter, a "qualified" toggle and a
   Value or Pctl display. "Add column" lists all 127 metrics by group; × removes a column. Shading is the percentile
@@ -97,7 +97,7 @@ blocked". A saved workspace is validated on load: unknown players, metrics and p
   HELP opening and Escape closing it with focus returned.
 - Keyboard checks: arrows in the screener and the scatter, Enter on SVG buttons, Cmd+K, history, and Escape on
   tooltips.
-- Panel controls: hide (the F-key shows it as off and takes focus), show, size, move (saved), and Reset.
+- Panel controls: hide (the F-key shows it as hidden, dashed, and takes focus), show, size, move (saved), and Reset.
 - Blocked storage was checked with a throwaway page whose `localStorage` getter throws; the page was deleted
   afterwards.
 - The terminal's DOM holds no hidden-rating keys. The export script already asserts that `terminal.json` has none.

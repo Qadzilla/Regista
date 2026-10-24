@@ -19,6 +19,7 @@
   const CMP_COL = ['#ffcd28', '#4cc9f0', '#f472b6'];
   const GROUP_COL = { shooting: '#ffcd28', creation: '#ff9f43', passes: '#4cc9f0', carrying: '#5ad17a', defence: '#ff6b6b',
     goalkeeping: '#2dd4bf', physical: '#a3a9b8', value: '#c084fc' };
+  // F-key order. Sizes span 4, 6, 8 or 12 of the workspace's 12 columns (S, M, L, XL).
   const PANELS = [
     { id: 'scrn', key: 'SCRN', title: 'Screener', size: 'L' },
     { id: 'plyr', key: 'PLYR', title: 'Player', size: 'S' },
@@ -27,9 +28,14 @@
     { id: 'shot', key: 'SHOT', title: 'Shot map', size: 'S' },
     { id: 'heat', key: 'HEAT', title: 'Heat map', size: 'S' },
     { id: 'form', key: 'FORM', title: 'Form', size: 'S' },
-    { id: 'scat', key: 'SCAT', title: 'Scatter', size: 'M' },
-    { id: 'team', key: 'TEAM', title: 'Team style', size: 'M' },
+    { id: 'scat', key: 'SCAT', title: 'Scatter', size: 'S' },
+    { id: 'team', key: 'TEAM', title: 'Team style', size: 'XL' },
   ];
+  // The default layout: the screener with the clips beside it (a number clicked plays in view), then the player, radar
+  // and form it drives, then the pitch charts and the scatter, then the team.
+  const DEFAULT_ORDER = ['scrn', 'clips', 'plyr', 'radar', 'form', 'shot', 'heat', 'scat', 'team'];
+  const SIZES = ['S', 'M', 'L', 'XL'];
+  const SIZE_NEXT = { S: 'M', M: 'L', L: 'XL', XL: 'S' };
   const COMMANDS = {
     RANK: { args: '<position> <metric>', help: 'Rank a position on any metric; the screener sorts by it.', ex: 'RANK FW npxg' },
     CMP: { args: '<player> <player> [<player>]', help: 'Compare two or three players on the radar and side by side.', ex: 'CMP Femi Toure Amari Ustinov' },
@@ -82,18 +88,23 @@
   function defaults() {
     const f = PID.has('pl_bro_09') ? 'pl_bro_09' : D.players.find(p => p.minutes > 0).id, fp = PID.get(f);
     const cols = (D.default_columns[fp.position] || D.default_columns.all).filter(k => MK.has(k));
-    return { v: 1, panels: PANELS.map(p => ({ id: p.id, on: true, size: p.size })), focus: f, compare: [], club: fp.club_id,
+    return { v: 2, panels: DEFAULT_ORDER.map(id => PANELS.find(p => p.id === id)).map(p => ({ id: p.id, on: true, size: p.size })), focus: f, compare: [], club: fp.club_id,
       scr: { pos: fp.position, cols, sort: { k: cols[0], dir: -1 }, qual: true, mode: 'val', q: '' },
       scat: { x: 'npxg', y: 'xa', pos: fp.position, all: false }, form: { k: null }, radar: { tpl: 'pos' } };
   }
   function clean(s) {
     const o = defaults();
-    if (!s || typeof s !== 'object' || s.v !== 1) return o;
+    if (!s || typeof s !== 'object' || (s.v !== 1 && s.v !== 2)) return o;
+    // Version 1 had three sizes (L spanned the full width) and a default layout three screens tall: a v1 layout that is
+    // still that default takes the new one; a layout the visitor changed is kept, its L read as XL.
+    const V1_DEFAULT = 'scrn:L,plyr:S,radar:S,clips:S,shot:S,heat:S,form:S,scat:M,team:M';
+    if (s.v === 1 && Array.isArray(s.panels) && s.panels.map(p => p && `${p.id}:${p.size}`).join(',') === V1_DEFAULT && s.panels.every(p => p.on !== false)) s.panels = null;
+    else if (s.v === 1 && Array.isArray(s.panels)) s.panels = s.panels.map(p => p && p.size === 'L' ? { ...p, size: 'XL' } : p);
     if (Array.isArray(s.panels)) {
       const seen = new Set(), ps = [];
       for (const p of s.panels) {
         const def = p && PANELS.find(x => x.id === p.id);
-        if (def && !seen.has(p.id)) { seen.add(p.id); ps.push({ id: p.id, on: p.on !== false, size: ['S', 'M', 'L'].includes(p.size) ? p.size : def.size }); }
+        if (def && !seen.has(p.id)) { seen.add(p.id); ps.push({ id: p.id, on: p.on !== false, size: SIZES.includes(p.size) ? p.size : def.size }); }
       }
       for (const p of o.panels) if (!seen.has(p.id)) ps.push(p);
       o.panels = ps;
@@ -203,9 +214,10 @@
         ${storageOK ? '' : '<span class="tx-warn" title="This browser blocks storage, so workspaces last until you leave the page.">not saved: storage blocked</span>'}</div>`;
   }
   function paintKeys() {
-    $('txKeys').innerHTML = S.panels.map((pp) => {
-      const p = PANELS.find(x => x.id === pp.id), n = PANELS.indexOf(p) + 1;
-      return `<button type="button" class="tx-fkey" data-act="fkey" data-id="${p.id}" aria-pressed="${pp.on}" title="${esc(p.title)} (Alt+${n})"><b>F${n}</b> ${esc(p.key)}<span>${esc(p.title)}</span></button>`;
+    $('txKeys').innerHTML = PANELS.map((p, i) => {      // in F-key order, whatever the layout
+      const pp = S.panels.find(x => x.id === p.id) || { on: false }, n = i + 1;
+      // Not a toggle: an F-key always shows its panel and moves to it, so it says whether the panel is hidden instead.
+      return `<button type="button" class="tx-fkey" data-act="fkey" data-id="${p.id}" data-on="${pp.on}" aria-label="F${n} ${esc(p.key)} ${esc(p.title)}${pp.on ? '' : ', hidden: show it'}" title="${esc(p.title)}${pp.on ? '' : ' (hidden)'}: go to it (Alt+${n})"><b>F${n}</b> ${esc(p.key)}<span>${esc(p.title)}</span></button>`;
     }).join('') + `<button type="button" class="tx-fkey help" data-act="help" aria-haspopup="dialog"><b>?</b> HELP<span>Commands and keys</span></button>`;
   }
   function renderLayout() {
@@ -216,7 +228,7 @@
       return `<section class="tx-panel s-${pp.size}" id="tx-p-${p.id}" data-panel="${p.id}" aria-labelledby="tx-h-${p.id}">
         <header class="tx-ph"><h2 id="tx-h-${p.id}" tabindex="-1"><span class="tx-fk">F${n}</span> ${esc(p.key)} <span class="tx-pt">${esc(p.title)}</span></h2>
           <span class="tx-pctx" data-ctx></span>
-          <span class="tx-pbtns"><button type="button" data-act="pmove" data-id="${p.id}" data-d="-1" aria-label="Move ${esc(p.title)} earlier" title="Move earlier">&#9664;</button><button type="button" data-act="pmove" data-id="${p.id}" data-d="1" aria-label="Move ${esc(p.title)} later" title="Move later">&#9654;</button><button type="button" data-act="psize" data-id="${p.id}" aria-label="${esc(p.title)} size ${pp.size}, change" title="Size: S, M or L">${pp.size}</button><button type="button" data-act="pclose" data-id="${p.id}" aria-label="Hide ${esc(p.title)}" title="Hide (F-key brings it back)">&times;</button></span></header>
+          <span class="tx-pbtns"><button type="button" data-act="pmove" data-id="${p.id}" data-d="-1" aria-label="Move ${esc(p.title)} earlier" title="Move earlier">&#9664;</button><button type="button" data-act="pmove" data-id="${p.id}" data-d="1" aria-label="Move ${esc(p.title)} later" title="Move later">&#9654;</button><button type="button" data-act="psize" data-id="${p.id}" aria-label="${esc(p.title)} size ${pp.size}, change" title="Size: S, M, L or XL">${pp.size}</button><button type="button" data-act="pclose" data-id="${p.id}" aria-label="Hide ${esc(p.title)}" title="Hide (F-key brings it back)">&times;</button></span></header>
         <div class="tx-pb" data-body></div></section>`;
     }).join('') || '<p class="tx-empty">Every panel is hidden. Press a function key above to bring one back.</p>';
     const cb = document.querySelector('#tx-p-clips [data-body]');
@@ -231,7 +243,7 @@
       const el = $('tx-p-' + id);
       if (el) {
         const r = el.getBoundingClientRect();
-        if (r.top < 120 || r.top > window.innerHeight - 80) el.scrollIntoView({ block: 'start', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+        if (r.top < barBottom() || r.top > window.innerHeight - 80) scrollToPanel(el);
         el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
       }
     }
@@ -255,6 +267,16 @@
     }
     if (ctx !== undefined) sec.querySelector('[data-ctx]').innerHTML = ctx;
     return body;
+  }
+
+  const listText = (xs) => xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join('');
+  // About how wide a number is at a font size (digits are tabular; points and signs narrower): enough to skip labels
+  // that would collide.
+  const textW = (t, px) => [...String(t)].reduce((w, c) => w + (/[0-9]/.test(c) ? 0.56 : c === '.' ? 0.28 : c === '-' || c === '+' ? 0.36 : 0.6), 0) * px;
+  // The width a chart gets in a panel body, so it can be drawn one unit to one pixel (labels keep their CSS size).
+  function svgWidth(id, min) {
+    const b = document.querySelector(`#tx-p-${id} [data-body]`);
+    return Math.max(min, Math.floor((b ? b.clientWidth : 0) - 16));
   }
 
   // ------------------------------------------------------------------ the selection (linked across panels)
@@ -289,6 +311,21 @@
       r.items = ev.items.map(it => ({ when: `R${it.round} v ${short(it.opponent)}`, minute: null, val: `${fmt(m, it.value)}${['m', 'km/h'].includes(m.unit) ? ' ' + m.unit : ''}`, note: `${Math.round(it.minutes)} min`, video: null, match_id: it.match_id }));
       r.unit = 'match';
       r.note = 'Physical numbers come from the 10 Hz motion record: one value per match, no single clip.';
+    } else if (ev.keys) {
+      // Several keys behind one number (a ratio's numerator and denominator, or a sum): one row per event, labelled with
+      // what it counts toward, so a ratio's "8 of 19" reads as 19 rows, 8 of them ticked.
+      const km = ev.keys.map(k => MK.get(k) || { key: k, label: k, unit: '' });
+      const ratio = m.kind === 'ratio' && m.num && ev.keys[0] === m.num, count0 = evText(km[0], 1) === '';
+      r.items = ev.items.map(it => {
+        const mo = p.moments[it.m] || {}, parts = it.in.map((ki, j) => ({ m: km[ki], v: it.v[j], ki })), n = parts.find(x => x.ki === 0);
+        let val, note;
+        if (ratio && count0) { val = n ? '✓' : '✗'; note = n ? km[0].label : `${km[1].label} only`; }
+        else if (ratio) { val = n ? evText(km[0], n.v) : '–'; note = n ? '' : `${km[1].label} only`; }
+        else { val = parts.map(x => evText(x.m, x.v)).filter(Boolean).join(' · '); note = parts.map(x => x.m.label).join(' + '); }
+        return { when: `R${mo.round} v ${short(mo.opponent)}`, minute: mo.minute, val, note: [note, it.note].filter(Boolean).join(' · '), video: mo.video_url || null, match_id: mo.match_id };
+      });
+      r.legend = ratio && count0 ? `One row per event: ✓ counts toward ${km[0].label} (the top of the ratio), ✗ only toward ${km[1].label}.`
+        : ratio ? `One row per event, with its ${km[0].label}.` : 'One row per event, with what it counts toward.';
     } else {
       r.items = ev.items.map(it => {
         const mo = p.moments[it.m] || {};
@@ -310,8 +347,32 @@
     const first = r.items.findIndex((it, i) => i >= startAt && it.video);
     if (first >= 0) play(first, true); else if (r.items.length) { reel.i = startAt; renderClips(); stopVideo(r.items[startAt] ? 'nolink' : ''); }
     else stopVideo('');
+    // The scout must see the clip start: if most of the video (or, with nothing to play, the list) is out of view, behind
+    // the sticky command bar or below the fold, bring the clips panel up.
     const el = $('tx-p-clips');
-    if (el) { const b = el.getBoundingClientRect(); if (b.bottom < 0 || b.top > window.innerHeight - 60) showPanel('clips', true); else { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); } }
+    if (el) {
+      const scr = el.querySelector('.tx-screen'), target = scr && !scr.hidden ? scr : el.querySelector('.tx-cliphead') || el;
+      if (!inView(target, 0.75)) scrollToPanel(el);
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    }
+  }
+  // The bottom of what stays on top while scrolling: the sticky command bar (its height changes with the output line); on
+  // a phone, where the bar scrolls away, the site header and the row of view tabs under it.
+  function barBottom() {
+    const bar = document.querySelector('.tx-top');
+    if (bar && getComputedStyle(bar).position === 'sticky') return bar.getBoundingClientRect().bottom;
+    const side = document.querySelector('.side'), top = document.querySelector('.top');
+    return Math.max(0, side && getComputedStyle(side).flexDirection === 'row' ? side.getBoundingClientRect().bottom : 0, top ? top.getBoundingClientRect().bottom : 0);
+  }
+  // At least `frac` of the element is on screen, below the sticky command bar.
+  function inView(node, frac) {
+    const r = node.getBoundingClientRect(); if (!r.height) return false;
+    return Math.min(r.bottom, window.innerHeight) - Math.max(r.top, barBottom()) >= r.height * frac;
+  }
+  // Scroll a panel's top to just below the command bar.
+  function scrollToPanel(el) {
+    const top = el.getBoundingClientRect().top + window.scrollY - barBottom() - 8;
+    window.scrollTo({ top: Math.max(0, top), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
   function openEvidence(pid, mk, match) { if (PID.has(pid) && MK.has(mk)) openReel(evidenceReel(pid, mk, match)); }
 
@@ -349,7 +410,7 @@
     const capped = reel.total > reel.shown;
     head.innerHTML = `<p class="tx-ct">${esc(reel.title)}</p><p class="tx-cs">${esc(reel.sub)}</p>
       <p class="tx-cs">${reel.match ? `${reel.items.length} in this match` : capped ? `First ${reel.shown} of ${reel.total}${reel.unit === 'match' ? ' matches' : ''}` : `${reel.items.length} ${reel.unit === 'match' ? 'match' : 'moment'}${reel.items.length === 1 ? '' : (reel.unit === 'match' ? 'es' : 's')}`}${capped && reel.pid ? ` · <a href="${esc(reel.full)}" target="_blank" rel="noopener">all ${esc(reel.total)} on the local app &#8599;</a>` : ''}</p>
-      ${reel.note ? `<p class="tx-cs tx-dim">${esc(reel.note)}</p>` : ''}`;
+      ${reel.legend ? `<p class="tx-cs tx-dim">${esc(reel.legend)}</p>` : ''}${reel.note ? `<p class="tx-cs tx-dim">${esc(reel.note)}</p>` : ''}`;
     if (ctx) ctx.textContent = reel.items.length ? `${Math.max(0, reel.i) + 1}/${reel.items.length}` : '';
     list.innerHTML = reel.items.map((it, i) => `<li><button type="button" class="tx-clip${i === reel.i ? ' on' : ''}" data-act="clip" data-i="${i}" data-fid="clip-${i}"${i === reel.i ? ' aria-current="true"' : ''}>
         <span class="tx-cw">${esc(it.when)}${it.minute != null ? ` <b>${esc(it.minute)}'</b>` : ''}</span><span class="tx-cv">${esc(it.val)}</span><span class="tx-cn">${esc(it.note)}${it.video ? '' : ' <i>no clip</i>'}</span></button></li>`).join('');
@@ -386,9 +447,39 @@
       if (qa !== qb) return qa ? -1 : 1;
       const va = ca ? ca.value : null, vb = cb ? cb.value : null;
       if (va == null || vb == null) return va == null ? (vb == null ? 0 : 1) : -1;
-      return dir * (va - vb) || b.minutes - a.minutes;
+      return dir * (va - vb) || tieBreak(m, dir, a, ca, b, cb) || a.name.localeCompare(b.name);
     });
     return rows;
+  }
+  // Exported values are rounded, so equal values may hide different true rates. Break the tie as the engine orders it (by
+  // the unrounded value), in the sort direction: the unrounded rate where the counts give it, else the percentile (which
+  // the engine computed from the unrounded values; it runs the metric's better way, so it flips for lower-is-better).
+  function rawOf(m, p, c) {
+    if (!c) return null;
+    if (m.kind === 'ratio' && c.num != null && c.den) return c.num / c.den;
+    if (m.kind === 'per90' && c.total != null && p.minutes > 0) return c.total / p.minutes;
+    return null;
+  }
+  function tieBreak(m, dir, a, ca, b, cb) {
+    const ra = rawOf(m, a, ca), rb = rawOf(m, b, cb);
+    if (ra != null && rb != null && ra !== rb) return dir * (ra - rb);
+    const pa = ca && ca.percentile, pb = cb && cb.percentile;
+    if (pa == null || pb == null || pa === pb) return 0;
+    return (m.higher_is_better === false ? -dir : dir) * (pa - pb);
+  }
+  // Rank numbers as the engine gives them: rows with the same shown value share a rank (1, 2, 2, 4); rows without a
+  // percentile (below the minimum attempts) are listed after, unranked.
+  function screenRanks(rows) {
+    const k = S.scr.sort.k, m = MK.get(k);
+    if (!m) return rows.map((_, i) => i + 1);
+    let prev = null, place = 0;
+    return rows.map((p, i) => {
+      const c = cellOf(p, k);
+      if (!c || c.value == null || (m.has_percentile && c.percentile == null)) return null;
+      const v = fmt(m, c.value);
+      if (v !== prev) { place = i + 1; prev = v; }
+      return place;
+    });
   }
   function metricOptions(sel, filter) {
     return D.groups.map(g => {
@@ -413,10 +504,11 @@
       <th aria-sort="${sortAttr('club')}"><button type="button" data-act="sort" data-k="club" data-fid="h-club">Club${arrow('club')}</button></th><th>Pos</th>
       <th class="num" aria-sort="${sortAttr('min')}"><button type="button" data-act="sort" data-k="min" data-fid="h-min">Min${arrow('min')}</button></th>
       ${cols.map(k => { const m = MK.get(k); return `<th class="num" aria-sort="${sortAttr(k)}"><span class="tx-th"><button type="button" data-act="sort" data-k="${esc(k)}" data-mk="${esc(k)}" data-fid="h-${esc(k)}">${esc(m.label)}${noisy(m)}${arrow(k)}</button><button type="button" class="tx-x" data-act="rmcol" data-k="${esc(k)}" aria-label="Remove the ${esc(m.label)} column">&times;</button></span></th>`; }).join('')}</tr>`;
+    const ranks = screenRanks(rows);
     const body = rows.map((p, r) => {
       const ci = S.compare.indexOf(p.id), act = scrAct.pid === p.id && scrAct.c === 0;
       return `<tr class="${p.id === S.focus ? 'on' : ''}${ci >= 0 ? ' cmp' : ''}"${ci >= 0 ? ` style="--c:${CMP_COL[ci]}"` : ''}>
-        <th class="tx-stk" scope="row"><span class="tx-rk">${r + 1}</span><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-nav data-fid="n-${esc(p.id)}" tabindex="${act ? 0 : -1}"${p.id === S.focus ? ' aria-current="true"' : ''}>${esc(p.name)}</button></th>
+        <th class="tx-stk" scope="row"><span class="tx-rk">${ranks[r] == null ? '–' : ranks[r]}</span><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-nav data-fid="n-${esc(p.id)}" tabindex="${act ? 0 : -1}"${p.id === S.focus ? ' aria-current="true"' : ''}>${esc(p.name)}</button></th>
         <td>${esc(p.short_name)}</td><td>${esc(p.position)} <span class="tx-dim">${esc(p.role)}</span></td><td class="num">${esc(Math.round(p.minutes))}</td>
         ${cols.map((k, i) => cell(p, k, i)).join('')}</tr>`;
     }).join('');
@@ -474,8 +566,8 @@
   function axisLabels(keys, cx, cy, R) {
     const n = keys.length;
     return keys.map((k, i) => {
-      const a = (i + 0.5) * 2 * Math.PI / n, [x, y] = polar(cx, cy, R + 12, a), s = Math.sin(a);
-      const lab = MK.get(k).label, t = lab.length > 18 ? lab.slice(0, 17) + '…' : lab;
+      const a = (i + 0.5) * 2 * Math.PI / n, [x, y] = polar(cx, cy, R + 10, a), s = Math.sin(a);
+      const lab = MK.get(k).label, t = lab.length > 16 ? lab.slice(0, 15) + '…' : lab;
       return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${s > 0.25 ? 'start' : s < -0.25 ? 'end' : 'middle'}" class="tx-axl">${esc(t)}</text>`;
     }).join('');
   }
@@ -484,7 +576,7 @@
     const players = S.compare.length >= 2 ? S.compare.map(id => PID.get(id)) : [f];
     const base = players[0];
     const keys = (S.radar.tpl === 'all' ? D.default_columns.all : (D.default_columns[base.position] || D.default_columns.all)).filter(k => MK.has(k));
-    const n = keys.length, cx = 180, cy = 158, R = 104, r0 = 14;
+    const n = keys.length, cx = 180, cy = 158, R = 96, r0 = 14;
     let svg = `<svg viewBox="0 0 360 316" class="tx-svg tx-radar" aria-hidden="true">`;
     for (const q of [25, 50, 75, 100]) svg += `<circle cx="${cx}" cy="${cy}" r="${(r0 + (R - r0) * q / 100).toFixed(1)}" class="tx-ring"/>`;
     if (players.length === 1) {
@@ -493,8 +585,11 @@
         const r1 = r0 + (R - r0) * (pc == null ? 0 : Math.max(3, pc)) / 100;
         svg += `<path d="${wedge(cx, cy, r0, R, a0, a1)}" class="tx-wbg"/>`;
         if (pc != null) svg += `<path d="${wedge(cx, cy, r0, r1, a0, a1)}" fill="${GROUP_COL[m.group] || '#ffcd28'}" fill-opacity="${m.higher_is_better === null ? 0.45 : 0.85}" class="tx-wedge" data-act="ev" data-pid="${esc(base.id)}" data-mk="${esc(k)}"><title>${esc(m.label)}: ${esc(fmt(m, cellOf(base, k).value))}, ${esc(ord(pc))} percentile</title></path>`;
-        const [tx, ty] = polar(cx, cy, Math.max(r1, r0 + 12) - 7, (a0 + a1) / 2);
-        svg += `<text x="${tx.toFixed(1)}" y="${(ty + 3).toFixed(1)}" text-anchor="middle" class="tx-wv">${pc == null ? '' : esc(pc)}</text>`;
+        // The value sits inside its wedge when the wedge has room (black on a solid wedge, white on a style marker's paler
+        // one), else just outside it in light text on the dark ring: each choice is at least 4.5:1.
+        const inside = r1 - r0 >= 18, [tx, ty] = polar(cx, cy, inside ? r1 - 9 : r1 + 9, (a0 + a1) / 2);
+        const tone = !inside ? 'out' : m.higher_is_better === null ? 'lt' : '';
+        svg += `<text x="${tx.toFixed(1)}" y="${(ty + 4).toFixed(1)}" text-anchor="middle" class="tx-wv ${tone}">${pc == null ? '' : esc(pc)}</text>`;
       });
     } else {
       keys.forEach((k, i) => { const [x, y] = polar(cx, cy, R, (i + 0.5) * 2 * Math.PI / n); svg += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="tx-ring"/>`; });
@@ -544,7 +639,7 @@
     const html = shots.length || p.minutes ? `<div class="tx-stats">${['shots', 'goals', 'npxg', 'npxg_per_shot', 'shots_on_target'].map(k => numBtn(p, k, 'sh-')).join('')}</div>${svg}
       <p class="tx-legend"><span class="o-goal">● Goal</span> <span class="o-saved">● Saved</span> <span class="o-blocked">● Blocked</span> <span class="o-off_target">○ Off target</span> · size = xG · ${nps.length} non-penalty, ${shots.length - nps.length} penalty</p>`
       : '<p class="tx-dim">No minutes this season.</p>';
-    paint('shot', shots.length ? html : html.replace('</svg>', '<text x="78" y="36" text-anchor="middle" class="tx-axl">No shots</text></svg>'), esc(`${p.short_name} · ${shots.length}`));
+    paint('shot', shots.length ? html : html.replace('</svg>', '<text x="78" y="36" text-anchor="middle" class="tx-axl" style="font-size:3.4px">No shots</text></svg>'), esc(`${p.short_name} · ${shots.length}`));
   }
   function shotReel(p, start) {
     const r = { kind: 'shots', pid: p.id, title: `${p.name} · Shots`, sub: `${p.shots.length} shots, penalties included`, total: p.shots.length, shown: p.shots.length, i: -1, note: '',
@@ -557,10 +652,13 @@
     const [cols, rows] = D.pitch.heatmap_grid, cw = 105 / cols, ch = 68 / rows;
     const max = Math.max(1, ...hm.flat()), total = hm.flat().reduce((a, b) => a + b, 0);
     let cells = '';
-    hm.forEach((row, y) => row.forEach((v, x) => { if (v) cells += `<rect x="${(x * cw).toFixed(2)}" y="${(y * ch).toFixed(2)}" width="${cw.toFixed(2)}" height="${ch.toFixed(2)}" fill="#ffcd28" fill-opacity="${(0.08 + 0.8 * v / max).toFixed(3)}"><title>${v} touches</title></rect>`; }));
+    hm.forEach((row, y) => row.forEach((v, x) => { if (v) cells += `<rect x="${(x * cw).toFixed(2)}" y="${(y * ch).toFixed(2)}" width="${cw.toFixed(2)}" height="${ch.toFixed(2)}" fill="#ffcd28" fill-opacity="${(0.08 + 0.8 * v / max).toFixed(3)}"><title>${v} on-ball action${v === 1 ? '' : 's'}</title></rect>`; }));
+    const EVN = { touch: 'touches', pass: 'passes', cross: 'crosses', carry: 'carries', take_on: 'take-ons', shot: 'shots', tackle: 'tackles', interception: 'interceptions', recovery: 'recoveries', clearance: 'clearances' };
+    const evs = (D.pitch.heatmap_events || []).map(e => EVN[e] || e.replace(/_/g, ' '));
+    const evList = evs.length > 1 ? `${evs.slice(0, -1).join(', ')} and ${evs[evs.length - 1]}` : evs.join('');
     const html = `<div class="tx-stats">${['touches', 'touches_in_box', 'progressive_passes_received'].map(k => numBtn(p, k, 'ht-')).join('')}</div>
-      <svg viewBox="-1.5 -1.5 108 71" class="tx-svg tx-pitchsvg" role="img" aria-label="Heat map: ${total} touches, attacking left to right"><rect x="0" y="0" width="105" height="68" class="tx-turf"/>${cells}${fullPitch()}<path d="M44,72 L61,72" class="tx-dir"/></svg>
-      <p class="tx-cap">${esc(total)} touches this season, attacking left to right (${esc(cols)} by ${esc(rows)} cells). The map has no clip per cell; the numbers above open their moments.</p>`;
+      <svg viewBox="-1.5 -1.5 108 71" class="tx-svg tx-pitchsvg" role="img" aria-label="Heat map: ${total} on-ball actions, attacking left to right"><rect x="0" y="0" width="105" height="68" class="tx-turf"/>${cells}${fullPitch()}<path d="M44,72 L61,72" class="tx-dir"/></svg>
+      <p class="tx-cap">${esc(total)} on-ball actions this season (${esc(evList)}), so more than the Touches count, which is touch records only. Attacking left to right, ${esc(cols)} by ${esc(rows)} cells. The map has no clip per cell; the numbers above open their moments.</p>`;
     paint('heat', html, esc(p.short_name));
   }
 
@@ -571,19 +669,33 @@
     const k = S.form.k && MK.has(S.form.k) ? S.form.k : defs[0], m = MK.get(k);
     if (!fm || !fm.matches || !fm.matches.length) { paint('form', '<p class="tx-dim">No matches this season.</p>', esc(p.short_name)); return; }
     const vals = fm.values[k] || [], season = cellOf(p, k);
-    const W = 420, H = 178, L = 34, B = 34, T = 14, n = fm.matches.length, bw = (W - L - 8) / n;
-    const vmax = Math.max(0.0001, ...vals.filter(v => v != null).map(Number), season && season.value != null ? season.value : 0) * 1.12;
-    const y = (v) => T + (H - T - B) * (1 - v / vmax);
-    let svg = `<svg viewBox="0 0 ${W} ${H}" class="tx-svg tx-form" role="group" aria-label="${esc(m.label)} match by match; each bar opens that match's moments">`;
-    svg += `<line x1="${L}" y1="${H - B}" x2="${W - 4}" y2="${H - B}" class="tx-ax"/><text x="${L - 4}" y="${T + 4}" text-anchor="end" class="tx-axl">${esc(fmt(m, vmax / 1.12))}</text><text x="${L - 4}" y="${H - B}" text-anchor="end" class="tx-axl">0</text>`;
+    // Drawn at the panel's own width (one unit = one pixel) so the labels stay at their CSS size; the scale always holds
+    // zero, so negative values (xT added, goals minus xG, on-pitch differences) hang below a zero line inside the chart.
+    const W = svgWidth('form', 300), H = 200, L = 40, B = 36, T = 16, n = fm.matches.length, bw = (W - L - 8) / n;
+    const nums = [...vals.filter(v => v != null).map(Number), ...(season && season.value != null ? [season.value] : [])];
+    let lo = Math.min(0, ...nums), hi = Math.max(0, ...nums);
+    if (lo === hi) hi = 1;
+    const pad = (hi - lo) * 0.12; if (hi > 0) hi += pad; if (lo < 0) lo -= pad;
+    const y = (v) => T + (H - T - B) * (hi - v) / (hi - lo), y0 = y(0);
+    const tick = (v) => `<text x="${L - 4}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end" class="tx-axl">${esc(fmt(m, v))}</text>`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="tx-svg tx-form" role="group" aria-label="${esc(m.label)} match by match; each bar opens that match's moments">`;
+    svg += `<line x1="${L}" y1="${y0.toFixed(1)}" x2="${W - 4}" y2="${y0.toFixed(1)}" class="tx-ax"/>${tick(0)}`;
+    if (Math.max(0, ...nums) > 0) svg += tick(Math.max(...nums));
+    if (lo < 0) svg += tick(Math.min(...nums));
     fm.matches.forEach((mm, i) => {
-      const v = vals[i], x = L + i * bw + 3, w = Math.max(4, bw - 6);
+      const v = vals[i], x = L + i * bw + 2, w = Math.max(4, bw - 4), cx = (x + w / 2).toFixed(1);
       const lab = `Round ${mm.round} ${mm.home ? 'v' : 'at'} ${club(mm.opponent).name}, ${mm.score}, ${Math.round(mm.minutes)} min: ${m.label} ${fmt(m, v)}. Open its moments`;
-      svg += `<g class="tx-fbar${v == null ? ' nil' : ''}" role="button" tabindex="0" data-act="fev" data-mid="${esc(mm.match_id)}" data-fid="fb-${i}" aria-label="${esc(lab)}"><rect x="${x.toFixed(1)}" y="${T}" width="${w.toFixed(1)}" height="${H - T - B}" class="tx-hit"/>`
-        + (v == null ? `<text x="${(x + w / 2).toFixed(1)}" y="${H - B - 4}" text-anchor="middle" class="tx-axl">–</text>` : `<rect x="${x.toFixed(1)}" y="${y(v).toFixed(1)}" width="${w.toFixed(1)}" height="${Math.max(0.5, H - B - y(v)).toFixed(1)}" fill="${GROUP_COL[m.group] || '#ffcd28'}"/><text x="${(x + w / 2).toFixed(1)}" y="${(y(v) - 3).toFixed(1)}" text-anchor="middle" class="tx-fv">${esc(fmt(m, v).replace('%', ''))}</text>`)
-        + `<text x="${(x + w / 2).toFixed(1)}" y="${H - B + 12}" text-anchor="middle" class="tx-axl">R${esc(mm.round)}</text><text x="${(x + w / 2).toFixed(1)}" y="${H - B + 23}" text-anchor="middle" class="tx-axl dim">${mm.home ? '' : '@'}${esc(short(mm.opponent))}</text><title>${esc(lab)}</title></g>`;
+      let bar = '';
+      if (v == null) bar = `<text x="${cx}" y="${(y0 - 4).toFixed(1)}" text-anchor="middle" class="tx-axl">–</text>`;
+      else {
+        const yv = y(v), top = Math.min(yv, y0), h = Math.max(1, Math.abs(y0 - yv)), neg = v < 0;
+        bar = `<rect x="${x.toFixed(1)}" y="${top.toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}" fill="${neg ? '#ff8a8a' : GROUP_COL[m.group] || '#ffcd28'}"/>`
+          + (textW(fmt(m, v).replace('%', ''), 10) <= bw - 2 ? `<text x="${cx}" y="${(neg ? top + h + 12 : top - 4).toFixed(1)}" text-anchor="middle" class="tx-fv">${esc(fmt(m, v).replace('%', ''))}</text>` : '');
+      }
+      svg += `<g class="tx-fbar${v == null ? ' nil' : ''}" role="button" tabindex="0" data-act="fev" data-mid="${esc(mm.match_id)}" data-fid="fb-${i}" aria-label="${esc(lab)}"><rect x="${x.toFixed(1)}" y="${T}" width="${w.toFixed(1)}" height="${H - T - B}" class="tx-hit"/>${bar}`
+        + `<text x="${cx}" y="${H - B + 15}" text-anchor="middle" class="tx-axl">R${esc(mm.round)}</text><text x="${cx}" y="${H - B + 29}" text-anchor="middle" class="tx-axl dim">${mm.home ? '' : '@'}${esc(short(mm.opponent))}</text><title>${esc(lab)}</title></g>`;
     });
-    if (season && season.value != null) svg += `<line x1="${L}" y1="${y(season.value).toFixed(1)}" x2="${W - 4}" y2="${y(season.value).toFixed(1)}" class="tx-avg"/><text x="${W - 6}" y="${(y(season.value) - 3).toFixed(1)}" text-anchor="end" class="tx-avgl">season ${esc(fmt(m, season.value))}</text>`;
+    if (season && season.value != null) { const ys = y(season.value).toFixed(1); svg += `<line x1="${L}" y1="${ys}" x2="${W - 4}" y2="${ys}" class="tx-avg"/><text x="${W - 6}" y="${(season.value < 0 ? +ys + 13 : ys - 4)}" text-anchor="end" class="tx-avgl">season ${esc(fmt(m, season.value))}</text>`; }
     svg += '</svg>';
     const cons = fm.consistency || {};
     const ctab = Object.keys(cons).filter(c => MK.has(c)).map(c => { const cm = MK.get(c), x = cons[c], tr = x.last3_minus_season;
@@ -607,7 +719,7 @@
   }
   function renderScat() {
     const { x, y, pos, all } = S.scat, mx = MK.get(x), my = MK.get(y), pts = scatPoints();
-    const W = 460, H = 300, L = 44, B = 34, T = 12, R = 12;
+    const W = svgWidth('scat', 300), H = Math.round(Math.min(340, Math.max(250, W * 0.62))), L = 48, B = 38, T = 14, R = 14;
     const xs = pts.map(o => o.a.value), ys = pts.map(o => o.b.value);
     const ext = (a) => { let lo = Math.min(...a), hi = Math.max(...a); if (!a.length) { lo = 0; hi = 1; } if (lo === hi) { lo -= 1; hi += 1; } const pad = (hi - lo) * 0.06; return [lo >= 0 ? Math.max(0, lo - pad) : lo - pad, hi + pad]; };
     const [x0, x1] = ext(xs), [y0, y1] = ext(ys);
@@ -616,13 +728,13 @@
     const mxv = med(xs), myv = med(ys);
     if (scatCur != null && (scatCur < 0 || scatCur >= pts.length)) scatCur = null;
     const cur = scatCur != null ? pts[scatCur] : pts.find(o => o.p.id === S.focus) || null;
-    let svg = `<svg viewBox="0 0 ${W} ${H}" class="tx-svg tx-scat" tabindex="0" data-fid="scat-svg" data-r="scat" role="group" aria-label="${esc(`Scatter, ${mx.label} against ${my.label}, ${pts.length} players. Arrow keys move between players, Enter selects`)}">`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="tx-svg tx-scat" tabindex="0" data-fid="scat-svg" data-r="scat" role="group" aria-label="${esc(`Scatter, ${mx.label} against ${my.label}, ${pts.length} players. Arrow keys move between players, Enter selects`)}">`;
     svg += `<line x1="${L}" y1="${H - B}" x2="${W - R}" y2="${H - B}" class="tx-ax"/><line x1="${L}" y1="${T}" x2="${L}" y2="${H - B}" class="tx-ax"/>`;
     for (const t of [0, 0.5, 1]) {
       const vx = x0 + (x1 - x0) * t, vy = y0 + (y1 - y0) * t;
-      svg += `<text x="${sx(vx).toFixed(1)}" y="${H - B + 12}" text-anchor="middle" class="tx-axl">${esc(fmt(mx, vx))}</text><text x="${L - 4}" y="${(sy(vy) + 3).toFixed(1)}" text-anchor="end" class="tx-axl">${esc(fmt(my, vy))}</text>`;
+      svg += `<text x="${sx(vx).toFixed(1)}" y="${H - B + 15}" text-anchor="${t === 0 ? 'start' : t === 1 ? 'end' : 'middle'}" class="tx-axl">${esc(fmt(mx, vx))}</text><text x="${L - 4}" y="${(sy(vy) + 3).toFixed(1)}" text-anchor="end" class="tx-axl">${esc(fmt(my, vy))}</text>`;
     }
-    svg += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle" class="tx-axt">${esc(mx.label)} →</text><text x="12" y="${(T + H - B) / 2}" text-anchor="middle" class="tx-axt" transform="rotate(-90 12 ${(T + H - B) / 2})">${esc(my.label)} →</text>`;
+    svg += `<text x="${(L + W - R) / 2}" y="${H - 4}" text-anchor="middle" class="tx-axt">${esc(mx.label)} →</text><text x="13" y="${(T + H - B) / 2}" text-anchor="middle" class="tx-axt" transform="rotate(-90 13 ${(T + H - B) / 2})">${esc(my.label)} →</text>`;
     if (mxv != null) svg += `<line x1="${sx(mxv).toFixed(1)}" y1="${T}" x2="${sx(mxv).toFixed(1)}" y2="${H - B}" class="tx-med"/><line x1="${L}" y1="${sy(myv).toFixed(1)}" x2="${W - R}" y2="${sy(myv).toFixed(1)}" class="tx-med"/>`;
     const layer = (o, i) => {
       const ci = S.compare.indexOf(o.p.id), isF = o.p.id === S.focus, isC = cur && cur.p === o.p;
@@ -660,12 +772,13 @@
         <td class="num ${good ? 'up' : ''}">${esc(v.rank)}/${esc(v.of)}</td><td class="num tx-dim">${esc(fmt(m, v.league_mean))}</td>
         <td class="tx-pbar"><span class="tx-range"><i style="left:${w.toFixed(1)}%" class="${judged ? '' : 'style'}"></i><b style="left:${mean.toFixed(1)}%"></b></span></td></tr>`;
     }).join('');
+    const lowBest = D.team_metrics.filter(m => m.higher_is_better === false).map(m => /^[A-Z][a-z]/.test(m.label) ? m.label[0].toLowerCase() + m.label.slice(1) : m.label);
     const squad = D.players.filter(p => p.club_id === S.club).sort((a, b) => b.minutes - a.minutes);
     const html = `<div class="tx-seg tx-clubs" role="group" aria-label="Club">${D.clubs.map(k => `<button type="button" data-act="club" data-cid="${esc(k.club_id)}" aria-pressed="${k.club_id === S.club}" title="${esc(k.name)}">${esc(k.short_name)}</button>`).join('')}</div>
       <p class="tx-name">${esc(c.name)} <span class="tx-dim">${esc(ord(row.position || 0))} · ${esc(row.points)} pts · ${esc(row.won)}-${esc(row.drawn)}-${esc(row.lost)} · ${esc(row.goals_for)}:${esc(row.goals_against)}</span></p>
       <div class="tx-team"><div class="tx-scroll tx-tablewrap"><table class="tx-mt"><thead><tr><th>Style (per 90)</th><th class="num">Value</th><th class="num">Rank</th><th class="num">Lg avg</th><th><span class="sr">Range</span></th></tr></thead><tbody>${rows}</tbody></table></div>
         <div><h3 class="tx-h3">Squad by minutes</h3><ol class="tx-squad tx-scroll">${squad.map(p => `<li class="${p.id === S.focus ? 'on' : ''}"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-fid="sq-${esc(p.id)}">${esc(p.name)}</button><span class="tx-dim">${esc(p.position)} #${esc(p.kit_number)}</span><span class="num">${esc(Math.round(p.minutes))}′</span></li>`).join('')}</ol></div></div>
-      <p class="tx-cap">Rank 1 = highest. The bar spans the league's six clubs; the white tick is the league average; grey markers are style (ranked, not judged). Values open the matches (and, for set-piece xG, the shots) behind them.</p>`;
+      <p class="tx-cap">Rank 1 = best${lowBest.length ? `: the lowest for ${esc(listText(lowBest))}` : ''}. Grey markers are style, ranked but not judged, and their rank 1 is the highest. The bar spans the league's six clubs; the white tick is the league average. Values open the matches (and, for set-piece xG, the shots) behind them.</p>`;
     paint('team', html, esc(c.short_name));
   }
   function teamReel(cid, tk) {
@@ -675,7 +788,7 @@
     if (ev && ev.length) {
       r.items = ev.map(e => { const hit = SHOTS.get(e.match_id + '|' + e.event_id), mt = D.matches.find(x => x.match_id === e.match_id) || {};
         const opp = mt.home === cid ? mt.away : mt.home;
-        return { when: `R${e.round} v ${short(opp)}`, minute: hit ? hit.s.minute : Math.floor(e.t / 60), val: evText(m, e.value) || String(e.value), note: hit ? hit.p.name : '', video: hit ? hit.s.video_url : null, match_id: e.match_id }; });
+        return { when: `R${e.round} v ${short(opp)}`, minute: hit ? hit.s.minute : e.minute, val: evText(m, e.value) || String(e.value), note: hit ? hit.p.name : '', video: hit ? hit.s.video_url : null, match_id: e.match_id }; });
       r.total = r.shown = r.items.length;
     } else {
       r.items = t.per_match.map(pm => ({ when: `R${pm.round} ${pm.home ? 'v' : '@'} ${short(pm.opponent)}`, minute: null, val: fmt(m, pm.values[tk]), note: 'per 90 of the match', video: null, match_id: pm.match_id }));
@@ -838,8 +951,9 @@
     S.scr.sort = { k: m.key, dir: m.higher_is_better === false ? 1 : -1 };
     S.scr.q = ''; scrAct = null; save();
     showPanel('scrn'); renderScrn();
-    const rows = screenRows(), top = rows[0], c = top && cellOf(top, m.key);
-    out(`RANK ${S.scr.pos || 'ALL'} ${m.key}: ${rows.length} ${S.scr.pos ? POSN[S.scr.pos] : 'players'} by ${m.label}${m.higher_is_better === false ? ' (lowest first)' : ''}${top && c ? `; top ${top.name} ${fmt(m, c.value)}` : ''}.`);
+    const rows = screenRows(), ranks = screenRanks(rows), tops = rows.filter((_, i) => ranks[i] === 1), c = tops[0] && cellOf(tops[0], m.key);
+    const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
+    out(`RANK ${S.scr.pos || 'ALL'} ${m.key}: ${rows.length} ${S.scr.pos ? POSN[S.scr.pos] : 'players'} by ${m.label}${m.higher_is_better === false ? ' (lowest first)' : ''}${c ? `; top ${names} ${fmt(m, c.value)}${tops.length > 1 ? `, tied at rank 1` : ''}` : ''}.`);
   }
   function cmdCmp(rest) {
     const rs = resolvePlayers(rest);
@@ -955,6 +1069,33 @@
   function closeHelp() { const h = $('txHelp'); if (h.hidden) return; h.hidden = true; if (/^Help is open/.test($('txOut').textContent)) out('Help closed.'); (h._opener && document.contains(h._opener) ? h._opener : $('txIn')).focus(); }
 
   // ------------------------------------------------------------------ events
+  // Keyboard focus survives a repaint: after an action, if focus fell to <body> (the control was rebuilt or is gone), it
+  // goes back to the same control (by data-fid, else by what it does), else to the nearest stable place: the panel's
+  // heading, the focus player in the selection bar, or the current workspace button.
+  const sig = (el) => el.dataset.fid ? `[data-fid="${CSS.escape(el.dataset.fid)}"]`
+    : '[data-act="' + CSS.escape(el.dataset.act) + '"]' + ['id', 'pid', 'i', 'v', 'k', 'cid', 'd', 'mk', 'tk', 'mid', 'cmd'].filter(k => el.dataset[k] != null).map(k => `[data-${k}="${CSS.escape(el.dataset[k])}"]`).join('');
+  function doAct(t, e) {
+    const sel = sig(t), panel = t.closest('[data-panel]'), zone = t.closest('#txSel, #txMeta, #txKeys, #txHelp, #txOut');
+    const pid = panel && panel.dataset.panel, zid = zone && zone.id;
+    act(t, e);
+    const a = document.activeElement;
+    if (a && a !== document.body && document.contains(a)) return;
+    // Look in the same place first (the PLYR panel and the selection bar both have "+ add" buttons for the same player).
+    const scope = (pid && $('tx-p-' + pid)) || (zid && $(zid)) || document.querySelector('.tx');
+    const usable = (el) => el && !el.disabled && el.getClientRects().length;
+    const tries = [() => [...scope.querySelectorAll(sel)].find(usable),
+      () => pid && $('tx-h-' + pid),
+      () => zid === 'txSel' && document.querySelector('#txSel .tx-focus'),
+      () => zid === 'txMeta' && document.querySelector('#txMeta [data-act="ws"][aria-pressed="true"]'),
+      () => zid === 'txKeys' && document.querySelector('#txKeys .tx-fkey'),
+      () => $('txIn')];
+    for (const f of tries) {
+      const el = f();
+      if (!usable(el)) continue;
+      el.focus({ preventScroll: true });
+      if (document.activeElement === el) return;
+    }
+  }
   function act(t, e) {
     const a = t.dataset.act;
     if (a === 'sel') { select(t.dataset.pid); return; }
@@ -965,7 +1106,13 @@
     if (a === 'clip') { play(+t.dataset.i, true); return; }
     if (a === 'cprev' || a === 'cnext') { if (!reel) return; const d = a === 'cnext' ? 1 : -1; let i = reel.i + d; while (reel.items[i] && !reel.items[i].video) i += d; if (reel.items[i]) play(i, true); return; }
     if (a === 'sort') { const k = t.dataset.k; S.scr.sort = S.scr.sort.k === k ? { k, dir: -S.scr.sort.dir } : { k, dir: k === 'name' || k === 'club' ? 1 : (MK.get(k) && MK.get(k).higher_is_better === false ? 1 : -1) }; save(); renderScrn(); return; }
-    if (a === 'rmcol') { S.scr.cols = S.scr.cols.filter(k => k !== t.dataset.k); save(); renderScrn(); return; }
+    if (a === 'rmcol') {
+      const i = S.scr.cols.indexOf(t.dataset.k);
+      S.scr.cols = S.scr.cols.filter(k => k !== t.dataset.k); save(); renderScrn();
+      const xs = document.querySelectorAll('#tx-p-scrn [data-act="rmcol"]'), next = xs[Math.min(i, xs.length - 1)] || document.querySelector('#tx-p-scrn [data-r="addcol"]');
+      if (next) next.focus({ preventScroll: true });
+      return;
+    }
     if (a === 'scrpos') { S.scr.pos = t.dataset.v || null; scrAct = null; save(); renderScrn(); return; }
     if (a === 'scrmode') { S.scr.mode = t.dataset.v; save(); renderScrn(); return; }
     if (a === 'scrdef') { S.scr.cols = (D.default_columns[S.scr.pos || 'all'] || D.default_columns.all).filter(k => MK.has(k)); save(); renderScrn(); return; }
@@ -979,7 +1126,7 @@
     if (a === 'pane') { showPanel(t.dataset.id); return; }
     if (a === 'fkey') { showPanel(t.dataset.id); const h = $('tx-h-' + t.dataset.id); if (h) h.focus({ preventScroll: true }); return; }
     if (a === 'pclose') { const pp = S.panels.find(p => p.id === t.dataset.id); pp.on = false; save(); renderLayout(); renderAll(); const k = document.querySelector(`.tx-fkey[data-id="${t.dataset.id}"]`); if (k) k.focus(); return; }
-    if (a === 'psize') { const pp = S.panels.find(p => p.id === t.dataset.id); pp.size = { S: 'M', M: 'L', L: 'S' }[pp.size]; save(); renderLayout(); renderAll(); const b = document.querySelector(`[data-act="psize"][data-id="${pp.id}"]`); if (b) b.focus(); return; }
+    if (a === 'psize') { const pp = S.panels.find(p => p.id === t.dataset.id); pp.size = SIZE_NEXT[pp.size] || 'S'; save(); renderLayout(); renderAll(); const b = document.querySelector(`[data-act="psize"][data-id="${pp.id}"]`); if (b) b.focus(); return; }
     if (a === 'pmove') {
       const i = S.panels.findIndex(p => p.id === t.dataset.id), d = +t.dataset.d;
       let j = i + d; while (S.panels[j] && !S.panels[j].on) j += d;
@@ -999,7 +1146,7 @@
       const t = e.target.closest('[data-act]');
       if (!t || !root.contains(t) || t.disabled || !ready) return;
       if (t.tagName === 'A') return;
-      e.preventDefault(); act(t, e);
+      e.preventDefault(); doAct(t, e);
     });
     root.addEventListener('change', (e) => {
       const r = e.target.dataset.r; if (!r || !ready) return;
@@ -1013,7 +1160,7 @@
     root.addEventListener('keydown', (e) => {
       const t = e.target;
       // SVG buttons (shots, form bars) take Enter and Space like buttons.
-      if ((e.key === 'Enter' || e.key === ' ') && t.getAttribute && t.getAttribute('role') === 'button' && t.tagName !== 'BUTTON' && t.dataset.act) { e.preventDefault(); act(t, e); return; }
+      if ((e.key === 'Enter' || e.key === ' ') && t.getAttribute && t.getAttribute('role') === 'button' && t.tagName !== 'BUTTON' && t.dataset.act) { e.preventDefault(); doAct(t, e); return; }
       if (t.dataset && t.dataset.r === 'scat') return scatKeys(e);
       if (t.closest && t.closest('tbody[data-r="grid"]')) return gridKeys(e, t);
     });
@@ -1100,6 +1247,12 @@
   }
 
   wire();
+  // FORM and SCAT are drawn at their panel's width: redraw them when it changes.
+  let lastW = window.innerWidth, resizeT = 0;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeT);
+    resizeT = setTimeout(() => { if (!ready || window.innerWidth === lastW) return; lastW = window.innerWidth; if (visible('form')) renderForm(); if (visible('scat')) renderScat(); }, 150);
+  });
   window.addEventListener('hashchange', onRoute);
   onRoute();
 })();

@@ -34,11 +34,12 @@ from typing import Any
 os.environ.setdefault("REGISTA_DOTENV", "")   # never load .env; nothing here reaches Azure
 
 import regista
+from regista.clips import match_minute
 from regista.schema import iter_jsonl
 from regista.season import league as league_mod
 from regista.season.metrics import (CATALOGUE, DEFAULT_COLUMNS, GROUPS, SIMILARITY_TEMPLATE, SOURCES, SYNTHETIC_NOTE,
                                     TEAM_CATALOGUE, SeasonMetrics, load_metrics)
-from regista.season.profiles import GRID_X, GRID_Y, load_season
+from regista.season.profiles import GRID_X, GRID_Y, TOUCH_MAP_EVENTS, load_season
 from regista.synth.generator import PITCH_L, PITCH_W
 
 REPO = Path(regista.__file__).resolve().parents[2]
@@ -67,7 +68,8 @@ def metric_entry(sm: SeasonMetrics, key: str) -> dict[str, Any]:
            "ratio": m.kind == "ratio", "higher_is_better": m.higher_is_better, "positions": list(m.positions),
            "digits": m.digits, "noisy": sm.noisy(key), "reliability_r": rel.get("r"),
            "min_minutes": sm.min_minutes, "min_attempts": None, "min_attempts_rule": None,
-           "has_percentile": m.kind != "total"}
+           "has_percentile": m.kind != "total", "num": m.num if m.kind == "ratio" else None,
+           "den": m.den if m.kind == "ratio" else None, "evidence_keys": list(m.evidence_keys())}
     if m.kind == "ratio" and m.min_den:
         t = sm.thresholds[m.min_den]
         out["min_attempts"], out["min_attempts_rule"] = t["min"], t["rule"]
@@ -80,17 +82,23 @@ def team_metric_entry(m) -> dict[str, Any]:
 
 
 # ------------------------------------------------------------------------------------------------ match facts
-def read_matches(sm: SeasonMetrics, league: dict, root: Path) -> tuple[dict, dict]:
-    """From each fixture's stream (same folder and order as the engine): event clocks for evidence, and every shot."""
+def read_matches(sm: SeasonMetrics, league: dict, root: Path) -> tuple[dict, dict, dict]:
+    """From each fixture's stream (same folder and order as the engine): event clocks for evidence, every shot, and each
+    match's header (for the football minute of a time with no event).
+
+    Minutes are football minutes, 1-based, exactly as Regista's clip labels count them (``regista.clips.match_minute``:
+    0:00-0:59 is the 1st minute, the second half starts at 46'), not the clock record's elapsed-minute field."""
     from regista.season.build import materialise
 
     clock: dict[tuple[str, str], dict] = {}
     shots: dict[str, list[dict]] = {}
+    headers: dict[str, dict] = {}
     for mi, fx in enumerate(league["fixtures"]):
         assert sm.match_rows[mi]["match_id"] == fx["match_id"], "fixture order differs from the engine's"
         d = materialise(league, fx, root)
         stream = list(iter_jsonl(d / "events.jsonl"))
         header = stream[0]
+        headers[fx["match_id"]] = header
         g = {p["player_id"]: p.get("global_player_id") for p in header.get("players", [])}
         ltr = {p["period"]: p.get("left_to_right_team_id") for p in header.get("periods", [])}
         home, away = header.get("home_team_id"), header.get("away_team_id")
@@ -98,7 +106,7 @@ def read_matches(sm: SeasonMetrics, league: dict, root: Path) -> tuple[dict, dic
             if rec.get("type") != "event":
                 continue
             c = rec.get("clock") or {}
-            clock[(fx["match_id"], rec["id"])] = {"minute": c.get("minute"), "period": c.get("period")}
+            clock[(fx["match_id"], rec["id"])] = {"minute": match_minute(header, rec["t"]), "period": c.get("period")}
             if rec["event_type"] != "shot" or not rec.get("player_id"):
                 continue
             gid = g.get(rec["player_id"])
@@ -124,16 +132,38 @@ def read_matches(sm: SeasonMetrics, league: dict, root: Path) -> tuple[dict, dic
             shots.setdefault(gid, []).append({
                 "match_id": fx["match_id"], "round": fx["round"],
                 "opponent": fx["away"] if rec["team_id"] == home else fx["home"],
-                "event_id": rec["id"], "t": round(rec["t"], 2), "minute": c.get("minute"), "period": period,
+                "event_id": rec["id"], "t": round(rec["t"], 2), "minute": match_minute(header, rec["t"]), "period": period,
                 "x": x, "y": y, "end_x": ex, "end_y": ey, "xg": r(met.get("xg"), 3),
                 "distance_m": r(met.get("shot_distance_m"), 1), "outcome": outcome,
                 "body_part": rec.get("body_part"), "penalty": "penalty" in q, "under_pressure": bool(rec.get("under_pressure")),
                 "clip_id": cid, "video_url": VIDEO_URL.format(match_id=fx["match_id"], clip_id=cid) if cid else None})
-    return clock, shots
+    return clock, shots, headers
 
 
 # ------------------------------------------------------------------------------------------------ players
-def player_entry(sm: SeasonMetrics, person: dict, profile: dict | None, clock: dict, shots: dict) -> dict[str, Any]:
+def football_minute(clock: dict, headers: dict, match_id: str, event_id: str | None, t: float | None) -> int | None:
+    c = clock.get((match_id, event_id))
+    if c:
+        return c["minute"]
+    return match_minute(headers[match_id], t) if t is not None and match_id in headers else None
+
+
+def merged_evidence(ev: dict) -> list[tuple[dict, list[tuple[int, float]]]]:
+    """A metric built from several event keys (a ratio's numerator and denominator, or a sum such as xT added by passes
+    and carries) lists one event once per key. Merge them by event, in the engine's order: each event with the keys it
+    counts toward (index into ev["keys"]) and its value for each."""
+    keys = ev["keys"]
+    groups: dict[tuple, tuple[dict, list[tuple[int, float]]]] = {}
+    for i in ev["items"]:
+        k = (i["match_id"], i.get("event_id"), i.get("t"), i.get("clip_id"))
+        if k not in groups:
+            groups[k] = (i, [])
+        groups[k][1].append((keys.index(i["metric"]), i["value"]))
+    return list(groups.values())
+
+
+def player_entry(sm: SeasonMetrics, person: dict, profile: dict | None, clock: dict, shots: dict,
+                 headers: dict) -> dict[str, Any]:
     gid = person["global_id"]
     b = league_mod.bio(person)
     out: dict[str, Any] = {
@@ -155,12 +185,13 @@ def player_entry(sm: SeasonMetrics, person: dict, profile: dict | None, clock: d
     def moment(item: dict) -> int:
         k = (item["match_id"], item.get("event_id"), item.get("t"), item.get("clip_id"))
         if k not in index:
-            c = clock.get((item["match_id"], item.get("event_id")), {})
             cid = item.get("clip_id")
             index[k] = len(moments)
             moments.append({"match_id": item["match_id"], "round": item["round"],
                             "opponent": opponent_of.get(item["match_id"]), "t": item.get("t"),
-                            "minute": c.get("minute"), "clip_id": cid,
+                            "minute": football_minute(clock, headers, item["match_id"],
+                                                             item.get("event_id"), item.get("t")),
+                            "clip_id": cid,
                             "video_url": VIDEO_URL.format(match_id=item["match_id"], clip_id=cid) if cid else None})
         return index[k]
 
@@ -173,6 +204,16 @@ def player_entry(sm: SeasonMetrics, person: dict, profile: dict | None, clock: d
             items = [{"match_id": i["match_id"], "round": i["round"], "opponent": opponent_of.get(i["match_id"]),
                       "minutes": i["minutes"], "value": i["value"]} for i in ev["items"]]
             out["evidence"][key] = {"total": ev["total"], "per_match": True, "items": items}
+        elif len(ev["keys"]) > 1:
+            # One row per event, with the keys it counts toward ("in", indexes into "keys") and its value for each ("v").
+            full = merged_evidence(sm.evidence(ps, key))
+            items = []
+            for first, parts in full[:EVIDENCE_CAP]:
+                it = {"m": moment(first), "in": [k for k, _ in parts], "v": [v for _, v in parts]}
+                if first.get("note"):
+                    it["note"] = first["note"]
+                items.append(it)
+            out["evidence"][key] = {"total": len(full), "per_match": False, "keys": ev["keys"], "items": items}
         else:
             items = []
             for i in ev["items"]:
@@ -198,11 +239,12 @@ def player_entry(sm: SeasonMetrics, person: dict, profile: dict | None, clock: d
 
 
 # ------------------------------------------------------------------------------------------------ teams
-def team_entry(sm: SeasonMetrics, cid: str) -> dict[str, Any]:
+def team_entry(sm: SeasonMetrics, cid: str, headers: dict) -> dict[str, Any]:
     ts = sm.team_style(cid)
     sp = []
     for e in ts["evidence"].get("set_piece_xg", []):
         sp.append({"match_id": e["match_id"], "round": e["round"], "event_id": e["event_id"], "t": e["t"],
+                   "minute": match_minute(headers[e["match_id"]], e["t"]) if e.get("t") is not None else None,
                    "value": e["value"]})
     return {"club_id": cid, "club": ts["club"], "short_name": ts["short_name"], "matches": ts["matches"],
             "minutes": ts["minutes"], "values": ts["values"],
@@ -230,12 +272,12 @@ def build(app: str) -> dict[str, Any]:
     sm = load_metrics(league_path, root)
     season = load_season(league_path, root)
     league = sm.league
-    clock, shots = read_matches(sm, league, root)
+    clock, shots, headers = read_matches(sm, league, root)
 
     clubs = [{"club_id": c["club_id"], "name": c["name"], "short_name": c["short_name"], "ground": c.get("ground"),
               "kit": c["kit"]} for c in league["clubs"]]
     people = sm.people
-    players = [player_entry(sm, p, season.player(gid), clock, shots) for gid, p in people.items()]
+    players = [player_entry(sm, p, season.player(gid), clock, shots, headers) for gid, p in people.items()]
     sample = sm.sample()
     table = [{k: row[k] for k in ("position", "club_id", "club", "short_name", "played", "won", "drawn", "lost",
                                    "goals_for", "goals_against", "goal_difference", "points")} for row in season.table]
@@ -252,7 +294,11 @@ def build(app: str) -> dict[str, Any]:
         "evidence_rule": f"Evidence lists at most {EVIDENCE_CAP} items per metric per player, in match order (the engine "
                          "API's default); 'total' is the full count. Items point into the player's 'moments' by index "
                          "('m') with the event's value toward the metric ('v': 1 for a count, the xG of a shot, the xT "
-                         "added by a move, ...). Physical metrics' evidence is one value per match (no clip).",
+                         "added by a move, ...). A metric built from several keys (a ratio's numerator and denominator, "
+                         "or a sum) lists each event once: 'keys' names them, an item's 'in' says which keys the event "
+                         "counts toward and 'v' its value for each, and 'total' counts events. Physical metrics' evidence "
+                         "is one value per match (no clip). A moment's 'minute' is the football minute (1-based, as "
+                         "Regista's clip labels count it).",
         "season": {"min_minutes": sm.min_minutes, "matches_per_club": sm.matches_per_club, "thresholds": sm.thresholds,
                    "sample": sample, "peer_groups": "positions GK, DF, MF, FW",
                    "percentile_rule": "FBref: the mean of the share of peers strictly below and at or below; inverted where "
@@ -266,11 +312,14 @@ def build(app: str) -> dict[str, Any]:
         "similarity_template": {k: list(v) for k, v in SIMILARITY_TEMPLATE.items()},
         "team_metrics": [team_metric_entry(m) for m in TEAM_CATALOGUE.values()],
         "clubs": clubs, "matches": matches, "table": table,
-        "teams": [team_entry(sm, c["club_id"]) for c in league["clubs"]],
+        "teams": [team_entry(sm, c["club_id"], headers) for c in league["clubs"]],
         "pitch": {"length": PITCH_L, "width": PITCH_W, "frame": "attacking left to right (x = length toward the opponent "
                   "goal at x = length)", "heatmap_grid": [GRID_X, GRID_Y],
-                  "heatmap_rule": "touch-map events per cell, rows y (0 to width), columns x (0 to length), attacking "
-                                  "left to right, the same grid as the profile page"},
+                  "heatmap_events": list(TOUCH_MAP_EVENTS),
+                  "heatmap_rule": "on-ball actions per cell (the touch-map events: touches, passes, crosses, carries, "
+                                  "take-ons, shots, tackles, interceptions, recoveries and clearances), rows y (0 to "
+                                  "width), columns x (0 to length), attacking left to right, the same grid as the "
+                                  "profile page"},
         "players": players,
     }
 
