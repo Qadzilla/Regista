@@ -55,18 +55,22 @@
   });
   const refKey = (r) => `${r.match_id}|${r.clip_id}`;
   // Femi Toure's moments, as GET /api/players/pl_bro_09 lists them for the league as generated from data/season/league.json.
-  // The text that cites them is checked against the league by tests/test_shared_dashboard.py (his three league goals,
-  // one a penalty; his take-ons; the shortlist's ranks). Claims are league counts and ranks, so they stay true when his
+  // The text that cites them is checked against the league by tests/test_shared_dashboard.py (his five league goals,
+  // in four matches; his take-ons; the shortlist's ranks). Claims are league counts and ranks, so they stay true when his
   // uploaded friendly joins his profile on the live app.
   const CLIPS = {
-    r02goal50: { match_id: 'rl_r02_cal_bro', clip_id: 'cl_t_away_09_000008', title: "Femi Toure (9): goal at 50'", reason: 'on_ball_main', round: 2,
-                opponent: 'Calder Town', t: 1199.51, video_url: '/api/matches/rl_r02_cal_bro/clips/cl_t_away_09_000008.mp4' },
-    r05goal15: { match_id: 'rl_r05_ash_bro', clip_id: 'cl_t_away_09_000008', title: "Femi Toure (9): goal at 15'", reason: 'on_ball_main', round: 5,
-                opponent: 'Ashby Athletic', t: 851.87, video_url: '/api/matches/rl_r05_ash_bro/clips/cl_t_away_09_000008.mp4' },
-    r06goal47: { match_id: 'rl_r06_bro_eas', clip_id: 'cl_t_home_09_000012', title: "Femi Toure (9): goal at 47'", reason: 'on_ball_main', round: 6,
-                opponent: 'Eastwick United', t: 1004.11, video_url: '/api/matches/rl_r06_bro_eas/clips/cl_t_home_09_000012.mp4' },
-    r06takeon3: { match_id: 'rl_r06_bro_eas', clip_id: 'cl_t_home_09_000003', title: "Femi Toure (9): take-on at 3'", reason: 'on_ball_main', round: 6,
-                opponent: 'Eastwick United', t: 130.82, video_url: '/api/matches/rl_r06_bro_eas/clips/cl_t_home_09_000003.mp4' },
+    r01goal6: { match_id: 'rl_r01_eas_bro', clip_id: 'cl_t_away_09_000006', title: "Femi Toure (9): goal at 6'", reason: 'on_ball_main', round: 1,
+               opponent: 'Eastwick United', t: 348.62, video_url: '/api/matches/rl_r01_eas_bro/clips/cl_t_away_09_000006.mp4' },
+    r01goal56: { match_id: 'rl_r01_eas_bro', clip_id: 'cl_t_away_09_000023', title: "Femi Toure (9): goal at 56'", reason: 'on_ball_main', round: 1,
+                opponent: 'Eastwick United', t: 1535.37, video_url: '/api/matches/rl_r01_eas_bro/clips/cl_t_away_09_000023.mp4' },
+    r06goal49: { match_id: 'rl_r06_bro_eas', clip_id: 'cl_t_home_09_000011', title: "Femi Toure (9): goal at 49'", reason: 'on_ball_main', round: 6,
+                opponent: 'Eastwick United', t: 1116.97, video_url: '/api/matches/rl_r06_bro_eas/clips/cl_t_home_09_000011.mp4' },
+    r08goal6: { match_id: 'rl_r08_bro_fai', clip_id: 'cl_t_home_09_000005', title: "Femi Toure (9): goal at 6'", reason: 'on_ball_main', round: 8,
+               opponent: 'Fairhaven FC', t: 328.44, video_url: '/api/matches/rl_r08_bro_fai/clips/cl_t_home_09_000005.mp4' },
+    r10goal8: { match_id: 'rl_r10_bro_ash', clip_id: 'cl_t_home_09_000011', title: "Femi Toure (9): goal at 8'", reason: 'on_ball_main', round: 10,
+               opponent: 'Ashby Athletic', t: 436.97, video_url: '/api/matches/rl_r10_bro_ash/clips/cl_t_home_09_000011.mp4' },
+    r01takeon58: { match_id: 'rl_r01_eas_bro', clip_id: 'cl_t_away_09_000027', title: "Femi Toure (9): take-on at 58'", reason: 'on_ball_main', round: 1,
+                  opponent: 'Eastwick United', t: 1656.97, video_url: '/api/matches/rl_r01_eas_bro/clips/cl_t_away_09_000027.mp4' },
     r09takeon2: { match_id: 'rl_r09_bro_dun', clip_id: 'cl_t_home_09_000003', title: "Femi Toure (9): take-on at 2'", reason: 'on_ball_main', round: 9,
                 opponent: 'Dunmore City', t: 86.49, video_url: '/api/matches/rl_r09_bro_dun/clips/cl_t_home_09_000003.mp4' },
   };
@@ -79,9 +83,9 @@
       conversations: [
         { id: 'cv_maya_bro_09', scout: 'maya', player: 'pl_bro_09', player_name: 'Femi Toure', unread: { player: 1, scout: 0 }, muted: false, blocked: false,
           msgs: [
-            { from: 'scout', at: ago(2, '18:02'), text: 'Hi Femi, we have been watching you closely. Three league goals, more than anyone else in the league, stand out. Could you send a couple of your finishes?' },
-            { from: 'player', at: ago(2, '19:40'), text: 'Thanks Maya. Here are two from this season.', clips: [CLIPS.r05goal15, CLIPS.r06goal47] },
-            { from: 'scout', at: ago(0, '09:15'), text: 'The first one is exactly what we look for: struck from outside the box. Are you free for a call on Thursday?' },
+            { from: 'scout', at: ago(2, '18:02'), text: 'Hi Femi, we have been watching you closely. Five league goals, two more than anyone else in the league, stand out. Could you send a couple of your finishes?' },
+            { from: 'player', at: ago(2, '19:40'), text: 'Thanks Maya. Here are two from this season.', clips: [CLIPS.r08goal6, CLIPS.r10goal8] },
+            { from: 'scout', at: ago(0, '09:15'), text: 'The first one is exactly what we look for: you carry it into the box yourself and finish. Are you free for a call on Thursday?' },
           ] },
         { id: 'cv_tomas_bro_09', scout: 'tomas', player: 'pl_bro_09', player_name: 'Femi Toure', unread: { player: 1, scout: 0 }, muted: false, blocked: false,
           msgs: [
@@ -89,7 +93,7 @@
           ] },
         { id: 'cv_priya_bro_09', scout: 'priya', player: 'pl_bro_09', player_name: 'Femi Toure', unread: { player: 0, scout: 0 }, muted: false, blocked: false,
           msgs: [
-            { from: 'scout', at: ago(5, '14:10'), text: 'Your strike from distance against Ashby in round 5 was well taken. Keep adding matches, it helps us see more of you.' },
+            { from: 'scout', at: ago(5, '14:10'), text: 'Your two goals at Eastwick in round 1 were well taken. Keep adding matches, it helps us see more of you.' },
             { from: 'player', at: ago(5, '16:55'), text: 'Will do, I have a friendly coming up and will upload it.' },
           ] },
         { id: 'cv_maya_eas_03', scout: 'maya', player: 'pl_eas_03', player_name: 'Gino Mensah', unread: { player: 0, scout: 1 }, muted: false, blocked: false,
@@ -105,11 +109,11 @@
       ],
       // Maya's shortlist: a stage and a private note per player, in the order she added them.
       shortlist: {
-        pl_bro_09: { stage: 'Contacted', note: 'Top scorer in the league: three league goals in three different matches (one a penalty), the most per 90 among the league\'s regular forwards. Call booked for Thursday.', at: ago(9, '10:00') },
-        pl_ash_10: { stage: 'Watching', note: 'Beats his man from the number 10: third among midfielders for take-ons won per 90. Check his work without the ball.', at: ago(8, '10:00') },
-        pl_ash_09: { stage: 'Watching', note: 'Gets his shots away: third among the league\'s regular forwards for shots per 90. Watch more of his movement off the ball.', at: ago(8, '11:00') },
+        pl_bro_09: { stage: 'Contacted', note: 'Top scorer in the league: five league goals in four different matches, two more than anyone else, none from the penalty spot, and the most per 90 among the league\'s regular forwards. Call booked for Thursday.', at: ago(9, '10:00') },
+        pl_ash_10: { stage: 'Watching', note: 'Beats his man from the number 10: fourth among midfielders for take-ons won per 90. Check his work without the ball.', at: ago(8, '10:00') },
+        pl_ash_09: { stage: 'Watching', note: 'Gets his shots away: second among the league\'s regular forwards for shots per 90. Watch more of his movement off the ball.', at: ago(8, '11:00') },
         pl_dun_06: { stage: 'Trial', note: 'Keeps the ball moving from deep: third among midfielders for passes per 90. Trial week booked for 9 November.', at: ago(7, '15:00') },
-        pl_eas_03: { stage: 'Offer', note: 'Creates from full-back: sixth among defenders for key passes per 90 (one season of key passes is mostly noise). Offer sent, waiting for his answer.', at: ago(3, '11:00') },
+        pl_eas_03: { stage: 'Offer', note: 'Creates from full-back: ninth among defenders for key passes per 90 (one season of key passes is mostly noise). Offer sent, waiting for his answer.', at: ago(3, '11:00') },
       },
       compare: [],
       // Reports: sections of text, each citing moments that play.
@@ -117,12 +121,12 @@
         { id: 'rp_bro_09_1', gid: 'pl_bro_09', author: 'maya', at: ago(1, '17:30'), verdict: 'Sign', draft: false,
           title: 'Femi Toure, forward, Brookfield Rovers',
           sections: [
-            { name: 'Summary', text: "The league's top scorer: three league goals, each in a different match (one a penalty), the most per 90 of its 18 regular forwards.",
-              cites: [CLIPS.r02goal50, CLIPS.r05goal15, CLIPS.r06goal47] },
-            { name: 'Strengths', text: 'Shoots often and hits the target: the most shots on target of the league\'s forwards, in total and per 90. Scores from distance and from the penalty spot.',
-              cites: [CLIPS.r05goal15, CLIPS.r02goal50] },
-            { name: 'Concerns', text: 'Won one of his ten take-ons in league matches: we would want more from him one against one; watch him against a deep block.',
-              cites: [CLIPS.r06takeon3, CLIPS.r09takeon2] },
+            { name: 'Summary', text: "The league's top scorer: five league goals in four matches, two more than anyone else and none from the penalty spot, the most per 90 of its 18 regular forwards.",
+              cites: [CLIPS.r01goal6, CLIPS.r01goal56, CLIPS.r06goal49, CLIPS.r08goal6, CLIPS.r10goal8] },
+            { name: 'Strengths', text: 'Shoots often and hits the target: the most shots on target of the league\'s forwards, in total and per 90. Carries the ball into the box and finishes from close in: four of his five goals from inside 12 metres.',
+              cites: [CLIPS.r08goal6, CLIPS.r10goal8] },
+            { name: 'Concerns', text: 'Won one of his fourteen take-ons in league matches: we would want more from him one against one; watch him against a deep block.',
+              cites: [CLIPS.r01takeon58, CLIPS.r09takeon2] },
           ] },
       ],
       // Fairhaven's needs: each lists the league's players who fit, from their numbers (stat per 90, percentile).

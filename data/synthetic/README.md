@@ -197,7 +197,8 @@ Also in league mode:
   states it for the terminal, from these parameters). The interval also reshuffles every random draw of a season; 0.7.0
   picked 1.92 from a scan of 1.80-2.00 so that the committed season has the star as its outright top scorer and every
   band one season can judge in (penalties and the individual leaders are judged over six pooled seasons), and six
-  pooled seasons pass every band and role shape (both still true of 0.7.1's season).
+  pooled seasons pass every band and role shape (both still true of 0.7.1's season, and of the season with the star's
+  version 2 ratings below).
 - **xG** is still distance-based (`e^(-0.12·d)`, 0.02-0.85, as in 0.4.0-0.5.0; `0.95·e^(-0.12·d)` in 0.6.0, `1.1·e^(-0.12·d)` before),
   with headers at 0.40 and first-time shots from a cross at 0.45 of a shot from the same spot.
 - **Roles shape the game** (0.6.0). Before, a pass looked for a teammate about 16 m away, tilted forward, and whoever
@@ -237,7 +238,8 @@ Also in league mode:
   0.8 against FB 1.8, CB 2.0, DM 3.8; fouls won W 1.4 and ST 1.4 against CB 0.6. Strikers, wingers and the 10 receive
   95% of completed open-play crosses (strikers 56%), a diagnostic the report prints with where crosses start by role. The
   star's edge in chances is softened (`shot_drive` 0.19, `find_finisher` 0.13, `cross_finisher` 0.10): over six seasons
-  his npxG per 90 is 1.7 times the next player's and he takes 39% of his club's npxG, both banded. Still off and labelled
+  his npxG per 90 is 1.56 times the next player's and he takes 34% of his club's npxG, both banded (with his version 2
+  ratings; 1.71 and 38% before). Still off and labelled
   so in the terminal: centre-backs make about 2 progressive passes per 90 (a reviewer put Premier League regulars at
   3-6, unsourced) and almost no progressive carries.
 
@@ -316,8 +318,12 @@ the rating's own draw; aerial follows height, stamina and top speed fade after 3
 standout per pair in `STANDOUTS` (the best starting keeper at shot stopping, centre-back at aerial and at defending,
 full-back at stamina, holding midfielder at defending, central midfielder at passing, attacking midfielder at vision,
 winger at dribbling, striker at aerial) is lifted 10 clear of the next best starter (at most 97), and **Femi Toure
-(`pl_bro_09`) is the best finisher among forwards** (93; the next best forward has 85), decided by Zaid. No match is
-rigged: what a rating does is the generator's business, and it applies to every player the same way.
+(`pl_bro_09`) is the league's star**, decided by Zaid: the best finisher among forwards (finishing 99, the league's only
+99; the next best forward has 85) and, since attributes version 2 (2026-10-24), dribbling 72 (drawn 66, below the
+striker mean of 70), so he carries the ball toward goal more often and is dispossessed less (`STAR_RATINGS`, set after
+the standouts, so no one else's ratings move). In the committed season he scores 5 league goals, none a penalty, two
+more than anyone (docs/scout-terminal/build/femi-edge.md). No match is rigged: what a rating does is the generator's
+business, and it applies to every player the same way.
 
 **For the generator.** `regista.season.league.generate_kwargs` passes each squad entry's `attributes`, `role`,
 `height_cm` and `preferred_foot`, which puts the generator in league mode (above). Matches generated without ratings

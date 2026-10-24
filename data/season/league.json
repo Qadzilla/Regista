@@ -11,7 +11,7 @@
   "track_hz": 1.0
  },
  "attributes": {
-  "version": 1,
+  "version": 2,
   "seed": 1002029,
   "age_on": "2026-08-01",
   "scales": "data/synthetic/README.md#league-players-bio-and-hidden-ratings",
@@ -685,10 +685,10 @@
      "preferred_foot": "left",
      "nationality": "Ireland",
      "attributes": {
-      "finishing": 97,
+      "finishing": 99,
       "passing": 49,
       "vision": 65,
-      "dribbling": 66,
+      "dribbling": 72,
       "defending": 26,
       "aerial": 66,
       "stamina": 77,

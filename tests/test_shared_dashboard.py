@@ -99,8 +99,8 @@ def test_one_conversation_store_for_both_sides():
     assert out["after"] == {"player": 1, "scout": 2}       # Femi read Maya's; his reply is unread in her inbox
     assert out["top"] == "pl_bro_09" and out["last"]["from"] == "player"
     clip = out["last"]["clips"][0]
-    assert clip["match_id"] == "rl_r05_ash_bro" and clip["clip_id"] == "cl_t_away_09_000008"
-    assert clip["video_url"] == "/api/matches/rl_r05_ash_bro/clips/cl_t_away_09_000008.mp4"
+    assert clip["match_id"] == "rl_r08_bro_fai" and clip["clip_id"] == "cl_t_home_09_000005"
+    assert clip["video_url"] == "/api/matches/rl_r08_bro_fai/clips/cl_t_home_09_000005.mp4"
     assert out["refused"] is None and out["started"] == out["same"] == "cv_maya_ash_10" and out["empty"] == 0
     assert out["when"] is True
 
@@ -187,10 +187,10 @@ def test_seeded_moments_are_femi_tourés_real_clips():
     for ref in goal_refs:  # his goals: each clip holds his goal event
         assert any(e["event_type"] == "goal" and e["player_id"] == have[(ref["match_id"], ref["clip_id"])]["player_id"]
                    for e in _clip_events(ref["match_id"], ref["clip_id"])), ref
-    # The Summary cites all three league goals, one a penalty, each in a different match.
+    # The Summary cites all five league goals, in four matches.
     summary = by_name["Summary"]["cites"]
     assert {(r["match_id"], r["clip_id"]) for r in summary} == {(e["match_id"], e["clip_id"]) for e in p["evidence"]["goals"]}
-    assert len({r["match_id"] for r in summary}) == 3
+    assert len(summary) == 5 and len({r["match_id"] for r in summary}) == 4
     for ref in by_name["Concerns"]["cites"]:  # take-ons that did not come off
         pid = have[(ref["match_id"], ref["clip_id"])]["player_id"]
         assert any(e["event_type"] == "take_on" and e["player_id"] == pid and e["outcome"] == "fail"
@@ -210,10 +210,10 @@ def test_seeded_claims_hold_in_the_league():
 
     femi = s.player("pl_bro_09")
     c = femi["counts"]
-    # "Three league goals, more than anyone else in the league", "one a penalty", "in three different matches"
-    assert c["goals"] == 3 and c["penalty_goals"] == 1
-    assert all(p["counts"]["goals"] < 3 for p in profiles if p["global_id"] != "pl_bro_09")
-    assert len({e["match_id"] for e in femi["evidence"]["goals"]}) == 3
+    # "Five league goals, two more than anyone else in the league", "none from the penalty spot", "in four different matches"
+    assert c["goals"] == 5 and c["penalty_goals"] == 0
+    assert max(p["counts"]["goals"] for p in profiles if p["global_id"] != "pl_bro_09") == 3
+    assert len({e["match_id"] for e in femi["evidence"]["goals"]}) == 4
     # "the most per 90 of its 18 regular forwards"
     assert len([p for p in profiles if p["position"] == "FW" and p["minutes"] >= q]) == 18
     assert rank("pl_bro_09", "FW", "goals") == 1
@@ -221,25 +221,29 @@ def test_seeded_claims_hold_in_the_league():
     assert rank("pl_bro_09", "FW", "shots_on_target") == 1
     assert all(p["counts"]["shots_on_target"] < c["shots_on_target"] for p in profiles
                if p["position"] == "FW" and p["global_id"] != "pl_bro_09")
-    # "Won one of his ten take-ons in league matches"
-    assert (c["take_ons"], c["take_ons_won"]) == (10, 1)
-    # "struck from outside the box" (round 5)
-    goals = {e["match_id"]: e for e in femi["evidence"]["goals"]}
-    r05 = next(e for e in _clip_events("rl_r05_ash_bro", goals["rl_r05_ash_bro"]["clip_id"]) if e["event_type"] == "goal")
-    assert r05["metrics"]["shot_distance_m"] > 18 and "penalty" not in r05.get("qualifiers", [])
-    # The round 6 goal is not called a header from a corner: the generator stages it as a cross, Femi's 4 m carry along
-    # the ground, then a headed shot (a completed cross becomes an ordinary possession; review C round 1), so the seeds
-    # only call it his goal against Eastwick.
+    # "Won one of his fourteen take-ons in league matches"
+    assert (c["take_ons"], c["take_ons_won"]) == (14, 1)
+    # "four of his five goals from inside 12 metres"
+    shots = {e["match_id"] + e["clip_id"]: next(x for x in _clip_events(e["match_id"], e["clip_id"]) if x["event_type"] == "goal")
+             for e in femi["evidence"]["goals"]}
+    assert sorted(g["metrics"]["shot_distance_m"] < 12 for g in shots.values()) == [False, True, True, True, True]
+    # "you carry it into the box yourself and finish" (the first clip he sends Maya, round 8): his carry ends in the box,
+    # then his shot
+    r08 = _clip_events("rl_r08_bro_fai", "cl_t_home_09_000005")
+    carry = next(e for e in r08 if e["event_type"] == "carry" and e["player_id"] == "t_home_09")
+    assert carry["pitch"]["x"] < 105 - 16.5 < carry["pitch_end"]["x"] and abs(carry["pitch_end"]["y"] - 34) < 20.16
+    assert [e["event_type"] for e in r08 if e["player_id"] == "t_home_09"][-2:] == ["shot", "goal"]
+    # "Your two goals at Eastwick in round 1"
+    assert sum(e["match_id"] == "rl_r01_eas_bro" for e in femi["evidence"]["goals"]) == 2
+    # The round 1 goal at 56' is not called a header: the generator stages it as Femi's 6 m carry along the ground, then
+    # a headed shot (a completed cross becomes an ordinary possession; review C round 1), so the seeds only call it a goal.
     demo = (SHARED / "demo.js").read_text()
     assert "header" not in demo.lower() and "in the air" not in demo
-    # The penalty is the round 2 goal.
-    pen = next(e for e in _clip_events("rl_r02_cal_bro", goals["rl_r02_cal_bro"]["clip_id"]) if e["event_type"] == "goal")
-    assert "penalty" in pen.get("qualifiers", [])
     # The shortlist's notes.
-    assert rank("pl_ash_10", "MF", "take_ons_won") == 3
-    assert rank("pl_ash_09", "FW", "shots") == 3
+    assert rank("pl_ash_10", "MF", "take_ons_won") == 4
+    assert rank("pl_ash_09", "FW", "shots") == 2
     assert rank("pl_dun_06", "MF", "passes") == 3
-    assert rank("pl_eas_03", "DF", "key_passes") == 6
+    assert rank("pl_eas_03", "DF", "key_passes") == 9
     assert "key_passes" in s.noisy()
 
 

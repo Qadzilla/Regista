@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 
 from regista.season.league import (ACCEL_RANGE, AGE_ON, AGE_RANGE, ATTRIBUTE_KEYS, BIO_KEYS, GK_RATINGS, HEIGHT_RANGE,
                                    PHYSICAL, RATINGS, ROLE_OF_KIT, SPEED_RANGE, STANDOUT_CAP, STANDOUT_LIFT, STANDOUTS, STAR,
+                                   STAR_RATINGS,
                                    age_on, bio, new_league, people, player_attributes, save_league)
 from regista.season.profiles import Season
 
@@ -114,6 +115,9 @@ def test_femi_toure_is_the_best_finisher_among_forwards(everyone):
     others = [p["attributes"]["finishing"] for p in everyone if p["position"] == "FW" and p is not star]
     assert star["attributes"]["finishing"] >= max(others) + 5
     assert star["attributes"]["finishing"] == max(p["attributes"]["finishing"] for p in everyone)
+    # attributes version 2: his own ratings (STAR_RATINGS), set after the standouts so no one else's moved
+    assert all(star["attributes"][k] == v for k, v in STAR_RATINGS.items())
+    assert star["attributes"]["finishing"] == 99 and sum(p["attributes"]["finishing"] == 99 for p in everyone) == 1
 
 
 # ---------------------------------------------------------------------------- determinism

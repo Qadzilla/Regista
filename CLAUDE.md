@@ -247,8 +247,11 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
     League bands (`docs/realism-report.md`), and `regista.season.audit` measures split-half reliability.
 - **Part B, the terminal's screens (next):** to be built first in the sandbox (`ux/sandbox`), then ported into Scout as a
   **Terminal** section. They are not shown as working until they run.
-- **Femi Toure (pl_bro_09) stays the star:** the league's top scorer (3 league goals with generator 0.7.1, one a
-  penalty, in rounds 2, 5 and 6), and the demo's hook. A test keeps him on top.
+- **Femi Toure (pl_bro_09) is clearly the star** (Zaid, 2026-10-24): the league's top scorer with 5 league goals, none a
+  penalty, two more than anyone (rounds 1, 1, 6, 8, 10), and the leader in goals, non-penalty goals and npxG per 90 in
+  the terminal; the demo's hook. His hidden ratings do it (league attributes version 2, `STAR_RATINGS`: finishing 99,
+  dribbling 72), no match is rigged, and over six pooled seasons his npxG lead (1.56 times the next) stays in band
+  (docs/scout-terminal/build/femi-edge.md). Tests keep him on top, two clear.
 - **Honest numbers:** no metric without its definition and source; the sample size is stated (a regular plays about 300
   minutes a season); metrics whose split-half reliability is below 0.3 are marked noisy.
 
@@ -502,15 +505,24 @@ for the record:
 **As of 2026-10-24.** Part A of the Scout terminal (§2.10) is built on `feature/terminal-engine` (not merged, not
 deployed): player attributes, league mode (generator 0.7.1, schema 0.2.0), 10 Hz physical motion, the metrics engine
 (127 player, 19 team-style metrics) and its API, after two review rounds and three closing rounds
-(`docs/scout-terminal/build/`; closing round 3 was **not signed off**, see below). On the committed season: 13 of 13 event bands, 14 of 14 physical, 11 of 11 league-mode
-(penalties and red cards indicative on one season), 12 of 14 leaders (indicative). Over six pooled seasons every band holds
-(`docs/realism-report.md`). Femi Toure is the top scorer with 3 league goals; his Goal reel runs 23.6 s. 797 tests
+(`docs/scout-terminal/build/`; closing round 3 was **not signed off**, see below). On the committed season: 13 of 13 event bands, 14 of 14 physical, 10 of 11 league-mode
+(penalties low: one in the season; penalties and red cards are indicative on one season), 12 of 14 leaders (indicative).
+Over six pooled seasons every band holds (`docs/realism-report.md`). Femi Toure is the top scorer with 5 league goals,
+two clear; his Goal reel runs 42.2 s. 797 tests
 plus 13 slow pass (Mac); CI's quick suite passes on Linux. The dashboards' seeds, the storyboard, README, criteria and architecture quote this league.
 **Cross-platform determinism (2026-10-24):** PR #36's CI failed on Linux (a league fixture and the summaries differed
 from the Mac). Cause: libm's last bits (macOS vs glibc) tipping rng comparisons. Fixed in generator 0.7.1 with
 `regista.detmath`; the season was regenerated, summaries, reliability and the demo seeds follow it, CI is green on
 Linux (docs/scout-terminal/build/determinism.md). **Fabric** still holds the 0.7.0 season below: re-sync it
 (`python -m regista.season.fabric push`, then `check`) before beat 5 is recorded.
+**Femi Toure's edge (2026-10-24, Zaid's decision):** his hidden ratings are now finishing 99 (the league's only 99)
+and dribbling 72 (`STAR_RATINGS`, league attributes version 2; generator unchanged at 0.7.1). Only Brookfield's ten
+fixtures changed (the other 20 are byte-identical; `season/pins.py` re-recorded). Committed season: 5 goals in 274
+minutes, none a penalty (1.64 per 90), npxG 3.51 (1.15 per 90), next best 3 goals and 0.77 npxG per 90; six pooled
+seasons: every band, npxG gap 1.56, goals gap 1.88. The committed draw is a favourable one: with these ratings he is top
+scorer by two or more and leads both per-90 charts in 8 of 24 regenerated seasons (2 of 24 before), and the pair was
+chosen from 13 Femi-only candidates tried on the committed season (docs/scout-terminal/build/femi-edge.md). Beat 7's
+midfielder is now Sami Okafor (Calder Town, 12.82 recoveries per 90). Fabric needs the re-sync below for this season too.
 **Fabric (0.7.0 season):** the season was pushed (events 33,624 rows, player_season 3,024). The notebook's check first matched 328
 of 756 (old percentile rule); `LEADERS_SQL` now uses Regista's rule (FBref's percentile, unrounded rates, a third of a
 club's minutes), `tests/test_fabric.py` checks that rule offline against `Season.build`, and the check matched
@@ -522,7 +534,7 @@ dead); review-b-final3 #1, headed shots and goals at about half the Premier Leag
 ordinary possession, so 8 of 14 headed shots come after the header's own carry); #2, progressive passes low in every
 role; #3, wide players in the crossing zone almost always cross (`cross_choice` 1.0). Fixing any of them changes the
 generator, so the league regenerates: every quoted number, the dashboards' seeds, `reliability.json` and the Fabric push
-move with it, and Femi Toure must stay top scorer.
+move with it, and Femi Toure must stay top scorer, two clear.
 Left: those findings (fix or accept), part B (the terminal's screens, sandbox first, then ported into Scout as a
 Terminal section), merge and deploy (then re-check storyboard beats 1, 5 and 7 on the live app), Zaid's match, the
 video, the pitch, the public repo, submit by 2026-10-27.

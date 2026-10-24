@@ -66,11 +66,19 @@ def _squad(club: Record, rng: random.Random, used: set[str]) -> list[Record]:
 # through ``people()``, and no API or page shows them. Scales are documented in data/synthetic/README.md ("League
 # players"). Drawn from their own random stream (``ATTRIBUTE_SEED_OFFSET``), so names and fixtures are unchanged.
 
-ATTRIBUTES_VERSION = 1
+ATTRIBUTES_VERSION = 2                 # 2: the star's ratings (STAR_RATINGS), finishing 99 and dribbling 72; 1: finishing 97
 ATTRIBUTE_SEED_OFFSET = 1_000_003      # the attribute stream is random.Random(league seed + this)
 AGE_ON = dt.date(2026, 8, 1)           # age at season start, FBref's convention for an August-May league
 AGE_RANGE = (17, 35)
 STAR = "pl_bro_09"                     # Femi Toure: the league's best finisher among forwards (decided by Zaid)
+# The star's ratings (attributes version 2, Zaid's decision 2026-10-24: make him clearly the league's star). Set after the
+# draws and the standouts, so no other player's ratings move. Finishing 99 is the league's only 99 (standouts stop at
+# STANDOUT_CAP): he converts more of his chances. Dribbling 72 lifts his drawn 66, below the striker mean of 70, to a
+# little above it: he carries the ball toward goal more often and is dispossessed less, so more of his possessions end in
+# a shot from close in. Chosen with the realism bands in view: over six pooled seasons his lead over the next player in
+# npxG per 90 must stay inside the leader_npxg_gap band (regista.synth.report), and the Premier League's best was 1.28
+# times the next (docs/scout-terminal/build/femi-edge.md has the numbers and how this pair was chosen).
+STAR_RATINGS = {"finishing": 99, "dribbling": 72}
 
 # The 4-3-3 slot behind each kit number (the formation never changes): starters 1-11, bench 13-22. ROLE_OF_KIT lives in
 # the generator, which reads it in league mode.
@@ -179,7 +187,7 @@ def _person_attributes(rng: random.Random, p: Record) -> tuple[Record, Record]:
 
 def assign_attributes(clubs: list[Record], seed: int = DEFAULT_SEED) -> None:
     """Give every squad entry (in place) its role, bio and hidden ``attributes``, then lift one standout per
-    ``STANDOUTS`` pair and make ``STAR`` the best finisher among forwards. Seeded: same squads + seed, same players."""
+    ``STANDOUTS`` pair and give ``STAR`` his ratings (``STAR_RATINGS``: the best finisher among forwards). Seeded: same squads + seed, same players."""
     rng = random.Random(seed + ATTRIBUTE_SEED_OFFSET)
     everyone = [p for c in clubs for p in c["squad"]]
     for p in everyone:
@@ -190,9 +198,10 @@ def assign_attributes(clubs: list[Record], seed: int = DEFAULT_SEED) -> None:
         best, runner_up = group[0], group[1]
         best["attributes"][key] = min(STANDOUT_CAP, max(best["attributes"][key], runner_up["attributes"][key] + STANDOUT_LIFT))
     star = next((p for p in everyone if p["global_id"] == STAR), None)
-    if star is not None:  # the striker standout: the league's best finisher by a distance, at the standouts' cap (since
-        # generator 0.4.0 finishing is worth a realistic edge, about a quarter over xG, so the star needs a clear one)
-        star["attributes"]["finishing"] = STANDOUT_CAP
+    if star is not None:  # the striker standout: the league's best finisher by a distance (since generator 0.4.0
+        # finishing is worth a realistic edge, about a quarter over xG, so the star needs a clear one), plus STAR_RATINGS
+        for key, value in STAR_RATINGS.items():
+            star["attributes"][key] = max(star["attributes"][key], value)
 
 
 def age_on(date_of_birth: str, on: dt.date = AGE_ON) -> int:

@@ -29,7 +29,7 @@ FIXTURES = (0, 1, 2)          # fixtures generated for the fast tests
 # (fixture index, seed shift): league fixtures, replayed with seeds shifted as the audit's extra seasons shift them when
 # the committed season lacks an event. Penalties and red cards are rare (about 0.07 and 0.06 a 30-minute match: 0.2 and
 # 0.17 per 90 over six seasons, generator 0.7.0); the committed season has one penalty and two red cards.
-PENALTY = (5, 0)              # rl_r02_cal_bro, the committed season: a penalty
+PENALTY = (10, 0)             # rl_r04_dun_bro, the committed season: a penalty
 RED = (2, 1000)               # rl_r01_cal_dun, second season: a red card (and a through ball)
 
 
@@ -107,7 +107,7 @@ def test_ratings_for_only_some_players_are_refused(league):
 # data/season/summaries.json and data/season/reliability.json. Recorded on macOS; CI checks them on Linux, where the live
 # app builds the league (they agree since 0.7.1, which takes its transcendental functions from regista.detmath, not libm).
 LEAGUE_PINS = {0: "f1c2807a9f3883ebdc0ae53195a7d6c9f74837cb62690e3deabf00c5029a4936",
-               1: "afc1b9d9b86a2508e86bccb1931ef9ab7a4bcef496565a98d7ddfaac9ae97a65",
+               1: "d54510ec6390b53a0e2538335fb0c91b2e8baa92b8df7349ec3fe47d156e4c54",
                2: "0172a8f04cba71b0e3e1d11c8bc46f6cbdcc8f6c1ff51f38eefee1c470f6e808"}
 DEMO_JS = ROOT / "src" / "regista" / "static" / "shared" / "demo.js"
 
@@ -509,12 +509,32 @@ def test_femi_toure_is_the_leagues_top_scorer(league, season):
     from regista.season.audit import top_scorers
 
     chart = top_scorers(league, season)
-    assert chart[0]["global_id"] == "pl_bro_09" and chart[0]["goals"] > chart[1]["goals"]
+    assert chart[0]["global_id"] == "pl_bro_09" and chart[0]["goals"] >= chart[1]["goals"] + 2   # clear: two or more
+
+
+def test_femi_tourés_edge_in_the_terminal():
+    """Zaid's decision (2026-10-24): Femi Toure is clearly the league's star. In the committed season, as the Scout
+    terminal reads it (its own qualifying pool), he leads goals, non-penalty goals and non-penalty xG per 90, two or more
+    goals clear of anyone; his npxG lead stays believable (inside the six-season leader_npxg_gap band, regista.synth.report:
+    the Premier League's best was 1.28 times the next). docs/scout-terminal/build/femi-edge.md has the numbers."""
+    from regista.season.metrics import load_metrics
+    from regista.synth.report import INDIVIDUAL_NORMS
+
+    sm = load_metrics(LEAGUE_PATH, ROOT / "data" / "season" / "matches")
+    for key in ("goals", "np_goals", "npxg"):
+        first, second = sm.sort(sm.rows(), key)[:2]
+        assert first.info["global_id"] == "pl_bro_09", (key, first.info["name"])
+        assert first.values[key] > second.values[key], key
+    femi = sm.player("pl_bro_09")
+    others = [ps.totals.get("goals", 0.0) for ps in sm.players.values() if ps is not femi]
+    assert femi.totals["goals"] >= max(others) + 2
+    first, second = sm.sort(sm.rows(), "npxg")[:2]
+    assert first.values["npxg"] / second.values["npxg"] <= INDIVIDUAL_NORMS["leader_npxg_gap"][1]
 
 
 @pytest.mark.slow
 def test_the_demos_goal_count_is_the_stars(league, season):
-    """demo.js says how many goals Femi Toure scored this season ("Three league goals"): it must be his tally."""
+    """demo.js says how many goals Femi Toure scored this season ("Five league goals"): it must be his tally."""
     import re
 
     from regista.season.audit import top_scorers
@@ -596,8 +616,10 @@ def test_centre_backs_win_the_most_aerial_duels(pooled):
 def test_the_star_leads_the_league_in_npxg_over_six_seasons(league, pooled):
     """Finishing is worth a realistic edge (about a quarter over xG), so any scoring chart over a few matches is partly
     luck (generator 0.7.0: he is the outright top scorer in 5 of 12 regenerated seasons, the committed one included;
-    a season's top scorer has three to six goals; 4 of 12 with 0.6.0). What the star's ratings decide is the chances: he has the most
-    non-penalty xG by a distance, but not by an unrealistic one (the leader-gap bands, below)."""
+    a season's top scorer has three to six goals; 4 of 12 with 0.6.0; with his attributes version 2 ratings, 11 of 24,
+    two or more clear in 10 of 24, 3 of 24 before; docs/scout-terminal/build/femi-edge.md). What the star's ratings
+    decide is the chances: he has the most non-penalty xG by a distance, but not by an unrealistic one (the leader-gap
+    bands, below)."""
     from regista.season.audit import top_scorers
 
     chart = sorted(top_scorers(league, pooled, n=200), key=lambda r: -r["np_xg"])
