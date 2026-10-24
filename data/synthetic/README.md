@@ -47,7 +47,7 @@ python -m regista.season.audit                          # split-half reliability
 | `clock` | Match clock on events: `{period, minute, second}`. Derived from `match.periods`. |
 | Pitch coordinates | Metres, absolute frame: `x` 0–105 along the length, `y` 0–68 along the width, origin at the corner to the main camera's left. Which team attacks toward `x = 105` is in `match.periods[].left_to_right_team_id`. Consumers flip when they need an attacking frame. |
 | Image coordinates | `bbox` is `{x, y, w, h}` normalised 0–1 of the frame, top-left origin. |
-| Versioning | `schema_version` is semver; the current version is **0.2.0** (`regista.schema.SCHEMA_VERSION`). Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. 0.2.0 added the event type `aerial_duel` and the possession `lost_by` value `offside` (see "League mode" below); every 0.1.x stream stays valid. The generator stamps a match **0.2.0** only in league mode; without player ratings it writes exactly what it wrote before, stamped **0.1.1** (`LEGACY_SCHEMA_VERSION`), so committed samples and the vision layer's seeds do not move a byte. |
+| Versioning | `schema_version` is semver; the current version is **0.2.0** (`regista.schema.SCHEMA_VERSION`). Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. 0.2.0 added the event type `aerial_duel`, the possession `lost_by` value `offside` (see "League mode" below) and the record type `physical` (league mode only); every 0.1.x stream stays valid. The generator stamps a match **0.2.0** only in league mode; without player ratings it writes exactly what it wrote before, stamped **0.1.1** (`LEGACY_SCHEMA_VERSION`), so committed samples and the vision layer's seeds do not move a byte. |
 
 ## Record types (vision layer → `regista-events.schema.json`)
 
@@ -107,6 +107,31 @@ A person's feedback on any record: `target_id`, `target_type`, `verdict` (`confi
 
 Real annotations have `source: human`. They are written by `regista.feedback.record_verdict` when someone answers a review: the viewer's Keep/Drop buttons, the `--review` terminal prompt of `python3 -m regista.agents`, or the API (`POST /api/matches/{id}/review`, `POST /api/matches/{id}/clips/{clip_id}/verdict`). A verdict on a clip targets its `label`; keep is `confirm`, drop is `reject`, and a corrected score or tags is `correct`, with `correction.keep` and any corrected `watchability` or `tags`. Real verdicts are stored in `data/feedback/annotations.jsonl` (or `$REGISTA_FEEDBACK_DIR`), and the API service also keeps them in Cosmos DB. **The generator emits placeholders** with `source: synthetic` and `simulates: human` so consumers can see the shape; no person has reviewed synthetic data, and placeholders are never used for training.
 
+### `physical` — a player's motion in one match (0.2.0, league mode only)
+
+One per player who played, written by the generator in league mode after the match's other records (they close the
+stream). The generator moves all 22 players on the pitch every 0.1 s (10 Hz), each within his own `top_speed_kmh` and
+`acceleration_ms2` and tiring with his `stamina`; this record meters that motion exactly (synthetic: no tracking noise,
+no smoothing). Fields: `t`/`t_end` (his spell), `player_id`, `team_id`, `played_s` (seconds on the pitch while the clock
+ran, the same as `regista.season.playing_time`), `metrics`, `periods` (per period: `played_s`, `distance_m`,
+`hi_distance_m`) and `method` (sample rate and thresholds).
+
+| `metrics` key | Definition (source: `docs/scout-terminal/industry-metrics.md`) |
+|---|---|
+| `distance_m` | distance covered (#165) |
+| `zone1_m` … `zone5_m` | FIFA speed zones: 0-6.9, 7.0-14.9, 15.0-19.9, 20.0-24.9, ≥ 25.0 km/h (#167, FIFA-PHYS) |
+| `hi_distance_m` | high intensity, ≥ 20 km/h (zones 4 + 5) (#171) |
+| `sprint_distance_m` | ≥ 25 km/h (zone 5) (#172) |
+| `walking_s`, `jogging_s` | seconds below 6 km/h and at 6-15 km/h (The Analyst's bands, #168) |
+| `hi_efforts`, `sprints` | runs at ≥ 20 / ≥ 25 km/h lasting at least 1 s (Wyscout, #171-172) |
+| `peak_speed_kmh` | top speed in the match (#174) |
+| `accelerations_medium`, `accelerations_high` | accelerations above 1.5 m/s² held for at least 1 s, peaking below / at or above 3 m/s² (#176, our reading of Wyscout's rule) |
+| `decelerations_medium`, `decelerations_high` | the same for braking (#177) |
+| `relocated_m` | not a football metric: position jumps the simulator made without motion (a keeper's dive to the ball, the last metres to a set-piece spot, the reset after a goal); never counted in any distance |
+
+`regista.synth.physical.DEFINITIONS` holds the same definitions for anything that shows these numbers. The record says
+`peak_speed_kmh`, never `top_speed_kmh`: that name belongs to the hidden rating, which is never served.
+
 ## Record types (intelligence layer → `regista-clips.schema.json`)
 
 ### `clip`
@@ -160,7 +185,7 @@ Also in league mode:
 
 **How ratings move outcomes.** A rating enters as a skill `z = (rating - centre) / 7`, where the centre is the rating of
 the average league player who performs that action (`SKILL_CENTRE`: shots are mostly taken by forwards, so the finishing
-centre is 74), added in log-odds with a weight in `LEAGUE`. So league-wide rates stay where the profile was tuned, and xG
+centre is 75), added in log-odds with a weight in `LEAGUE`. So league-wide rates stay where the profile was tuned, and xG
 stays the quality of the chance while finishing decides who beats it: goals minus xG is a real finishing signal.
 
 | Outcome | Ratings involved |
@@ -174,7 +199,16 @@ stays the quality of the chance while finishing decides who beats it: goals minu
 | aerial duels | `aerial` and height (per 10 cm), against the opponent's |
 | who comes off | `stamina` |
 
-`top_speed_kmh` and `acceleration_ms2` are not used yet (the physical phase).
+**Motion (generator 0.3.0).** Every player on the pitch moves every 0.1 s within his own top speed (`top_speed_kmh`) and
+acceleration (`acceleration_ms2`: full acceleration up to two thirds of top speed, tapering to nothing at it; unhurried
+moves speed up gently). Off the ball he follows his shape position (which follows where the ball has been over the last
+1.5 s), walking when near it and running when far; the nearest defender closes the holder down; attackers make runs
+toward goal and the defender nearest the space follows them; after a turnover the side that lost the ball recovers;
+receivers and chasers run to where the ball will be; at a dead ball everyone walks back and the set-piece taker walks to
+the spot. Repeated sprints drain a reserve that slow running refills, and willingness and top speed fade over the match,
+less for players with `stamina`. The ball stays at the carrier's feet. Each player's motion is summarised in a
+`physical` record (above). Tracks are still sampled at `track_hz` from the same positions, for the renderer and the
+vision layer.
 
 **Clips and profiles.** Substitutions are not moments. An aerial duel tags the winner's clip `aerial_duel` when it falls
 inside one. A penalty's taker gets the `penalty` set piece and the `penalty` shot in one possession clip. Profiles count

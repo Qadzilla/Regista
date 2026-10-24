@@ -16,20 +16,28 @@ import pytest
 
 from regista.clips import derive_clips
 from regista.schema import SCHEMA_VERSION, clips_validator, events_validator
-from regista.season.league import generate_kwargs, load_league
+from regista.season.league import generate_kwargs, load_league, player_attributes
 from regista.season.playing_time import played_seconds
 from regista.synth.generator import LEAGUE_GENERATOR_VERSION, MatchSim, generate
-from regista.synth.report import LEAGUE_NORMS, NORMS, compute_metrics, verdicts
+from regista.synth.physical import DEFINITIONS, METRICS
+from regista.synth.report import LEAGUE_NORMS, NORMS, PHYSICAL_NORMS, compute_metrics, verdicts
 
 ROOT = Path(__file__).resolve().parents[1]
 LEAGUE_PATH = ROOT / "data" / "season" / "league.json"
 FIXTURES = (0, 1, 2)          # fixtures generated for the fast tests
-PENALTY_AND_RED = 18          # rl_r07_ash_eas: the committed league's fixture with a penalty and a red card
+PENALTY = 16                  # rl_r06_bro_eas: a committed league fixture with a penalty (and through balls)
+RED = 5                       # rl_r02_cal_bro: one with a red card (and through balls)
 
 
 @pytest.fixture(scope="module")
 def league():
     return load_league(LEAGUE_PATH)
+
+
+@pytest.fixture(scope="module")
+def special(league):
+    """The fixtures with a penalty and with a red card."""
+    return {i: generate(**generate_kwargs(league, league["fixtures"][i])) for i in (PENALTY, RED)}
 
 
 @pytest.fixture(scope="module")
@@ -132,8 +140,8 @@ def test_offsides_end_the_pass_and_restart_with_an_indirect_free_kick(matches):
     assert found
 
 
-def test_through_balls_are_real_now(matches):
-    ev = [e for r in matches.values() for e in _events(r)]
+def test_through_balls_are_real_now(special):
+    ev = [e for r in special.values() for e in _events(r)]
     through = [e for e in ev if e["event_type"] == "pass" and "through_ball" in e.get("qualifiers", [])]
     assert through and all("forward" in e["qualifiers"] for e in through)
 
@@ -154,13 +162,14 @@ def test_every_shot_after_a_completed_pass_makes_it_a_key_pass(matches):
         assert kp <= sum(1 for e in ev if e["event_type"] == "shot")
 
 
-def test_penalty_and_red_card(league):
+@pytest.mark.parametrize("which", [PENALTY, RED])
+def test_penalty_and_red_card(special, which):
     """A penalty is foul (penalty_conceded), foul_won (penalty_won), the penalty set piece and the taker's penalty shot;
-    a red card takes the player off for the rest of the match. Fixture 18 (rl_r07_ash_eas) has both."""
-    result = generate(**generate_kwargs(league, league["fixtures"][PENALTY_AND_RED]))
+    a red card takes the player off for the rest of the match. Fixture 16 has a penalty, fixture 5 a red card."""
+    result = special[which]
     ev = _events(result)
     kinds = Counter(e["event_type"] for e in ev)
-    assert kinds["penalty"] and kinds["card_red"]
+    assert kinds["penalty" if which == PENALTY else "card_red"]
     for i, e in enumerate(ev):
         if e["event_type"] == "penalty":
             foul = next(x for x in reversed(ev[:i]) if x["event_type"] == "foul")
@@ -242,6 +251,72 @@ def test_report_has_league_bands_only_for_league_streams(matches):
     assert set(NORMS) <= set(old) and not set(LEAGUE_NORMS) & set(old)
 
 
+# ---------------------------------------------------------------------------- physical: motion at 10 Hz
+
+def _physical(result):
+    return {r["player_id"]: r for r in result.stream if r["type"] == "physical"}
+
+
+def test_every_player_who_played_has_one_physical_record(league, matches):
+    for result in matches.values():
+        phys = [r for r in result.stream if r["type"] == "physical"]
+        played = played_seconds(result.stream)
+        assert sorted(r["player_id"] for r in phys) == sorted(played)
+        assert result.stream[-len(phys):] == phys                       # they close the stream
+        for r in phys:
+            # the meters count every 0.1 s step he is on the pitch while the clock runs: video time inside the periods
+            assert r["played_s"] == pytest.approx(played[r["player_id"]], abs=1.0)
+            assert sum(p["played_s"] for p in r["periods"]) == pytest.approx(r["played_s"], abs=0.2)
+            assert r["method"]["sample_hz"] == 10 and r["source"] == "synthetic"
+
+
+def test_physical_metrics_add_up_and_stay_within_each_players_pace(league, matches):
+    attrs = player_attributes(league)
+    for result in matches.values():
+        gid = {p["player_id"]: p["global_player_id"] for p in result.match["players"]}
+        for pid, r in _physical(result).items():
+            m = r["metrics"]
+            assert set(m) == set(METRICS) and all(k in DEFINITIONS for k in m)
+            zones = sum(m[f"zone{i}_m"] for i in range(1, 6))
+            assert zones == pytest.approx(m["distance_m"], abs=0.6)
+            assert m["hi_distance_m"] == pytest.approx(m["zone4_m"] + m["zone5_m"], abs=0.2)
+            assert m["sprint_distance_m"] == m["zone5_m"]
+            a = attrs[gid[pid]]
+            assert m["peak_speed_kmh"] <= a["top_speed_kmh"] + 0.05      # nobody runs faster than his own top speed
+            assert m["sprints"] <= m["hi_efforts"] or m["sprints"] == 0
+            if r["played_s"] >= 600 and a.get("shot_stopping") is None:  # outfielders with ten minutes or more
+                per90 = m["distance_m"] / r["played_s"] * 5.4
+                assert 6.0 < per90 < 14.0, (pid, per90)
+                assert m["walking_s"] + m["jogging_s"] <= r["played_s"] + 0.1
+
+
+def test_motion_never_runs_without_ratings(league):
+    plain = generate(seed=77, minutes=3.0, periods=2, profile="realistic").stream
+    assert not [r for r in plain if r["type"] == "physical"]
+    kw = generate_kwargs(league, league["fixtures"][0], ratings=False)
+    assert not [r for r in generate(**kw).stream if r["type"] == "physical"]
+
+
+def test_physical_bands_appear_for_league_streams(matches):
+    m = compute_metrics([r for res in matches.values() for r in res.stream])
+    assert set(PHYSICAL_NORMS) <= set(m)
+    old = compute_metrics(generate(seed=77, minutes=5.0, periods=2, profile="realistic").stream)
+    assert not set(PHYSICAL_NORMS) & set(old)
+
+
+def test_the_renderer_draws_a_league_match(league, tmp_path):
+    from regista.render.draw import render_frame
+    from regista.render.scene import Scene
+    from regista.season.build import ensure_tracks
+
+    fx = league["fixtures"][0]
+    folder = ensure_tracks(league, fx, tmp_path)
+    scene = Scene.load(folder)
+    for t in (5.0, 300.0, 1000.0):
+        img = render_frame(scene, t)
+        assert img.size[0] > 0 and img.getbbox() is not None
+
+
 # ---------------------------------------------------------------------------- whole seasons (slow)
 
 @pytest.fixture(scope="module")
@@ -276,3 +351,33 @@ def test_players_in_the_same_role_now_differ(league, season):
 def test_the_league_season_sits_in_every_band(league, season):
     m = compute_metrics([r for _rnd, _h, stream in season for r in stream])
     assert all(v == "in band" for v in verdicts(m).values()), verdicts(m)
+
+
+@pytest.mark.slow
+def test_the_league_season_sits_in_every_physical_band(league, season):
+    m = compute_metrics([r for _rnd, _h, stream in season for r in stream])
+    assert all(v == "in band" for v in verdicts(m, PHYSICAL_NORMS).values()), verdicts(m, PHYSICAL_NORMS)
+
+
+@pytest.mark.slow
+def test_physical_output_varies_by_position_and_pace(league, season):
+    """FIFA's 2022 World Cup tracking (Bradley 2023, Part 1): holding and central midfielders cover the most ground,
+    wide players the most high-intensity distance, wide and attacking roles reach higher top speeds than centre-backs and
+    central midfielders. And within a role, the faster player (``top_speed_kmh``) reaches the higher top speed."""
+    import statistics
+
+    m = compute_metrics([r for _rnd, _h, stream in season for r in stream])
+    assert m["cm_dm_distance_over_others"] > 1.05
+    assert m["wide_hi_over_central"] > 1.15
+    assert m["wide_peak_minus_central_kmh"] > 1.0
+    attrs = player_attributes(league)
+    peaks: dict[str, float] = {}
+    for _rnd, header, stream in season:
+        gid = {p["player_id"]: p["global_player_id"] for p in header["players"]}
+        for r in stream:
+            if r["type"] == "physical" and r["played_s"] >= 600:
+                g = gid[r["player_id"]]
+                peaks[g] = max(peaks.get(g, 0.0), r["metrics"]["peak_speed_kmh"])
+    outfield = [g for g in peaks if "shot_stopping" not in attrs[g]]
+    r = statistics.correlation([attrs[g]["top_speed_kmh"] for g in outfield], [peaks[g] for g in outfield])
+    assert r > 0.6, r

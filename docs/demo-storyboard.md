@@ -25,7 +25,7 @@ About 230 words of voiceover at an easy pace (roughly 2 words a second) fit 1:52
 
 | # | Time | Beat | On screen (all live unless noted) | Voiceover |
 |---|---|---|---|---|
-| 1 | 0:00–0:08 (8 s) | **Hook** | Femi Toure's profile (`/players/pl_bro_09`), the **Goal** reel: his nine goals of the season, one clip each, in match order (built, see below) | "Every Femi Toure goal this season. Found in seconds." |
+| 1 | 0:00–0:08 (8 s) | **Hook** | Femi Toure's profile (`/players/pl_bro_09`), the **Goal** reel: his goals of the season (ten; the reel holds eight), one clip each, in match order (built, see below) | "Every Femi Toure goal this season. Found in seconds." |
 | 2 | 0:08–0:22 (14 s) | **Clip powerhouse: every moment** | Clips (`/`) on the demo match: the timeline marks every touch, replay, highlight and close-up; ask "his nutmegs", then "now the replays"; the stage plays each | "Regista watches a match and cuts every moment a player is on the ball, plus every replay and highlight they appear in. Then you just ask." |
 | 3 | 0:22–0:34 (12 s) | **Explained and recapped** | The **Recap** panel, told from Castellanos's side: click a sentence, its moment plays; switch the engine to Foundry; Play recap reel | "Every moment is labelled and explained, and every match gets a recap where each sentence plays the moment it describes." |
 | 4 | 0:34–0:48 (14 s) | **Video in** | Player view (`/me?player=pl_bro_09`): the processed upload, agent by agent with its times (shots 17 s, identity 2 min 6 s, then possession, events, clips); his moments appear. If our own match is ready, its vision output can replace this shot | "Give it footage and Regista's vision agents find the players, follow the ball, and spot every pass, shot and nutmeg. Measured on our rendered footage." |
@@ -42,7 +42,7 @@ Captions on screen name the technology as it appears in each shot (beats 4 to 6)
   tagged goal, which mixed each goal with its replays (24 goal moments for Toure, of which 6 are on the ball). The reel
   endpoint now takes `reason=on_ball_main` (only on-the-ball clips) and `order=match` (round, then time), and the Goal
   chip uses both: Toure's reel is his goals, once each, in match order, labelled "all N goals, in match order, each once"
-  (six goals and 44 s before player ratings; nine since the league was regenerated with ratings on 2026-10-23). Up to 8 goals fit (the reel's cap); a player with more gets 8 of them and the label says so.
+  (six goals and 44 s before player ratings; nine once the league was regenerated with ratings, ten since players move within their own pace, generator 0.3.0, both on 2026-10-23). Up to 8 goals fit (the reel's cap); a player with more gets 8 of them and the label says so.
 
 ## Assets to prepare
 

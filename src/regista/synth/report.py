@@ -4,6 +4,10 @@
     python -m regista.synth.report --profile realistic --seeds 11 12 13 --minutes 20
     python -m regista.synth.report --league data/season/league.json [--repeat 3]
 
+League streams also carry ``physical`` records (every player's 10 Hz motion summarised, regista.synth.physical); the
+report checks them against physical bands from the Premier League (The Analyst / Opta) and the 2022 World Cup (FIFA's
+tracking, Bradley 2023), each band with its source below.
+
 The generator has two profiles. ``demo`` packs a 3-minute sample with action so a
 short clip reel has something in it; ``realistic`` is tuned to land inside the bands
 below over a full match. The report prints every metric beside its band and says which
@@ -60,6 +64,43 @@ LEAGUE_NORMS: dict[str, tuple[float, float, str, str]] = {
     "substitutions_per_match": (6.0, 9.5, "per match", "Premier League 7.89 substitutions a match in 2023/24, both teams "
                                 "(The Analyst, theanalyst.com). Per match, not per 90: a league match is 30 minutes"),
 }
+# Physical (league mode: ``physical`` records). Outfield players unless noted; per 90 minutes on the pitch, pooled. Source
+# keys refer to docs/scout-terminal/industry-metrics.md; definitions are in regista.synth.physical.DEFINITIONS.
+PHYSICAL_NORMS: dict[str, tuple[float, float, str, str]] = {
+    "distance_per90_km": (9.5, 11.5, "km", "Premier League 2024/25 per-90 distances run from 8.5 km (lowest regular starter) "
+                          "to 12.3 (highest regular starter) and 12.9 (highest, 600+ min) (The Analyst, OA-PHYS); 2022 World "
+                          "Cup teams ran 108.1 ± 3.6 km a match, about 10 km per outfield player (Bradley 2023, FIFA-PHYS)"),
+    "distance_per90_min_km": (7.5, 10.0, "km", "the lowest regular outfielder: 8.5 km (Murillo), then 8.8-9.0 "
+                              "(The Analyst 2024/25, 1,500+ min). Regulars here: at least 40% of the most minutes anyone played"),
+    "distance_per90_max_km": (11.0, 13.0, "km", "the highest: 12.3 km (Kulusevski, 1,500+ min), 12.9 (Yarmoliuk, 600+ min) "
+                              "(The Analyst 2024/25)"),
+    "hi_distance_per90_m": (600.0, 1100.0, "m", ">= 20 km/h. 2022 World Cup: 9,001 ± 850 m a team a match, about 800-900 per "
+                            "outfield player; central roles about 0.5-0.8 km, wide roles 1.0-1.1 (Bradley 2023 Parts 1-2, "
+                            "FIFA-PHYS); > 19.8 km/h about 760 m a match, range 618-1,001 (systematic review, HSR-REV)"),
+    "sprint_distance_per90_m": (150.0, 330.0, "m", ">= 25 km/h. 2022 World Cup: 2,345 ± 314 m a team a match, about 210-235 per "
+                                "outfield player (FIFA-PHYS); > 25.1 km/h about 200 m a match, range 153-295 (HSR-REV)"),
+    "sprints_per90": (6.0, 24.0, "sprints", ">= 25 km/h for >= 1 s. No published league mean: the Premier League's most "
+                      "frequent sprinter had 702 by 23 March 2025 (The Analyst), about 24 a match over the 29 rounds played "
+                      "(our arithmetic); 33 ± 11 a match at the 2014 World Cup under a lower threshold (Chmura 2017, via "
+                      "HSR-REV). A derived band"),
+    "walking_time_share": (0.54, 0.78, "share", "time below 6 km/h: Premier League 2024/25 outfielders walked 54.2% (lowest) "
+                           "to 77.6% (highest) of their game time (The Analyst; jogging is 6-15 km/h, walking below)"),
+    "jogging_time_share": (0.15, 0.35, "share", "time at 6-15 km/h: the highest share in the 2024/25 Premier League was 34.7% "
+                           "(Soucek), then 32-33% (The Analyst). The lower bound is ours"),
+    "peak_speed_mean_kmh": (29.0, 33.0, "km/h", "mean of each outfielder's top speed in a match (60%+ of it played). 2022 World "
+                            "Cup, complete matches: 30.2-30.8 (centre-backs, holding and central midfielders), 32.1-32.3 (wide "
+                            "and attacking roles, centre-forwards) (Bradley 2023 Part 1). A league match is 30 minutes, so its "
+                            "peaks sit a little lower"),
+    "peak_speed_max_kmh": (35.0, 37.5, "km/h", "the league's fastest: in the 2024/25 Premier League only van de Ven passed "
+                           "37 km/h, then 36.2-36.7 (The Analyst); the 2022 World Cup's top ten were 35.3-35.7 (Bradley 2023 Part 1)"),
+    "second_half_distance_drop": (0.02, 0.12, "share", "per-minute distance, second half against first: about 7% lower at the "
+                                  "2022 World Cup, 6.0-9.8% by role (Bradley 2023 Part 1)"),
+}
+PHYSICAL_DIAGNOSTICS = ("players_measured", "zone3_per90_m", "hi_efforts_per90", "accelerations_high_per90",
+                        "decelerations_high_per90", "second_half_hi_drop", "gk_distance_per90_km", "relocated_per90_m",
+                        "cm_dm_distance_over_others", "wide_hi_over_central", "wide_peak_minus_central_kmh")
+WIDE_ROLES = ("W", "FB")
+CENTRAL_ROLES = ("CB", "DM", "CM")
 LEAGUE_DIAGNOSTICS = ("matches", "through_balls_per90", "yellow_cards_per90", "cross_completion", "penalty_conversion",
                       "npxg_per90", "np_goals_minus_xg", "key_passes_per_shot")
 DIAGNOSTICS = ("replays_per_goal", "tracks_kit_number_share", "minutes", "possession_changes_per90", "carries_per90", "pressures_per90")
@@ -100,6 +141,8 @@ def compute_metrics(stream: list[Record], tracks: list[Record] | None = None) ->
     }
     if any(m.get("generator", {}).get("version", "0.1.0") >= "0.2.0" for m in matches):  # league mode: 0.2.0 events
         out.update(_league_metrics(events, shots, counts, scale, len(matches)))
+    if any(r["type"] == "physical" for r in stream):
+        out.update(physical_metrics(stream))
     if tracks:
         players = [t for t in tracks if t["object"] == "player"]
         out["tracks_kit_number_share"] = round(sum(1 for t in players if "kit_number" in t.get("identity", {}).get("evidence", [])) / len(players), 3) if players else 0.0
@@ -127,6 +170,89 @@ def _league_metrics(events: list[Record], shots: list[Record], counts: Counter, 
         "npxg_per90": round(npxg * scale, 2),
         "np_goals_minus_xg": round(sum(1 for s in open_play if s["outcome"] == "success") - npxg, 1),
         "key_passes_per_shot": round(key_passes / len(open_play), 3) if open_play else 0.0,
+    }
+
+
+def _roles(stream: list[Record]) -> dict[tuple[str, str], tuple[str, str]]:
+    """(match id, player id) -> (role from the kit number, the person: global id when the match is a season's)."""
+    from regista.synth.generator import ROLE_OF_KIT
+
+    out = {}
+    for m in (r for r in stream if r["type"] == "match"):
+        for p in m["players"]:
+            out[(m["match_id"], p["player_id"])] = (ROLE_OF_KIT.get(p["kit_number"], "?"),
+                                                    p.get("global_player_id") or f"{m['match_id']}:{p['player_id']}")
+    return out
+
+
+def physical_metrics(stream: list[Record]) -> dict[str, float]:
+    """The physical bands' metrics from ``physical`` records (league mode). Outfield players unless named otherwise."""
+    from regista.synth.physical import per90
+
+    roles = _roles(stream)
+    periods = {m["match_id"]: m["periods"] for m in stream if m["type"] == "match"}
+    phys = [r for r in stream if r["type"] == "physical"]
+    for r in phys:
+        r_role, r_who = roles.get((r["match_id"], r["player_id"]), ("?", r["player_id"]))
+        r["_role"], r["_who"] = r_role, r_who
+    out_ = [r for r in phys if r["_role"] != "GK"]
+    gk = [r for r in phys if r["_role"] == "GK"]
+    played = sum(r["played_s"] for r in out_) or 1e-9
+    # season per-90 distance of regular outfielders
+    by_who: dict[str, list[float]] = {}
+    for r in out_:
+        acc = by_who.setdefault(r["_who"], [0.0, 0.0])
+        acc[0] += r["metrics"]["distance_m"]
+        acc[1] += r["played_s"]
+    most = max((v[1] for v in by_who.values()), default=0.0)
+    regular = [v[0] / v[1] * 5.4 for v in by_who.values() if v[1] >= 0.4 * most and v[1] > 0]   # km per 90
+    # match peaks of outfielders who played most of the match
+    long_ = [r for r in out_ if r["played_s"] >= 0.6 * sum(p["t_end"] - p["t"] for p in periods.get(r["match_id"], []))]
+    halves: dict[int, list[float]] = {}
+    for r in long_:
+        for per in r.get("periods", []):
+            h = halves.setdefault(per["period"], [0.0, 0.0, 0.0])
+            h[0] += per["played_s"]
+            h[1] += per["distance_m"]
+            h[2] += per["hi_distance_m"]
+
+    def drop(i: int) -> float:
+        if 1 not in halves or 2 not in halves or not halves[1][i] or not halves[2][0]:
+            return 0.0
+        return round(1.0 - (halves[2][i] / halves[2][0]) / (halves[1][i] / halves[1][0]), 3)
+
+    def role_rate(rs: tuple[str, ...], key: str) -> float:
+        sel = [r for r in out_ if r["_role"] in rs]
+        return per90(sel, key) if sel else 0.0
+
+    def role_peak(rs: tuple[str, ...]) -> float:
+        sel = [r["metrics"]["peak_speed_kmh"] for r in long_ if r["_role"] in rs]
+        return sum(sel) / len(sel) if sel else 0.0
+
+    others = tuple(sorted({r["_role"] for r in out_} - {"CM", "DM"}))
+    return {
+        "players_measured": len(phys),
+        "distance_per90_km": round(per90(out_, "distance_m") / 1000.0, 2),
+        "distance_per90_min_km": round(min(regular), 2) if regular else 0.0,
+        "distance_per90_max_km": round(max(regular), 2) if regular else 0.0,
+        "hi_distance_per90_m": round(per90(out_, "hi_distance_m"), 0),
+        "sprint_distance_per90_m": round(per90(out_, "sprint_distance_m"), 0),
+        "sprints_per90": round(per90(out_, "sprints"), 1),
+        "walking_time_share": round(sum(r["metrics"]["walking_s"] for r in out_) / played, 3),
+        "jogging_time_share": round(sum(r["metrics"]["jogging_s"] for r in out_) / played, 3),
+        "peak_speed_mean_kmh": round(sum(r["metrics"]["peak_speed_kmh"] for r in long_) / len(long_), 1) if long_ else 0.0,
+        "peak_speed_max_kmh": max((r["metrics"]["peak_speed_kmh"] for r in out_), default=0.0),
+        "second_half_distance_drop": drop(1),
+        "second_half_hi_drop": drop(2),
+        "zone3_per90_m": round(per90(out_, "zone3_m"), 0),
+        "hi_efforts_per90": round(per90(out_, "hi_efforts"), 1),
+        "accelerations_high_per90": round(per90(out_, "accelerations_high"), 1),
+        "decelerations_high_per90": round(per90(out_, "decelerations_high"), 1),
+        "gk_distance_per90_km": round(per90(gk, "distance_m") / 1000.0, 2) if gk else 0.0,
+        "relocated_per90_m": round(per90(out_, "relocated_m"), 0),
+        "cm_dm_distance_over_others": round(role_rate(("CM", "DM"), "distance_m") / (role_rate(others, "distance_m") or 1e-9), 3),
+        "wide_hi_over_central": round(role_rate(WIDE_ROLES[:1], "hi_distance_m") / (role_rate(CENTRAL_ROLES + ("ST",), "hi_distance_m") or 1e-9), 3),
+        "wide_peak_minus_central_kmh": round(role_peak(("W", "FB", "AM", "ST")) - role_peak(CENTRAL_ROLES), 2),
     }
 
 
@@ -170,6 +296,17 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
         linb = sum(1 for x in lv.values() if x == "in band")
         lines += ["", f"**{linb} of {len(LEAGUE_NORMS)} league-mode metrics in band.**", "",
                   "Diagnostics (no band): " + ", ".join(f"{k}={metrics[k]}" for k in LEAGUE_DIAGNOSTICS if k in metrics), ""]
+    if "distance_per90_km" in metrics:
+        pv = verdicts(metrics, PHYSICAL_NORMS)
+        lines += ["## Physical (league mode: every player's motion at 10 Hz)", "",
+                  "Outfield players, per 90 minutes on the pitch, pooled. Synthetic: the simulator's own players, measured "
+                  "exactly. Definitions: `regista.synth.physical.DEFINITIONS`.", "",
+                  "| Metric | Value | Band | Verdict | Source |", "|---|---|---|---|---|"]
+        for key, (lo, hi, unit, note_) in PHYSICAL_NORMS.items():
+            lines.append(f"| {key} | {metrics.get(key)} {unit} | {lo}–{hi} | {pv[key]} | {note_} |")
+        pinb = sum(1 for x in pv.values() if x == "in band")
+        lines += ["", f"**{pinb} of {len(PHYSICAL_NORMS)} physical metrics in band.**", "",
+                  "Diagnostics (no band): " + ", ".join(f"{k}={metrics[k]}" for k in PHYSICAL_DIAGNOSTICS if k in metrics), ""]
     return "\n".join(lines)
 
 
@@ -240,6 +377,8 @@ def main(argv: list[str] | None = None) -> int:
         out = {"metrics": metrics, "verdicts": verdicts(metrics)}
         if "penalties_per90" in metrics:
             out["league_verdicts"] = verdicts(metrics, LEAGUE_NORMS)
+        if "distance_per90_km" in metrics:
+            out["physical_verdicts"] = verdicts(metrics, PHYSICAL_NORMS)
         print(json.dumps(out, indent=2))
     else:
         print(md)

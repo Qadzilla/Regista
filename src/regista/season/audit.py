@@ -44,6 +44,8 @@ SPLIT_STATS: dict[str, Any] = {
     "passes_completed": lambda e: e["event_type"] in ("pass", "cross") and e["outcome"] == "success",
     "xg": lambda e: e["event_type"] == "shot" and "penalty" not in e.get("qualifiers", []),
 }
+# Physical (league mode, from ``physical`` records): per-90 rates, plus the mean of a player's match top speeds.
+PHYSICAL_SPLIT = ("distance_m", "hi_distance_m", "sprint_distance_m", "sprints")
 # Ratios a skill decides more than the share of the ball: (numerator, denominator, minimum attempts in each half).
 SPLIT_RATIOS = {"pass_completion": ("passes_completed", "passes", 30), "take_on_success": ("take_ons_won", "take_ons", 4),
                 "goals_minus_xg_per_shot": ("goals", "shots", 4)}
@@ -75,6 +77,14 @@ def _tallies(matches: list[tuple[int, Record, list[Record]]], rounds: set[int]) 
         for pid, s in played_seconds(stream).items():
             minutes[gid[pid]] += s / 60.0
         for e in stream:
+            if e.get("type") == "physical":
+                g = gid[e["player_id"]]
+                for key in PHYSICAL_SPLIT:
+                    counts[g][key] += e["metrics"][key]
+                if e["played_s"] >= 600:   # a top speed from at least 10 minutes on the pitch
+                    counts[g]["peak_sum"] += e["metrics"]["peak_speed_kmh"]
+                    counts[g]["peak_n"] += 1
+                continue
             if e.get("type") != "event" or not e.get("player_id"):
                 continue
             g = gid[e["player_id"]]
@@ -91,12 +101,18 @@ def split_half(league: Record, matches: list[tuple[int, Record, list[Record]]] |
     b_counts, b_min = _tallies(matches, set(range(6, 11)))
     starters = [(p["global_id"], p["kit_number"]) for c in league["clubs"] for p in c["squad"] if p["kit_number"] in SLOTS]
     out = {}
-    for key in SPLIT_STATS:
+    physical = any(r.get("type") == "physical" for _rnd, _h, st in matches[:1] for r in st)
+    for key in list(SPLIT_STATS) + (list(PHYSICAL_SPLIT) + ["peak_speed_kmh"] if physical else []):
         rows = []
         for gid, kit in starters:
             if a_min[gid] < 30 or b_min[gid] < 30:
                 continue
-            rows.append((kit, a_counts[gid][key] * 90 / a_min[gid], b_counts[gid][key] * 90 / b_min[gid]))
+            a, b = a_counts[gid], b_counts[gid]
+            if key == "peak_speed_kmh":
+                if a["peak_n"] and b["peak_n"]:
+                    rows.append((kit, a["peak_sum"] / a["peak_n"], b["peak_sum"] / b["peak_n"]))
+                continue
+            rows.append((kit, a[key] * 90 / a_min[gid], b[key] * 90 / b_min[gid]))
         xs, ys = [r[1] for r in rows], [r[2] for r in rows]
         by: dict[int, list] = defaultdict(list)
         for kit, x, y in rows:
