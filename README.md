@@ -116,7 +116,7 @@ One app serves two dashboards, locally and on Azure:
 
 **Learning from people.** When the Label agent is unsure (its rules prior and the model disagree, or a score sits on the keep/drop line) the workflow pauses and asks. Verdicts come from Keep/Drop in the app (the Studio's review queue), the `--review` terminal prompt, or the review API, and are stored as human annotations. A watchability model is retrained from them and becomes the Label agent's prior. This is learning from human feedback, not reinforcement learning.
 
-**Microsoft Fabric.** The season and the Player-view uploads land in a Fabric lakehouse as Delta tables in OneLake (keyless), and a Fabric notebook recomputes the league leaders so Regista can check they match its own numbers (`python -m regista.season.fabric setup|push|check`, `docs/architecture.md`). On 2026-10-23 it matched all 756 rows. On 2026-10-24 the regenerated season was pushed (events 33,624 rows, player_season 3,024), and the check first matched 328 of 756 rows: counts, minutes and per-90 rates agreed on every row, but the notebook still ranked percentiles by the old rule while Regista now uses FBref's. With the notebook's SQL on the same rule (a test checks that rule offline against Regista's profiles), the check matched all 756 rows again the same day. Generator 0.7.1 (2026-10-24, the same season on Linux and macOS) regenerated the season since; the lakehouse holds the 0.7.0 season until it is pushed and checked again.
+**Microsoft Fabric.** The season and the Player-view uploads land in a Fabric lakehouse as Delta tables in OneLake (keyless), and a Fabric notebook recomputes the league leaders so Regista can check they match its own numbers (`python -m regista.season.fabric setup|push|check`, `docs/architecture.md`). On 2026-10-23 it matched all 756 rows. On 2026-10-24 the regenerated season was pushed (events 33,624 rows, player_season 3,024), and the check first matched 328 of 756 rows: counts, minutes and per-90 rates agreed on every row, but the notebook still ranked percentiles by the old rule while Regista now uses FBref's. With the notebook's SQL on the same rule (a test checks that rule offline against Regista's profiles), the check matched all 756 rows again the same day. The season the app serves (generator 0.7.1, the same bits on Linux and macOS) was then pushed again (events 33,758 rows, player_season 3,024) and the check matched all 756 rows (2026-10-24).
 
 **Planned, not wired:** Azure AI Vision and Video Indexer for the private vision layer, Azure AI Speech and Translator (the app is English only). GitHub Copilot Agent Mode is not used; the project is built with Claude Code.
 
@@ -150,7 +150,7 @@ The generator also does two halves (`--periods 2`), custom clubs (`--home "Name,
 
 As of 2026-10-24: four views live on Azure (Clips, Scout, Player, Studio), deployed by CI from `main`; the match recap
 and Microsoft Fabric added. Part A of the Scout terminal (league mode, 10 Hz physical output, the metrics engine and its
-API) is built on `feature/terminal-engine`, not yet merged or deployed; 763 tests plus 13 slow ones (`-m slow`). What is planned rather than built is listed in [docs/criteria.md](docs/criteria.md).
+API) is built on `feature/terminal-engine`, not yet merged or deployed; 798 tests plus 13 slow ones (`-m slow`). What is planned rather than built is listed in [docs/criteria.md](docs/criteria.md).
 
 ## Licence
 

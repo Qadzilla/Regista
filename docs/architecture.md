@@ -30,7 +30,7 @@ every committed sample, the vision layer's output, and Who's who answers, verdic
 `tests/test_backcompat.py` checks that output without ratings is byte-identical to `main`.
 - **Clip stream** (intelligence layer out): `clip`, `label`.
 
-Not a pixel of footage crosses it. The synthetic generator produces the same stream from nothing, which is what the demo and the tests run on. It has three profiles. The realistic profile sits inside Premier League per-90 bands. The league profile (league mode, generator 0.7.0) adds player ratings and 10 Hz motion, and is checked against event, league-mode, physical, team-style, leader and role-shape bands (`docs/realism-report.md`). The demo profile packs a 3-minute sample with action.
+Not a pixel of footage crosses it. The synthetic generator produces the same stream from nothing, which is what the demo and the tests run on. It has three profiles. The realistic profile sits inside Premier League per-90 bands. The league profile (league mode, generator 0.7.1) adds player ratings and 10 Hz motion, and is checked against event, league-mode, physical, team-style, leader and role-shape bands (`docs/realism-report.md`). The demo profile packs a 3-minute sample with action.
 
 ## The agents
 
@@ -291,9 +291,10 @@ notebook in 52 s and matched **756 of 756** rows (462 with a percentile). The `p
 back and equals what this branch's `Season.build` gives. The row counts above are what `fabric_tables.season_tables`
 builds offline from the same season.
 
-**Pending:** generator 0.7.1 (2026-10-24, cross-platform determinism) regenerated the season after the third run, so
-the lakehouse still holds the 0.7.0 season. A fourth `push` and `check` are needed before the cross-check describes the
-season the app serves.
+**Fourth run, 2026-10-24** (the season the app serves: generator 0.7.1, the same bits on Linux and macOS, and the
+star's league attributes version 2): `push` wrote clubs 6, players 108, matches 30, lineups 1,080, events 33,758, clips
+10,661, labels 10,661, player_season 3,024 and uploads 1 rows in 28 s. `check` ran the notebook in 52 s and matched
+**756 of 756** rows (108 players x 7 stats), Femi Toure's five goals among them.
 
 ## What is deliberately not here
 

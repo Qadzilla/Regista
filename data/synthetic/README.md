@@ -184,12 +184,12 @@ Also in league mode:
 - **Saves** carry the qualifier `held` (the keeper keeps it) or `parried` (it runs loose for a rebound).
 - **Goal kicks** are hit long half the time (qualifier `goal_kick` on the pass) to one of the three players furthest
   forward. **Keepers also launch long in open play** (0.5.0): about a third of their open-play passes go to the front
-  three, less often for a better distributor and on a side of good passers (team style `keep`), so about 47% of keepers'
+  three, less often for a better distributor and on a side of good passers (team style `keep`), so about 48% of keepers'
   passes travel 32 m or more, the Premier League's share (Opta Analyst).
 - **Shot outcomes** (0.5.0): a shot that is not a goal is saved 25% of the time (a little more for good finishers), and
-  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 70% (six seasons, 0.7.1),
+  of the rest 40% are blocked; so about 44% of unblocked shots are on target and keepers save about 68% (six seasons, 0.7.1, the star's version 2 ratings),
   inside the Premier League's bands (`regista.synth.report`). Before 0.5.0, 60% of unblocked shots were on target.
-- **Take-ons** succeed about 37% of the time (six seasons, 0.7.1) (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
+- **Take-ons** succeed about 36% of the time (six seasons, 0.7.1, version 2 ratings) (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
   tackle, a foul, or (0.5.0) the ball running loose to whoever else is nearest.
 - **Touch records** (0.5.0): one for every full 1.92 s of a spell on the ball, and at least one (`touch_every_s`; 1.82 in
   0.5.0, 1.89 in 0.6.0, one per 0.8 s before 0.5.0, about twice FBref's count). Spells last 1-4 s, so that averages one
@@ -220,9 +220,10 @@ Also in league mode:
     wingers and the 10 at the back post and the edge of the box as well as the striker), nearness to where the ball comes
     down and finishing. With nobody there he plays an ordinary pass. A corner is **not** always a cross: the taker picks
     his first action like any holder, and only when he passes from the flag (where the crossing roll is skipped) and
-    someone is attacking the box does it become a cross. In the committed season (generator 0.7.1) the first event after
-    a corner, skipping touches and pressure, is the taker's cross 70 times in 115, a carry 18, a pass 8, a take-on 8, a
-    shot 1, a throw-in 5 and the period's end 5: nobody attacks the box at 45 corners (an open finding of review closing
+    someone is attacking the box does it become a cross. In the committed season (generator 0.7.1, the star's version 2
+    ratings) the first event after a corner, skipping touches and pressure, is the taker's cross 62 times in 107, a
+    carry 21, a pass 10, a take-on 6, a throw-in 5 and the period's end 3 (70 of 115 before his ratings changed
+    Brookfield's matches): nobody attacks the box at 45 corners (an open finding of review closing
     round 3, CLAUDE.md §4.2). In 0.6.0
     the target was picked first (in build-up, mostly centre-backs) and any wide pass a full-back made more than 42 m from
     his **own** goal line became a cross into the box: half of full-backs' crosses were 50 m balls from their own half,
@@ -232,11 +233,11 @@ Also in league mode:
     and strikers less, centre-backs hit some balls long to the front three (`long_ball_role`), and strikers and wide men
     carry into space less often (`carry_role`).
   Each order is checked by `regista.synth.report.ROLE_SHAPES` (pass/fail, each with its source): over six pooled
-  seasons, per 90, passes CB 46 and DM 53 against ST 32; touches CB 54 and DM 65 against ST 47, FB 57 against W 47;
-  crosses FB 3.4 against W 7.7, full-backs' open-play crosses starting a median 35 m from the opponent's goal line
-  (wingers' 30 m); progressive passes CB 2.1 and FB 3.3 against ST 1.4; long passes CB 4.0 against ST 2.6; tackles won ST
-  0.8 against FB 1.8, CB 2.0, DM 3.8; fouls won W 1.4 and ST 1.4 against CB 0.6. Strikers, wingers and the 10 receive
-  95% of completed open-play crosses (strikers 56%), a diagnostic the report prints with where crosses start by role. The
+  seasons (generator 0.7.1, the star's version 2 ratings), per 90, passes CB 46 and DM 53 against ST 32; touches CB 54
+  and DM 64 against ST 48, FB 57 against W 48; crosses FB 3.4 against W 7.9, full-backs' open-play crosses starting a
+  median 35 m from the opponent's goal line (wingers' 30 m); progressive passes CB 2.1 and FB 3.3 against ST 1.5; long
+  passes CB 3.9 against ST 2.5; tackles won ST 0.9 against FB 1.6, CB 2.0, DM 3.9; fouls won W 1.4 and ST 1.7 against
+  CB 0.6. Strikers, wingers and the 10 receive 94% of completed open-play crosses (strikers 53%), a diagnostic the report prints with where crosses start by role. The
   star's edge in chances is softened (`shot_drive` 0.19, `find_finisher` 0.13, `cross_finisher` 0.10): over six seasons
   his npxG per 90 is 1.56 times the next player's and he takes 34% of his club's npxG, both banded (with his version 2
   ratings; 1.71 and 38% before). Still off and labelled
