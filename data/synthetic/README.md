@@ -158,8 +158,10 @@ Added in 0.1.1, both optional:
 ### League mode (schema 0.2.0): what the generator emits when players have ratings
 
 When both squads carry hidden ratings (`regista.season.league.generate_kwargs`, the Regista League's fixtures), the
-generator runs in **league mode** (`regista.synth.generator`, generator version 0.7.0 (`LEAGUE_GENERATOR_VERSION`),
-profile `league`; the stream is stamped schema 0.2.0). Outcomes then depend on the players involved, and these appear:
+generator runs in **league mode** (`regista.synth.generator`, generator version 0.7.1 (`LEAGUE_GENERATOR_VERSION`),
+profile `league`; the stream is stamped schema 0.2.0). Since 0.7.1 league mode takes exp, log, sin, cos, hypot and its
+Gaussians from `regista.detmath` instead of the platform's libm, so a league match is the same, bit for bit, on macOS and
+on Linux (where the live app builds it; `regista.season.pins`, docs/scout-terminal/build/determinism.md). Outcomes then depend on the players involved, and these appear:
 
 | Event | Fields | When |
 |---|---|---|
@@ -185,9 +187,9 @@ Also in league mode:
   three, less often for a better distributor and on a side of good passers (team style `keep`), so about 47% of keepers'
   passes travel 32 m or more, the Premier League's share (Opta Analyst).
 - **Shot outcomes** (0.5.0): a shot that is not a goal is saved 25% of the time (a little more for good finishers), and
-  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 71% (six seasons, 0.7.0),
+  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 70% (six seasons, 0.7.1),
   inside the Premier League's bands (`regista.synth.report`). Before 0.5.0, 60% of unblocked shots were on target.
-- **Take-ons** succeed about 37% of the time (six seasons, 0.7.0) (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
+- **Take-ons** succeed about 37% of the time (six seasons, 0.7.1) (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
   tackle, a foul, or (0.5.0) the ball running loose to whoever else is nearest.
 - **Touch records** (0.5.0): one for every full 1.92 s of a spell on the ball, and at least one (`touch_every_s`; 1.82 in
   0.5.0, 1.89 in 0.6.0, one per 0.8 s before 0.5.0, about twice FBref's count). Spells last 1-4 s, so that averages one
@@ -195,7 +197,7 @@ Also in league mode:
   states it for the terminal, from these parameters). The interval also reshuffles every random draw of a season; 0.7.0
   picked 1.92 from a scan of 1.80-2.00 so that the committed season has the star as its outright top scorer and every
   band one season can judge in (penalties and the individual leaders are judged over six pooled seasons), and six
-  pooled seasons pass every band and role shape.
+  pooled seasons pass every band and role shape (both still true of 0.7.1's season).
 - **xG** is still distance-based (`e^(-0.12·d)`, 0.02-0.85, as in 0.4.0-0.5.0; `0.95·e^(-0.12·d)` in 0.6.0, `1.1·e^(-0.12·d)` before),
   with headers at 0.40 and first-time shots from a cross at 0.45 of a shot from the same spot.
 - **Roles shape the game** (0.6.0). Before, a pass looked for a teammate about 16 m away, tilted forward, and whoever
@@ -217,8 +219,8 @@ Also in league mode:
     wingers and the 10 at the back post and the edge of the box as well as the striker), nearness to where the ball comes
     down and finishing. With nobody there he plays an ordinary pass. A corner is **not** always a cross: the taker picks
     his first action like any holder, and only when he passes from the flag (where the crossing roll is skipped) and
-    someone is attacking the box does it become a cross. In the committed season (generator 0.7.0) the first event after
-    a corner, skipping touches and pressure, is the taker's cross 66 times in 111, a carry 18, a pass 9, a take-on 7, a
+    someone is attacking the box does it become a cross. In the committed season (generator 0.7.1) the first event after
+    a corner, skipping touches and pressure, is the taker's cross 70 times in 115, a carry 18, a pass 8, a take-on 8, a
     shot 1, a throw-in 5 and the period's end 5: nobody attacks the box at 45 corners (an open finding of review closing
     round 3, CLAUDE.md §4.2). In 0.6.0
     the target was picked first (in build-up, mostly centre-backs) and any wide pass a full-back made more than 42 m from

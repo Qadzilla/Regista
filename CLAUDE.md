@@ -137,13 +137,14 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 
 - **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 2 x 15 minutes,
   generator profile `league` (league mode: hidden player ratings drive outcomes and roles shape who makes which numbers,
-  generator 0.7.0; `regista.synth.report` checks league bands, leaders, the star's lead and role shapes, where crosses start and who receives them), fixed squads of 18
+  generator 0.7.1, the same season bit for bit on macOS and Linux since it takes its transcendental functions from
+  `regista.detmath`, not libm; `regista.synth.report` checks league bands, leaders, the star's lead and role shapes, where crosses start and who receives them), fixed squads of 18
   with **global player ids** (`pl_…`) on every roster entry. A regular plays about 300 minutes a season, so the Scout
   terminal and profiles state the sample size and mark metrics whose split-half reliability is below 0.3 as noisy
   (`regista.season.reliability`, `data/season/reliability.json`). The league definition
   (`data/season/league.json`: clubs, squads, fixtures, seeds) is committed; matches regenerate deterministically from it
   and are not committed. Since league mode (player ratings, 10 Hz motion) a match takes about 1.3 s to generate (median
-  of five, generator 0.7.0, measured 2026-10-24 on Zaid's 10-core Mac), so a cold season is built in parallel processes
+  of five, generator 0.7.0, measured 2026-10-24 on Zaid's 10-core Mac; 1.23 s with 0.7.1), so a cold season is built in parallel processes
   (`regista.season.build.build_all`: 5.9 s on 10 cores, 37 s on one); the Docker image builds the season in at
   `docker build` time, so a fresh revision starts warm.
 - **Profiles** are aggregated from the event streams: appearances, minutes, counts and per-90 rates, a touch map (attack
@@ -235,8 +236,9 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
   - **Player attributes:** every league player has a public bio (date of birth, height, foot, nationality) and hidden
     ratings (1-99 skills, keeper skills, top speed, acceleration) in `data/season/league.json`. The generator reads them.
     No API, MCP tool or page serves them; tests check every public payload.
-  - **League mode in the generator** (generator 0.7.0, schema 0.2.0): ratings drive outcomes and roles shape who makes
-    which numbers. It adds substitutions, penalties, aerial duels, through balls, red cards and offsides. Output without
+  - **League mode in the generator** (generator 0.7.1, schema 0.2.0): ratings drive outcomes and roles shape who makes
+    which numbers. League matches use `regista.detmath` (fdlibm ports) instead of libm, so Linux (CI, the live app) and
+    macOS generate the same season; `regista.season.pins` pins every fixture, checked in CI and inside the image. It adds substitutions, penalties, aerial duels, through balls, red cards and offsides. Output without
     ratings stays byte-identical to `main`.
   - **10 Hz physical motion** (`synth/physical.py`): every player within their own pace, tiring with stamina. Physical
     metrics are built for real from the motion (distance, speed zones, sprints, top speed, accelerations), not faked.
@@ -245,7 +247,7 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
     League bands (`docs/realism-report.md`), and `regista.season.audit` measures split-half reliability.
 - **Part B, the terminal's screens (next):** to be built first in the sandbox (`ux/sandbox`), then ported into Scout as a
   **Terminal** section. They are not shown as working until they run.
-- **Femi Toure (pl_bro_09) stays the star:** the league's top scorer (3 league goals with generator 0.7.0, one a
+- **Femi Toure (pl_bro_09) stays the star:** the league's top scorer (3 league goals with generator 0.7.1, one a
   penalty, in rounds 2, 5 and 6), and the demo's hook. A test keeps him on top.
 - **Honest numbers:** no metric without its definition and source; the sample size is stated (a regular plays about 300
   minutes a season); metrics whose split-half reliability is below 0.3 are marked noisy.
@@ -498,19 +500,24 @@ for the record:
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
 **As of 2026-10-24.** Part A of the Scout terminal (§2.10) is built on `feature/terminal-engine` (not merged, not
-deployed): player attributes, league mode (generator 0.7.0, schema 0.2.0), 10 Hz physical motion, the metrics engine
+deployed): player attributes, league mode (generator 0.7.1, schema 0.2.0), 10 Hz physical motion, the metrics engine
 (127 player, 19 team-style metrics) and its API, after two review rounds and three closing rounds
-(`docs/scout-terminal/build/`; closing round 3 was **not signed off**, see below). On the committed season: 13 of 13 event bands, 14 of 14 physical, 10 of 11 league-mode
-(penalties low, indicative on one season), 12 of 14 leaders (indicative). Over six pooled seasons every band holds
-(`docs/realism-report.md`). Femi Toure is the top scorer with 3 league goals; his Goal reel runs 23.6 s. 763 tests
-plus 13 slow pass. The dashboards' seeds, the storyboard, README, criteria and architecture quote this league.
-**Fabric:** the new season is pushed (events 33,624 rows, player_season 3,024). The notebook's check first matched 328
+(`docs/scout-terminal/build/`; closing round 3 was **not signed off**, see below). On the committed season: 13 of 13 event bands, 14 of 14 physical, 11 of 11 league-mode
+(penalties and red cards indicative on one season), 12 of 14 leaders (indicative). Over six pooled seasons every band holds
+(`docs/realism-report.md`). Femi Toure is the top scorer with 3 league goals; his Goal reel runs 23.6 s. 797 tests
+plus 13 slow pass (Mac); CI's quick suite passes on Linux. The dashboards' seeds, the storyboard, README, criteria and architecture quote this league.
+**Cross-platform determinism (2026-10-24):** PR #36's CI failed on Linux (a league fixture and the summaries differed
+from the Mac). Cause: libm's last bits (macOS vs glibc) tipping rng comparisons. Fixed in generator 0.7.1 with
+`regista.detmath`; the season was regenerated, summaries, reliability and the demo seeds follow it, CI is green on
+Linux (docs/scout-terminal/build/determinism.md). **Fabric** still holds the 0.7.0 season below: re-sync it
+(`python -m regista.season.fabric push`, then `check`) before beat 5 is recorded.
+**Fabric (0.7.0 season):** the season was pushed (events 33,624 rows, player_season 3,024). The notebook's check first matched 328
 of 756 (old percentile rule); `LEADERS_SQL` now uses Regista's rule (FBref's percentile, unrounded rates, a third of a
 club's minutes), `tests/test_fabric.py` checks that rule offline against `Season.build`, and the check matched
 **756 of 756** (2026-10-24). The round 6 goal is no longer called "a header from a corner" anywhere (demo seeds,
 storyboard): the generator stages it as a cross, a 4 m carry, then a headed shot.
 **Open from closing round 3 (not fixed, not yet accepted; Zaid's call):** review-a-final3 #1, nobody attacks the box at
-corners (66 of 111 corners are followed by the taker's cross; the rest by a carry, pass, take-on, shot or the ball going
+corners (70 of 115 corners with 0.7.1, 66 of 111 with 0.7.0, are followed by the taker's cross; the rest by a carry, pass, take-on, shot or the ball going
 dead); review-b-final3 #1, headed shots and goals at about half the Premier League rate (a completed cross becomes an
 ordinary possession, so 8 of 14 headed shots come after the header's own carry); #2, progressive passes low in every
 role; #3, wide players in the crossing zone almost always cross (`cross_choice` 1.0). Fixing any of them changes the

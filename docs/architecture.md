@@ -94,9 +94,12 @@ aerial, stamina, keeper skills, top speed, acceleration). The generator reads th
 **The Scout terminal's engine** (part A, built on `feature/terminal-engine`, not yet deployed; the terminal's screens are
 part B). Three pieces:
 
-- **League mode** (`regista.synth.generator`, `LEAGUE_GENERATOR_VERSION` 0.7.0): the ratings move the probabilities of
+- **League mode** (`regista.synth.generator`, `LEAGUE_GENERATOR_VERSION` 0.7.1): the ratings move the probabilities of
   every action, and roles shape who makes which numbers (centre-backs pass and win headers, wingers cross and carry,
   strikers shoot).
+  League matches take exp, log, sin, cos, hypot and Gaussians from `regista.detmath` (fdlibm ports on IEEE arithmetic)
+  instead of libm, so the server (Linux) builds the same season as a Mac; `regista.season.pins` pins all 30 fixtures,
+  checked in CI and by the image's smoke test (`docs/scout-terminal/build/determinism.md`).
 - **Physical motion** (`regista.synth.physical`): all 22 players move at 10 Hz within their own `top_speed_kmh` and
   `acceleration_ms2`, tiring with stamina. Each match writes one `physical` record per player. `DEFINITIONS` gives each
   measure's definition and source.
@@ -287,6 +290,10 @@ suite, the whole committed season under `-m slow`). `REGISTA_DOTENV= python3 -m 
 notebook in 52 s and matched **756 of 756** rows (462 with a percentile). The `player_season` table in OneLake was read
 back and equals what this branch's `Season.build` gives. The row counts above are what `fabric_tables.season_tables`
 builds offline from the same season.
+
+**Pending:** generator 0.7.1 (2026-10-24, cross-platform determinism) regenerated the season after the third run, so
+the lakehouse still holds the 0.7.0 season. A fourth `push` and `check` are needed before the cross-check describes the
+season the app serves.
 
 ## What is deliberately not here
 
