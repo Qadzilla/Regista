@@ -2,7 +2,7 @@
 // with Bloomberg-style mnemonics (TOURE <GO>, RANK FW npxg, CMP, SCAT, SIM, SHOT, FORM, TEAM, HELP) over linked panels:
 // screener, player, radar or pizza vs position peers, clips, shot map, heat map, form, scatter, team style. Selecting a
 // player in any panel updates the others; every number opens the moments behind it (the engine's evidence) in the clips
-// panel, which plays them from the local app named in terminal.json ("app"; never the live app, which runs the old
+// panel, which plays them from the app named in terminal.json ("app": the live app, which serves this league since part A merged;
 // league). terminal.json is part A's metrics engine exported by tools/export_terminal.py; it holds no hidden ratings.
 // Three workspaces (panels, players, columns) are kept in this browser only (localStorage, wrapped in try/catch).
 (function () {
@@ -355,7 +355,7 @@
       r.items = r.items.filter(it => it.match_id === match);
       const mm = (p.form && p.form.matches || []).find(x => x.match_id === match);
       if (mm) r.sub = `Round ${mm.round} v ${club(mm.opponent).name} · ${r.sub}`;
-      if (!r.items.length) r.note = r.total > r.shown ? `This match's moments are past the first ${r.shown} exported; open the full list on the local app.` : 'No moments behind this number in this match.';
+      if (!r.items.length) r.note = r.total > r.shown ? `This match's moments are past the first ${r.shown} exported; open the full list on the app.` : 'No moments behind this number in this match.';
     }
     return r;
   }
@@ -416,7 +416,7 @@
         <label class="tx-chk"><input type="checkbox" data-r="auto" checked> Play all</label></div>
       <ol class="tx-cliplist tx-scroll" data-r="list"></ol>`;
     const v = b.querySelector('video');
-    v.addEventListener('error', () => { if (v.getAttribute('src')) msg(`The clip did not load from ${APP}. Clips play from the local app on part A's code; start it and try again (each clip renders on its first request, which takes a few seconds).`); });
+    v.addEventListener('error', () => { if (v.getAttribute('src')) msg(`The clip did not load from ${APP}. Try again: each clip renders on its first request, which takes a few seconds.`); });
     v.addEventListener('playing', () => msg(''));
     v.addEventListener('ended', () => {
       if (!reel || !b.querySelector('[data-r="auto"]').checked) return;
@@ -439,7 +439,7 @@
     }
     const capped = reel.total > reel.shown;
     head.innerHTML = `<p class="tx-ct">${esc(reel.title)}</p><p class="tx-cs">${esc(reel.sub)}</p>
-      <p class="tx-cs">${reel.match ? `${reel.items.length} in this match` : capped ? `First ${reel.shown} of ${reel.total}${reel.unit === 'match' ? ' matches' : ''}` : `${reel.items.length} ${reel.unit === 'match' ? 'match' : 'moment'}${reel.items.length === 1 ? '' : (reel.unit === 'match' ? 'es' : 's')}`}${capped && reel.pid ? ` · <a href="${esc(reel.full)}" target="_blank" rel="noopener">all ${esc(reel.total)} on the local app &#8599;</a>` : ''}</p>
+      <p class="tx-cs">${reel.match ? `${reel.items.length} in this match` : capped ? `First ${reel.shown} of ${reel.total}${reel.unit === 'match' ? ' matches' : ''}` : `${reel.items.length} ${reel.unit === 'match' ? 'match' : 'moment'}${reel.items.length === 1 ? '' : (reel.unit === 'match' ? 'es' : 's')}`}${capped && reel.pid ? ` · <a href="${esc(reel.full)}" target="_blank" rel="noopener">all ${esc(reel.total)} on the app &#8599;</a>` : ''}</p>
       ${reel.legend ? `<p class="tx-cs tx-dim">${esc(reel.legend)}</p>` : ''}${reel.note ? `<p class="tx-cs tx-dim">${esc(reel.note)}</p>` : ''}`;
     if (ctx) ctx.textContent = reel.items.length ? `${Math.max(0, reel.i) + 1}/${reel.items.length}` : '';
     list.innerHTML = reel.items.map((it, i) => `<li><button type="button" class="tx-clip${i === reel.i ? ' on' : ''}" data-act="clip" data-i="${i}" data-fid="clip-${i}"${i === reel.i ? ' aria-current="true"' : ''}>
@@ -1170,7 +1170,7 @@
         <li><kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> focus the command line</li><li><kbd>Enter</kbd> is &lt;GO&gt;</li><li><kbd>↑</kbd> <kbd>↓</kbd> history, or move in the suggestions</li>
         <li><kbd>Tab</kbd> takes a suggestion</li><li><kbd>Esc</kbd> closes suggestions, help and tips</li><li><kbd>Alt 1–9</kbd> jump to a panel (F1–F9)</li>
         <li>In the screener: arrow keys, Home/End, Enter</li><li>In the scatter: arrow keys pick a player, Enter selects</li></ul>
-      <h3 class="tx-h3">Linking</h3><p>One focus player and up to three compared players drive every panel. Selecting a player anywhere (screener, scatter, similar players, squad, legend) updates the rest. Every number opens the moments behind it in CLIP; clips play from the local app at ${esc(APP)} (part A's code). Evidence is the first ${esc(10)} per number; a link gives the full list.</p>
+      <h3 class="tx-h3">Linking</h3><p>One focus player and up to three compared players drive every panel. Selecting a player anywhere (screener, scatter, similar players, squad, legend) updates the rest. Every number opens the moments behind it in CLIP; clips play from ${esc(APP)}. Evidence is the first ${esc(10)} per number; a link gives the full list.</p>
       <h3 class="tx-h3">The numbers</h3><p>${esc(D.note)}</p><p>${esc(D.season.sample.note)}</p><p>Percentiles: ${esc(D.season.percentile_rule)}.</p>
       <h3 class="tx-h3">Sources</h3><ul class="tx-srcs">${srcs}</ul></div>`;
     h.hidden = false; h._opener = opener || null;
