@@ -28,9 +28,9 @@ LEAGUE_PATH = ROOT / "data" / "season" / "league.json"
 FIXTURES = (0, 1, 2)          # fixtures generated for the fast tests
 # (fixture index, seed shift): league fixtures, replayed with seeds shifted as the audit's extra seasons shift them when
 # the committed season lacks an event. Penalties and red cards are rare (about 0.07 and 0.03 a 30-minute match); the
-# committed season (generator 0.6.0) has four penalties and no red card.
-PENALTY = (0, 0)              # rl_r01_ash_fai, the committed season: a penalty (and a through ball)
-RED = (26, 3000)              # rl_r09_eas_fai, fourth season: a red card (and a through ball)
+# committed season (generator 0.7.0) has one penalty and two red cards.
+PENALTY = (5, 0)              # rl_r02_cal_bro, the committed season: a penalty
+RED = (2, 1000)               # rl_r01_cal_dun, second season: a red card (and a through ball)
 
 
 @pytest.fixture(scope="module")
@@ -101,12 +101,12 @@ def test_ratings_for_only_some_players_are_refused(league):
 
 # ---------------------------------------------------------------------------- the committed season, pinned
 
-# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.6.0. A generator
+# sha256 of three committed fixtures' events.jsonl (as regista.schema.write_jsonl writes it), generator 0.7.0. A generator
 # edit that moves them changes the season every page shows: re-record these, then re-check the demo's claims and clip ids
 # (src/regista/static/shared/demo.js, docs/demo-storyboard.md) and regenerate data/season/summaries.json.
-LEAGUE_PINS = {0: "961eda4450051ca704f8b783f01f9dd86a761ea50ddc44a739e4b91deac4fc41",
-               1: "75959e9fadd11ea69e5b0d091cd4c8f84f114175e3ddf3403d631af285834bc9",
-               2: "65609184e40e9b9e17ee8bbc45b11aca17bd91d92a0d9a84c38a07360126b96a"}
+LEAGUE_PINS = {0: "0ea2fbf9bd6b0c98a45e92b3f1373127d3b646c319d7c6b87d521def908eedc2",
+               1: "9f6735b15513cd97200d054c8920a0ec807bb55d289f58464873e1d9967481c8",
+               2: "7333c6c48ddd3c5541198095c1786c20ebbee5670edffaefa04fba94f46923c4"}
 DEMO_JS = ROOT / "src" / "regista" / "static" / "shared" / "demo.js"
 
 
@@ -360,7 +360,7 @@ def test_role_shapes_and_leader_gaps_are_computed_and_reported(matches):
     assert set(m["role_per90"]) >= {"passes", "touches", "crosses", "tackles_won", "fouls_won"}
     assert all(isinstance(m[f"shape_{k}"], bool) for k in ROLE_SHAPES)
     assert all(v.endswith("(under 6 seasons)") for v in role_shape_verdicts(m).values())   # three matches: indicative
-    assert all("StatMuse" in src or "LEADER_V" in src or "Palhinha" in src for _o, src in ROLE_SHAPES.values())
+    assert all("StatMuse" in src or "LEADER_V" in src or "Palhinha" in src or "FBref" in src for _o, src in ROLE_SHAPES.values())
     md = render_markdown(m, "three matches", "league")
     assert "## Role shapes (league mode)" in md and all(f"| {k} |" in md for k in ROLE_SHAPES)
     # the orders themselves, on a hand-made table: 0.5.0's role means (review closing round 1) fail every check
@@ -368,10 +368,45 @@ def test_role_shapes_and_leader_gaps_are_computed_and_reported(matches):
            "crosses": {"FB": 0.31, "W": 6.46}, "tackles_won": {"CB": 1.45, "FB": 2.17, "DM": 3.14, "ST": 2.96},
            "fouls_won": {"CB": 1.26, "W": 0.89, "ST": 0.98}}
     assert not any(role_shape_checks(old).values())
-    new = {"passes": {"CB": 44.0, "DM": 56.0, "ST": 30.0}, "touches": {"CB": 53.0, "DM": 70.0, "ST": 46.0},
-           "crosses": {"FB": 3.1, "W": 7.9}, "tackles_won": {"CB": 1.9, "FB": 1.7, "DM": 3.6, "ST": 1.1},
-           "fouls_won": {"CB": 0.5, "W": 1.7, "ST": 1.5}}
-    assert all(role_shape_checks(new).values())
+    # 0.6.0's role means (review closing round 2): full-backs "crossed" a third as often as wingers, but from a median 52.6
+    # m out (their own half); centre-backs progressed and went long less than strikers; full-backs touched it less than
+    # wingers
+    v060 = {"passes": {"CB": 44.1, "DM": 56.2, "ST": 30.2}, "touches": {"CB": 52.8, "FB": 46.2, "DM": 70.3, "W": 58.9,
+            "ST": 46.4}, "crosses": {"FB": 3.1, "W": 8.0}, "tackles_won": {"CB": 1.91, "FB": 1.73, "DM": 3.56, "ST": 1.09},
+            "fouls_won": {"CB": 0.49, "W": 1.72, "ST": 1.55}, "progressive_passes": {"CB": 0.95, "FB": 1.41, "ST": 1.47},
+            "long_passes": {"CB": 1.89, "ST": 2.17}}
+    failed = {k for k, ok in role_shape_checks(v060, fb_cross_start_m=52.6).items() if not ok}
+    assert failed == {"touches_fb_over_w", "fb_crosses_third_of_w", "prog_passes_cb_fb_over_st", "cb_long_passes_floor"}
+    new = {"passes": {"CB": 46.0, "DM": 53.0, "ST": 32.0}, "touches": {"CB": 54.0, "FB": 57.5, "DM": 65.0, "W": 47.4,
+           "ST": 47.1}, "crosses": {"FB": 3.4, "W": 7.7}, "tackles_won": {"CB": 2.0, "FB": 1.8, "DM": 3.8, "ST": 0.8},
+           "fouls_won": {"CB": 0.6, "W": 1.4, "ST": 1.4}, "progressive_passes": {"CB": 2.1, "FB": 3.3, "ST": 1.4},
+           "long_passes": {"CB": 4.0, "ST": 2.6}}
+    assert all(role_shape_checks(new, fb_cross_start_m=35.4).values())
+    assert not role_shape_checks(new, fb_cross_start_m=None)["fb_crosses_third_of_w"]   # no full-back cross at all
+
+
+def test_a_cross_starts_near_the_box_and_is_for_a_teammate_attacking_it(matches):
+    """Review closing round 2: the target was picked first (in build-up, mostly centre-backs and the holding midfielder)
+    and any wide pass past a line measured from the passer's own goal line became a cross into the box. Now the cross is
+    decided first, from the final 35-40 m (regista.synth.generator.LEAGUE["cross_zone_m"]), and aimed at an outfielder
+    attacking the box; the report shows where crosses start and who receives them."""
+    from regista.synth.generator import LEAGUE, PITCH_L, ROLE_OF_KIT
+
+    seen = 0
+    for res in matches.values():
+        header = res.match
+        role = {p["player_id"]: ROLE_OF_KIT[p["kit_number"]] for p in header["players"]}
+        ltr = {p["period"]: p["left_to_right_team_id"] for p in header["periods"]}
+        for e in _events(res):
+            if e["event_type"] != "cross":
+                continue
+            seen += 1
+            to_line = PITCH_L - e["pitch"]["x"] if ltr[e["clock"]["period"]] == e["team_id"] else e["pitch"]["x"]
+            assert to_line < LEAGUE["cross_zone_m"].get(role[e["player_id"]], 35.0), (e["id"], to_line)
+            assert role[e["related_player_id"]] != "GK"
+    assert seen > 10
+    m = compute_metrics([r for res in matches.values() for r in res.stream])
+    assert m["cross_start_m_by_role"]["W"] < 40.0 and sum(m["crosses_received_by_role"].values()) == pytest.approx(1.0, abs=0.01)
 
 
 # ---------------------------------------------------------------------------- physical: motion at 10 Hz
@@ -573,6 +608,18 @@ def test_roles_make_the_numbers_they_make_in_football(season, pooled):
         v = role_shape_verdicts(m)
         assert set(v) == set(ROLE_SHAPES)
         assert all(x.startswith("holds") for x in v.values()), (v, m["role_per90"])
+
+
+@pytest.mark.slow
+def test_crosses_are_met_by_the_players_attacking_the_box(pooled):
+    """Review closing round 2: 40% of completed crosses went to centre-backs, holding midfielders and full-backs, who were
+    a median 40-60 m from where the ball came down. Over six seasons the forwards (strikers, wingers, the 10) must receive
+    the great majority, and every role's open-play crosses start, at the median, within 40 m of the opponent's goal line."""
+    m = _metrics(pooled)
+    got = m["crosses_received_by_role"]
+    assert sum(got.get(r, 0.0) for r in ("ST", "W", "AM")) >= 0.85, got
+    assert got.get("CB", 0.0) + got.get("DM", 0.0) + got.get("FB", 0.0) <= 0.05, got
+    assert max(m["cross_start_m_by_role"].values()) <= 40.0, m["cross_start_m_by_role"]
 
 
 @pytest.mark.slow

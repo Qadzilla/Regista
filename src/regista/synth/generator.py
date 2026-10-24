@@ -22,13 +22,15 @@ from regista.synth.physical import METHOD as PHYSICAL_METHOD, Body
 
 GENERATOR_NAME = "regista-synth"
 GENERATOR_VERSION = "0.1.0"          # without player attributes: unchanged since 0.1.0, byte for byte
-LEAGUE_GENERATOR_VERSION = "0.6.0"   # with them (league mode): player ratings drive outcomes, plus the 0.2.0 events;
+LEAGUE_GENERATOR_VERSION = "0.7.0"   # with them (league mode): player ratings drive outcomes, plus the 0.2.0 events;
 # 0.3.0: every player moves at 10 Hz within his own pace and acceleration, and each gets a ``physical`` record
 # 0.4.0: retuned against individual leader bands (review round 1): shots spread by role, finishing worth a realistic edge,
 #        centre-backs attack the high balls, shorter carries, crosses completed at the Premier League's rate, hard braking
 # 0.5.0: shots on target and saves at the Premier League's rates (review round 2), keepers launch long in open play
 # 0.6.0: roles shape the game (review closing round 1): build-up through centre-backs and holding midfielders, full-backs
 #        cross, midfielders and defenders win the tackles, forwards are fouled; the star's edge in chances softened
+# 0.7.0: crosses decided first and aimed at the players attacking the box, from the final 35-40 m (review closing round 2);
+#        the back line steps up in possession, full-backs and wingers hold the width, centre-backs hit some balls long
 
 PITCH_L = 105.0
 PITCH_W = 68.0
@@ -133,25 +135,30 @@ LEAGUE: dict[str, Any] = {
                                # star took 46% of his club's npxG over six seasons and 2.4 times the next player's per 90)
     "create_shot": 0.0,        # (0.30 in generator 0.3.0 made the best passer's key passes twice any real player's)
     "after_cross_shot": 0.5,   # a cross that arrives leads to a shot half as often as a pass would
-    "touch_every_s": 1.89,     # (0.5.0) one touch record per this many seconds on the ball (0.8 in 0.1.0): 0.8 wrote about
-                               # twice FBref's touches per team (review round 2). Every record draws a random confidence, so
-                               # this also reshuffles the season's draws: any value from 1.4 to 2.0 halves the touches. 0.6.0
-                               # scanned 1.60-2.00 and picked 1.89 (1.82 in 0.5.0) because the committed season then has the
-                               # star as its outright top scorer and every one-season band in, and the six pooled seasons
-                               # pass every band and role shape (data/synthetic/README.md, league mode)
+    "touch_every_s": 1.92,     # (0.5.0) one touch record for every full this many seconds of a spell on the ball, at least
+                               # one (0.8 in 0.1.0; spells of 1-4 s average one record per 2.3 s: regista.season.metrics.
+                               # TOUCH_RECORDS states it for the terminal): 0.8 wrote about twice FBref's touches per team
+                               # (review round 2). Every record draws a random confidence, so this also reshuffles the
+                               # season's draws: any value from 1.4 to 2.0 halves the touches. 0.7.0 scanned 1.80-2.00 and
+                               # picked 1.92 (1.82 in 0.5.0, 1.89 in 0.6.0) because the committed season then has the star as
+                               # its outright top scorer and every one-season band in, and the six pooled seasons pass every
+                               # band and role shape (data/synthetic/README.md, league mode)
     "carry_drive": 0.30,       # good dribblers carry the ball into space more often (0.15 before 0.6.0) ...
     "carry_speed": (1.35, 4.1), # a carry's pace toward goal (m/s over the hold): shorter than 0.1.0's 3-7, so progressive
                                # passes outnumber progressive carries as in FBref's Premier League data
     "carry_pace": 0.05,        # ... and faster (log scale per z, 0.6.0): with less of the ball the best carriers still lead
                                # the league in progressive carries
+    "carry_role": {"ST": 0.55, "W": 0.7, "FB": 0.7},   # (0.7.0) strikers carry into space less often (with the ball high up
+                               # the pitch they made more progressive carries than attacking midfielders, review closing round
+                               # 2), and wide men a little less, so progressive passes still outnumber progressive carries
     "carry_side_m": 5.0,       # ... with this much sideways drift (sd)
     "lead_m": 1.0,             # completed forward passes into the final third lead the receiver into space, by vision
     "through_ball": 0.007,     # chance a forward pass to a runner in the attacking half is played in behind
     "through_vision": 0.30,    # ... rising with the passer's vision (log scale per z)
     "through_base": 0.55,      # through-ball completion for average players
     "offside_through": 0.30,   # mistimed runs on a ball in behind: offside
-    "offside_long": 0.09,      # a long forward ball to the most advanced attacker: offside (0.06 before 0.6.0; strikers
-                               # now see fewer long balls, and offsides stay in band)
+    "offside_long": 0.065,     # a long forward ball to the most advanced attacker: offside (0.06 before 0.6.0, when strikers
+                               # began to see fewer long balls, 0.09 in 0.6.0; since 0.7.0 centre-backs hit some long too)
     "shot_drive": 0.19,        # finishers shoot more often from close in (weight, log scale per z; 0.28 before 0.6.0) ...
     "shot_drive_band": (1.0, 0.2, -0.5),  # ... in full inside 16 m, a little at 16-24 m, and less from further out: the
                                           # best finishers take better chances, not just more shots
@@ -161,8 +168,9 @@ LEAGUE: dict[str, Any] = {
     # and the winger's (1.8, 1.0, 0.33 and 1.55, 1.45, 1.15 before): the star took about 6 shots per 90 over many seasons,
     # above any Premier League player, and a striker still shoots more than a winger from close in. 0.6.0 raised the
     # striker's (1.6, 0.85, 0.25 before): he now has the ball less often (pass_role, receive_role) and shoots more of the
-    # times he does.
-    "shot_role": {"ST": (2.2, 1.1, 0.3), "AM": (2.4, 2.9, 2.3), "W": (1.4, 1.35, 1.1), "CM": (4.0, 5.7, 4.4),
+    # times he does. 0.7.0 lowered it again (2.2, 1.1, 0.3 before): crosses now look for the players attacking the box, so
+    # strikers meet more of them, and one striker took more than 40% of his club's npxG.
+    "shot_role": {"ST": (1.8, 0.9, 0.3), "AM": (2.4, 2.9, 2.3), "W": (1.4, 1.35, 1.1), "CM": (4.0, 5.7, 4.4),
                   "DM": (4.0, 5.3, 4.0), "FB": (5.5, 5.5, 3.3), "CB": (5.5, 5.5, 3.3), "GK": (0.0, 0.0, 0.0)},
     "finish": 0.06,            # finishing on goal probability (log-odds per z): the best finisher (z about 4.4) beats xG by
                                # about a quarter, as elite finishers do over a season (10-25%), not by double
@@ -176,9 +184,10 @@ LEAGUE: dict[str, Any] = {
     # 27 May 2024); keepers with 500+ minutes saved 51.5-73.5% in 2024/25 (Opta Analyst, 23 Apr 2025). Before 0.5.0
     # (0.4 and 0.25/0.6, copied from 0.1.0) 60% of unblocked shots were on target and keepers saved 76%
     "shot_blocked": 0.40,
-    "xg_scale": 0.95,          # the league's xG model: xg_scale * exp(-0.12 * distance), 1.1 in 0.1.0; strikers now shoot
+    "xg_scale": 1.0,           # the league's xG model: xg_scale * exp(-0.12 * distance), 1.1 in 0.1.0; strikers now shoot
                                # from closer in, so the scale comes down to keep xG per shot and goals in the Premier League's
-                               # bands (1.0 in 0.4.0-0.5.0)
+                               # bands (1.0 in 0.4.0-0.5.0, 0.95 in 0.6.0, 1.0 again since 0.7.0: crosses met by forwards
+                               # are headers and volleys, worth less, and goals stayed near the band's floor)
     "cross_volley_xg": 0.45,   # ... as is a first-time shot from a cross, struck under pressure in a crowded box
     "header_xg": 0.40,         # headers are worse chances than shots from the same spot (league xG model): a header from
                                # the penalty spot is worth about 0.11
@@ -207,21 +216,37 @@ LEAGUE: dict[str, Any] = {
     "straight_red": 0.003,      # per foul
     "yellow": 0.17,            # per foul (yellow cards are a diagnostic: no band)
     "second_yellow": 0.05,     # ... and for a player already booked
-    "cross_share": 1.0,        # a pass from a wide position in the final third is a cross this often (0.1.0: 0.7) ...
-    # ... where the final third starts 70 m from his own goal line, except (0.6.0) a full-back crosses from 42 m and a
-    # winger from 66: full-backs deliver early from deep and on the overlap (the leader band's crossers, Doughty and
-    # Robertson, are wing-backs and full-backs). Before 0.6.0 twelve full-backs made 9 crosses in a season between them
-    "cross_from": {"FB": 42.0, "W": 66.0},
+    # Crosses (0.7.0, review closing round 2). A wide player near the opponent's box first decides to cross, then aims
+    # into the box at a teammate attacking it. Before 0.7.0 the build-up target was picked first and every wide pass past
+    # a line measured from the passer's OWN goal line became a cross aimed into the box: full-backs "crossed" 50 m balls
+    # from their own half, and centre-backs 60 m away "received" them.
+    "cross_zone_m": {"FB": 40.0, "W": 39.0},   # a cross starts at most this far from the opponent's goal line (35 m for
+                               # other roles): the final third, and for full-backs the overlap just outside it
+    "cross_choice": {"FB": 1.0, "W": 1.0},     # in that zone, a wide player crosses this often (other roles: 1.0) when
+                               # someone is attacking the box; else he plays an ordinary pass. A corner is always a cross
+    "cross_box_m": 34.0,       # the teammates a cross can look for: outfielders this close to the goal line, arriving in or
+                               # already in the box (they run onto it while it is in the air) ...
+    "cross_role": {"ST": 1.3, "W": 1.8, "AM": 1.8, "CM": 0.8, "DM": 0.3, "FB": 0.4, "CB": 0.3},   # ... by role (the far
+                               # winger and the 10 attack the back post and the edge of the box as well as the striker) ...
+    "cross_finisher": 0.10,    # ... and finishing (log scale per z): the best finishers attack the cross (find_finisher's
+                               # role for ordinary passes)
+    "cross_near_m": 12.0,      # ... and nearer where the ball comes down (weight exp(-d / this)); no one there: no cross
     # Who gets the ball and what he does with it, by role (0.6.0, review closing round 1). Before, a pass looked for a
     # teammate 16 m away tilted forward, so strikers received, touched and passed the ball more than anyone and centre-backs
     # least, the reverse of football; whoever was nearest the ball won it, so pressing strikers won as many tackles as
     # holding midfielders and committed the most fouls. The checks are in regista.synth.report (ROLE_SHAPES).
     "forward_tilt": 0.075,     # how strongly a pass looks forward (per metre, up to 30 m; 0.06 in 0.1.0)
-    "receive_role": {"CB": 3.0, "FB": 1.5, "DM": 1.8, "CM": 1.4, "AM": 1.0, "W": 0.6, "ST": 0.3},   # target weight by role,
+    "receive_role": {"CB": 3.0, "FB": 2.0, "DM": 1.8, "CM": 1.4, "AM": 1.0, "W": 0.5, "ST": 0.3},   # target weight by role,
                                # for a passer in his own 60%: build-up goes through the back line and the holding midfielder
-    "receive_role_attack": {"CB": 1.6, "FB": 1.2, "DM": 1.5, "CM": 1.2, "AM": 1.0, "W": 0.8, "ST": 0.7},  # ... and further
-                               # forward, where attacks are recycled back through midfield as well as played into the front three
+    "receive_role_attack": {"CB": 1.6, "FB": 1.8, "DM": 1.5, "CM": 1.2, "AM": 1.0, "W": 0.65, "ST": 0.55},  # ... and further
+                               # forward, where attacks are recycled back through midfield as well as played into the front three.
+                               # 0.7.0 gave full-backs more of the ball and wingers and strikers less (FB 1.5/1.2, W 0.6/0.8, ST
+                               # 0.7 in attack before): full-backs touched the ball less than wingers (review closing round 2)
     "attack_from": 60.0,       # metres from his own goal line where the second table takes over
+    # (0.7.0, review closing round 2) a centre-back or full-back in his own half hits it long to one of the front three
+    # this often (more with a better passer): before, 1.2% of centre-backs' passes travelled 32 m or more
+    "long_ball_role": {"CB": 0.14, "FB": 0.05},
+    "long_ball_passing": 0.25,  # ... log scale per z of passing
     "pass_role": {"ST": 0.5, "W": 0.65, "AM": 0.9},   # how readily the holder passes, by role: forwards shoot, take players
                                # on and lose the ball more and pass less (the pass weight is 0.6 for every role before 0.6.0)
     "take_on_role": {"CB": 0.35, "FB": 0.8, "DM": 0.6, "CM": 0.8, "AM": 1.3, "W": 1.5, "ST": 1.0, "GK": 0.1},  # take-ons
@@ -292,14 +317,21 @@ MOTION: dict[str, Any] = {
     # how far each role's shape position follows the ball: centre-backs shuffle across and step up with it (they ran too
     # little at 0.33: every regular below the Premier League's lowest, 8.5 km per 90)
     "pull": {"GK": 0.20, "CB": 0.55, "FB": 0.58, "DM": 0.70, "CM": 0.72, "AM": 0.56, "W": 0.50, "ST": 0.48},
-    "box_push": {"AM": 4.0, "W": 3.0, "CM": 2.0},   # metres further forward, in full with the ball at the goal line
+    "box_push": {"AM": 4.0, "W": 3.0, "CM": 2.0, "ST": 6.0},   # metres further forward, in full with the ball at the goal
+                               # line (ST since 0.7.0: the striker attacks the box for crosses)
+    # (0.7.0, review closing round 2) metres further up in possession, on top of the team's shift: the back line steps up
+    # and the full-backs push on, so they pass from beyond their own 40% and full-backs reach the crossing zone
+    "push_role": {"CB": 12.0, "FB": 24.0},
+    "width_pull": {"FB": 0.30, "W": 0.30},   # (0.7.0) in possession, full-backs and wingers follow the ball across this
+                               # much (their pull, above, still applies up and down the pitch): they hold the width
     "wander_m": (0.9, 0.6),    # a slow personal drift around the shape position (Ornstein-Uhlenbeck step, each second):
                                # more in possession (finding space), less out of it
     "press_gap_m": 5.5,        # the presser closes the holder down to about this distance, goal-side
     "press_sprint_m": 10.0,    # ... sprinting when he is further away than this (if his reserve allows)
-    "run_rate": {"W": 0.009, "ST": 0.003, "AM": 0.0035, "FB": 0.0085, "CM": 0.014, "DM": 0.005, "CB": 0.0015, "GK": 0.0},
+    "run_rate": {"W": 0.009, "ST": 0.003, "AM": 0.0035, "FB": 0.012, "CM": 0.014, "DM": 0.005, "CB": 0.0015, "GK": 0.0},
                                # (0.6.0: FB 0.0075, CM 0.005, DM 0.0025 before; with build-up through the back the ball spends
-                               # more time deep, and midfielders and full-backs make more runs to stay in the physical bands)
+                               # more time deep, and midfielders and full-backs make more runs to stay in the physical bands;
+                               # FB 0.012 since 0.7.0: full-backs overlap into the crossing zone)
     "run_s": (2.0, 4.0),       # an attacking run lasts this long
     "run_m": (14.0, 26.0),     # ... toward goal this far
     "transition_s": 3.0,       # after a turnover the side that lost the ball recovers at a sprint, if far out of shape
@@ -854,11 +886,13 @@ class MatchSim:
                         b.run_until = -1.0
                     ax, ay = p.anchor_abs
                     if p.position != "GK":
-                        ax = clamp(ax + sign * sh, 2.0, PITCH_L - 2.0)
+                        push = M["push_role"].get(p.role or "", 0.0) * max(0.0, sh) / M["shift"][0] if team is att else 0.0
+                        ax = clamp(ax + sign * (sh + push), 2.0, PITCH_L - 2.0)
                     pull = b.pull
                     if team is att and ball_att > 60.0:   # with the ball high up the pitch, the front players attack the box
                         ax += sign * M["box_push"].get(p.role or "", 0.0) * (ball_att - 60.0) / 45.0
-                    tx, ty = ax + (sx - ax) * pull + b.ox, ay + (sy - ay) * pull + b.oy
+                    pull_y = M["width_pull"].get(p.role or "", pull) if team is att else pull   # wide men hold the width
+                    tx, ty = ax + (sx - ax) * pull + b.ox, ay + (sy - ay) * pull_y + b.oy
                     d = hypot(tx - p.x, ty - p.y)
                     if d >= ramp[-1][0]:
                         cap = ramp[-1][1]
@@ -1361,7 +1395,8 @@ class MatchSim:
         start = p.pos
         ahead = self.nearest((p.x + 6 * sign, p.y), opp)
         space = dist(ahead.pos, (p.x + 6 * sign, p.y)) > 5.0
-        carry_p = 0.7 if not self.league else clamp(0.7 * math.exp(LEAGUE["carry_drive"] * self.z(p, "dribbling")), 0.0, 0.95)
+        carry_p = 0.7 if not self.league else clamp(0.7 * math.exp(LEAGUE["carry_drive"] * self.z(p, "dribbling"))
+                                                    * LEAGUE["carry_role"].get(p.role or "", 1.0), 0.0, 0.95)
         if space and rng.random() < carry_p:
             speed = rng.uniform(*LEAGUE["carry_speed"]) * math.exp(LEAGUE["carry_pace"] * clamp(self.z(p, "dribbling"), -2.0, 4.0)) \
                 if self.league else rng.uniform(3.0, 7.0)
@@ -1461,6 +1496,20 @@ class MatchSim:
             cands.append((q, max(w, 0.001)))
         players, weights = zip(*cands)
         return self.rng.choices(players, weights=weights)[0]
+
+    def _pick_cross_target(self, p: Player, aim: Point) -> Player | None:
+        """League mode (0.7.0): who a cross is for. Outfield teammates within ``cross_box_m`` of the opponent's goal line,
+        arriving in or already in the box, by role (``cross_role``: strikers first, then wingers and attacking
+        midfielders), nearness to where the ball comes down and (``cross_finisher``) finishing. None when nobody is there
+        to aim at."""
+        team = p.team
+        cands = [q for q in sorted(team.starters, key=lambda q: q.player_id) if q is not p and q.position != "GK"
+                 and PITCH_L - self.att_x(team, q.x) < LEAGUE["cross_box_m"]]
+        if not cands:
+            return None
+        weights = [LEAGUE["cross_role"].get(q.role or "", 0.5) * math.exp(-dist(q.pos, aim) / LEAGUE["cross_near_m"]
+                   + LEAGUE["cross_finisher"] * self.z(q, "finishing")) for q in cands]
+        return self.rng.choices(cands, weights=weights)[0]
 
     def _do_pass(self, p: Player, pressure: bool) -> None:
         if self.league:
@@ -1739,16 +1788,28 @@ class MatchSim:
         launch = not goal_kick and p.position == "GK" and rng.random() < _sigmoid(
             _logit(LEAGUE["gk_launch"]) - LEAGUE["gk_launch_distribution"] * self.z(p, "distribution")
             - LEAGUE["gk_launch_keep"] * team.style.get("keep", 0.0))
-        if goal_kick or launch:  # hit long to one of the three players furthest forward
+        wide = abs(p.y - PITCH_W / 2) > 18   # in a wide channel, more than 18 m from the middle
+        to_goal_line = PITCH_L - self.att_x(team, p.x)
+        cross_aim: Point | None = None
+        target: Player | None = None
+        if not (goal_kick or launch) and wide and to_goal_line < LEAGUE["cross_zone_m"].get(p.role or "", 35.0) \
+                and (to_goal_line < 3.0 or rng.random() < LEAGUE["cross_choice"].get(p.role or "", 1.0)):
+            # a cross (always from the corner flag): into the box, at a teammate attacking it
+            depth = PITCH_L - rng.uniform(*LEAGUE["cross_depth_m"])
+            cross_aim = (depth if sign > 0 else PITCH_L - depth,
+                         clamp(PITCH_W / 2 + rng.gauss(0.0, LEAGUE["cross_spread_m"]), 14.0, 54.0))
+            target = self._pick_cross_target(p, cross_aim)
+        kind = "cross" if target is not None else "pass"
+        long_ball = False
+        if target is None and not (goal_kick or launch) and self.att_x(team, p.x) < PITCH_L / 2:
+            share = LEAGUE["long_ball_role"].get(p.role or "", 0.0)
+            long_ball = share > 0 and rng.random() < share * math.exp(LEAGUE["long_ball_passing"] * self.z(p, "passing"))
+        if goal_kick or launch or long_ball:  # hit long to one of the three players furthest forward
             front = sorted((q for q in team.starters if q.position != "GK"), key=lambda q: (-self.att_x(team, q.x), q.player_id))[:3]
             target = rng.choice(front)
-        else:
+        elif target is None:
             target = self._pick_pass_target(p)
         forward = (target.x - p.x) * sign
-        wide = abs(p.y - PITCH_W / 2) > 18
-        cross_from = LEAGUE["cross_from"].get(p.role or "", 70.0)
-        kind = "cross" if wide and self.att_x(team, p.x) > cross_from and target.position != "GK" \
-            and rng.random() < LEAGUE["cross_share"] else "pass"
         aim = target.pos
         through = False
         if kind == "pass" and not (goal_kick or launch) and target.position != "GK" and forward > 6 \
@@ -1758,8 +1819,7 @@ class MatchSim:
             ahead = clamp(self.att_x(team, target.x) + rng.uniform(6.0, 12.0), 0.0, PITCH_L - 3.0)
             aim = (ahead if sign > 0 else PITCH_L - ahead, clamp(target.y + rng.gauss(0, 2.0), 2.0, PITCH_W - 2.0))
         elif kind == "cross":   # into the box, where the target attacks the ball (the defenders there are centre-backs)
-            depth = PITCH_L - rng.uniform(*LEAGUE["cross_depth_m"])
-            aim = (depth if sign > 0 else PITCH_L - depth, clamp(PITCH_W / 2 + rng.gauss(0.0, LEAGUE["cross_spread_m"]), 14.0, 54.0))
+            aim = cross_aim
         elif kind == "pass" and forward > 10 and self.att_x(team, target.x) > 70:  # led into space, by vision
             lead = LEAGUE["lead_m"] * clamp(1.0 + 0.5 * self.z(p, "vision"), 0.0, 2.0) * rng.uniform(0.5, 1.0)
             ahead = clamp(self.att_x(team, target.x) + lead, 0.0, PITCH_L - 2.0)

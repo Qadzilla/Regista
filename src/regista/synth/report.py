@@ -108,8 +108,9 @@ LEADER_V: dict[str, tuple[float, str, float, float]] = {   # key: (V, where it c
     "shots_on_target": (2.08, "the leader, not the third best (the rest of the ranking could not be read): Haaland 2.08 "
                         "non-penalty and penalty shots on target per 90, 59 in all (StatMuse, Opta data, read 2026-10-24)",
                         0.5, 1.5),
-    # (no touches-in-the-box leader band since review closing round 1: Regista's touch records are one per 1.7 s on the
-    # ball, not FBref's touches, so its touches in the box are not comparable with FBref's Att Pen either)
+    # (no touches-in-the-box leader band since review closing round 1: Regista's touch records follow its own rule,
+    # regista.season.metrics.TOUCH_RECORDS, not FBref's touches, so its touches in the box are not comparable with FBref's
+    # Att Pen either)
     "tackles_won": (4.28, "tackles (Regista's tackle events are the tackles the league band counts): 1 Palhinha 5.14, "
                     "2 Joao Gomes 4.35, 3 Vinicius Souza 4.28", 0.75, 1.5),
     "interceptions": (1.97, "1 Antonee Robinson 2.23, 2 Lewis Cook 2.16, 3 Wan-Bissaka 1.97", 0.75, 1.5),
@@ -207,18 +208,41 @@ LEAGUE_DIAGNOSTICS = ("matches", "through_balls_per90", "yellow_cards_per90", "p
                       "progressive_carries_team_per90", "shot_outcomes", "gk_launch_pct_range", "gk_avg_pass_length_range")
 # Role shapes (league mode, review closing round 1): which roles make the numbers, not only how many there are. Per-90
 # means of qualified players by kit role (regista.synth.generator.ROLE_OF_KIT), each check an order between roles. The
-# Premier League figures are examples of each role (StatMuse, Opta data, 2023/24, read 2026-10-24), not role means; the
-# order they show is what is checked. Verdicts over six pooled seasons (LEADER_SEASONS), like the leaders.
-ROLE_SHAPE_KEYS = ("passes", "touches", "passes_received", "crosses", "tackles_won", "fouls", "fouls_won")
+# Premier League figures are examples of each role (mostly StatMuse, Opta data, 2023/24, read 2026-10-24; each check names
+# its source), not role means; the order they show is what is checked. Verdicts over six pooled seasons (LEADER_SEASONS),
+# like the leaders. Review closing round 2 added full-backs' touches, defenders' progressive and long passes, and where
+# full-backs' crosses start.
+ROLE_SHAPE_KEYS = ("passes", "touches", "passes_received", "crosses", "tackles_won", "fouls", "fouls_won",
+                   "progressive_passes", "progressive_carries", "long_passes")
+# A full-back's cross must start where crosses start (review closing round 2: before generator 0.7.0 half of them were
+# 50 m balls from his own half): the check also asks that full-backs' open-play crosses start, at the median, within
+# this many metres of the opponent's goal line, the final third plus the overlap.
+FB_CROSS_START_MAX_M = 40.0
+CB_LONG_PASSES_FLOOR = 2.5   # per 90, passes over 30 yards (the terminal's long_passes); the floor is ours, below Saliba's
 ROLE_SHAPES: dict[str, tuple[str, str]] = {   # name: (the order checked, its source)
     "passes_cb_dm_over_st": ("centre-backs and holding midfielders each attempt more passes per 90 than strikers",
                              "StatMuse (Opta data, 2023/24), completed passes per 90: Rodri (DM) 103.48, van Dijk (CB) 74.73, against Watkins (ST) 12.87 "
                              "and Haaland (ST) 10.47"),
     "touches_cb_dm_over_st": ("centre-backs and holding midfielders each touch the ball more per 90 than strikers",
                               "StatMuse (Opta data, 2023/24), touches per 90: Rodri 126.54, van Dijk 92.38, against Watkins 29.95 and Haaland 24.64"),
-    "fb_crosses_third_of_w": ("full-backs cross at least a third as often as wingers",
+    "touches_fb_over_w": ("full-backs touch the ball more per 90 than wingers",
+                          "StatMuse (Opta data, 2023/24, read 2026-10-24), touches per 90: Trippier (FB) 98.61 and Robertson (FB) "
+                          "92.60, against Saka (W) 65.55; the season's ten most touches include a full-back (Porro, 2,786) and no "
+                          "winger (FBref via Football365, 20 May 2024)"),
+    "fb_crosses_third_of_w": ("full-backs cross at least a third as often as wingers, and their open-play crosses start (median) "
+                              f"within {FB_CROSS_START_MAX_M:g} m of the opponent's goal line",
                               "StatMuse (Opta data, 2023/24), crosses per 90: Trippier (FB) 8.61 against Saka (W) 5.58; two of the top three crossers "
-                              "LEADER_V cites, Doughty and Robertson, play at full-back or wing-back"),
+                              "LEADER_V cites, Doughty and Robertson, play at full-back or wing-back. The start-position condition is "
+                              "ours: a cross is a ball from a wide area into the centre (Opta), not a long ball from his own half"),
+    "prog_passes_cb_fb_over_st": ("centre-backs and full-backs each make more progressive passes per 90 than strikers",
+                                  "two centre-backs, van Dijk (457) and van Hecke (449), made the most Premier League progressive "
+                                  "passes from the start of 2024/25 to October 2025 (Brighton & Hove Albion, 'Albion Analytics', 24 "
+                                  "Oct 2025; provider not named); the 2023/24 top ten includes a full-back (Zinchenko, 229) and no "
+                                  "striker (FBref via Football365, 20 May 2024)"),
+    "cb_long_passes_floor": (f"centre-backs attempt at least {CB_LONG_PASSES_FLOOR:g} long passes per 90, and more than strikers",
+                             "StatMuse (Opta data, 2023/24, read 2026-10-24), long ball passes per 90: van Dijk (CB) 7.20, Saliba (CB) "
+                             "3.42, against Haaland (ST) 0.18. Opta's long ball and the terminal's long pass (over 30 yards) are "
+                             "not the same cut; the floor is ours, below Saliba's"),
     "st_tackles_below_fb_cb_dm": ("strikers win fewer tackles per 90 than full-backs, centre-backs and holding midfielders",
                                   "StatMuse (Opta data, 2023/24), tackles per 90: Haaland 0.21 and Watkins 0.34, against van Dijk (CB) 1.10, Antonee "
                                   "Robinson (FB) 2.56, and the holding midfielders who lead LEADER_V's tackles (Palhinha "
@@ -229,15 +253,22 @@ ROLE_SHAPES: dict[str, tuple[str, str]] = {   # name: (the order checked, its so
 }
 
 
-def role_shape_checks(by_role: dict[str, dict[str, float]]) -> dict[str, bool]:
-    """``by_role``: metric -> role -> per-90 mean. True where the league's roles keep the order ROLE_SHAPES names."""
+def role_shape_checks(by_role: dict[str, dict[str, float]], fb_cross_start_m: float | None = None) -> dict[str, bool]:
+    """``by_role``: metric -> role -> per-90 mean; ``fb_cross_start_m``: the median distance from the opponent's goal line
+    at which full-backs' open-play crosses start (None: no such cross). True where the league's roles keep the order
+    ROLE_SHAPES names."""
     def r(key: str, role: str) -> float:
         return by_role.get(key, {}).get(role, 0.0)
 
     return {
         "passes_cb_dm_over_st": min(r("passes", "CB"), r("passes", "DM")) > r("passes", "ST"),
         "touches_cb_dm_over_st": min(r("touches", "CB"), r("touches", "DM")) > r("touches", "ST"),
-        "fb_crosses_third_of_w": r("crosses", "FB") >= r("crosses", "W") / 3.0 > 0.0,
+        "touches_fb_over_w": r("touches", "FB") > r("touches", "W"),
+        "fb_crosses_third_of_w": r("crosses", "FB") >= r("crosses", "W") / 3.0 > 0.0
+        and fb_cross_start_m is not None and fb_cross_start_m <= FB_CROSS_START_MAX_M,
+        "prog_passes_cb_fb_over_st": min(r("progressive_passes", "CB"), r("progressive_passes", "FB"))
+        > r("progressive_passes", "ST"),
+        "cb_long_passes_floor": r("long_passes", "CB") >= CB_LONG_PASSES_FLOOR and r("long_passes", "CB") > r("long_passes", "ST"),
         "st_tackles_below_fb_cb_dm": r("tackles_won", "ST") < min(r("tackles_won", "FB"), r("tackles_won", "CB"),
                                                                    r("tackles_won", "DM")),
         "fouls_won_w_st_over_cb": min(r("fouls_won", "W"), r("fouls_won", "ST")) > r("fouls_won", "CB"),
@@ -248,8 +279,12 @@ def role_shape_checks(by_role: dict[str, dict[str, float]]) -> dict[str, bool]:
 # Football365: three of the five players with the most aerial duels won were centre-backs, the other two target
 # forwards). Contests are a diagnostic: since generator 0.5.0 keepers launch long to the front three, so strikers contest
 # about as many as centre-backs (and win far fewer), as target forwards do.
+# Crosses (generator 0.7.0, review closing round 2): where open-play crosses start, by the crosser's role (median metres
+# from the opponent's goal line; corners left out), and who receives the completed ones (share by role). No band: no
+# sourced figure was read; a cross is a ball from a wide area into the centre (Opta), so it starts near the box and is
+# met by the players attacking it, mostly forwards.
 SHAPE_DIAGNOSTICS = ("aerial_duels_won_per90_by_role", "cb_aerial_won_rank", "aerial_duels_per90_by_role", "cb_aerial_rank",
-                     "field_tilt_team_range")
+                     "field_tilt_team_range", "cross_start_m_by_role", "crosses_received_by_role")
 DIAGNOSTICS = ("replays_per_goal", "tracks_kit_number_share", "minutes", "possession_changes_per90", "carries_per90", "pressures_per90")
 
 
@@ -357,11 +392,14 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
     role_of: dict[str, str] = {}
     clubs: dict[str, Counter] = {}
     gk_passes = gk_long = 0
+    cross_start: dict[str, list[float]] = {}
+    cross_to: Counter = Counter()
     for recs in groups:
         header = next((r for r in recs if r["type"] == "match"), None)
         if header is None:
             continue
         keepers = {p["player_id"] for p in header["players"] if p.get("position") == "GK"}
+        _crosses(recs, header, cross_start, cross_to)
         for r in recs:   # keepers' passes, goal kicks included, and how many travel 32 m or more (Opta's long pass)
             if r.get("event_type") in ("pass", "cross") and r.get("player_id") in keepers:
                 gk_passes += 1
@@ -436,6 +474,9 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
     out["cb_aerial_rank"] = order.index("CB") + 1 if "CB" in order else 0
     order = sorted(won_by_role, key=lambda r: -won_by_role[r])
     out["cb_aerial_won_rank"] = order.index("CB") + 1 if "CB" in order else 0
+    out["cross_start_m_by_role"] = {r: round(_median(v), 1) for r, v in sorted(cross_start.items()) if r != "GK"}
+    total = sum(cross_to.values())
+    out["crosses_received_by_role"] = {r: round(n / total, 3) for r, n in sorted(cross_to.items())} if total else {}
     by_role: dict[str, dict[str, float]] = {}
     for key in ROLE_SHAPE_KEYS:
         acc: dict[str, list[float]] = {}
@@ -444,8 +485,36 @@ def season_metrics(stream: list[Record]) -> dict[str, Any]:
                 acc.setdefault(role_of[g], []).append(people[g].get(key, 0.0) * 90.0 / minutes[g])
         by_role[key] = {r: round(sum(v) / len(v), 2) for r, v in sorted(acc.items())}
     out["role_per90"] = by_role
-    out |= {f"shape_{k}": v for k, v in role_shape_checks(by_role).items()}
+    fb_start = out["cross_start_m_by_role"].get("FB")
+    out |= {f"shape_{k}": v for k, v in role_shape_checks(by_role, fb_start).items()}
     return out
+
+
+def _median(xs: list[float]) -> float:
+    ys = sorted(xs)
+    n = len(ys)
+    return 0.0 if not n else ys[n // 2] if n % 2 else (ys[n // 2 - 1] + ys[n // 2]) / 2.0
+
+
+def _crosses(recs: list[Record], header: Record, start: dict[str, list[float]], received: Counter) -> None:
+    """One match's open-play crosses (corners left out): the distance from the opponent's goal line where each starts,
+    by the crosser's kit role, into ``start``; the receiver's role of each completed one into ``received``."""
+    from regista.synth.generator import PITCH_L, ROLE_OF_KIT
+
+    role = {p["player_id"]: ROLE_OF_KIT.get(p["kit_number"], "?") for p in header["players"]}
+    ltr = {p["period"]: p.get("left_to_right_team_id") for p in header.get("periods", [])}
+    corner_poss = {r["id"] for r in recs if r["type"] == "possession" and r.get("gained_by") == "set_piece"}
+    for e in recs:
+        if e.get("event_type") != "cross" or "pitch" not in e:
+            continue
+        x = e["pitch"]["x"]
+        period = e.get("clock", {}).get("period")
+        to_line = PITCH_L - x if ltr.get(period) == e.get("team_id") else x
+        if to_line < 3.0 and e.get("possession_id") in corner_poss:   # a corner from the flag
+            continue
+        start.setdefault(role.get(e["player_id"], "?"), []).append(to_line)
+        if e.get("outcome") == "success" and e.get("related_player_id"):
+            received[role.get(e["related_player_id"], "?")] += 1
 
 
 def _roles(stream: list[Record]) -> dict[tuple[str, str], tuple[str, str]]:
@@ -680,7 +749,7 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
         rv = role_shape_verdicts(metrics)
         lines += ["## Role shapes (league mode)", "", "Which roles make the numbers: per-90 means of qualified players by kit "
                   "role, each check an order between roles. The Premier League figures are examples of each role, not role "
-                  f"means (StatMuse, Opta data, 2023/24). Verdicts over {LEADER_SEASONS} or more pooled seasons; on fewer "
+                  f"means (each check names its source; mostly StatMuse, Opta data, 2023/24). Verdicts over {LEADER_SEASONS} or more pooled seasons; on fewer "
                   f"marked '{INDICATIVE}'.", "", "| Check | Order | Verdict | Premier League |", "|---|---|---|---|"]
         for k, (order, source) in ROLE_SHAPES.items():
             lines.append(f"| {k} | {order} | {rv[k]} | {source} |")

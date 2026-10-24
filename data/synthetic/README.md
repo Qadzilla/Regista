@@ -158,7 +158,7 @@ Added in 0.1.1, both optional:
 ### League mode (schema 0.2.0): what the generator emits when players have ratings
 
 When both squads carry hidden ratings (`regista.season.league.generate_kwargs`, the Regista League's fixtures), the
-generator runs in **league mode** (`regista.synth.generator`, generator version 0.6.0 (`LEAGUE_GENERATOR_VERSION`),
+generator runs in **league mode** (`regista.synth.generator`, generator version 0.7.0 (`LEAGUE_GENERATOR_VERSION`),
 profile `league`; the stream is stamped schema 0.2.0). Outcomes then depend on the players involved, and these appear:
 
 | Event | Fields | When |
@@ -185,14 +185,17 @@ Also in league mode:
   three, less often for a better distributor and on a side of good passers (team style `keep`), so about 47% of keepers'
   passes travel 32 m or more, the Premier League's share (Opta Analyst).
 - **Shot outcomes** (0.5.0): a shot that is not a goal is saved 25% of the time (a little more for good finishers), and
-  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 71% (six seasons, 0.6.0),
+  of the rest 40% are blocked; so about 43% of unblocked shots are on target and keepers save about 71% (six seasons, 0.7.0),
   inside the Premier League's bands (`regista.synth.report`). Before 0.5.0, 60% of unblocked shots were on target.
-- **Take-ons** succeed about 38% of the time (six seasons, 0.6.0) (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
+- **Take-ons** succeed about 37% of the time (six seasons, 0.7.0) (the Premier League's 36.7%, Opta Analyst 2025/26); a failed take-on is a
   tackle, a foul, or (0.5.0) the ball running loose to whoever else is nearest.
-- **Touch records** (0.5.0): one per 1.89 s on the ball (1.82 s in 0.5.0, 0.8 s before, about twice FBref's count). The
-  interval also reshuffles every random draw of a season; 0.6.0 picked 1.89 from a scan of 1.60-2.00 so that the
-  committed season has the star as its outright top scorer and every one-season band in.
-- **xG** is still distance-based (`0.95·e^(-0.12·d)`, 0.02-0.85; `e^(-0.12·d)` in 0.4.0-0.5.0, `1.1·e^(-0.12·d)` before),
+- **Touch records** (0.5.0): one for every full 1.92 s of a spell on the ball, and at least one (`touch_every_s`; 1.82 in
+  0.5.0, 1.89 in 0.6.0, one per 0.8 s before 0.5.0, about twice FBref's count). Spells last 1-4 s, so that averages one
+  record per 2.3 s on the ball, about 560 per team per 90 in the committed season (`regista.season.metrics.TOUCH_RECORDS`
+  states it for the terminal, from these parameters). The interval also reshuffles every random draw of a season; 0.7.0
+  picked 1.92 from a scan of 1.80-2.00 so that the committed season has the star as its outright top scorer and every
+  one-season band in, and six pooled seasons pass every band and role shape.
+- **xG** is still distance-based (`e^(-0.12·d)`, 0.02-0.85, as in 0.4.0-0.5.0; `0.95·e^(-0.12·d)` in 0.6.0, `1.1·e^(-0.12·d)` before),
   with headers at 0.40 and first-time shots from a cross at 0.45 of a shot from the same spot.
 - **Roles shape the game** (0.6.0). Before, a pass looked for a teammate about 16 m away, tilted forward, and whoever
   was nearest the ball won it, so strikers passed and touched the ball more than anyone, full-backs hardly crossed,
@@ -207,13 +210,28 @@ Also in league mode:
     metres; forwards pressing win it less often (`lose_role`);
   - **fouls**: a forward's challenge is more often a foul (`foul_role`), and forwards and wingers on the ball are fouled
     most (`fouled_role`);
-  - **crosses**: a full-back crosses from 42 m out from his own goal line (early and overlapping deliveries), a winger
-    from 66 m, everyone else from the final third (70 m).
-  Each order is checked by `regista.synth.report.ROLE_SHAPES` (pass/fail, sourced from StatMuse's Premier League
-  examples): over six pooled seasons, per 90, passes CB 44 and DM 56 against ST 30; touches CB 53 and DM 70 against ST
-  46; crosses FB 3.1 against W 8.0; tackles won ST 1.1 against FB 1.7, CB 1.9, DM 3.6; fouls won W 1.7 and ST 1.6
-  against CB 0.5. The star's edge in chances is softened (`shot_drive` 0.19, `find_finisher` 0.13): over six seasons
-  his npxG per 90 is 1.5 times the next player's and he takes 31% of his club's npxG, both banded.
+  - **crosses** (0.7.0, review closing round 2): a wide player (more than 18 m from the middle) within 40 m of the
+    opponent's goal line (a full-back, on the overlap), 39 m (a winger) or 35 m (anyone else) decides to cross first,
+    then aims into the box at a teammate attacking it: an outfielder within 34 m of the goal line, by role (`cross_role`:
+    wingers and the 10 at the back post and the edge of the box as well as the striker), nearness to where the ball comes
+    down and finishing. With nobody there he plays an ordinary pass. A corner from the flag is always a cross. In 0.6.0
+    the target was picked first (in build-up, mostly centre-backs) and any wide pass a full-back made more than 42 m from
+    his **own** goal line became a cross into the box: half of full-backs' crosses were 50 m balls from their own half,
+    and centre-backs a median 60 m away "received" crosses;
+  - **the back line in possession** (0.7.0): centre-backs step up 12 m and full-backs push on 24 m beyond the team's
+    shift (`push_role`), full-backs and wingers hold the width (`width_pull`), full-backs get more of the ball and wingers
+    and strikers less, centre-backs hit some balls long to the front three (`long_ball_role`), and strikers and wide men
+    carry into space less often (`carry_role`).
+  Each order is checked by `regista.synth.report.ROLE_SHAPES` (pass/fail, each with its source): over six pooled
+  seasons, per 90, passes CB 46 and DM 53 against ST 32; touches CB 54 and DM 65 against ST 47, FB 57 against W 47;
+  crosses FB 3.4 against W 7.7, full-backs' open-play crosses starting a median 35 m from the opponent's goal line
+  (wingers' 30 m); progressive passes CB 2.1 and FB 3.3 against ST 1.4; long passes CB 4.0 against ST 2.6; tackles won ST
+  0.8 against FB 1.8, CB 2.0, DM 3.8; fouls won W 1.4 and ST 1.4 against CB 0.6. Strikers, wingers and the 10 receive
+  95% of completed open-play crosses (strikers 56%), a diagnostic the report prints with where crosses start by role. The
+  star's edge in chances is softened (`shot_drive` 0.19, `find_finisher` 0.13, `cross_finisher` 0.10): over six seasons
+  his npxG per 90 is 1.7 times the next player's and he takes 39% of his club's npxG, both banded. Still off and labelled
+  so in the terminal: centre-backs make about 2 progressive passes per 90 (a reviewer put Premier League regulars at
+  3-6, unsourced) and almost no progressive carries.
 
 **How ratings move outcomes.** A rating enters as a skill `z = (rating - centre) / 7`, where the centre is the rating of
 the average league player who performs that action (`SKILL_CENTRE`, measured over league seasons: finishing 66, passing

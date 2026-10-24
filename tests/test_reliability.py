@@ -85,8 +85,14 @@ def test_every_metric_says_how_far_its_level_is_checked():
         assert realism(key)["checked"] is True, key
     # review closing round 1: the metrics whose league level was checked but whose roles were not now name a role shape
     for key, shape in (("passes", "passes_cb_dm_over_st"), ("crosses", "fb_crosses_third_of_w"),
-                       ("tackles_won", "st_tackles_below_fb_cb_dm"), ("fouls_won", "fouls_won_w_st_over_cb")):
+                       ("tackles_won", "st_tackles_below_fb_cb_dm"), ("fouls_won", "fouls_won_w_st_over_cb"),
+                       ("progressive_passes", "prog_passes_cb_fb_over_st")):
         assert f"shape_{shape}" in realism(key)["bands"], key
+    # review closing round 2: a league ratio does not check roles; where the roles are still off, the note says so
+    assert "Likely low for centre-backs" in realism("progressive_passes")["note"]
+    assert "Likely off by role" in realism("progressive_carries")["note"]
+    for key, shape in (("touches", "shape_touches_fb_over_w"), ("long_passes", "shape_cb_long_passes_floor")):
+        assert shape in realism(key)["note"], key
 
 
 def test_clean_sheets_and_touches_say_what_they_count():
@@ -94,6 +100,27 @@ def test_clean_sheets_and_touches_say_what_they_count():
     assert "30-minute" in CATALOGUE["clean_sheet_pct"].definition
     assert "clean_sheets" not in DEFAULT_COLUMNS["GK"] and "clean_sheet_pct" not in DEFAULT_COLUMNS["GK"]
     assert CATALOGUE["touches"].rule.startswith("Regista") and "twice" in CATALOGUE["touches"].definition
+
+
+def test_the_touch_record_rule_is_the_generators_own():
+    """Review closing round 2: the served definition gave a touch interval (1.7 s) the generator did not use (1.89 s).
+    The rule is now stated once, from the generator's parameters, and every definition that counts touch records quotes
+    it; the mean time on the ball per record is measured here by sampling the generator's own rule."""
+    import random
+
+    from regista.season.metrics import TOUCH_RECORDS
+    from regista.synth.generator import LEAGUE, LEAGUE_GENERATOR_VERSION, PROFILES
+
+    every = LEAGUE["touch_every_s"]
+    lo, hi = PROFILES["league"]["hold"]
+    assert f"every full {every:g} s" in TOUCH_RECORDS and f"generator {LEAGUE_GENERATOR_VERSION}" in TOUCH_RECORDS
+    rng = random.Random(7)
+    holds = [rng.uniform(lo, hi) for _ in range(100_000)]
+    per_record = sum(holds) / sum(max(1, int(h / every)) for h in holds)
+    assert f"one record per {per_record:.1f} s on the ball" in TOUCH_RECORDS, (per_record, TOUCH_RECORDS)
+    for text in (CATALOGUE["touches"].definition, REALISM["touches"]["note"], REALISM["touches_in_box"]["note"]):
+        assert TOUCH_RECORDS in text
+    assert "1.7 s" not in CATALOGUE["touches"].definition
 
 
 # ---------------------------------------------------------------------------- the API states the sample and the noise
