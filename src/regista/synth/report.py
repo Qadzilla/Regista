@@ -739,7 +739,8 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
             v = individual_verdicts(metrics) if leaders else verdicts(metrics, norms)
             lines += [f"## {title}", "", intro, "", "| Metric | Value | Band | Verdict | Source |", "|---|---|---|---|---|"]
             for key, (lo, hi, unit, note_) in norms.items():
-                mins = metrics.get(key.replace("_per90", "_minutes")) if leaders and key.startswith("leader_") else None
+                mins = (metrics.get(key.replace("_per90", "_minutes")) if leaders and key.startswith("leader_") and key.endswith("_per90")
+                        else None)   # the gap rows are ratios: no minutes beside them
                 shown = f"{metrics.get(key)} {unit}" + (f" ({mins} min)" if mins is not None else "")
                 lines.append(f"| {key} | {shown} | {lo}–{hi} | {v[key]} | {note_} |")
             inb = sum(1 for x in v.values() if x.startswith("in band"))

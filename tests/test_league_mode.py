@@ -383,6 +383,11 @@ def test_role_shapes_and_leader_gaps_are_computed_and_reported(matches):
     assert all("StatMuse" in src or "LEADER_V" in src or "Palhinha" in src or "FBref" in src for _o, src in ROLE_SHAPES.values())
     md = render_markdown(m, "three matches", "league")
     assert "## Role shapes (league mode)" in md and all(f"| {k} |" in md for k in ROLE_SHAPES)
+    # the gap rows are ratios: no "(1.5 min)" beside them (reviews B final 2 and 3; fixed in verify-2)
+    for key in ("leader_npxg_gap", "leader_goals_gap"):
+        row = next(line for line in md.splitlines() if line.startswith(f"| {key} |"))
+        assert " min)" not in row, row
+    assert " min) |" in next(line for line in md.splitlines() if line.startswith("| leader_shots_per90 |"))
     # the orders themselves, on a hand-made table: 0.5.0's role means (review closing round 1) fail every check
     old = {"passes": {"CB": 32.0, "DM": 40.9, "ST": 62.6}, "touches": {"CB": 41.4, "DM": 55.3, "ST": 84.6},
            "crosses": {"FB": 0.31, "W": 6.46}, "tackles_won": {"CB": 1.45, "FB": 2.17, "DM": 3.14, "ST": 2.96},
