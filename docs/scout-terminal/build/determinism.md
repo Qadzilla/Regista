@@ -134,5 +134,10 @@ Docs updated to 0.7.1 where they describe the current season:
 - Local (Mac): `python3 -m pytest -q`: 797 passed, 13 deselected. `python3 -m pytest -q -m slow`: 13 passed.
 - CI on Linux after the fix: the test job passed (795 passed, 1 skipped), as did the image build and the smoke test:
   [run 40124110276](https://github.com/Qadzilla/Regista/actions/runs/40124110276) (push) and
-  [run 40124112916](https://github.com/Qadzilla/Regista/actions/runs/40124112916) (pull request). The season-pins
-  smoke check inside the image comes with the follow-up commit; its run is listed below.
+  [run 40124112916](https://github.com/Qadzilla/Regista/actions/runs/40124112916) (pull request).
+- CI on Linux with the season pins (commit 1c864ef): the test job passed (796 passed, 1 skipped), the image was built,
+  and the smoke test inside it printed `{"check": "season-pins", "ok": true, "root": "/app/data/season/matches",
+  "differs": {}}`. That is the 30 matches the image's Dockerfile built on python:3.11-slim, the live app's platform,
+  and they equal the Mac's bit for bit:
+  [run 40125927677](https://github.com/Qadzilla/Regista/actions/runs/40125927677) (push) and
+  [run 40125929263](https://github.com/Qadzilla/Regista/actions/runs/40125929263) (pull request).
