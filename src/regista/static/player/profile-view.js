@@ -28,7 +28,8 @@
   // the numerator's.
   const RATIOS = { pass_accuracy: ['passes_completed', 'passes', 'passes completed'],
                    shot_accuracy: ['shots_on_target', 'shots', 'shots on target'],
-                   take_on_success: ['take_ons_won', 'take_ons', 'take-ons won'] };
+                   take_on_success: ['take_ons_won', 'take_ons', 'take-ons won'],
+                   aerial_win: ['aerial_duels_won', 'aerial_duels', 'aerial duels won'] };
   // Kinds of moment worth a reel of their own, in the order the buttons show them (only those the player has).
   const REEL_TAGS = ['goal', 'assist', 'nutmeg', 'take_on', 'skill_move', 'key_pass', 'shot', 'save', 'tackle', 'interception',
                      'ball_won', 'cross'];

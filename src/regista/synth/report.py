@@ -71,7 +71,8 @@ PHYSICAL_NORMS: dict[str, tuple[float, float, str, str]] = {
                           "to 12.3 (highest regular starter) and 12.9 (highest, 600+ min) (The Analyst, OA-PHYS); 2022 World "
                           "Cup teams ran 108.1 ± 3.6 km a match, about 10 km per outfield player (Bradley 2023, FIFA-PHYS)"),
     "distance_per90_min_km": (7.5, 10.0, "km", "the lowest regular outfielder: 8.5 km (Murillo), then 8.8-9.0 "
-                              "(The Analyst 2024/25, 1,500+ min). Regulars here: at least 40% of the most minutes anyone played"),
+                              "(The Analyst 2024/25, 1,500+ min). Regulars here: at least 40% of the most minutes anyone played. The lower "
+                              "bound (7.5) is ours, below the source's 8.5: a value under 8.5 is lower than any Premier League regular"),
     "distance_per90_max_km": (11.0, 13.0, "km", "the highest: 12.3 km (Kulusevski, 1,500+ min), 12.9 (Yarmoliuk, 600+ min) "
                               "(The Analyst 2024/25)"),
     "hi_distance_per90_m": (600.0, 1100.0, "m", ">= 20 km/h. 2022 World Cup: 9,001 ± 850 m a team a match, about 800-900 per "
@@ -81,7 +82,7 @@ PHYSICAL_NORMS: dict[str, tuple[float, float, str, str]] = {
                                 "outfield player (FIFA-PHYS); > 25.1 km/h about 200 m a match, range 153-295 (HSR-REV)"),
     "sprints_per90": (6.0, 24.0, "sprints", ">= 25 km/h for >= 1 s. No published league mean: the Premier League's most "
                       "frequent sprinter had 702 by 23 March 2025 (The Analyst), about 24 a match over the 29 rounds played "
-                      "(our arithmetic); 33 ± 11 a match at the 2014 World Cup under a lower threshold (Chmura 2017, via "
+                      "(our arithmetic); 33 ± 11 a match at the 2014 World Cup above 25.2 km/h (Chmura 2017, via "
                       "HSR-REV). A derived band"),
     "walking_time_share": (0.54, 0.78, "share", "time below 6 km/h: Premier League 2024/25 outfielders walked 54.2% (lowest) "
                            "to 77.6% (highest) of their game time (The Analyst; jogging is 6-15 km/h, walking below)"),

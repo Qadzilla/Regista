@@ -185,3 +185,13 @@ def test_a_players_own_details_reach_the_profile_page(script, view):
     # "My details" (/me#team, this browser only) show at the top of /players/{id} as on My profile.
     assert "demo.details(profile.global_id)" in script and "view.identity(" in script
     assert "extra = {}" in view and 'data-r="extra"' in view and "textContent = String(x.bio)" in view
+
+
+def test_every_profile_ratio_has_its_count_and_words_in_the_renderer(view):
+    # Each ratio the profile API sends is drawn as "<pct> <words> (<num> of <den>)"; a ratio missing from the renderer's
+    # RATIOS fell back to its label ("39% aerial duels won %") and lost its counts.
+    from regista.season.profiles import RATIOS
+
+    block = re.search(r"const RATIOS = \{(.*?)\};", view, re.S).group(1)
+    for key, (_label, num, den) in RATIOS.items():
+        assert re.search(rf"{key}: \['{num}', '{den}', '[^']+'\]", block), key
