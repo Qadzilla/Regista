@@ -138,7 +138,9 @@ A raw, full 90-minute game as delivered on broadcast servers (the main broadcast
 - **Data: the synthetic "Regista League".** 6 clubs, 10 rounds (double round robin), 30 matches of 8 minutes, generator
   profile `realistic`, fixed squads of 18 with **global player ids** (`pl_…`) on every roster entry. The league definition
   (`data/season/league.json`: clubs, squads, fixtures, seeds) is committed; matches regenerate deterministically from it
-  on the server (0.2 s each) and are not committed.
+  and are not committed. Since league mode (player ratings, 10 Hz motion) a match takes about 1.1 s to generate, so a
+  cold season is built in parallel processes (`regista.season.build.build_all`: about 6 s on 10 cores, about 35 s on
+  one); the Docker image builds the season in at `docker build` time, so a fresh revision starts warm.
 - **Profiles** are aggregated from the event streams: appearances, minutes, counts and per-90 rates, a touch map (attack
   left to right), best moments across matches, and every stat links to the moments it came from ("verified by Regista").
   The **Profile agent** refreshes a profile when a match is added and has Foundry write a summary whose claims cite clips.

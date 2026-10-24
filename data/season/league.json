@@ -4,7 +4,7 @@
  "seed": 2026,
  "generator": {
   "name": "regista-synth",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "profile": "league",
   "minutes": 15.0,
   "periods": 2,
@@ -685,7 +685,7 @@
      "preferred_foot": "left",
      "nationality": "Ireland",
      "attributes": {
-      "finishing": 93,
+      "finishing": 97,
       "passing": 49,
       "vision": 65,
       "dribbling": 66,

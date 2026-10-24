@@ -9,7 +9,8 @@ GET /api/terminal/screen                players with chosen metric columns; filt
 GET /api/terminal/rank                  one metric's leaderboard (rank, value, percentile, how many events back it)
 GET /api/terminal/scatter               two metrics per player, plus the pool's medians
 GET /api/players/{global_id}/metrics    every metric for one player with percentiles and evidence (the events behind each
-                                        number, with the clip each sits in); evidence=KEY returns one metric's full list
+                                        number, with the clip each sits in; 10 per metric by default); evidence=KEY
+                                        returns one metric's list (up to 500); evidence_limit=N caps either, 0 gives none
 GET /api/players/{global_id}/form       per-match values of chosen metrics, and consistency
 GET /api/players/{global_id}/similar    the most similar players in the same position (cosine on standardised per-90s)
 GET /api/teams                          every club's style metrics
@@ -36,7 +37,8 @@ GID_PATTERN = r"^pl_[a-z0-9_]{1,40}$"
 CLUB_PATTERN = r"^cl_[a-z0-9_]{1,40}$"
 KEY_PATTERN = r"^[a-z0-9_]{1,40}$"
 KEYS_PATTERN = r"^[a-z0-9_]{1,40}(,[a-z0-9_]{1,40}){0,15}$"
-MAX_COLUMNS = 16
+MAX_EVIDENCE = 500   # evidence=KEY: at most this many items
+TABLE_EVIDENCE = 10  # the whole table: this many items per metric unless evidence_limit says otherwise
 POSITION = Annotated[str | None, Query(pattern="^(GK|DF|MF|FW)$")]
 ROLE = Annotated[str | None, Query(pattern="^(GK|FB|CB|DM|CM|AM|W|ST)$")]
 CLUB = Annotated[str | None, Query(max_length=40, pattern=r"^[A-Za-z0-9_ ]{1,40}$")]
@@ -188,11 +190,12 @@ async def scatter(x: Annotated[str, Query(pattern=KEY_PATTERN)], y: Annotated[st
 
 @router.get("/api/players/{gid}/metrics")
 async def player_metrics(gid: str, evidence: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None,
-                         evidence_limit: int = Query(10, ge=0, le=500),
+                         evidence_limit: int | None = Query(None, ge=0, le=MAX_EVIDENCE),
                          group: Annotated[str | None, Query(pattern=r"^[a-z]{1,20}$")] = None) -> dict[str, Any]:
     """Every metric (or one ``group``) for one player: value, count, percentile, peers, and evidence (the first
-    ``evidence_limit`` events behind each number, in match order, with the total). ``evidence=KEY`` returns that metric's
-    full evidence (up to 500) instead of the whole table."""
+    ``evidence_limit`` items behind each number, default 10, in match order, with the total). ``evidence=KEY`` returns that
+    metric's evidence instead of the whole table: all of it up to 500 by default, or the first ``evidence_limit``.
+    ``evidence_limit=0`` returns no items (the totals only), for event and physical metrics alike."""
     if evidence:
         _key(evidence)
 
@@ -202,11 +205,13 @@ async def player_metrics(gid: str, evidence: Annotated[str | None, Query(pattern
         if evidence:
             m = CATALOGUE[evidence]
             return {"global_id": gid, "name": ps.info["name"], "metric": m.public(), **sm.cell(ps, evidence),
-                    "evidence": sm.evidence(ps, evidence, limit=evidence_limit or 500), "synthetic": True}
+                    "evidence": sm.evidence(ps, evidence, limit=MAX_EVIDENCE if evidence_limit is None else evidence_limit),
+                    "synthetic": True}
         keys = [k for k, m in CATALOGUE.items() if not group or m.group == group]
         if group and not keys:
             raise HTTPException(422, f"unknown group {group!r}")
-        return {**sm.card(ps), "metrics": {k: {**sm.cell(ps, k), "evidence": sm.evidence(ps, k, limit=evidence_limit)}
+        limit = TABLE_EVIDENCE if evidence_limit is None else evidence_limit
+        return {**sm.card(ps), "metrics": {k: {**sm.cell(ps, k), "evidence": sm.evidence(ps, k, limit=limit)}
                                            for k in keys},
                 "catalogue": {k: CATALOGUE[k].public() for k in keys}, "season": _season_meta(sm)}
 

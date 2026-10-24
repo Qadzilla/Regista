@@ -55,16 +55,34 @@ SLOTS = (1, 2, 3, 4, 5, 6, 8, 10, 7, 9, 11)
 def season_matches(league: Record, seasons: int = 1) -> list[tuple[int, Record, list[Record]]]:
     """(round, match header, stream) for every fixture, regenerated with ratings; ``seasons`` > 1 shifts every seed by
     1000 per extra season (rounds keep their numbers)."""
-    from regista.synth.generator import generate
+    import multiprocessing
+    import os
+    from concurrent.futures import ProcessPoolExecutor
 
-    out = []
+    jobs = []
     for k in range(seasons):
         for fx in league["fixtures"]:
             kw = generate_kwargs(league, fx)
             kw["seed"] += 1000 * k
-            stream = generate(**kw).stream
-            out.append((fx["round"], stream[0], stream))
-    return out
+            jobs.append(kw)
+    workers = min(len(jobs), os.cpu_count() or 1)
+    streams = None
+    if workers > 1:   # one process per core: a league match takes about a second to generate
+        try:
+            with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn")) as pool:
+                streams = list(pool.map(_stream, jobs, chunksize=2))
+        except Exception:  # noqa: BLE001 - no worker processes here (an interactive or piped __main__): one by one
+            streams = None
+    if streams is None:
+        streams = [_stream(kw) for kw in jobs]
+    return [(fx["round"], stream[0], stream) for fx, stream in zip([f for _k in range(seasons) for f in league["fixtures"]],
+                                                                       streams)]
+
+
+def _stream(kw: Record) -> list[Record]:
+    from regista.synth.generator import generate
+
+    return generate(**kw).stream
 
 
 def _tallies(matches: list[tuple[int, Record, list[Record]]], rounds: set[int]) -> tuple[dict, dict]:

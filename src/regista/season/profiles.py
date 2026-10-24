@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import json
 import threading
-from bisect import bisect_left
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -29,6 +28,7 @@ from typing import Any
 from regista.schema import iter_jsonl
 from regista.season.build import materialise
 from regista.season.league import bio, club_by_id, load_league, people
+from regista.season.metrics import fbref_percentile, qualifying_minutes, rank_value
 from regista.season.playing_time import played_seconds
 from regista.synth.generator import PITCH_L, PITCH_W
 
@@ -94,6 +94,7 @@ class Season:
     claimed: list[Record] = field(default_factory=list)  # the claimed matches that were counted, for the API and the trace
     uploads: list[Record] = field(default_factory=list)  # Player-view uploads: {match_id, match_dir, players, claims}
     uploaded: list[Record] = field(default_factory=list)  # the uploaded matches that were counted
+    min_minutes: float = 0.0   # the percentile pool's qualifying minutes (the Scout terminal's rule: a third of a club's minutes)
 
     # ------------------------------------------------------------------ build
     @classmethod
@@ -102,6 +103,9 @@ class Season:
         """The season from the league's fixtures, plus the matches of ``claimed`` (``regista.season.claims.claimed_matches``:
         one row per confirmed claim) and of ``uploaded`` (``regista.player_api.uploaded_matches``: one row per finished
         Player-view upload)."""
+        from regista.season.build import build_all
+
+        build_all(league, root)   # a cold folder is generated in parallel first (the loop below then only reads)
         s = cls(league, Path(root), extra=_group_claims(claimed or []),
                 uploads=_group_claims([{**u, "claim_id": u["upload_id"]} for u in uploaded or []]))
         s._aggregate()
@@ -111,6 +115,7 @@ class Season:
         clubs = club_by_id(self.league)
         who = people(self.league)
         acc: dict[str, Record] = {gid: _empty(p) for gid, p in who.items()}
+        club_minutes: dict[str, float] = {cid: 0.0 for cid in clubs}
         table = {cid: {"club_id": cid, "club": c["name"], "short_name": c["short_name"], "kit": c["kit"], "played": 0, "won": 0,
                        "drawn": 0, "lost": 0, "goals_for": 0, "goals_against": 0, "points": 0} for cid, c in clubs.items()}
         for fx in self.league["fixtures"]:
@@ -122,6 +127,9 @@ class Season:
             team_club = {t["team_id"]: t.get("club_id") for t in header["teams"]}
             opp = {header["home_team_id"]: clubs[fx["away"]]["name"], header["away_team_id"]: clubs[fx["home"]]["name"]}
             self._table_row(table, fx, score)
+            match_minutes = sum(per["t_end"] - per["t"] for per in header.get("periods", [])) / 60.0
+            for cid in (fx["home"], fx["away"]):
+                club_minutes[cid] = club_minutes.get(cid, 0.0) + match_minutes
             self.matches.append({"match_id": fx["match_id"], "round": fx["round"], "date": fx["date"], "home": fx["home"],
                                  "away": fx["away"], "score": score, "title": _manifest_title(d)})
             _add_match(acc, d, stream, local_to_global, round_no=fx["round"], date=fx["date"],
@@ -133,7 +141,8 @@ class Season:
             self._add_claimed(acc, e, source="upload")
         for gid, a in acc.items():
             self.profiles[gid] = _finish(a)
-        _percentiles(self.profiles)
+        self.min_minutes = qualifying_minutes(max(club_minutes.values(), default=0.0))
+        _percentiles(self.profiles, self.min_minutes)
         self.table = sorted(table.values(), key=lambda r: (-r["points"], -(r["goals_for"] - r["goals_against"]), -r["goals_for"], r["club"]))
         for i, r in enumerate(self.table, start=1):
             r["position"] = i
@@ -326,6 +335,7 @@ def _finish(a: Record) -> Record:
         a["counts"][key] = sum(a["counts"][k] for k in parts)
     m = a["minutes"]
     a["minutes"] = round(m, 1)
+    a["_minutes_exact"] = m   # for the percentiles (dropped after them): rates ranked unrounded, as the terminal ranks them
     a["per90"] = {k: round(v * 90.0 / m, 2) if m else 0.0 for k, v in a["counts"].items()}
     a["ratios"] = {k: (round(a["counts"][num] / a["counts"][den], 3) if a["counts"][den] else None) for k, (_l, num, den) in RATIOS.items()}
     a["stat_labels"] = {k: lbl for k, (lbl, _t) in STATS.items()} | {k: lbl for k, (lbl, _n, _d) in RATIOS.items()} \
@@ -337,19 +347,28 @@ def _finish(a: Record) -> Record:
     return a
 
 
-def _percentiles(profiles: dict[str, Record]) -> None:
-    """Each per-90 rate's percentile (0-100) among players in the same position with at least 40% of the most minutes."""
+PERCENTILE_RULE = ("FBref's percentile rank, the same rule as the Scout terminal (regista.season.metrics.fbref_percentile): "
+                   "the mean of the share of position peers strictly below and the share at or below, among players with "
+                   "the qualifying minutes (a third of a club's minutes, FBref's 30 minutes per squad game)")
+
+
+def _percentiles(profiles: dict[str, Record], min_minutes: float) -> None:
+    """Each per-90 rate's percentile (0-100) among players in the same position with the qualifying minutes, by FBref's rule
+    (:data:`PERCENTILE_RULE`): one number for one stat, on the profile and in the Scout terminal alike."""
     by_pos: dict[str, list[Record]] = {}
-    most = max((p["minutes"] for p in profiles.values()), default=0.0)
     for p in profiles.values():
-        if p["appearances"] and p["minutes"] >= 0.4 * most:
+        exact = p.pop("_minutes_exact", p["minutes"])
+        if p["appearances"] and exact >= min_minutes:
+            p["_rates"] = {k: rank_value(c * 90.0 / exact) for k, c in p["counts"].items()}
             by_pos.setdefault(p["position"], []).append(p)
     for group in by_pos.values():
         for key in STATS:
-            values = sorted(p["per90"][key] for p in group)
+            values = sorted(p["_rates"][key] for p in group)
             for p in group:
-                below = bisect_left(values, p["per90"][key])
-                p["percentiles"][key] = round(100.0 * below / max(1, len(values) - 1)) if len(values) > 1 else None
+                p["percentiles"][key] = round(fbref_percentile(values, p["_rates"][key])) if len(values) > 1 else None
+    for group in by_pos.values():
+        for p in group:
+            del p["_rates"]
 
 
 def _manifest_title(d: Path) -> str | None:

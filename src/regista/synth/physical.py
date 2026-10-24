@@ -70,7 +70,7 @@ class Body:
     """One player's motion state (league mode) and the meters that record it. Speeds in m/s, distances in metres."""
 
     __slots__ = ("vx", "vy", "vmax", "acc", "dec", "stamina_z", "reserve", "ox", "oy", "run_until", "run_x", "run_y",
-                 "pull", "run_rate", "on_since", "played", "s_prev",
+                 "pull", "run_rate", "on_since", "played", "s_prev", "braking",
                  "dist", "zone", "walk_s", "jog_s", "hi_t", "hi_n", "sp_t", "sp_n", "peak",
                  "acc_t", "acc_pk", "dec_t", "dec_pk", "acc_med", "acc_high", "dec_med", "dec_high",
                  "relocated", "by_period")
@@ -90,6 +90,7 @@ class Body:
         self.on_since: float | None = None
         self.played = 0.0
         self.s_prev = 0.0
+        self.braking = False              # in a firm braking phase (the generator's steering keeps it until nearly done)
         self.dist = 0.0
         self.zone = [0.0, 0.0, 0.0, 0.0, 0.0]
         self.walk_s = self.jog_s = 0.0

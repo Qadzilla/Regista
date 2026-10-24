@@ -190,9 +190,9 @@ def assign_attributes(clubs: list[Record], seed: int = DEFAULT_SEED) -> None:
         best, runner_up = group[0], group[1]
         best["attributes"][key] = min(STANDOUT_CAP, max(best["attributes"][key], runner_up["attributes"][key] + STANDOUT_LIFT))
     star = next((p for p in everyone if p["global_id"] == STAR), None)
-    if star is not None:  # the striker standout: the league's best finisher among forwards, clear of the next best
-        top = max(p["attributes"]["finishing"] for p in everyone if p["position"] == "FW" and p is not star)
-        star["attributes"]["finishing"] = min(STANDOUT_CAP, max(star["attributes"]["finishing"], top + STANDOUT_LIFT // 2 + 3))
+    if star is not None:  # the striker standout: the league's best finisher by a distance, at the standouts' cap (since
+        # generator 0.4.0 finishing is worth a realistic edge, about a quarter over xG, so the star needs a clear one)
+        star["attributes"]["finishing"] = STANDOUT_CAP
 
 
 def age_on(date_of_birth: str, on: dt.date = AGE_ON) -> int:

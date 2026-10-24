@@ -378,13 +378,16 @@ _CATALOGUE: list[Metric] = [
        "FB-MISC", higher_is_better=False, digits=0),
     # -------------------------------------------------------------------------------------------- goalkeeping
     _m("sot_faced", "Shots on target faced", "goalkeeping", "per90", "shots",
-       "Opponent shots that scored or were saved while the keeper was on the pitch, penalties included.", "FBref SoTA", "FB-GK",
+       "Opponent shots that scored or were saved while the keeper was on the pitch. Penalty kicks are left out, as FBref "
+       "leaves them out of Save% (they are counted apart: penalties faced, penalties saved).", "FBref SoTA (penalties excluded)", "FB-GK",
        positions=KEEPER, higher_is_better=None),
     _m("goals_conceded", "Goals conceded", "goalkeeping", "per90", "goals", "Goals conceded while on the pitch.", "FBref GA",
        "FB-GK", positions=KEEPER, higher_is_better=False),
-    _m("saves", "Saves", "goalkeeping", "per90", "saves", "Shots on target saved.", "FBref Saves", "FB-GK, OPTA-DEF",
+    _m("saves", "Saves", "goalkeeping", "per90", "saves", "Shots on target saved, penalty kicks excluded (penalties saved "
+       "are counted apart).", "FBref Saves (penalties excluded)", "FB-GK, OPTA-DEF",
        positions=KEEPER),
-    _m("save_pct", "Save %", "goalkeeping", "ratio", "%", "Saves / shots on target faced, i.e. (SoTA - GA) / SoTA.",
+    _m("save_pct", "Save %", "goalkeeping", "ratio", "%", "Saves / shots on target faced, i.e. (SoTA - GA) / SoTA, penalty "
+       "kicks excluded from both, as FBref's Save% does.",
        "FBref Save%", "FB-GK", num="saves", den="sot_faced", min_den="sot_faced", positions=KEEPER, **PCT),
     _m("clean_sheets", "Clean sheets", "goalkeeping", "total", "matches", "Full matches played without conceding.",
        "Opta clean sheet", "OPTA-DEF", positions=KEEPER, digits=0),
@@ -477,7 +480,7 @@ PHYSICAL_FIELDS = {"distance": "distance_m", "hsr_distance": "zone4_m", "hi_dist
                    "sprint_distance": "sprint_distance_m", "sprints": "sprints", "hi_efforts": "hi_efforts",
                    "accelerations_high": "accelerations_high", "decelerations_high": "decelerations_high",
                    "walking_s": "walking_s"}
-# The ratio minimums, FBref's "per squad game" leader rules scaled by the matches a club plays (thresholds()).
+# The ratio minimums, FBref's "per squad game" leader rules scaled by the club's minutes / 90 (thresholds()).
 PER_SQUAD_GAME = {"shots": (0.395, "FBref: .395 shots per squad game"),
                   "take_ons": (0.5, "FBref: .5 take-ons per squad game"),
                   "aerials": (0.97, "FBref: .97 aerial duels per squad game"),
@@ -712,6 +715,7 @@ def analyse_match(stream: list[Record]) -> MatchMetrics:
     shots_on_pitch: list[tuple[Record, str]] = []
     goals_on_pitch: list[tuple[Record, str]] = []
     index_of = {id(r): i for i, r in enumerate(timeline)}
+    last_shot_penalty = False   # a save belongs to the shot just before it
 
     for r in timeline:
         if r["type"] == "possession":
@@ -740,6 +744,7 @@ def analyse_match(stream: list[Record]) -> MatchMetrics:
             xg = float(metrics.get("xg") or 0.0)
             goal = "goal" in q
             penalty = "penalty" in q
+            last_shot_penalty = penalty
             mm.add(pid, "xg", xg, r)
             mm.team_add(team, "xg_for", xg)
             mm.team_add(team, "shots_for", 1)
@@ -828,7 +833,7 @@ def analyse_match(stream: list[Record]) -> MatchMetrics:
             mm.add(pid, "offsides", 1, r)
         elif et == "assist":
             mm.add(pid, "assists", 1, r)
-        elif et == "save":
+        elif et == "save" and not last_shot_penalty:   # penalty saves are penalties_saved, not saves (FBref Save%)
             mm.add(pid, "saves", 1, r)
 
     # --- on the pitch: goals and xG for and against; keepers' shots faced, goals conceded, clean sheets
@@ -845,7 +850,7 @@ def analyse_match(stream: list[Record]) -> MatchMetrics:
             else:
                 mm.add(pid, "onpitch_xg_against", xg, shot)
                 if keeper:
-                    if q & {"goal", "saved"}:
+                    if q & {"goal", "saved"} and "penalty" not in q:
                         mm.add(pid, "sot_faced", 1, shot)
                     if "penalty" in q:
                         mm.add(pid, "penalties_faced", 1, shot)
@@ -1173,10 +1178,13 @@ class ClipIndex:
 
 # ============================================================================ the season
 
-def thresholds(matches_per_club: int) -> dict[str, Record]:
-    """The ratio minimums for this season: FBref's per-squad-game rules times the matches a club plays, and Regista's flat
-    minimums where FBref publishes none."""
-    out = {k: {"min": math.ceil(rate * matches_per_club - 1e-9), "rule": f"{why}, times {matches_per_club} matches"}
+def thresholds(team_minutes: float) -> dict[str, Record]:
+    """The ratio minimums for this season: FBref's per-squad-game rules times the club's squad games, counted as its minutes
+    / 90 (FBref's squad game lasts 90 minutes; a Regista match lasts 30, so ten matches are about 3.3 squad games), rounded
+    up; and Regista's flat minimums where FBref publishes none. The same scaling as the qualifying minutes."""
+    games = team_minutes / 90.0
+    out = {k: {"min": max(1, math.ceil(rate * games - 1e-9)),
+               "rule": f"{why}, times {games:.2f} squad games (club minutes / 90), rounded up"}
            for k, (rate, why) in PER_SQUAD_GAME.items()}
     out |= {k: {"min": n, "rule": why} for k, (n, why) in FLAT_MINIMUMS.items()}
     return out
@@ -1186,6 +1194,12 @@ def qualifying_minutes(team_minutes: float) -> float:
     """FBref's rate-leader minimum is 30 minutes per squad game, a third of each 90-minute match; Regista's matches last
     30 minutes, so a player qualifies with a third of his club's minutes (about 100 of 300)."""
     return round(team_minutes / 3.0, 1)
+
+
+def rank_value(v: float) -> float:
+    """A value as percentiles rank it: rounded to 6 decimals, so the same count over the same minutes ties wherever it was
+    summed (the profile and the terminal add minutes in different orders)."""
+    return round(v, 6)
 
 
 def fbref_percentile(values: list[float], v: float) -> float:
@@ -1305,7 +1319,7 @@ class SeasonMetrics:
                                    "counts": dict(counts), "peak": peak[0] if peak else None})
         self.matches_per_club = max(team_matches.values(), default=0)
         self.min_minutes = qualifying_minutes(max(team_minutes.values(), default=0.0))
-        self.thresholds = thresholds(self.matches_per_club)
+        self.thresholds = thresholds(max(team_minutes.values(), default=0.0))
         for ps in self.players.values():
             ps.values = {k: self._value(ps, m) for k, m in CATALOGUE.items()}
         self._percentiles()
@@ -1354,7 +1368,7 @@ class SeasonMetrics:
             pools: dict[str, list[float]] = defaultdict(list)
             for ps in self.players.values():
                 if ps.info["position"] in m.positions and self.qualified(ps, m):
-                    pools[ps.info["position"]].append(ps.values[m.key])
+                    pools[ps.info["position"]].append(rank_value(ps.values[m.key]))
             for pos, vals in pools.items():
                 vals.sort()
                 self.peer_pools[(m.key, pos)] = vals
@@ -1364,7 +1378,7 @@ class SeasonMetrics:
                 if not vals or len(vals) < 2 or not self.qualified(ps, m) or pos not in m.positions:
                     ps.percentiles[m.key] = None
                     continue
-                pct = fbref_percentile(vals, ps.values[m.key])
+                pct = fbref_percentile(vals, rank_value(ps.values[m.key]))
                 ps.percentiles[m.key] = round(100.0 - pct if m.higher_is_better is False else pct)
 
     def cell(self, ps: PlayerSeason, key: str) -> Record:
@@ -1385,12 +1399,13 @@ class SeasonMetrics:
 
     # ------------------------------------------------------------------ evidence
     def evidence(self, ps: PlayerSeason, key: str, limit: int | None = None) -> Record:
-        """The events behind a metric (``Metric.evidence_keys``), in match order, each with its match, time, value and clip."""
+        """The events behind a metric (``Metric.evidence_keys``), in match order, each with its match, time, value and clip.
+        ``limit`` None gives every item, a number at most that many (0: none); ``total`` always counts them all."""
         m = CATALOGUE[key]
         keys = m.evidence_keys()
         if m.group == "physical":
             items = self._match_evidence(ps, key)
-            return {"keys": [key], "total": len(items), "items": items[:limit] if limit else items, "per_match": True}
+            return {"keys": [key], "total": len(items), "items": items if limit is None else items[:limit], "per_match": True}
         rows = []
         for k in keys:
             for e in ps.evidence.get(k, []):
@@ -1647,8 +1662,9 @@ _lock = threading.Lock()
 
 def build_season(league: Record, root: Path | str) -> SeasonMetrics:
     """Materialise every fixture (``regista.season.build``) and compute the season's metrics."""
-    from regista.season.build import materialise
+    from regista.season.build import build_all, materialise
 
+    build_all(league, root)   # a cold folder is generated in parallel first
     streams = []
     for fx in league["fixtures"]:
         d = materialise(league, fx, root)

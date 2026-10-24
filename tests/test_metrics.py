@@ -256,12 +256,29 @@ def test_keepers_shots_faced_saves_and_clean_sheets():
     assert mm.counts["t_home_04"]["onpitch_xg_against"] == pytest.approx(0.45) and mm.counts["t_home_04"]["onpitch_goals_diff"] == -1
 
 
+def test_save_pct_leaves_penalties_out_as_fbref_does():
+    """FBref's Save% excludes penalty kicks (industry-metrics.md row 4); they are counted apart."""
+    s = S()
+    s.ev(100, "shot", "t_away_09", 20.0, 34.0, 0.0, 34.0, outcome="fail", q=["saved"], m={"xg": 0.1})
+    s.ev(100.5, "save", "t_home_01", 2.0, 34.0, rel="t_away_09")
+    s.ev(200, "shot", "t_away_09", 11.0, 34.0, 0.0, 34.0, outcome="fail", q=["penalty", "saved"], m={"xg": 0.79})
+    s.ev(200.5, "save", "t_home_01", 2.0, 34.0, rel="t_away_09")
+    s.ev(300, "shot", "t_away_09", 11.0, 34.0, 0.0, 34.0, q=["penalty", "goal"], m={"xg": 0.79})
+    s.ev(300.4, "goal", "t_away_09", 1.0, 34.0, q=["penalty"])
+    gk = analyse_match(s.stream()).counts["t_home_01"]
+    assert gk["sot_faced"] == 1 and gk["saves"] == 1                      # the open-play shot only: Save% 100%
+    assert gk["penalties_faced"] == 2 and gk["penalties_saved"] == 1 and gk["goals_conceded"] == 1
+
+
 def test_fbref_percentile_and_thresholds():
     vals = sorted([1.0, 2.0, 2.0, 3.0])
     assert fbref_percentile(vals, 3.0) == pytest.approx(87.5)    # (3/4 + 4/4) / 2
     assert fbref_percentile(vals, 2.0) == pytest.approx(50.0)    # (1/4 + 3/4) / 2
     assert fbref_percentile(vals, 1.0) == pytest.approx(12.5)
-    t = thresholds(10)
+    t = thresholds(301.5)   # ten 30-minute matches: 3.35 of FBref's 90-minute squad games
+    assert t["shots"]["min"] == 2 and t["take_ons"]["min"] == 2 and t["aerials"]["min"] == 4 and t["challenges"]["min"] == 3
+    assert "club minutes / 90" in t["aerials"]["rule"]
+    t = thresholds(900.0)   # ten 90-minute matches: FBref's own rule, times 10
     assert t["shots"]["min"] == 4 and t["take_ons"]["min"] == 5 and t["aerials"]["min"] == 10 and t["challenges"]["min"] == 7
     assert qualifying_minutes(301.5) == pytest.approx(100.5)
 
@@ -299,7 +316,7 @@ def small(tmp_path_factory):
 
 def test_engine_agrees_with_the_streams(small):
     league, root, sm = small
-    tagged, shots, sot = Counter(), 0, 0
+    tagged, shots, sot, pen_goals = Counter(), 0, 0, 0
     for fx in league["fixtures"]:
         for e in iter_jsonl(root / fx["match_id"] / "events.jsonl"):
             if e["type"] != "event":
@@ -309,14 +326,16 @@ def test_engine_agrees_with_the_streams(small):
                 tagged["key_passes"] += 1
             if e["event_type"] == "shot" and "penalty" not in q:
                 shots += 1
-            if e["event_type"] == "shot" and {"goal", "saved"} & set(q):
+            if e["event_type"] == "shot" and {"goal", "saved"} & set(q) and "penalty" not in q:   # FBref Save%: no penalties
                 sot += 1
+            if e["event_type"] == "goal" and "penalty" in q:
+                pen_goals += 1
     totals = Counter()
     for ps in sm.players.values():
         totals.update({k: v for k, v in ps.totals.items()})
     assert totals["key_passes"] == tagged["key_passes"]      # the generator tags the same pass the engine links
     assert totals["shots"] == shots and totals["sot_faced"] == sot
-    assert totals["saves"] + totals["goals_conceded"] == totals["sot_faced"]
+    assert totals["saves"] + totals["goals_conceded"] - pen_goals == totals["sot_faced"]
     assert totals["progressive_passes"] == totals["progressive_passes_received"]
     assert len(sm.match_rows) == 3 and sm.matches_per_club == 1
     shares = [t["values"]["possession_pct"] for t in sm.teams.values()]
@@ -332,11 +351,12 @@ def test_values_percentiles_and_evidence(small):
     assert star.info["position"] == "FW" and star.appearances == 1
     cell = sm.cell(star, "np_goals")
     assert cell["value"] == pytest.approx(star.totals["np_goals"] * 90 / star.minutes, abs=0.01)
-    ev = sm.evidence(star, "shots")
-    assert ev["total"] == star.totals["shots"]
+    assert sm.evidence(star, "shots")["total"] == star.totals["shots"]
+    ev = sm.evidence(star, "touches")
+    assert ev["total"] == star.totals["touches"] > 0
     first = ev["items"][0]
     events = {r["id"]: r for r in iter_jsonl(root / first["match_id"] / "events.jsonl")}
-    assert events[first["event_id"]]["event_type"] == "shot" and events[first["event_id"]]["player_id"] == first["player_id"]
+    assert events[first["event_id"]]["event_type"] == "touch" and events[first["event_id"]]["player_id"] == first["player_id"]
     with_clip = [i for i in ev["items"] if i["clip_id"]]
     assert with_clip and all(i["video_url"].endswith(f"{i['clip_id']}.mp4") for i in with_clip)
     phys = sm.evidence(star, "distance")
@@ -346,6 +366,40 @@ def test_values_percentiles_and_evidence(small):
             assert p is None or 0 <= p <= 100
             if p is not None:
                 assert ps.minutes >= sm.min_minutes and ps.info["position"] in CATALOGUE[k].positions
+
+
+def test_the_profile_and_the_terminal_give_one_percentile_for_one_stat(small):
+    """The profile page and the Scout terminal use one rule (FBref's) and one pool (the qualifying minutes)."""
+    from regista.season.profiles import Season
+
+    league, root, sm = small
+    season = Season.build(league, root)
+    assert season.min_minutes == sm.min_minutes
+    # (the profile's "shots" include penalty kicks; the terminal's follow FBref and leave them out, so they are not here)
+    same = {"goals": "goals", "key_passes": "key_passes", "interceptions": "interceptions", "take_ons_won": "take_ons_won",
+            "assists": "assists"}
+    checked = 0
+    for gid, p in season.profiles.items():
+        ps = sm.player(gid)
+        if ps is None or not p["appearances"]:
+            continue
+        for pk, mk in same.items():
+            if p["per90"][pk] != pytest.approx(round(ps.values[mk], 2), abs=0.011):
+                continue   # the two count a stat differently (none of these today); only equal values must rank equally
+            if p["percentiles"].get(pk) is not None and ps.percentiles.get(mk) is not None:
+                assert p["percentiles"][pk] == ps.percentiles[mk], (gid, pk, p["percentiles"][pk], ps.percentiles[mk])
+                checked += 1
+    assert checked > 50
+
+
+def test_evidence_limits(small):
+    _league, _root, sm = small
+    star = sm.player(STAR)
+    for key in ("touches", "distance"):          # an event metric and a physical one behave alike
+        full = sm.evidence(star, key)
+        assert len(full["items"]) == full["total"] > 0
+        assert sm.evidence(star, key, limit=0)["items"] == [] and sm.evidence(star, key, limit=0)["total"] == full["total"]
+        assert len(sm.evidence(star, key, limit=1)["items"]) == 1
 
 
 # ---------------------------------------------------------------------------- the API
@@ -401,6 +455,13 @@ def test_api_shapes(client):
     assert pm["metrics"]["shots"]["evidence"]["total"] >= len(pm["metrics"]["shots"]["evidence"]["items"])
     one = client.get(f"/api/players/{STAR}/metrics", params={"evidence": "touches"}).json()
     assert one["metric"]["key"] == "touches" and one["evidence"]["total"] == one["total"]
+    assert len(one["evidence"]["items"]) == one["evidence"]["total"] > 10     # evidence=KEY: all of it (up to 500)
+    assert len(pm["metrics"]["touches"]["evidence"]["items"]) == 3
+    table = client.get(f"/api/players/{STAR}/metrics", params={"group": "passes"}).json()
+    assert max(len(c["evidence"]["items"]) for c in table["metrics"].values()) == 10   # the table: 10 per metric by default
+    for key in ("touches", "distance"):
+        none = client.get(f"/api/players/{STAR}/metrics", params={"evidence": key, "evidence_limit": 0}).json()
+        assert none["evidence"]["items"] == [] and none["evidence"]["total"] > 0
 
     fm = client.get(f"/api/players/{STAR}/form", params={"metrics": "np_goals,distance"}).json()
     assert len(fm["matches"]) == 1 and len(fm["metrics"]["distance"]["values"]) == 1 and "consistency_rule" in fm

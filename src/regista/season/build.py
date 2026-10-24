@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import tempfile
 import threading
@@ -22,7 +23,7 @@ from regista.clips import derive_clips
 from regista.schema import write_jsonl
 from regista.season.league import club_by_id, generate_kwargs
 from regista.season.playing_time import played_seconds
-from regista.synth.generator import generate
+from regista.synth.generator import LEAGUE_GENERATOR_VERSION, generate
 
 Record = dict[str, Any]
 _locks: dict[str, threading.Lock] = {}
@@ -30,9 +31,12 @@ _locks_guard = threading.Lock()
 
 
 def fingerprint(league: Record, fixture: Record) -> str:
-    """Changes whenever anything that shapes this match changes: the fixture, both squads, the generator settings."""
+    """Changes whenever anything that shapes this match changes: the fixture, both squads, the generator settings in the
+    league file, and the generator code's own league version (so a folder built by older code is rebuilt even when the
+    league file was not regenerated)."""
     kw = generate_kwargs(league, fixture)
-    return hashlib.sha256(json.dumps({"kw": kw, "gen": league["generator"]}, sort_keys=True).encode()).hexdigest()[:16]
+    data = {"kw": kw, "gen": league["generator"], "code": LEAGUE_GENERATOR_VERSION}
+    return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
 
 
 def title(league: Record, fixture: Record, score: dict[str, int]) -> str:
@@ -97,7 +101,28 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
     return dest
 
 
-def build_all(league: Record, root: Path | str) -> list[Path]:
+def _materialise_one(args: tuple[Record, Record, str]) -> str:
+    league, fixture, root = args
+    return str(materialise(league, fixture, root))
+
+
+def build_all(league: Record, root: Path | str, workers: int | None = None) -> list[Path]:
+    """Every fixture's folder. Missing or stale ones are generated in parallel processes (a league match takes about a
+    second to generate, so a cold season of 30 takes about 35 s on one core and a few seconds on several); ``workers`` 1
+    builds them here, one by one."""
+    root = Path(root)
+    stale = [f for f in league["fixtures"] if not is_current(league, f, root)]
+    workers = min(len(stale), workers or os.cpu_count() or 1)
+    if workers > 1:
+        from concurrent.futures import ProcessPoolExecutor
+        import multiprocessing
+
+        root.mkdir(parents=True, exist_ok=True)
+        try:
+            with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn")) as pool:
+                list(pool.map(_materialise_one, [(league, f, str(root)) for f in stale]))
+        except Exception:  # noqa: BLE001 - no worker processes here (an interactive or piped __main__): the loop below builds
+            pass
     return [materialise(league, f, root) for f in league["fixtures"]]
 
 
