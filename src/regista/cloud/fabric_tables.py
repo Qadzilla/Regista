@@ -25,6 +25,7 @@ from typing import Any, Callable
 from regista.schema import iter_jsonl
 from regista.season.build import materialise
 from regista.season.league import people
+from regista.season.playing_time import played_seconds
 from regista.season.profiles import STATS, Season
 
 Record = dict[str, Any]
@@ -39,7 +40,7 @@ SCHEMAS: dict[str, dict[str, str]] = {
                 "home_goals": "int", "away_goals": "int", "seed": "int", "periods": "int", "played_s": "double",
                 "video_duration_s": "double", "title": "string"},
     "lineups": {"match_id": "string", "player_id": "string", "global_id": "string", "team_id": "string", "club_id": "string",
-                "kit_number": "int", "position": "string", "starter": "bool"},
+                "kit_number": "int", "position": "string", "starter": "bool", "played_s": "double"},
     "events": {"match_id": "string", "event_id": "string", "t": "double", "period": "int", "minute": "int", "second": "int",
                "event_type": "string", "outcome": "string", "player_id": "string", "global_id": "string", "team_id": "string",
                "club_id": "string", "related_player_id": "string", "related_global_id": "string", "possession_id": "string",
@@ -98,10 +99,12 @@ def _match_rows(tables: dict[str, list[Record]], d: Path, fx: Record, who: dict[
         # the same sum, in the same order, that a profile's minutes come from
         "played_s": sum(p["t_end"] - p["t"] for p in periods),
         "video_duration_s": (header.get("video") or {}).get("duration_s"), "title": manifest.get("title")})
+    on_pitch = played_seconds(stream)  # the seconds a profile's minutes come from (substitutions and red cards cut them)
     for p in header["players"]:
         tables["lineups"].append({"match_id": fx["match_id"], "player_id": p["player_id"], "global_id": gid_of[p["player_id"]],
                                   "team_id": p["team_id"], "club_id": team_club.get(p["team_id"]), "kit_number": p["kit_number"],
-                                  "position": p["position"], "starter": bool(p["starter"])})
+                                  "position": p["position"], "starter": bool(p["starter"]),
+                                  "played_s": float(on_pitch.get(p["player_id"], 0.0))})
     for e in stream:
         if e["type"] != "event":
             continue

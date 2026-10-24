@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 from regista.schema import iter_jsonl, validate_match_dir
 from regista.season.build import ensure_tracks, fingerprint, is_current, materialise
 from regista.season.league import age_on, generate_kwargs, new_league, people, save_league
-from regista.season.profiles import STATS, Season
+from regista.season.profiles import RELATED_STATS, STATS, Season
 from regista.season_api import MAX_PROFILE_REEL
 from regista.synth.generator import generate
 
@@ -94,11 +94,15 @@ def test_profile_counts_are_the_events(built):
         stream = list(iter_jsonl(root / fx["match_id"] / "events.jsonl"))
         local = {q["player_id"]: q["global_player_id"] for q in stream[0]["players"]}
         for e in stream:
-            if e["type"] == "event" and local.get(e.get("player_id")) == gid:
-                for key, (_label, test) in STATS.items():
+            if e["type"] != "event":
+                continue
+            for key, (_label, test) in STATS.items():  # most stats are the player's own; a few the other side's
+                who = e.get("related_player_id") if key in RELATED_STATS else e.get("player_id")
+                if local.get(who) == gid:
                     want[key] += bool(test(e))
     assert {k: p["counts"][k] for k in STATS} == {k: want[k] for k in STATS}
-    assert p["per90"]["passes"] == round(p["counts"]["passes"] * 90 / p["minutes"], 2)
+    # per 90 from the exact minutes; the profile shows minutes to 0.1 (substitutions make them uneven)
+    assert p["per90"]["passes"] == pytest.approx(p["counts"]["passes"] * 90 / p["minutes"], abs=0.1)
     assert sum(map(sum, p["grid"])) > 0
 
 

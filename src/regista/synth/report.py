@@ -2,6 +2,7 @@
 
     python -m regista.synth.report data/synthetic/sample/syn_0294
     python -m regista.synth.report --profile realistic --seeds 11 12 13 --minutes 20
+    python -m regista.synth.report --league data/season/league.json [--repeat 3]
 
 The generator has two profiles. ``demo`` packs a 3-minute sample with action so a
 short clip reel has something in it; ``realistic`` is tuned to land inside the bands
@@ -44,6 +45,23 @@ NORMS: dict[str, tuple[float, float, str, str]] = {
     "throw_ins_per90": (35.0, 55.0, "throw-ins", "both teams"),
     "possession_mean_s": (1.5, 4.5, "seconds", "mean time one player holds the ball"),
 }
+# League mode (schema 0.2.0: substitutions, penalties, aerial duels, red cards, offsides). Checked only on streams whose
+# generator ran with player ratings; their sources are cited one by one because no single table covers them.
+LEAGUE_NORMS: dict[str, tuple[float, float, str, str]] = {
+    "penalties_per90": (0.15, 0.45, "penalties", "Premier League 72-125 penalties a season (1997/98-2023/24), 0.19-0.33 a "
+                        "match: The Analyst on premierleague.com, 2 Jun 2024 (premierleague.com/news/4029218)"),
+    "red_cards_per90": (0.04, 0.25, "red cards", "Premier League 30-47 a season 2018/19-2022/23 (premierleague.com/news/3533373), "
+                        "0.08-0.12 a match; 2023/24 ran at 0.22 a match by December (theanalyst.com)"),
+    "offsides_per90": (2.5, 5.5, "offsides", "about 2 a team a match: Leeds United 76 in 38 Premier League games 2020/21 "
+                       "(leedsunited.com); Liverpool's opponents 95-144 a season (anfieldindex.com). Secondary sources"),
+    "aerial_duels_per90": (20.0, 40.0, "contests", "Premier League 22,917 aerial duels in a season, 60.3 a game counted per player "
+                           "(Opta counts a won and a lost duel for every contest), so about 30 contests a game "
+                           "(anfieldindex.com, an older season; secondary)"),
+    "substitutions_per_match": (6.0, 9.5, "per match", "Premier League 7.89 substitutions a match in 2023/24, both teams "
+                                "(The Analyst, theanalyst.com). Per match, not per 90: a league match is 30 minutes"),
+}
+LEAGUE_DIAGNOSTICS = ("matches", "through_balls_per90", "yellow_cards_per90", "cross_completion", "penalty_conversion",
+                      "npxg_per90", "np_goals_minus_xg", "key_passes_per_shot")
 DIAGNOSTICS = ("replays_per_goal", "tracks_kit_number_share", "minutes", "possession_changes_per90", "carries_per90", "pressures_per90")
 
 
@@ -80,15 +98,41 @@ def compute_metrics(stream: list[Record], tracks: list[Record] | None = None) ->
         "pressures_per90": round(counts["pressure"] * scale, 1),
         "replays_per_goal": round(replays / goals, 2) if goals else float(replays),
     }
+    if any(m.get("generator", {}).get("version", "0.1.0") >= "0.2.0" for m in matches):  # league mode: 0.2.0 events
+        out.update(_league_metrics(events, shots, counts, scale, len(matches)))
     if tracks:
         players = [t for t in tracks if t["object"] == "player"]
         out["tracks_kit_number_share"] = round(sum(1 for t in players if "kit_number" in t.get("identity", {}).get("evidence", [])) / len(players), 3) if players else 0.0
     return out
 
 
-def verdicts(metrics: dict[str, float]) -> dict[str, str]:
+def _league_metrics(events: list[Record], shots: list[Record], counts: Counter, scale: float, matches: int) -> dict[str, float]:
+    pens = [s for s in shots if "penalty" in s.get("qualifiers", [])]
+    open_play = [s for s in shots if "penalty" not in s.get("qualifiers", [])]
+    crosses = [e for e in events if e["event_type"] == "cross"]
+    npxg = sum(s.get("metrics", {}).get("xg", 0.0) for s in open_play)
+    key_passes = sum(1 for e in events if e["event_type"] in ("pass", "cross") and "key_pass" in e.get("qualifiers", []))
+    return {
+        "matches": matches,
+        "penalties_per90": round(counts["penalty"] * scale, 2),
+        "red_cards_per90": round(counts["card_red"] * scale, 2),
+        "offsides_per90": round(counts["offside"] * scale, 2),
+        "aerial_duels_per90": round(counts["aerial_duel"] * scale, 1),
+        "substitutions_per_match": round(counts["substitution"] / max(1, matches), 2),
+        "through_balls_per90": round(sum(1 for e in events if e["event_type"] == "pass" and "through_ball" in e.get("qualifiers", []))
+                                     * scale, 1),
+        "yellow_cards_per90": round(counts["card_yellow"] * scale, 2),
+        "cross_completion": round(sum(1 for e in crosses if e["outcome"] == "success") / len(crosses), 3) if crosses else 0.0,
+        "penalty_conversion": round(sum(1 for s in pens if s["outcome"] == "success") / len(pens), 3) if pens else 0.0,
+        "npxg_per90": round(npxg * scale, 2),
+        "np_goals_minus_xg": round(sum(1 for s in open_play if s["outcome"] == "success") - npxg, 1),
+        "key_passes_per_shot": round(key_passes / len(open_play), 3) if open_play else 0.0,
+    }
+
+
+def verdicts(metrics: dict[str, float], norms: dict[str, tuple[float, float, str, str]] | None = None) -> dict[str, str]:
     out = {}
-    for key, (lo, hi, _unit, _note) in NORMS.items():
+    for key, (lo, hi, _unit, _note) in (NORMS if norms is None else norms).items():
         v = metrics.get(key)
         if v is None:
             out[key] = "n/a"
@@ -105,7 +149,7 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
     v = verdicts(metrics)
     lines = [f"# Synthetic realism report: {title}", ""]
     if profile:
-        lines.append(f"Generator profile: **{profile}**. " + ("The demo profile is deliberately dense so a 3-minute sample fills a clip reel; its rates are expected to sit above the bands. " if profile == "demo" else "The realistic profile is tuned to sit inside the bands over a full match. "))
+        lines.append(f"Generator profile: **{profile}**. " + ("The demo profile is deliberately dense so a 3-minute sample fills a clip reel; its rates are expected to sit above the bands. " if profile == "demo" else "The league profile is the realistic one retuned for two halves and player ratings; with ratings it is checked against every band, the league-mode ones included. " if profile == "league" else "The realistic profile is tuned to sit inside the bands over a full match. "))
     if note:
         lines.append(note)
     lines += ["", f"Simulated minutes: {metrics.get('minutes', 0)}", "", f"Norms: {NORMS_SOURCE}", "",
@@ -116,6 +160,16 @@ def render_markdown(metrics: dict[str, float], title: str, profile: str | None =
         lines.append(f"| {key} | {shown} {unit} | {lo}–{hi} | {v[key]} | {note_} |")
     inb = sum(1 for x in v.values() if x == "in band")
     lines += ["", f"**{inb} of {len(NORMS)} metrics in band.**", "", "Diagnostics (no band): " + ", ".join(f"{k}={metrics[k]}" for k in DIAGNOSTICS if k in metrics), ""]
+    if "penalties_per90" in metrics:
+        lv = verdicts(metrics, LEAGUE_NORMS)
+        lines += ["## League mode (schema 0.2.0 events, players with ratings)", "",
+                  "Rare events: a season is 30 thirty-minute matches (about ten full matches), so check these over several "
+                  "seasons (`--repeat`).", "", "| Metric | Value | Band | Verdict | Source |", "|---|---|---|---|---|"]
+        for key, (lo, hi, unit, note_) in LEAGUE_NORMS.items():
+            lines.append(f"| {key} | {metrics.get(key)} {unit} | {lo}–{hi} | {lv[key]} | {note_} |")
+        linb = sum(1 for x in lv.values() if x == "in band")
+        lines += ["", f"**{linb} of {len(LEAGUE_NORMS)} league-mode metrics in band.**", "",
+                  "Diagnostics (no band): " + ", ".join(f"{k}={metrics[k]}" for k in LEAGUE_DIAGNOSTICS if k in metrics), ""]
     return "\n".join(lines)
 
 
@@ -140,10 +194,35 @@ def report_profile(profile: str, seeds: list[int], minutes: float) -> tuple[dict
     return metrics, render_markdown(metrics, f"profile '{profile}', seeds {seeds}, {minutes:g} min each", profile)
 
 
+def league_stream(league_path: Path | str, repeat: int = 1) -> list[Record]:
+    """Every fixture of the league regenerated in memory with its players' ratings (league mode); ``repeat`` > 1 adds
+    whole seasons with every seed shifted by 1000 per repeat (for rare events). Events only, no tracks."""
+    from regista.season.league import generate_kwargs, load_league
+    from regista.synth.generator import generate
+
+    league = load_league(league_path)
+    stream: list[Record] = []
+    for k in range(repeat):
+        for fx in league["fixtures"]:
+            kw = generate_kwargs(league, fx)
+            kw["seed"] += 1000 * k
+            stream += generate(**kw).stream
+    return stream
+
+
+def report_league(league_path: Path | str, repeat: int = 1) -> tuple[dict[str, float], str]:
+    metrics = compute_metrics(league_stream(league_path, repeat))
+    title = f"the Regista League ({league_path})" + (f", {repeat} seasons (seeds +0, +1000, ...)" if repeat > 1 else "")
+    return metrics, render_markdown(metrics, title, "league")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Compare synthetic match statistics with Premier League norms.")
     parser.add_argument("match_dir", nargs="?", type=Path, help="a generated match directory (events.jsonl)")
-    parser.add_argument("--profile", choices=["demo", "realistic"], help="instead of a directory, simulate this profile")
+    parser.add_argument("--profile", choices=["demo", "realistic", "league"], help="instead of a directory, simulate this profile")
+    parser.add_argument("--league", type=Path, nargs="?", const=Path("data/season/league.json"),
+                        help="instead of a directory, regenerate this league's fixtures with their players' ratings")
+    parser.add_argument("--repeat", type=int, default=1, help="with --league: this many seasons, seeds shifted by 1000 each")
     parser.add_argument("--seeds", type=int, nargs="+", default=[11, 12, 13])
     parser.add_argument("--minutes", type=float, default=20.0)
     parser.add_argument("--out", type=Path, help="write the markdown report here")
@@ -151,12 +230,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.match_dir:
         metrics, md = report_match_dir(args.match_dir)
+    elif args.league:
+        metrics, md = report_league(args.league, args.repeat)
     elif args.profile:
         metrics, md = report_profile(args.profile, args.seeds, args.minutes)
     else:
         parser.error("give a match directory or --profile")
     if args.json:
-        print(json.dumps({"metrics": metrics, "verdicts": verdicts(metrics)}, indent=2))
+        out = {"metrics": metrics, "verdicts": verdicts(metrics)}
+        if "penalties_per90" in metrics:
+            out["league_verdicts"] = verdicts(metrics, LEAGUE_NORMS)
+        print(json.dumps(out, indent=2))
     else:
         print(md)
     if args.out:

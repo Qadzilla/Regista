@@ -11,7 +11,7 @@ import pytest
 
 from regista.clips import StreamIndex, and_list, cut_clips, derive_clips, label_clips, replay_words, tag_phrase, tag_word, title_word
 from regista.feedback import needs_review
-from regista.schema import SCHEMA_VERSION, clips_validator, events_validator, iter_jsonl
+from regista.schema import LEGACY_SCHEMA_VERSION, SCHEMA_VERSION, clips_validator, events_validator, iter_jsonl
 from regista.synth import generate
 
 PLAYER = "t_home_09"
@@ -65,7 +65,9 @@ def test_validator_rejects_bad_records():
 
 
 def test_schema_version_is_consistent(result):
-    assert {r["schema_version"] for r in result.stream} == {SCHEMA_VERSION}
+    # Without player ratings the generator writes nothing added in 0.2.0, and stamps it 0.1.1 as it always did.
+    assert {r["schema_version"] for r in result.stream} == {LEGACY_SCHEMA_VERSION}
+    assert SCHEMA_VERSION == "0.2.0"
 
 
 # ----------------------------------------------------------------------------- stream shape

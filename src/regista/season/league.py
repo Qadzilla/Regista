@@ -14,7 +14,8 @@ import random
 from pathlib import Path
 from typing import Any
 
-from regista.synth.generator import BENCH, FIRST_NAMES, FORMATION_433, GENERATOR_NAME, GENERATOR_VERSION, LAST_NAMES
+from regista.synth.generator import (BENCH, FIRST_NAMES, FORMATION_433, GENERATOR_NAME, LAST_NAMES, LEAGUE_GENERATOR_VERSION,
+                                     ROLE_OF_KIT)
 
 Record = dict[str, Any]
 
@@ -22,7 +23,7 @@ LEAGUE_NAME = "Regista League"
 SEASON = "2026/27"
 DEFAULT_SEED = 2026
 MATCH_MINUTES = 15.0   # per half: 30-minute matches, about 300 minutes per player over the season
-PROFILE = "realistic"
+PROFILE = "league"     # "realistic" retuned for two halves and player ratings (regista.synth.generator.PROFILES)
 TRACK_HZ = 1.0
 FIRST_ROUND = dt.date(2026, 8, 15)
 
@@ -71,9 +72,8 @@ AGE_ON = dt.date(2026, 8, 1)           # age at season start, FBref's convention
 AGE_RANGE = (17, 35)
 STAR = "pl_bro_09"                     # Femi Toure: the league's best finisher among forwards (decided by Zaid)
 
-# The 4-3-3 slot behind each kit number (the formation never changes): starters 1-11, bench 13-22.
-ROLE_OF_KIT: dict[int, str] = {1: "GK", 13: "GK", 2: "FB", 3: "FB", 22: "FB", 4: "CB", 5: "CB", 15: "CB", 6: "DM", 16: "DM",
-                               8: "CM", 14: "CM", 10: "AM", 7: "W", 11: "W", 17: "W", 9: "ST", 20: "ST"}
+# The 4-3-3 slot behind each kit number (the formation never changes): starters 1-11, bench 13-22. ROLE_OF_KIT lives in
+# the generator, which reads it in league mode.
 ROLE_NAMES = {"GK": "goalkeeper", "FB": "full-back", "CB": "centre-back", "DM": "holding midfielder", "CM": "central midfielder",
               "AM": "attacking midfielder", "W": "winger", "ST": "striker"}
 
@@ -244,7 +244,7 @@ def new_league(seed: int = DEFAULT_SEED) -> Record:
                              "date": (FIRST_ROUND + dt.timedelta(days=7 * (r - 1))).isoformat(),
                              "home": home["club_id"], "away": away["club_id"], "seed": seed * 10 + r * 10 + k})
     return {"league": LEAGUE_NAME, "season": SEASON, "seed": seed,
-            "generator": {"name": GENERATOR_NAME, "version": GENERATOR_VERSION, "profile": PROFILE, "minutes": MATCH_MINUTES,
+            "generator": {"name": GENERATOR_NAME, "version": LEAGUE_GENERATOR_VERSION, "profile": PROFILE, "minutes": MATCH_MINUTES,
                           "periods": 2, "track_hz": TRACK_HZ},
             "attributes": {"version": ATTRIBUTES_VERSION, "seed": seed + ATTRIBUTE_SEED_OFFSET, "age_on": AGE_ON.isoformat(),
                            "scales": "data/synthetic/README.md#league-players-bio-and-hidden-ratings", "hidden": True,
@@ -275,15 +275,26 @@ def people(league: Record) -> dict[str, Record]:
             for c in league["clubs"] for p in c["squad"]}
 
 
-def generate_kwargs(league: Record, fixture: Record) -> Record:
-    """Arguments for ``regista.synth.generator.generate`` that reproduce this fixture exactly."""
+LEAGUE_FIELDS = ("attributes", "role", "height_cm", "preferred_foot")  # what league mode reads from a squad entry
+
+
+def generate_kwargs(league: Record, fixture: Record, *, ratings: bool = True) -> Record:
+    """Arguments for ``regista.synth.generator.generate`` that reproduce this fixture exactly. With ``ratings`` (the
+    default) each squad member carries its hidden ratings, role, height and foot, which switches the generator into
+    league mode; ``ratings=False`` gives ids and names only (the generator as it was before ratings)."""
     clubs = club_by_id(league)
     g = league["generator"]
+
+    def member(p: Record) -> Record:
+        out = {"global_id": p["global_id"], "name": p["name"]}
+        if ratings and "attributes" in p:
+            out.update({k: p[k] for k in LEAGUE_FIELDS if k in p})
+        return out
 
     def side(club_id: str) -> Record:
         c = clubs[club_id]
         return {"name": c["name"], "short_name": c["short_name"], "kit": c["kit"], "club_id": c["club_id"],
-                "squad": [{"global_id": p["global_id"], "name": p["name"]} for p in c["squad"]]}
+                "squad": [member(p) for p in c["squad"]]}
 
     home = clubs[fixture["home"]]
     return {"seed": fixture["seed"], "minutes": g["minutes"], "track_hz": g["track_hz"], "profile": g["profile"],

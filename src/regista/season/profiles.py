@@ -29,6 +29,7 @@ from typing import Any
 from regista.schema import iter_jsonl
 from regista.season.build import materialise
 from regista.season.league import bio, club_by_id, load_league, people
+from regista.season.playing_time import played_seconds
 from regista.synth.generator import PITCH_L, PITCH_W
 
 Record = dict[str, Any]
@@ -58,13 +59,25 @@ STATS: dict[str, tuple[str, Any]] = {
     "pressures": ("Pressures", lambda e: e["event_type"] == "pressure"),
     "saves": ("Saves", lambda e: e["event_type"] == "save"),
     "fouls_won": ("Fouls won", lambda e: e["event_type"] == "foul_won"),
+    # Schema 0.2.0 (the league's generator since ratings; real footage has none of these yet):
+    "aerial_duels_won": ("Aerial duels won", lambda e: e["event_type"] == "aerial_duel"),
+    "aerial_duels_lost": ("Aerial duels lost", lambda e: e["event_type"] == "aerial_duel"),   # counted for related_player_id
+    "through_balls": ("Through balls", lambda e: e["event_type"] == "pass" and "through_ball" in e.get("qualifiers", [])),
+    "offsides": ("Offsides", lambda e: e["event_type"] == "offside"),
+    "penalties_won": ("Penalties won", lambda e: e["event_type"] == "foul_won" and "penalty_won" in e.get("qualifiers", [])),
+    "penalty_goals": ("Penalty goals", lambda e: e["event_type"] == "goal" and "penalty" in e.get("qualifiers", [])),
 }
+# Stats credited to the event's related_player_id (the other side of a contest), not its player_id.
+RELATED_STATS = {"aerial_duels_lost"}
 # Shown on profiles and scout cards, in this order; the rest are in the full table.
 HEADLINE = ["goals", "assists", "shots", "key_passes", "take_ons_won", "nutmegs", "passes_completed", "tackles_won",
             "interceptions", "recoveries", "saves"]
 RATIOS = {"pass_accuracy": ("Pass accuracy", "passes_completed", "passes"),
           "take_on_success": ("Take-on success", "take_ons_won", "take_ons"),
-          "shot_accuracy": ("Shots on target", "shots_on_target", "shots")}
+          "shot_accuracy": ("Shots on target", "shots_on_target", "shots"),
+          "aerial_win": ("Aerial duels won %", "aerial_duels_won", "aerial_duels")}
+# Counts made from other counts (not events), kept beside them so ratios and rates can use them.
+DERIVED_COUNTS = {"aerial_duels": ("Aerial duels", ("aerial_duels_won", "aerial_duels_lost"))}
 GRID_X, GRID_Y = 12, 8
 MOMENTS_KEPT = 40
 MAX_EVIDENCE = 60
@@ -113,7 +126,7 @@ class Season:
                                  "away": fx["away"], "score": score, "title": _manifest_title(d)})
             _add_match(acc, d, stream, local_to_global, round_no=fx["round"], date=fx["date"],
                        entry=lambda p: {"club_id": team_club[p["team_id"]], "opponent": opp[p["team_id"]], "source": "league"},
-                       counts=lambda p: bool(p["starter"]))
+                       counts=lambda p, played=set(played_seconds(stream)): p["player_id"] in played)
         for e in self.extra:
             self._add_claimed(acc, e)
         for e in self.uploads:
@@ -219,6 +232,7 @@ def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_g
     match_id = d.name  # the folder is the match id the API serves (an upload may be stored under a new one)
     score = header.get("score", {})
     minutes = sum(p["t_end"] - p["t"] for p in header.get("periods", [])) / 60.0
+    on_pitch = played_seconds(stream)
     ltr = {p["period"]: p.get("left_to_right_team_id") for p in header.get("periods", [])}
     clip_of_event, moments = _clips_and_moments(d, local_to_global, stream=stream, round_no=round_no, derive_for=derive_for)
     for p in header["players"]:
@@ -226,19 +240,30 @@ def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_g
         if gid and gid in acc and counts(p):
             a = acc[gid]
             a["appearances"] += 1
-            a["minutes"] += minutes
+            # time on the pitch: substitutions and red cards (schema 0.2.0) cut it; a stream without them, or a
+            # claimed player the team sheet does not start, counts the whole match as before
+            a["minutes"] += on_pitch[p["player_id"]] / 60.0 if p["player_id"] in on_pitch else minutes
             a["matches"].append({"match_id": match_id, "round": round_no, "date": date, "player_id": p["player_id"],
                                  **entry(p), "home": p["team_id"] == header.get("home_team_id"),
                                  # a vision match whose header has no score (nothing counted the goals) shows none
                                  "score": f"{score.get('t_home', 0)}–{score.get('t_away', 0)}" if score else None})
     for rec in stream:
-        if rec["type"] != "event" or not rec.get("player_id"):
+        if rec["type"] != "event":
+            continue
+        other = local_to_global.get(rec.get("related_player_id") or "")
+        if other and other in acc:
+            for key in RELATED_STATS:
+                if STATS[key][1](rec):
+                    _count(acc[other], key, rec, match_id, rec["related_player_id"], clip_of_event)
+        if not rec.get("player_id"):
             continue
         gid = local_to_global.get(rec["player_id"])
         if not gid or gid not in acc:
             continue
         a = acc[gid]
         for key, (_label, test) in STATS.items():
+            if key in RELATED_STATS:
+                continue
             if test(rec):
                 a["counts"][key] += 1
                 if len(a["evidence"][key]) < MAX_EVIDENCE:
@@ -255,6 +280,13 @@ def _add_match(acc: dict[str, Record], d: Path, stream: list[Record], local_to_g
     for gid, ms in moments.items():
         if gid in acc:
             acc[gid]["moments"] += ms
+
+
+def _count(a: Record, key: str, rec: Record, match_id: str, player_id: str, clip_of_event: dict[tuple[str, str], str]) -> None:
+    a["counts"][key] += 1
+    if len(a["evidence"][key]) < MAX_EVIDENCE:
+        a["evidence"][key].append({"match_id": match_id, "player_id": player_id, "event_id": rec["id"], "t": rec["t"],
+                                   "clip_id": clip_of_event.get((player_id, rec["id"]))})
 
 
 def _sort_key(p: Record, sort: str) -> Any:
@@ -290,11 +322,14 @@ def _empty(person: Record) -> Record:
 
 
 def _finish(a: Record) -> Record:
+    for key, (_label, parts) in DERIVED_COUNTS.items():
+        a["counts"][key] = sum(a["counts"][k] for k in parts)
     m = a["minutes"]
     a["minutes"] = round(m, 1)
     a["per90"] = {k: round(v * 90.0 / m, 2) if m else 0.0 for k, v in a["counts"].items()}
     a["ratios"] = {k: (round(a["counts"][num] / a["counts"][den], 3) if a["counts"][den] else None) for k, (_l, num, den) in RATIOS.items()}
-    a["stat_labels"] = {k: lbl for k, (lbl, _t) in STATS.items()} | {k: lbl for k, (lbl, _n, _d) in RATIOS.items()}
+    a["stat_labels"] = {k: lbl for k, (lbl, _t) in STATS.items()} | {k: lbl for k, (lbl, _n, _d) in RATIOS.items()} \
+        | {k: lbl for k, (lbl, _p) in DERIVED_COUNTS.items()}
     # A claimed match has no round: it sorts after the league's rounds at equal watchability.
     a["moments"].sort(key=lambda r: (-r["watchability"], r["round"] is None, r["round"] or 0, r["t"]))
     a["moments"] = a["moments"][:MOMENTS_KEPT]

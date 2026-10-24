@@ -26,7 +26,8 @@ def league_match(tmp_path_factory):
     from regista.season.league import load_league
 
     league = load_league(LEAGUE)
-    return materialise(league, league["fixtures"][0], tmp_path_factory.mktemp("league"))
+    # fixture 1 (rl_r01_eas_bro) has an assisted goal; fixture 0 ends 0-0 since player ratings drive the league
+    return materialise(league, league["fixtures"][1], tmp_path_factory.mktemp("league"))
 
 
 def _stream(d: Path) -> list[dict]:

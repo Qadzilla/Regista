@@ -122,11 +122,14 @@ def test_regenerates_exactly_and_leaves_names_and_fixtures_alone(league):
     assert new_league(2026) == league
     assert json.loads((ROOT / "data" / "season" / "league.json").read_text()) == json.loads(json.dumps(league))
     assert new_league(2027)["clubs"][0]["squad"][0]["attributes"] != league["clubs"][0]["squad"][0]["attributes"]
-    # Squads (ids, names, numbers, positions), fixtures and generator settings hash as on main (e3da71d) before attributes.
+    # Squads (ids, names, numbers, positions) and fixtures (seeds included) hash as on main (e3da71d) before attributes.
+    # The generator settings changed on purpose with league mode (profile "league", generator 0.2.0).
     core = {"squads": [[{k: p[k] for k in ("global_id", "name", "kit_number", "position", "starter")} for p in c["squad"]]
-                       for c in league["clubs"]], "fixtures": league["fixtures"], "generator": league["generator"]}
+                       for c in league["clubs"]], "fixtures": league["fixtures"]}
     assert hashlib.sha256(json.dumps(core, sort_keys=True).encode()).hexdigest() == \
-        "2d9a32b78375627155ffeca827f4d757402ef4eebe986425a7442175fdaf9333"
+        "6ef762c94d856aa980e2021d96c3c57de165c8ea05e665d22f82ab2692007de7"
+    assert league["generator"] == {"name": "regista-synth", "version": "0.2.0", "profile": "league", "minutes": 15.0,
+                                   "periods": 2, "track_hz": 1.0}
 
 
 def test_player_attributes_is_the_generators_view(league):

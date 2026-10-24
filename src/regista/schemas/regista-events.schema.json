@@ -246,7 +246,7 @@
         },
         "lost_by": {
           "type": "string",
-          "enum": ["pass", "shot", "dispossessed", "tackled", "clearance", "out_of_play", "foul", "period_end", "unknown"]
+          "enum": ["pass", "shot", "dispossessed", "tackled", "clearance", "out_of_play", "foul", "offside", "period_end", "unknown"]
         },
         "touches": { "type": "integer", "minimum": 0 },
         "pitch": { "$ref": "#/$defs/pitch_point" },
@@ -268,7 +268,7 @@
           "type": "string",
           "enum": [
             "touch", "pass", "cross", "carry", "dribble", "take_on", "nutmeg", "skill_move",
-            "shot", "goal", "assist", "save", "block", "header",
+            "shot", "goal", "assist", "save", "block", "header", "aerial_duel",
             "tackle", "interception", "clearance", "recovery", "pressure",
             "foul", "foul_won", "offside", "card_yellow", "card_red", "substitution",
             "kick_off", "throw_in", "corner", "free_kick", "goal_kick", "penalty",

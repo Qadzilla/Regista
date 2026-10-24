@@ -1,7 +1,7 @@
 """Regenerate the league's matches from ``league.json`` into match folders the rest of Regista reads.
 
-Each match folder looks like a committed sample: ``events.jsonl``, ``clips.jsonl`` (every starter's clips, labelled by
-the rules labeller) and ``manifest.json`` (title, round, ``collection: season``). ``tracks.jsonl`` (about 17 MB for a
+Each match folder looks like a committed sample: ``events.jsonl``, ``clips.jsonl`` (the clips of every player who played,
+labelled by the rules labeller) and ``manifest.json`` (title, round, ``collection: season``). ``tracks.jsonl`` (about 17 MB for a
 30-minute match) is written only when something needs positions, such as video (``ensure_tracks``); profiles need only
 the events. A folder is written
 into a temporary name and renamed into place, so a reader never sees half a match, and it is rebuilt when the league
@@ -21,6 +21,7 @@ from typing import Any
 from regista.clips import derive_clips
 from regista.schema import write_jsonl
 from regista.season.league import club_by_id, generate_kwargs
+from regista.season.playing_time import played_seconds
 from regista.synth.generator import generate
 
 Record = dict[str, Any]
@@ -65,10 +66,10 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
         root.mkdir(parents=True, exist_ok=True)
         result = generate(**generate_kwargs(league, fixture))
         stream = result.stream
-        starters = [p for p in result.match["players"] if p["starter"]]
+        played = played_seconds(stream)  # starters, and substitutes who came on (league mode)
         clips: list[Record] = []
         labels: list[Record] = []
-        for p in starters:
+        for p in (p for p in result.match["players"] if p["player_id"] in played):
             c, lb = derive_clips(stream, p["player_id"])
             clips += c
             labels += lb
@@ -81,7 +82,7 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
                 "round": fixture["round"], "date": fixture["date"], "home": fixture["home"], "away": fixture["away"],
                 "title": title(league, fixture, result.score),
                 "subtitle": f"{league['league']} {league['season']}, round {fixture['round']}: thirty generated minutes, "
-                            "every starter's moments cut and labelled.",
+                            "every player's moments cut and labelled.",
                 "score": result.score, "fingerprint": fingerprint(league, fixture),
                 "generator": {**league["generator"], "seed": fixture["seed"]},
                 "video_duration_s": result.match["video"]["duration_s"], "clip_count": len(clips),

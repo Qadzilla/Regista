@@ -41,8 +41,9 @@ def friendly_kwargs(league: Record, club_id: str, opponent_club_id: str, side: s
     """``generate`` arguments for a friendly: the league's squads and kits, one period, its own match id."""
     home, away = _sides(league, club_id, opponent_club_id, side)
     clubs = club_by_id(league)
+    # Without ratings: the footage stays in the format (and the event vocabulary) the vision layer was trained on.
     kw = generate_kwargs(league, {"match_id": "x", "home": home, "away": away, "seed": seed, "round": 0,
-                                  "date": "2026-10-24"})
+                                  "date": "2026-10-24"}, ratings=False)
     kw.update(minutes=minutes, periods=1, track_hz=TRACK_HZ, profile="demo",
               match_id=f"fr_{clubs[home]['short_name'].lower()}_{clubs[away]['short_name'].lower()}_{seed}",
               meta={"competition": "Friendly (filmed by a player)", "season": league["season"], "date": "2026-10-24",

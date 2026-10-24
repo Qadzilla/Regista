@@ -17,10 +17,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from regista.camera import MAIN_K, MAIN_WINDOW_M, camera_centre, screen_x
-from regista.schema import SCHEMA_VERSION
+from regista.schema import LEGACY_SCHEMA_VERSION, SCHEMA_VERSION
 
 GENERATOR_NAME = "regista-synth"
-GENERATOR_VERSION = "0.1.0"
+GENERATOR_VERSION = "0.1.0"          # without player attributes: unchanged since 0.1.0, byte for byte
+LEAGUE_GENERATOR_VERSION = "0.2.0"   # with them (league mode): player ratings drive outcomes, plus the 0.2.0 events
 
 PITCH_L = 105.0
 PITCH_W = 68.0
@@ -74,6 +75,85 @@ PROFILES: dict[str, dict[str, Any]] = {
         "corner_after_off_target": 0.55, "corner_after_block": 0.55, "replay_xg": 0.15,
     },
 }
+# The Regista League's profile: "realistic" retuned for two halves with player ratings (league mode, below). Without
+# ratings it is only a tuning; with them, regista.synth.report --league checks it against every band.
+PROFILES["league"] = {**PROFILES["realistic"], "shot_weights": (16.0, 0.12, 24.0, 0.07, 32.0, 0.036), "lose": 0.76,
+                      "failed_pass": {"interception": 0.08, "recovery": 0.68, "out": 0.06, "clearance": 0.18}}
+
+# ---------------------------------------------------------------------------- league mode: players with ratings
+#
+# A team whose squad carries hidden ratings (regista.season.league.assign_attributes) switches the match into league mode:
+# outcomes depend on the players involved, and the 0.2.0 events appear (substitution, penalty, aerial_duel, card_red,
+# offside, real through balls). Without ratings nothing below runs and every random draw happens exactly as in 0.1.0.
+#
+# A rating moves an outcome through its skill z = (rating - SKILL_CENTRE[key]) / RATING_SD, added in log-odds with the
+# weight in LEAGUE. Each centre is about the rating of the average player who performs that action in the league, so
+# league-wide rates stay where the profile was tuned. Finishing's centre (78.5) sits above the shot-weighted mean
+# (75-76) because the effect is convex in log-odds and good finishers take more of the shots: set there, the league's
+# goals minus xG sums to about zero over several seasons, so xG stays the chance's quality and the rating decides who
+# beats it. Defending's (62) is the average marker's, not the average tackler's: whoever is nearest the ball defends.
+ROLE_OF_KIT: dict[int, str] = {1: "GK", 13: "GK", 2: "FB", 3: "FB", 22: "FB", 4: "CB", 5: "CB", 15: "CB", 6: "DM", 16: "DM",
+                               8: "CM", 14: "CM", 10: "AM", 7: "W", 11: "W", 17: "W", 9: "ST", 20: "ST"}
+RATING_SD = 7.0
+SKILL_CENTRE: dict[str, float] = {  # measured over league seasons (see the comment above)
+    "finishing": 78.5, "passing": 68.0, "vision": 66.0, "dribbling": 69.0, "defending": 62.0, "aerial": 66.0,
+    "stamina": 73.0, "shot_stopping": 75.0, "handling": 72.0, "distribution": 64.0,
+}
+LEAGUE: dict[str, Any] = {
+    "pass_bias": 0.20,         # league-wide completion shift (log-odds), tuned so completion stays in band
+    "cross_delivery": -1.0,    # crosses into a crowded box arrive less often than a pass of the same length
+    "pass_skill": 0.22,        # passer's passing on completion (log-odds per z)
+    "pass_vision_tb": 0.25,    # passer's vision on a through ball's completion
+    "pass_defender": 0.14,     # the nearest defender to the ball's end point (defending), against
+    "pass_pressure": 0.10,     # the marker's defending, when the passer is under pressure
+    "vision_forward": 0.012,   # vision tilts target choice toward runners further forward (per z, per metre)
+    "receive_passing": 0.30,   # teammates pick good passers as targets more often (log scale per z)
+    "find_finisher": 0.25,     # ... and, in the final third, good finishers (log scale per z)
+    "create_shot": 0.30,       # a pass from a passer with vision sets up a shot more often (log scale per z)
+    "carry_drive": 0.15,       # good dribblers carry the ball into space more often
+    "lead_m": 1.5,             # completed forward passes into the final third lead the receiver into space, by vision
+    "through_ball": 0.007,     # chance a forward pass to a runner in the attacking half is played in behind
+    "through_vision": 0.45,    # ... rising with the passer's vision (log scale per z)
+    "through_base": 0.55,      # through-ball completion for average players
+    "offside_through": 0.30,   # mistimed runs on a ball in behind: offside
+    "offside_long": 0.06,      # a long forward ball to the most advanced attacker: offside
+    "shot_drive": 0.22,        # finishers shoot a little more often (weight, log scale per z)
+    "finish": 0.35,            # finishing on goal probability (log-odds per z)
+    "keeper": 0.16,            # the keeper's shot stopping, against
+    "on_target": 0.15,         # finishing on hitting the target when it is not a goal
+    "header_xg": 0.65,         # headers are worse chances than shots from the same spot (league xG model)
+    "strong_foot": 0.06,       # strong foot / weak foot on goal probability (balanced: 0.8 * 0.06 = 0.2 * 0.24)
+    "weak_foot": 0.24,
+    "hold": 0.30,              # keeper's handling on holding a save (else a parry and a rebound)
+    "take_on_base": 0.5, "take_on_skill": 0.40,   # take-on: dribbling minus the defender's defending
+    "take_on_drive": 0.18,     # good dribblers attempt more take-ons
+    "flourish": 0.25,          # nutmeg and skill-move chances rise with dribbling
+    "lose_defender": 0.18, "lose_dribbler": 0.12,  # dispossession: marker's defending against holder's dribbling
+    "foul_discipline": 0.20,   # better defenders foul less
+    "interception_skill": 0.50,  # a failed pass is read (interception) rather than picked up loose, by defending
+    "box_foul_given": 0.20,    # contact in the box: given as a penalty this often, else the defender wins it cleanly
+    "penalty_xg": 0.79,        # FBref/Opta penalty xG (docs/scout-terminal/industry-metrics.md #10)
+    "straight_red": 0.003,      # per foul
+    "aerial_cross": 0.80, "aerial_long": 0.65,  # share of crosses / long balls contested in the air (if a defender is near)
+    "aerial_reach_m": 7.0,     # a defender this close to where the ball comes down contests it
+    "aerial_skill": 0.45,      # aerial z difference
+    "aerial_height": 0.25,     # per 10 cm of height difference
+    "aerial_defender_edge": 0.25,  # defenders attacking the ball in front of them win a few more
+    "header_clear_corner": 0.08,   # a defender's header from a cross goes out for a corner
+    "goal_kick_long": 0.5,     # goal kicks hit long to the front players
+    "sub_window": (0.58, 0.95),  # substitutions happen at stoppages from about the hour mark
+}
+SUB_COUNTS = ((2, 1), (3, 3), (4, 5), (5, 4))   # (substitutions per team, weight): mean 3.9, as the Premier League's 2023-24
+SUB_GROUPS = {"FB": "DEF", "CB": "DEF", "DM": "MID", "CM": "MID", "AM": "MID", "W": "ATT", "ST": "ATT"}
+
+
+def _logit(p: float) -> float:
+    p = clamp(p, 1e-4, 1 - 1e-4)
+    return math.log(p / (1 - p))
+
+
+def _sigmoid(v: float) -> float:
+    return 1.0 / (1.0 + math.exp(-v))
 
 
 def clamp(v: float, lo: float, hi: float) -> float:
@@ -105,7 +185,8 @@ class Team:
 
     @property
     def starters(self) -> list[Player]:
-        return [p for p in self.players if p.starter]
+        """The players on the pitch now: the starters, until a substitution or a red card (league mode) changes them."""
+        return [p for p in self.players if p.on]
 
     @property
     def keeper(self) -> Player:
@@ -124,6 +205,15 @@ class Player:
     global_id: str | None = None   # the same person in every match of a season (regista.season)
     x: float = 0.0
     y: float = 0.0
+    attrs: dict[str, float] | None = None   # hidden ratings (league mode); None otherwise
+    role: str | None = None                 # 4-3-3 slot of the kit number (GK, FB, CB, DM, CM, AM, W, ST)
+    height_cm: float | None = None
+    foot: str | None = None                 # preferred foot: right, left or both
+    on: bool | None = None                  # on the pitch now (starts as ``starter``)
+
+    def __post_init__(self) -> None:
+        if self.on is None:
+            self.on = self.starter
 
     @property
     def pos(self) -> Point:
@@ -172,6 +262,9 @@ class MatchSim:
         self.tune = PROFILES[profile]
         self.periods = periods
         self.team_specs = _team_specs(teams)
+        # League mode: the squads carry hidden ratings. Everything it changes is behind ``self.league``.
+        self.league = any("attributes" in m for spec in self.team_specs for m in spec.get("squad") or [])
+        self.schema_version = SCHEMA_VERSION if self.league else LEGACY_SCHEMA_VERSION
         self.period = 1
         self.period_start_t = 0.0
         self.period_table: list[dict[str, Any]] = []
@@ -211,6 +304,14 @@ class MatchSim:
         self.players = {p.player_id: p for p in self.home.players + self.away.players}
         self._reset_positions()
         self._open_main()
+        # League-mode state (never read otherwise).
+        self.pos_pass: Record | None = None      # the completed pass that started the current possession
+        self.yellows: set[str] = set()
+        self.goal_kick_long = False              # the next pass is a goal kick hit long
+        self.sub_plan: dict[str, list[float]] = {}
+        self.subbed: set[str] = set()            # players who came off or came on (nobody comes back, nobody goes twice)
+        if self.league:
+            self._plan_substitutions()
 
     # ------------------------------------------------------------------ setup
     def _build_teams(self) -> tuple[Team, Team]:
@@ -221,18 +322,22 @@ class MatchSim:
             # A season squad brings its own names and global ids, so the same people play every match; without one,
             # names are drawn from the match's own random stream (unchanged since 0.1.0).
             people = iter(team.squad or [])
-            def who() -> tuple[str, str | None]:
+            def who() -> tuple[str, str | None, dict[str, Any]]:
                 if team.squad:
                     person = next(people)
-                    return person["name"], person["global_id"]
-                return self._name(used), None
+                    return person["name"], person["global_id"], _league_fields(person)
+                return self._name(used), None, {}
             for position, number, ax, ay in FORMATION_433:
-                name, gid = who()
-                team.players.append(Player(f"{team.team_id}_{number:02d}", team, name, number, position, (ax, ay), global_id=gid))
+                name, gid, extra = who()
+                team.players.append(Player(f"{team.team_id}_{number:02d}", team, name, number, position, (ax, ay), global_id=gid,
+                                           **extra))
             for position, number in BENCH:
-                name, gid = who()
+                name, gid, extra = who()
                 team.players.append(Player(f"{team.team_id}_{number:02d}", team, name, number, position, (-8.0, 34.0), starter=False,
-                                           global_id=gid))
+                                           global_id=gid, **extra))
+            for pl in team.players:
+                if pl.attrs is not None:
+                    pl.role = ROLE_OF_KIT.get(pl.kit_number, pl.role)
             teams.append(team)
         return teams[0], teams[1]
 
@@ -268,6 +373,100 @@ class MatchSim:
     def nearest(self, point: Point, team: Team, exclude: Player | None = None, outfield: bool = False) -> Player:
         cands = [p for p in team.starters if p is not exclude and (not outfield or p.position != "GK")]
         return min(cands, key=lambda p: dist(p.pos, point))
+
+    # ------------------------------------------------------------------ league mode: skills and helpers
+    def z(self, p: Player, key: str) -> float:
+        """The player's skill at ``key`` in standard deviations from the average player doing that action (league mode)."""
+        return (p.attrs.get(key, SKILL_CENTRE[key]) - SKILL_CENTRE[key]) / RATING_SD if p.attrs else 0.0
+
+    def goal_probability(self, shooter: Player, keeper: Player, xg: float, *, headed: bool = False, weak: bool = False) -> float:
+        """Chance this shot goes in: its xG moved by the shooter's finishing (aerial for a header), the foot, and the
+        keeper's shot stopping, in log-odds."""
+        lo = _logit(xg) + LEAGUE["finish"] * self.z(shooter, "aerial" if headed else "finishing") \
+            - LEAGUE["keeper"] * self.z(keeper, "shot_stopping")
+        if not headed:
+            lo += -LEAGUE["weak_foot"] if weak else LEAGUE["strong_foot"]
+        return _sigmoid(lo)
+
+    def take_on_probability(self, dribbler: Player, defender: Player) -> float:
+        """Chance a take-on beats the defender: dribbling against defending."""
+        edge = self.z(dribbler, "dribbling") - self.z(defender, "defending")
+        return _sigmoid(_logit(LEAGUE["take_on_base"]) + LEAGUE["take_on_skill"] * edge)
+
+    def aerial_probability(self, attacker: Player, defender: Player) -> float:
+        """Chance the attacker wins a contested header: aerial ratings and height, a small edge to the defender."""
+        edge = LEAGUE["aerial_skill"] * (self.z(attacker, "aerial") - self.z(defender, "aerial")) \
+            + LEAGUE["aerial_height"] * ((attacker.height_cm or 180.0) - (defender.height_cm or 180.0)) / 10.0 \
+            - LEAGUE["aerial_defender_edge"]
+        return _sigmoid(edge)
+
+    def att_x(self, team: Team, x: float) -> float:
+        """x in ``team``'s attacking frame (it attacks toward 105)."""
+        return x if team.attack_sign > 0 else PITCH_L - x
+
+    def in_box(self, team: Team, point: Point) -> bool:
+        """Inside the penalty area ``team`` attacks."""
+        return self.att_x(team, point[0]) > PITCH_L - 16.5 and abs(point[1] - PITCH_W / 2) < 20.16
+
+    def foot_for(self, p: Player, strong_share: float = 0.8) -> tuple[str, bool]:
+        """(body part, weak foot?) for a kick, from the preferred foot."""
+        if p.foot == "both":
+            side = "right_foot" if self.rng.random() < 0.5 else "left_foot"
+            return side, False
+        strong = "left_foot" if p.foot == "left" else "right_foot"
+        if self.rng.random() < strong_share:
+            return strong, False
+        return ("right_foot" if strong == "left_foot" else "left_foot"), True
+
+    def _kicker(self, team: Team) -> Player:
+        """Who kicks off: the 9; in league mode, whoever plays furthest forward when the 9 has gone off."""
+        nine = next((q for q in team.starters if q.kit_number == 9), None)
+        if nine is not None or not self.league:
+            return nine if nine is not None else next(q for q in team.starters if q.kit_number == 9)
+        return max(team.starters, key=lambda q: (q.anchor[0], -abs(q.anchor[1] - PITCH_W / 2), -q.kit_number))
+
+    def _match_elapsed(self) -> float:
+        """Fraction of the match played, by the clock."""
+        played = (self.period - 1) * self.minutes * 60.0 + max(0.0, self.t - self.period_start_t)
+        return played / (self.periods * self.minutes * 60.0)
+
+    def _plan_substitutions(self) -> None:
+        """Each team's substitutions: how many (SUB_COUNTS) and when (a fraction of the match, in LEAGUE["sub_window"]).
+        They happen at the first stoppage after their time."""
+        lo, hi = LEAGUE["sub_window"]
+        for team in (self.home, self.away):
+            n = self.rng.choices([c for c, _w in SUB_COUNTS], weights=[w for _c, w in SUB_COUNTS])[0]
+            self.sub_plan[team.team_id] = sorted(self.rng.uniform(lo, hi) for _ in range(n))
+
+    def _substitutions_due(self) -> None:
+        """At a stoppage: make every substitution whose time has come. Who comes off is weighted toward low stamina;
+        a bench player of the same role (or the same line) comes on and takes his place in the shape."""
+        if not self.league:
+            return
+        now = self._match_elapsed()
+        for team in (self.home, self.away):
+            plan = self.sub_plan.get(team.team_id, [])
+            while plan and plan[0] <= now:
+                plan.pop(0)
+                self._substitute(team)
+
+    def _substitute(self, team: Team) -> None:
+        rng = self.rng
+        bench = [q for q in team.players if not q.on and not q.starter and q.player_id not in self.subbed and q.position != "GK"]
+        outs = [q for q in team.starters if q.position != "GK" and q.player_id not in self.subbed and q is not self.holder]
+        if not bench or not outs:
+            return
+        weights = [math.exp(-0.8 * self.z(q, "stamina")) for q in outs]
+        off = rng.choices(outs, weights=weights)[0]
+        same = [q for q in bench if q.role == off.role]
+        line = [q for q in bench if SUB_GROUPS.get(q.role) == SUB_GROUPS.get(off.role)]
+        on = rng.choice(same or line or bench)
+        self._event("substitution", off, related=on, pitch=off.pos, outcome="neutral")
+        off.on = False
+        on.on = True
+        on.anchor = off.anchor
+        on.x, on.y = PITCH_L / 2, 0.0 if off.y < PITCH_W / 2 else PITCH_W   # comes on at the halfway line
+        self.subbed.update({off.player_id, on.player_id})
 
     # ------------------------------------------------------------------ time
     def advance(self, duration: float, mode: str = "live", ball_to: Point | None = None) -> None:
@@ -434,7 +633,7 @@ class MatchSim:
 
         def base(obj: str, track_id: str) -> Record:
             return {
-                "type": "track", "id": self._id("tr"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
+                "type": "track", "id": self._id("tr"), "match_id": self.match_id, "schema_version": self.schema_version,
                 "source": "synthetic", "confidence": round(trng.uniform(0.8, 0.99), 3),
                 "t": t, "frame": frame, "segment_id": seg.id, "object": obj, "track_id": track_id,
             }
@@ -489,7 +688,7 @@ class MatchSim:
                body_part: str | None = None, t_end: float | None = None, team: Team | None = None) -> Record:
         t = self.t if t is None else t
         rec: Record = {
-            "type": "event", "id": self._id("ev"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
+            "type": "event", "id": self._id("ev"), "match_id": self.match_id, "schema_version": self.schema_version,
             "source": "synthetic", "confidence": self._conf(),
             "t": round(t, 2), "clock": self._clock(t), "event_type": event_type,
             "player_id": player.player_id if player else None,
@@ -521,7 +720,7 @@ class MatchSim:
         self.ball = [p.x, p.y]
         self.ball_speed = 0.0
         self.cur_pos = {
-            "type": "possession", "id": self._id("po"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
+            "type": "possession", "id": self._id("po"), "match_id": self.match_id, "schema_version": self.schema_version,
             "source": "synthetic", "confidence": self._conf(),
             "t": round(self.t, 2), "player_id": p.player_id, "team_id": p.team.team_id,
             "gained_by": gained_by, "touches": 0, "pitch": pt(p.x, p.y), "under_pressure": False,
@@ -529,6 +728,7 @@ class MatchSim:
         if self.last_team is not None and self.last_team is not p.team:
             self._event("possession_change", p, related=from_player, pitch=p.pos)
         self.last_team = p.team
+        self.pos_pass = None
 
     def _end_possession(self, lost_by: str) -> None:
         if self.cur_pos is None:
@@ -547,6 +747,7 @@ class MatchSim:
         budget = total
         self.holder = None
         self.receiver = None
+        self._substitutions_due()
         linger = min(1.5, budget)
         self.advance(linger, mode="dead")
         budget -= linger
@@ -609,7 +810,7 @@ class MatchSim:
         self._reset_positions()
         end_t = self.t + self.minutes * 60.0
         self._event("period_start", None, pitch=(PITCH_L / 2, PITCH_W / 2))
-        kicker = next(p for p in kicking_off.starters if p.kit_number == 9)
+        kicker = self._kicker(kicking_off)
         kicker.x, kicker.y = PITCH_L / 2, PITCH_W / 2
         self._event("kick_off", kicker, pitch=kicker.pos)
         self._start_possession(kicker, "kickoff")
@@ -644,7 +845,8 @@ class MatchSim:
         start = p.pos
         ahead = self.nearest((p.x + 6 * sign, p.y), opp)
         space = dist(ahead.pos, (p.x + 6 * sign, p.y)) > 5.0
-        if space and rng.random() < 0.7:
+        carry_p = 0.7 if not self.league else clamp(0.7 * math.exp(LEAGUE["carry_drive"] * self.z(p, "dribbling")), 0.0, 0.95)
+        if space and rng.random() < carry_p:
             speed = rng.uniform(3.0, 7.0)
             target = (clamp(p.x + sign * speed * hold, 1.0, PITCH_L - 1.0), clamp(p.y + rng.gauss(0, 4.0), 1.0, PITCH_W - 1.0))
         else:
@@ -666,6 +868,12 @@ class MatchSim:
         w_shot = w1 if dgoal < d1 else w2 if dgoal < d2 else w3 if dgoal < d3 else 0.0
         w_lose = (0.02 + (0.08 if pressure else 0.0)) * self.tune["lose"]
         w_out = 0.02
+        if self.league:  # who has the ball matters: dribblers take players on, finishers shoot, good markers win it
+            w_take_on *= math.exp(LEAGUE["take_on_drive"] * self.z(p, "dribbling"))
+            w_shot *= math.exp(LEAGUE["shot_drive"] * self.z(p, "finishing"))
+            if self.pos_pass is not None:  # chance creation: a pass from a player with vision sets up a shot more often
+                w_shot *= math.exp(LEAGUE["create_shot"] * self.z(self.players[self.pos_pass["player_id"]], "vision"))
+            w_lose *= math.exp(LEAGUE["lose_defender"] * self.z(marker, "defending") - LEAGUE["lose_dribbler"] * self.z(p, "dribbling"))
         action = rng.choices(["pass", "take_on", "shot", "lose", "out"], weights=[w_pass, w_take_on, w_shot, w_lose, w_out])[0]
         if action == "pass":
             self._do_pass(p, pressure)
@@ -674,7 +882,10 @@ class MatchSim:
         elif action == "shot":
             self._do_shot(p)
         elif action == "lose":
-            if rng.random() < self.tune["foul_on_tackle"]:
+            foul_p = self.tune["foul_on_tackle"]
+            if self.league:
+                foul_p = clamp(foul_p * math.exp(-LEAGUE["foul_discipline"] * self.z(marker, "defending")), 0.0, 0.9)
+            if rng.random() < foul_p:
                 self._foul(marker, p)
             else:
                 self._end_possession("dispossessed")
@@ -691,14 +902,22 @@ class MatchSim:
                 continue
             d = dist(p.pos, q.pos)
             forward = (q.x - p.x) * sign
-            w = math.exp(-(((d - 16.0) / 13.0) ** 2)) * (1.0 + 0.06 * clamp(forward, -10.0, 30.0)) + 0.02
+            tilt = 0.06 + (LEAGUE["vision_forward"] * self.z(p, "vision") if self.league else 0.0)
+            w = math.exp(-(((d - 16.0) / 13.0) ** 2)) * (1.0 + tilt * clamp(forward, -10.0, 30.0)) + 0.02
             if q.position == "GK":
                 w *= 0.15
+            if self.league:  # teammates look for the good passers, and near goal for the good finishers
+                w *= math.exp(LEAGUE["receive_passing"] * self.z(q, "passing"))
+                if self.att_x(p.team, q.x) > 70:
+                    w *= math.exp(LEAGUE["find_finisher"] * self.z(q, "finishing"))
             cands.append((q, max(w, 0.001)))
         players, weights = zip(*cands)
         return self.rng.choices(players, weights=weights)[0]
 
     def _do_pass(self, p: Player, pressure: bool) -> None:
+        if self.league:
+            self._league_pass(p, pressure)
+            return
         rng = self.rng
         team, opp = p.team, self.other(p.team)
         sign = team.attack_sign
@@ -778,15 +997,21 @@ class MatchSim:
         rng = self.rng
         team = p.team
         sign = team.attack_sign
-        if rng.random() < 0.5:
+        win_p, nutmeg_p, skill_p, foul_p = 0.5, self.tune["nutmeg"], self.tune["skill"], self.tune["foul_on_take_on"]
+        if self.league:  # dribbling against the defender's defending
+            win_p = self.take_on_probability(p, defender)
+            flair = math.exp(LEAGUE["flourish"] * self.z(p, "dribbling"))
+            nutmeg_p, skill_p = nutmeg_p * flair, skill_p * flair
+            foul_p = clamp(foul_p * math.exp(-LEAGUE["foul_discipline"] * self.z(defender, "defending")), 0.0, 0.9)
+        if rng.random() < win_p:
             ev = self._event("take_on", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True)
             flourish = rng.random()
-            nutmeg = flourish < self.tune["nutmeg"]
+            nutmeg = flourish < nutmeg_p
             if nutmeg:
                 nut = self._event("nutmeg", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True, qualifiers=["nutmeg"])
                 ev["qualifiers"] = ["nutmeg"]
                 self._queue_replay(nut)
-            elif flourish < self.tune["nutmeg"] + self.tune["skill"]:
+            elif flourish < nutmeg_p + skill_p:
                 sm = self._event("skill_move", p, related=defender, pitch=p.pos, outcome="success", under_pressure=True,
                                  qualifiers=[rng.choice(["stepover", "elastico", "drag_back", "roulette", "body_feint"])])
                 if rng.random() < 0.5:
@@ -798,7 +1023,7 @@ class MatchSim:
             self.ball_speed = 0.0
             return
         ahead = (clamp(p.x + sign * 4.0, 1.0, PITCH_L - 1.0), p.y)
-        if rng.random() < self.tune["foul_on_take_on"]:
+        if rng.random() < foul_p:
             self._duel("blocked", p, defender, p.pos, ahead, self.t - 0.6, self.t)
             self._event("take_on", p, related=defender, pitch=p.pos, outcome="fail", under_pressure=True)
             self._foul(defender, p)
@@ -811,6 +1036,9 @@ class MatchSim:
 
     def _foul(self, defender: Player, victim: Player) -> None:
         """Defender fouls the ball carrier: free kick to the victim's team from the spot."""
+        if self.league:
+            self._league_foul(defender, victim)
+            return
         rng = self.rng
         foul = self._event("foul", defender, related=victim, pitch=defender.pos, outcome="fail")
         self._event("foul_won", victim, related=defender, pitch=victim.pos, outcome="success")
@@ -840,6 +1068,9 @@ class MatchSim:
         self._start_possession(taker, "set_piece", from_player=last)
 
     def _do_shot(self, p: Player) -> None:
+        if self.league:
+            self._league_shot(p)
+            return
         rng = self.rng
         team, opp = p.team, self.other(p.team)
         goal = team.goal
@@ -884,7 +1115,7 @@ class MatchSim:
             self._queue_replay(goal_ev)
             self._dead_ball(rng.uniform(24.0, 32.0), closeup_of=p, crowd=True)
             self._reset_positions()
-            kicker = next(q for q in opp.starters if q.kit_number == 9)
+            kicker = self._kicker(opp)
             kicker.x, kicker.y = PITCH_L / 2, PITCH_W / 2
             self._event("kick_off", kicker, pitch=kicker.pos)
             self._start_possession(kicker, "kickoff", from_player=p)
@@ -924,6 +1155,379 @@ class MatchSim:
             self._start_possession(keeper, "set_piece", from_player=p)
         self.last_pass = None
 
+    # ------------------------------------------------------------------ league mode: passes, fouls, shots
+    def _league_pass(self, p: Player, pressure: bool) -> None:
+        """A pass when players have ratings: the passer's passing and vision against the defender where the ball comes
+        down; through balls played in behind (with offsides on mistimed runs), forward balls into the final third that
+        lead the receiver into space, aerial duels on crosses, long balls and long goal kicks."""
+        rng = self.rng
+        team, opp = p.team, self.other(p.team)
+        sign = team.attack_sign
+        marker = self.nearest(p.pos, opp)
+        goal_kick = self.goal_kick_long and p.position == "GK"
+        self.goal_kick_long = False
+        if goal_kick:  # hit long to one of the three players furthest forward
+            front = sorted((q for q in team.starters if q.position != "GK"), key=lambda q: (-self.att_x(team, q.x), q.player_id))[:3]
+            target = rng.choice(front)
+        else:
+            target = self._pick_pass_target(p)
+        forward = (target.x - p.x) * sign
+        wide = abs(p.y - PITCH_W / 2) > 18
+        in_final_third = self.att_x(team, p.x) > 70
+        kind = "cross" if wide and in_final_third and rng.random() < 0.7 else "pass"
+        aim = target.pos
+        through = False
+        if kind == "pass" and not goal_kick and target.position != "GK" and forward > 6 and self.att_x(team, target.x) > 60:
+            through = rng.random() < LEAGUE["through_ball"] * math.exp(LEAGUE["through_vision"] * self.z(p, "vision"))
+        if through:  # into the space behind the defence, ahead of the runner
+            ahead = clamp(self.att_x(team, target.x) + rng.uniform(6.0, 12.0), 0.0, PITCH_L - 3.0)
+            aim = (ahead if sign > 0 else PITCH_L - ahead, clamp(target.y + rng.gauss(0, 2.0), 2.0, PITCH_W - 2.0))
+        elif kind == "pass" and forward > 10 and self.att_x(team, target.x) > 70:  # led into space, by vision
+            lead = LEAGUE["lead_m"] * clamp(1.0 + 0.5 * self.z(p, "vision"), 0.0, 2.0) * rng.uniform(0.5, 1.0)
+            ahead = clamp(self.att_x(team, target.x) + lead, 0.0, PITCH_L - 2.0)
+            aim = (ahead if sign > 0 else PITCH_L - ahead, target.y)
+        d = max(dist(p.pos, aim), 1.0)
+        forward_aim = (aim[0] - p.x) * sign
+        long = d > 30
+        if through:
+            base = LEAGUE["through_base"]
+        else:
+            base = clamp(0.97 - 0.008 * d - (0.12 if pressure else 0.0) - (0.06 if forward_aim > 20 else 0.0), 0.4, 0.97)
+        defender = self.nearest(aim, opp, outfield=True)
+        lo = _logit(base) + LEAGUE["pass_bias"] + LEAGUE["pass_skill"] * self.z(p, "passing") \
+            - LEAGUE["pass_defender"] * self.z(defender, "defending")
+        if through:
+            lo += LEAGUE["pass_vision_tb"] * self.z(p, "vision")
+        if pressure:
+            lo -= LEAGUE["pass_pressure"] * self.z(marker, "defending")
+        if kind == "cross":
+            lo += LEAGUE["cross_delivery"]
+        ok = rng.random() < clamp(_sigmoid(lo), 0.2, 0.985)
+        # Offside: a mistimed run on a ball in behind, or a long forward ball to the furthest man forward.
+        furthest = max((q for q in team.starters if q.position != "GK"), key=lambda q: self.att_x(team, q.x))
+        offside = False
+        if through:
+            offside = rng.random() < LEAGUE["offside_through"]
+        elif forward_aim > 15 and target is furthest:
+            offside = rng.random() < LEAGUE["offside_long"]
+        # An aerial contest where the ball comes down: crosses, long balls, long goal kicks, if a defender is close.
+        duel: tuple[Player, Player] | None = None
+        if ok and not offside and not through and (kind == "cross" or long) and dist(defender.pos, aim) < LEAGUE["aerial_reach_m"]:
+            if rng.random() < (LEAGUE["aerial_cross"] if kind == "cross" else LEAGUE["aerial_long"]):
+                att_wins = rng.random() < self.aerial_probability(target, defender)
+                duel = (target, defender) if att_wins else (defender, target)
+                ok = att_wins
+        speed = rng.uniform(10.0, 19.0)
+        difficulty = clamp(0.6 * d / 45.0 + (0.25 if pressure else 0.0) + (0.15 if forward_aim > 15 else 0.0), 0.0, 1.0)
+        if ok or offside or duel:
+            end = aim
+        else:
+            interceptor = self.nearest(aim, opp)
+            end = (clamp(interceptor.x + rng.gauss(0, 1.0), 0, PITCH_L), clamp(interceptor.y + rng.gauss(0, 1.0), 0, PITCH_W))
+        qualifiers = []
+        if forward_aim > 10:
+            qualifiers.append("forward")
+        if long:
+            qualifiers.append("long")
+        if through:
+            qualifiers.append("through_ball")
+        if goal_kick:
+            qualifiers.append("goal_kick")
+        if offside:
+            qualifiers.append("offside")
+        body_part, _weak = self.foot_for(p, 0.82)
+        ev = self._event(kind, p, related=target, pitch=p.pos, pitch_end=end, outcome="success" if ok and not offside else "fail",
+                         under_pressure=pressure, qualifiers=qualifiers or None,
+                         metrics={"pass_distance_m": d, "pass_difficulty": difficulty, "ball_speed_kmh": speed * 3.6},
+                         body_part=body_part)
+        offside_spot = target.pos
+        self._end_possession("offside" if offside else "pass")
+        self.receiver = target if (ok or offside or duel) else None
+        self.ball_speed = speed
+        self.advance(d / speed, ball_to=end)
+        self.ball_speed = 0.0
+        self.last_pass = None
+        if offside:
+            self._offside(target, p, offside_spot)
+            return
+        if duel is not None:
+            winner, loser = duel
+            winner.x, winner.y = aim
+            source = "goal_kick" if goal_kick else "cross" if kind == "cross" else "long_ball"
+            self._event("aerial_duel", winner, related=loser, pitch=aim, outcome="success", qualifiers=[source])
+            if not ok:
+                self._header_away(winner, team, kind)
+                return
+        if ok:
+            if through or aim != target.pos:
+                target.x, target.y = aim
+            self.last_pass = ev
+            self._start_possession(target, "pass_received", from_player=p)
+            self.pos_pass = ev
+            return
+        self._league_failed_pass(p, kind)
+
+    def _league_failed_pass(self, p: Player, kind: str) -> None:
+        """A pass that did not arrive: as in 0.1.0 (out of play, interception, clearance, loose ball), except that of the
+        two defenders nearest the ball the better reader tends to get there, and reading it (an interception) rather than
+        picking it up loose rises with defending."""
+        rng = self.rng
+        team, opp = p.team, self.other(p.team)
+        here = (self.ball[0], self.ball[1])
+        near = sorted(opp.starters, key=lambda q: (dist(q.pos, here), q.player_id))[:2]
+        winner = rng.choices(near, weights=[math.exp(LEAGUE["interception_skill"] * self.z(q, "defending")) for q in near])[0]
+        fp = dict(self.tune["failed_pass"])
+        fp["interception"] *= math.exp(LEAGUE["interception_skill"] * self.z(winner, "defending"))
+        how = rng.choices(list(fp), weights=list(fp.values()))[0]
+        if how == "out" or (kind == "cross" and rng.random() < 0.3):
+            if kind == "cross" and rng.random() < 0.35:
+                self._corner(team, p)
+            else:
+                side = 0.0 if here[1] < PITCH_W / 2 else PITCH_W
+                self.ball = [clamp(here[0], 1, PITCH_L - 1), side]
+                self._dead_ball(rng.uniform(6.0, 9.0))
+                thrower = self.nearest((self.ball[0], self.ball[1]), opp, outfield=True)
+                thrower.x, thrower.y = self.ball[0], clamp(side, 0.5, PITCH_W - 0.5)
+                self._event("throw_in", thrower, pitch=thrower.pos)
+                self._start_possession(thrower, "set_piece", from_player=p)
+            return
+        if how == "interception":
+            self._event("interception", winner, related=p, pitch=winner.pos, outcome="success")
+            self._start_possession(winner, "interception", from_player=p)
+        elif how == "clearance":
+            self._clear(winner, p)
+        else:
+            winner.x, winner.y = here
+            self._event("recovery", winner, related=p, pitch=winner.pos, outcome="success")
+            self._start_possession(winner, "loose_ball", from_player=p)
+
+    def _clear(self, defender: Player, last: Player) -> None:
+        """A clearance 25-40 m upfield; whoever is nearest where it lands picks it up."""
+        rng = self.rng
+        team = defender.team
+        self._event("clearance", defender, related=last, pitch=defender.pos, outcome="success")
+        far = (clamp(defender.x + team.attack_sign * rng.uniform(25.0, 40.0), 1, PITCH_L - 1),
+               clamp(defender.y + rng.gauss(0, 10.0), 1, PITCH_W - 1))
+        self.ball_speed = 18.0
+        self.advance(dist(defender.pos, far) / 18.0, ball_to=far)
+        self.ball_speed = 0.0
+        cands = self.home.starters + self.away.starters
+        taker = min(cands, key=lambda q: dist(q.pos, far))
+        taker.x, taker.y = far
+        self._event("recovery", taker, pitch=far, outcome="success")
+        self._start_possession(taker, "loose_ball", from_player=defender)
+
+    def _header_away(self, defender: Player, attackers: Team, kind: str) -> None:
+        """The defender won the header: from a cross it is cleared (sometimes behind for a corner); from a long ball it
+        drops loose for whoever is nearest."""
+        rng = self.rng
+        if kind == "cross":
+            if rng.random() < LEAGUE["header_clear_corner"]:
+                self._corner(attackers, defender)
+            else:
+                self._clear(defender, defender)
+            return
+        drop = (clamp(defender.x + defender.team.attack_sign * rng.uniform(8.0, 15.0), 1, PITCH_L - 1),
+                clamp(defender.y + rng.gauss(0, 5.0), 1, PITCH_W - 1))
+        self.ball_speed = 12.0
+        self.advance(dist(defender.pos, drop) / 12.0, ball_to=drop)
+        self.ball_speed = 0.0
+        taker = min(self.home.starters + self.away.starters, key=lambda q: (dist(q.pos, drop), q.player_id))
+        taker.x, taker.y = drop
+        self._event("recovery", taker, pitch=drop, outcome="success")
+        self._start_possession(taker, "loose_ball", from_player=defender)
+
+    def _offside(self, attacker: Player, passer: Player, spot: Point) -> None:
+        """Flagged offside where the run started: an indirect free kick to the defending side."""
+        rng = self.rng
+        self._event("offside", attacker, related=passer, pitch=spot, outcome="fail")
+        self._dead_ball(rng.uniform(6.0, 9.0))
+        opp = self.other(attacker.team)
+        taker = self.nearest(spot, opp, outfield=True)
+        taker.x, taker.y = spot
+        self.ball = [spot[0], spot[1]]
+        self._event("free_kick", taker, pitch=spot, qualifiers=["indirect"])
+        self._start_possession(taker, "set_piece", from_player=attacker)
+
+    def _league_foul(self, defender: Player, victim: Player) -> None:
+        """A foul when players have ratings: inside the box most contact is not given (the defender wins it cleanly);
+        given, it is a penalty. Cards include second yellows and rare straight reds, and a sent-off player leaves."""
+        rng = self.rng
+        spot = victim.pos
+        team = victim.team
+        box = self.in_box(team, spot)
+        if box and rng.random() > LEAGUE["box_foul_given"]:
+            self._event("tackle", defender, related=victim, pitch=defender.pos, outcome="success")
+            self._end_possession("tackled")
+            self._start_possession(defender, "tackle", from_player=victim)
+            return
+        foul = self._event("foul", defender, related=victim, pitch=defender.pos, outcome="fail",
+                           qualifiers=["penalty_conceded"] if box else None)
+        self._event("foul_won", victim, related=defender, pitch=victim.pos, outcome="success",
+                    qualifiers=["penalty_won"] if box else None)
+        self._cards(defender, victim)
+        self._queue_replay(foul)
+        self._end_possession("foul")
+        if box:
+            self._penalty(team, victim)
+            return
+        self._dead_ball(rng.uniform(9.0, 13.0), closeup_of=victim if rng.random() < 0.5 else None)
+        self.ball = [spot[0], spot[1]]
+        taker = self.nearest(spot, team, outfield=True)
+        taker.x, taker.y = spot
+        self._event("free_kick", taker, pitch=spot)
+        self._start_possession(taker, "set_piece")
+
+    def _cards(self, defender: Player, victim: Player) -> None:
+        """15% of fouls are booked (as in 0.1.0); a second yellow is a red; a few fouls are straight reds. Keepers are
+        never sent off here (no substitute keeper is modelled)."""
+        rng = self.rng
+        booked = defender.player_id in self.yellows
+        yellow = rng.random() < (0.06 if booked else 0.15)   # a booked player is careful: a second booking is rarer
+        straight = rng.random() < LEAGUE["straight_red"] and defender.position != "GK"
+        if defender.position == "GK" and defender.player_id in self.yellows:
+            yellow = False
+        if straight:
+            self._event("card_red", defender, related=victim, pitch=defender.pos, qualifiers=["straight_red"])
+            self._send_off(defender)
+            return
+        if yellow:
+            self._event("card_yellow", defender, related=victim, pitch=defender.pos)
+            if defender.player_id in self.yellows:
+                self._event("card_red", defender, related=victim, pitch=defender.pos, qualifiers=["second_yellow"])
+                self._send_off(defender)
+            else:
+                self.yellows.add(defender.player_id)
+
+    def _send_off(self, p: Player) -> None:
+        p.on = False
+        self.subbed.add(p.player_id)
+        if self.receiver is p:
+            self.receiver = None
+
+    def _penalty(self, team: Team, victim: Player) -> None:
+        """The team's best finisher on the pitch takes it from the spot, 11 m out."""
+        rng = self.rng
+        self._dead_ball(rng.uniform(22.0, 30.0), closeup_of=victim)
+        opp = self.other(team)
+        gx = team.goal[0]
+        spot = (gx - team.attack_sign * 11.0, PITCH_W / 2)
+        taker = max((q for q in team.starters if q.position != "GK"), key=lambda q: ((q.attrs or {}).get("finishing", 0.0), q.player_id))
+        taker.x, taker.y = spot
+        keeper = opp.keeper
+        keeper.x, keeper.y = gx, PITCH_W / 2
+        self.ball = [spot[0], spot[1]]
+        self._event("penalty", taker, pitch=spot)
+        self._start_possession(taker, "set_piece", from_player=victim)
+        self.advance(1.0)
+        self._league_shot(taker, penalty=True)
+
+    def _league_shot(self, p: Player, penalty: bool = False) -> None:
+        """A shot when players have ratings. xG is still the chance's quality (distance, and in league mode a header
+        discount); whether it goes in also depends on the shooter's finishing (aerial for headers), the foot he uses and
+        the keeper's shot stopping, so a player's goals minus xG measures his finishing. Every shot after a completed
+        pass to the shooter makes that pass a key pass; a goal makes it the assist."""
+        rng = self.rng
+        team, opp = p.team, self.other(p.team)
+        goal = team.goal
+        keeper = opp.keeper
+        kp = self.pos_pass if (not penalty and self.pos_pass is not None and self.pos_pass["team_id"] == team.team_id
+                               and self.pos_pass["related_player_id"] == p.player_id) else None
+        if penalty:
+            d, xg, headed = 11.0, LEAGUE["penalty_xg"], False
+            body_part, weak = self.foot_for(p, 0.95)
+        else:
+            d = max(dist(p.pos, goal), 1.0)
+            headed = kp is not None and kp["event_type"] == "cross" and rng.random() < 0.6
+            xg = clamp(1.1 * math.exp(-0.12 * d) * (LEAGUE["header_xg"] if headed else 1.0), 0.02, 0.85)
+            body_part, weak = ("head", False) if headed else self.foot_for(p, 0.8)
+        speed_kmh = rng.uniform(40.0, 75.0) if headed else rng.uniform(65.0, 115.0)
+        skill = self.z(p, "aerial" if headed else "finishing")
+        if rng.random() < self.goal_probability(p, keeper, xg, headed=headed, weak=weak):
+            result = "goal"
+        elif penalty:
+            result = "saved" if rng.random() < 0.7 else "off_target"
+        else:
+            on_target = _sigmoid(_logit(0.4) + LEAGUE["on_target"] * skill)
+            u = rng.random()
+            result = "saved" if u < on_target else "blocked" if (u - on_target) / (1 - on_target) < 0.25 / 0.6 else "off_target"
+        if result in ("goal", "saved"):
+            end = (goal[0], clamp(goal[1] + rng.uniform(-3.2, 3.2), 0, PITCH_W))
+        elif result == "off_target":
+            end = (goal[0], clamp(goal[1] + rng.choice([-1, 1]) * rng.uniform(4.0, 9.0), 0, PITCH_W))
+        else:
+            end = (clamp(p.x + team.attack_sign * 2.0, 0, PITCH_L), p.y)
+        shot = self._event("shot", p, pitch=p.pos, pitch_end=end, outcome="success" if result == "goal" else "fail",
+                           qualifiers=[result] + (["header"] if headed else []) + (["penalty"] if penalty else []), body_part=body_part,
+                           under_pressure=bool(self.cur_pos and self.cur_pos["under_pressure"]),
+                           metrics={"shot_distance_m": d, "shot_speed_kmh": speed_kmh, "xg": xg})
+        if kp is not None:
+            kp["qualifiers"] = list(dict.fromkeys(kp.get("qualifiers", []) + ["key_pass"]))
+        if result == "goal" or penalty or xg > self.tune["replay_xg"]:
+            self._queue_replay(shot)
+        self._end_possession("shot")
+        self.ball_speed = speed_kmh / 3.6
+        self.advance(dist(p.pos, end) / self.ball_speed, ball_to=end)
+        self.ball_speed = 0.0
+        self.last_pass = None
+
+        if result == "goal":
+            assist_by = self.players[kp["player_id"]] if kp is not None else None
+            goal_ev = self._event("goal", p, related=assist_by, pitch=p.pos, pitch_end=end, outcome="success", body_part=body_part,
+                                  qualifiers=["penalty"] if penalty else None, metrics={"xg": xg, "shot_distance_m": d})
+            if assist_by is not None:
+                self._event("assist", assist_by, related=p, pitch=assist_by.pos, outcome="success")
+                kp["qualifiers"] = list(dict.fromkeys(kp["qualifiers"] + ["assist"]))
+            self.score[team.team_id] += 1
+            self._queue_replay(goal_ev)
+            self._dead_ball(rng.uniform(24.0, 32.0), closeup_of=p, crowd=True)
+            self._reset_positions()
+            kicker = self._kicker(opp)
+            kicker.x, kicker.y = PITCH_L / 2, PITCH_W / 2
+            self._event("kick_off", kicker, pitch=kicker.pos)
+            self._start_possession(kicker, "kickoff", from_player=p)
+        elif result == "saved":
+            held = penalty or rng.random() < _sigmoid(_logit(0.6) + LEAGUE["hold"] * self.z(keeper, "handling"))
+            self._event("save", keeper, related=p, pitch=keeper.pos, outcome="success", qualifiers=["held" if held else "parried"])
+            if held:
+                keeper.x, keeper.y = self.ball[0], self.ball[1]
+                self._start_possession(keeper, "goalkeeper_claim", from_player=p)
+            else:  # parried: the ball runs loose in front of goal
+                loose = (clamp(goal[0] - team.attack_sign * rng.uniform(4.0, 10.0), 1, PITCH_L - 1),
+                         clamp(goal[1] + rng.gauss(0, 7.0), 1, PITCH_W - 1))
+                self.ball_speed = 8.0
+                self.advance(dist((self.ball[0], self.ball[1]), loose) / 8.0, ball_to=loose)
+                self.ball_speed = 0.0
+                winner = min(team.starters + opp.starters, key=lambda q: (dist(q.pos, loose), q.player_id))
+                winner.x, winner.y = loose
+                self._event("recovery", winner, pitch=loose, outcome="success")
+                self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=keeper)
+        elif result == "blocked":
+            blocker = self.nearest(p.pos, opp, outfield=True)
+            self._event("block", blocker, related=p, pitch=blocker.pos, outcome="success")
+            if rng.random() < self.tune["corner_after_block"]:
+                self._corner(team, blocker)
+                return
+            loose = (clamp(self.ball[0] + rng.gauss(0, 4.0), 1, PITCH_L - 1), clamp(self.ball[1] + rng.gauss(0, 4.0), 1, PITCH_W - 1))
+            self.ball_speed = 6.0
+            self.advance(0.7, ball_to=loose)
+            self.ball_speed = 0.0
+            winner = min(team.starters + opp.starters, key=lambda q: dist(q.pos, loose))
+            winner.x, winner.y = loose
+            self._event("recovery", winner, pitch=loose, outcome="success")
+            self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=p)
+        elif not penalty and rng.random() < self.tune["corner_after_off_target"]:
+            self._dead_ball(1.5, closeup_of=p if rng.random() < 0.5 else None)
+            self._corner(team, self.nearest(p.pos, opp, outfield=True))
+        else:
+            self._dead_ball(rng.uniform(10.0, 14.0), closeup_of=p if rng.random() < 0.5 else None)
+            spot = (5.5 if opp.attack_sign > 0 else PITCH_L - 5.5, PITCH_W / 2 + rng.choice([-1, 1]) * 9.0)
+            keeper.x, keeper.y = spot
+            self.ball = [spot[0], spot[1]]
+            self._event("goal_kick", keeper, pitch=spot)
+            self._start_possession(keeper, "set_piece", from_player=p)
+            self.goal_kick_long = rng.random() < LEAGUE["goal_kick_long"]
+
     def _do_out_of_play(self, p: Player) -> None:
         rng = self.rng
         opp = self.other(p.team)
@@ -956,7 +1560,7 @@ class MatchSim:
     # ------------------------------------------------------------------ post-processing
     def _segment_record(self, s: Segment) -> Record:
         rec: Record = {
-            "type": "camera_segment", "id": s.id, "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
+            "type": "camera_segment", "id": s.id, "match_id": self.match_id, "schema_version": self.schema_version,
             "source": "synthetic", "confidence": round(self.track_rng.uniform(0.9, 0.995), 3),
             "t": round(s.t, 2), "t_end": round(s.t_end, 2), "kind": s.kind, "playback_speed": s.playback_speed,
         }
@@ -970,7 +1574,7 @@ class MatchSim:
 
     def _match_record(self, duration: float) -> Record:
         return {
-            "type": "match", "id": f"ma_{self.match_id}", "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
+            "type": "match", "id": f"ma_{self.match_id}", "match_id": self.match_id, "schema_version": self.schema_version,
             "source": "synthetic",
             **{"competition": "Regista Synthetic League", "season": "2026/27", "date": "2026-10-19", "venue": "Northbridge Arena", **self.meta},
             "home_team_id": self.home.team_id, "away_team_id": self.away.team_id,
@@ -985,7 +1589,7 @@ class MatchSim:
                       "duration_s": duration, "main_camera": "broadcast_wide"},
             "periods": list(self.period_table),
             "score": dict(self.score),
-            "generator": {"name": GENERATOR_NAME, "version": GENERATOR_VERSION, "seed": self.seed,
+            "generator": {"name": GENERATOR_NAME, "version": LEAGUE_GENERATOR_VERSION if self.league else GENERATOR_VERSION, "seed": self.seed,
                           "params": {"minutes": self.minutes, "periods": self.periods, "track_hz": self.track_hz, "fps": self.fps,
                                      "profile": self.profile, "teams": [t["name"] for t in self.team_specs]}},
         }
@@ -1014,7 +1618,7 @@ class MatchSim:
                         area = sum(c["bbox"]["w"] * c["bbox"]["h"] for c in chunk) / len(chunk)
                         on_ball = any(p["player_id"] == player_id and p["t"] < t1 and t0 < p["t_end"] for p in self.possessions)
                         out.append({
-                            "type": "appearance", "id": self._id("ap"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
+                            "type": "appearance", "id": self._id("ap"), "match_id": self.match_id, "schema_version": self.schema_version,
                             "source": "synthetic", "confidence": round(self.track_rng.uniform(0.85, 0.99), 3),
                             "t": round(t0, 2), "t_end": round(t1, 2), "segment_id": seg_id, "player_id": player_id,
                             "on_ball": on_ball, "prominence": round(clamp(area / 0.3, 0.0, 1.0), 3),
@@ -1030,7 +1634,7 @@ class MatchSim:
 
         def ann(target: Record, verdict: str, note: str, correction: Record | None = None) -> None:
             rec: Record = {
-                "type": "annotation", "id": self._id("an"), "match_id": self.match_id, "schema_version": SCHEMA_VERSION,
+                "type": "annotation", "id": self._id("an"), "match_id": self.match_id, "schema_version": self.schema_version,
                 "source": "synthetic", "simulates": "human", "confidence": 1,
                 "t": target["t"], "target_id": target["id"], "target_type": target["type"], "verdict": verdict,
                 "note": note, "annotator": "placeholder", "annotated_at": f"2026-10-19T18:{len(out):02d}:00Z",
@@ -1071,13 +1675,36 @@ def _team_specs(teams: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         if "club_id" in given:
             base["club_id"] = str(given["club_id"])
         if "squad" in given:
-            squad = [{"global_id": str(m["global_id"]), "name": str(m["name"])} for m in given["squad"]]
+            squad = [_squad_member(m) for m in given["squad"]]
             if len(squad) != len(FORMATION_433) + len(BENCH):
                 raise ValueError(f"a squad needs {len(FORMATION_433) + len(BENCH)} people, got {len(squad)}")
             base["squad"] = squad
         if len(base["short_name"]) > 4:
             raise ValueError(f"short_name {base['short_name']!r} must be at most 4 characters")
+    rated = [("attributes" in m) for spec in specs for m in spec.get("squad") or []]
+    if any(rated) and not (all(rated) and all(spec.get("squad") for spec in specs)):
+        raise ValueError("league mode needs ratings (attributes) for every member of both squads")
     return specs
+
+
+def _squad_member(m: dict[str, Any]) -> dict[str, Any]:
+    """A squad entry: global id and name; in league mode also ``attributes`` (hidden ratings), ``role``, ``height_cm``
+    and ``preferred_foot`` (regista.season.league)."""
+    out: dict[str, Any] = {"global_id": str(m["global_id"]), "name": str(m["name"])}
+    if "attributes" in m:
+        out["attributes"] = {str(k): float(v) for k, v in m["attributes"].items()}
+        for key in ("role", "height_cm", "preferred_foot", "kit_number"):
+            if m.get(key) is not None:
+                out[key] = m[key]
+    return out
+
+
+def _league_fields(person: dict[str, Any]) -> dict[str, Any]:
+    """Player keyword arguments from a league squad entry (empty without ratings)."""
+    if "attributes" not in person:
+        return {}
+    return {"attrs": person["attributes"], "height_cm": float(person.get("height_cm") or 180.0),
+            "foot": person.get("preferred_foot") or "right", "role": person.get("role")}
 
 
 def parse_team_arg(text: str) -> dict[str, Any]:

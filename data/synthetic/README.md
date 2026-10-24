@@ -27,6 +27,8 @@ Generate and validate:
 python -m regista.synth --minutes 3 --seed 294 --track-hz 1 --player t_home_09 --out data/synthetic/sample --report
 python -m regista.validate data/synthetic/sample/syn_0294
 python -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
+python -m regista.synth.report --league --repeat 3      # the Regista League in league mode (players with ratings)
+python -m regista.season.audit                          # split-half reliability within a role, and the scoring chart
 ```
 
 `--periods 2` simulates two halves (`--minutes` is per half): the teams swap ends, the clock continues from 45', a `graphic` camera segment marks half time. `--home`/`--away` take `Name,SHORT,#primary[,#secondary[,#gk]]` so the demo can show different clubs. The generator has two profiles. `demo` (default) packs a short sample with shots, take-ons, and nutmegs so a 3-minute clip reel has content; its per-90 rates sit well above real football. `realistic` is tuned so that per-90 passes, completion, shots, xG per shot, tackles, interceptions, take-ons, nutmegs, fouls, corners, throw-ins, and possession length sit inside approximate Premier League bands (see `regista/synth/report.py` for the bands and their source). `report.md` next to a generated match states which bands it meets.
@@ -45,7 +47,7 @@ python -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 | `clock` | Match clock on events: `{period, minute, second}`. Derived from `match.periods`. |
 | Pitch coordinates | Metres, absolute frame: `x` 0–105 along the length, `y` 0–68 along the width, origin at the corner to the main camera's left. Which team attacks toward `x = 105` is in `match.periods[].left_to_right_team_id`. Consumers flip when they need an attacking frame. |
 | Image coordinates | `bbox` is `{x, y, w, h}` normalised 0–1 of the frame, top-left origin. |
-| Versioning | `schema_version` is semver; the current version is **0.1.1** (`regista.schema.SCHEMA_VERSION`). Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. |
+| Versioning | `schema_version` is semver; the current version is **0.2.0** (`regista.schema.SCHEMA_VERSION`). Additive fields bump the patch. Renames and enum changes bump the minor and must update both schemas, the generator, and `tests/`. 0.2.0 added the event type `aerial_duel` and the possession `lost_by` value `offside` (see "League mode" below); every 0.1.x stream stays valid. The generator stamps a match **0.2.0** only in league mode; without player ratings it writes exactly what it wrote before, stamped **0.1.1** (`LEGACY_SCHEMA_VERSION`), so committed samples and the vision layer's seeds do not move a byte. |
 
 ## Record types (vision layer → `regista-events.schema.json`)
 
@@ -85,7 +87,7 @@ A contiguous run of visibility for one player in one segment, with `on_ball` (an
 
 `event_type` (controlled list below), `player_id`, `team_id`, `related_player_id` (recipient, defender beaten, fouled player, assist provider), `possession_id`, `segment_id`, `pitch`/`pitch_end`, `outcome` (`success`, `fail`, `neutral`), `body_part`, `under_pressure`, `qualifiers` (free tags, snake_case), and `metrics`.
 
-`event_type` values: `touch`, `pass`, `cross`, `carry`, `dribble`, `take_on`, `nutmeg`, `skill_move`, `shot`, `goal`, `assist`, `save`, `block`, `header`, `tackle`, `interception`, `clearance`, `recovery`, `pressure`, `foul`, `foul_won`, `offside`, `card_yellow`, `card_red`, `substitution`, `kick_off`, `throw_in`, `corner`, `free_kick`, `goal_kick`, `penalty`, `possession_change`, `period_start`, `period_end`, `injury_stoppage`, `var_review`.
+`event_type` values: `touch`, `pass`, `cross`, `carry`, `dribble`, `take_on`, `nutmeg`, `skill_move`, `shot`, `goal`, `assist`, `save`, `block`, `header`, `aerial_duel` (0.2.0), `tackle`, `interception`, `clearance`, `recovery`, `pressure`, `foul`, `foul_won`, `offside`, `card_yellow`, `card_red`, `substitution`, `kick_off`, `throw_in`, `corner`, `free_kick`, `goal_kick`, `penalty`, `possession_change`, `period_start`, `period_end`, `injury_stoppage`, `var_review`.
 
 **From footage (`source: vision`).** The vision layer's `events_vision` agent (`regista.vision.events`) writes a subset: `pass` and `cross` (success, or fail with an `interception` by the opponent), `shot` (with `qualifiers` `goal`, `saved`, `off_target` or `unknown`), `save`, `goal`, `tackle`, `carry` (with `t_end` and `metrics.carry_distance_m`), and `take_on` (a `nutmeg` record beside it, and the `nutmeg` qualifier on the take-on, when the ball went through the defender). `confidence` is the classifier's probability. Clocks are omitted; `pitch` is the ball or player position the vision layer measured. A nutmeg in footage is defined by geometry: the ball passes through the defender's position while the carrier goes round him.
 
@@ -127,6 +129,57 @@ Added in 0.1.1, both optional:
 |---|---|
 | `prior_watchability` | The `rules-v0` score. When another scorer set `watchability` (the watchability model learned from human verdicts, or a Foundry model), the rules score is kept here; when rules-v0 alone scored the clip, the two are equal. |
 | `review` | Why the Label agent wants a human to look at this clip, when it does: the prior and the model disagree by 0.30 or more, or `watchability` sits on the keep/drop boundary (0.40–0.60). Absent when the clip is not flagged. The workflow's review step pauses on these clips (`regista.feedback.needs_review`). |
+
+### League mode (schema 0.2.0): what the generator emits when players have ratings
+
+When both squads carry hidden ratings (`regista.season.league.generate_kwargs`, the Regista League's fixtures), the
+generator runs in **league mode** (`regista.synth.generator`, generator version 0.2.0, profile `league`). Outcomes then
+depend on the players involved, and these appear:
+
+| Event | Fields | When |
+|---|---|---|
+| `substitution` | `player_id` the player coming **off**, `related_player_id` the player coming **on**, `team_id`, `pitch` where the player going off stood | 2-5 per team (mean 3.9, the Premier League's 2023-24 rate), at the first stoppage after a time drawn from 58-95% of the match (about the hour mark onward). Who comes off is weighted toward low stamina; a bench player of the same role, else the same line, comes on and takes his place in the shape. Keepers are not substituted. Not a moment: the clip rule never uses it |
+| `penalty` | the taker (his team's best finisher on the pitch), `pitch` the spot, 11 m out | a foul whose victim is inside the box he attacks; the `foul` carries the qualifier `penalty_conceded` and the `foul_won` `penalty_won`. The kick is the next `shot`, in the taker's possession, with the qualifier `penalty` and `metrics.xg` 0.79 (FBref/Opta's penalty xG). Most contact in the box is not given: the defender wins the ball cleanly (a `tackle`) instead |
+| `aerial_duel` | winner in `player_id` and `team_id`, loser in `related_player_id`, `pitch` where the ball came down, `outcome` success; qualifier `cross`, `long_ball` or `goal_kick` | a cross, a long ball (over 30 m) or a long goal kick that a defender is near enough to contest. One record per contest: aerial duels won are records where the player is `player_id`, lost where he is `related_player_id` (Opta and FBref count both sides). The winner's height and `aerial` rating decide it, with a small edge to the defender |
+| `card_red` | the player sent off; qualifier `second_yellow` (after a second `card_yellow`) or `straight_red` | rare. The player leaves and his team plays on with ten. Keepers are not sent off (no substitute keeper is modelled) |
+| `offside` | the attacker flagged, `related_player_id` the passer, `pitch` where his run started | a mistimed run on a through ball, or a forward pass to the furthest man forward. The pass is `fail` with the qualifier `offside`; the possession ends with `lost_by: offside`; an indirect `free_kick` (qualifier `indirect`) restarts for the defending side |
+
+Also in league mode:
+
+- **Through balls** are real: a forward pass to a runner in the attacking half is sometimes played into the space 6-12 m
+  ahead of him (more often by passers with vision), qualifier `through_ball`. Before 0.2.0 the qualifier was coded but
+  its condition never held.
+- **Key passes count every shot.** The completed pass that started the shooter's possession is tagged `key_pass` for
+  any shot (goal, saved, blocked or off target), not only goals and saves; a goal makes it the `assist`. Penalties have
+  no key pass.
+- **Body part** follows `preferred_foot`: 82% of passes and 80% of shots with the strong foot (95% for penalties),
+  50/50 for two-footed players.
+- **Saves** carry the qualifier `held` (the keeper keeps it) or `parried` (it runs loose for a rebound).
+- **Goal kicks** are sometimes hit long (qualifier `goal_kick` on the pass) to one of the three players furthest forward.
+- **xG** is still distance-based (`1.1·e^(-0.12·d)`, 0.02-0.85), with headers at 0.65 of a shot from the same spot.
+
+**How ratings move outcomes.** A rating enters as a skill `z = (rating - centre) / 7`, where the centre is the rating of
+the average league player who performs that action (`SKILL_CENTRE`: shots are mostly taken by forwards, so the finishing
+centre is 74), added in log-odds with a weight in `LEAGUE`. So league-wide rates stay where the profile was tuned, and xG
+stays the quality of the chance while finishing decides who beats it: goals minus xG is a real finishing signal.
+
+| Outcome | Ratings involved |
+|---|---|
+| pass completion | passer's `passing` (and `vision` on a through ball), against the `defending` of the defender nearest where the ball comes down, and of the marker when under pressure |
+| chance creation | `vision`: forward runners are picked more often, forward balls into the final third lead the receiver into space, through balls are tried more |
+| shot outcome | `finishing` (`aerial` for headers), strong or weak foot, against the keeper's `shot_stopping`; finishers also shoot a little more often and hit the target more |
+| save held or parried | keeper's `handling` |
+| take-ons | `dribbling` against the defender's `defending`; good dribblers try more, and nutmeg and skill more |
+| tackles, interceptions, fouls | `defending`: winning the ball from a carrier, reading a loose pass (the better of the two nearest defenders tends to get there), fouling less |
+| aerial duels | `aerial` and height (per 10 cm), against the opponent's |
+| who comes off | `stamina` |
+
+`top_speed_kmh` and `acceleration_ms2` are not used yet (the physical phase).
+
+**Clips and profiles.** Substitutions are not moments. An aerial duel tags the winner's clip `aerial_duel` when it falls
+inside one. A penalty's taker gets the `penalty` set piece and the `penalty` shot in one possession clip. Profiles count
+time on the pitch (`regista.season.playing_time`: substitutions and red cards cut a spell), credit substitutes with an
+appearance, and add aerial duels won and lost (aerial win %), through balls, offsides, penalties won and penalty goals.
 
 ## League players: bio and hidden ratings
 
@@ -171,9 +224,10 @@ winger at dribbling, striker at aerial) is lifted 10 clear of the next best star
 (`pl_bro_09`) is the best finisher among forwards** (93; the next best forward has 85), decided by Zaid. No match is
 rigged: what a rating does is the generator's business, and it applies to every player the same way.
 
-**For the generator.** `regista.season.league.player_attributes(league)` gives `{global_id: ratings}`; the role is on
-each squad entry. Matches generated without ratings (every committed sample, the vision seeds, the demo and realistic
-profiles) must stay byte-identical: tests/test_backcompat.py pins their hashes from `main`.
+**For the generator.** `regista.season.league.generate_kwargs` passes each squad entry's `attributes`, `role`,
+`height_cm` and `preferred_foot`, which puts the generator in league mode (above). Matches generated without ratings
+(every committed sample, the vision seeds, the demo and realistic profiles, the Player view's filmed friendlies, which
+call `generate_kwargs(..., ratings=False)`) stay byte-identical: tests/test_backcompat.py pins their hashes from `main`.
 
 ## Azure mapping
 

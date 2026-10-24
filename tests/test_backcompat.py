@@ -6,8 +6,9 @@ layer's development seeds (201-206) and its untouched fresh set (301-303), and b
 its events and tracks as ``regista.schema.write_jsonl`` would and compares their SHA-256 with the hash recorded on
 ``main`` (e3da71d, 2026-10-23, from a detached worktree; ``python tests/test_backcompat.py --record`` prints them).
 
-A case's ``teams`` carry squads with ``global_id`` and ``name`` only (what ``generate_kwargs`` passed on ``main``), so the
-league-shaped case keeps testing the no-attributes path after the league file gains attributes.
+A case's ``teams`` carry squads with ``global_id`` and ``name`` only (what ``generate_kwargs`` passed on ``main``), and the
+league's generator settings as they were on ``main`` (profile "realistic"), so the league-shaped case keeps testing the
+no-attributes path after the league file gained ratings and the "league" profile.
 """
 
 from __future__ import annotations
@@ -63,7 +64,7 @@ def cases(league_path: Path | str = ROOT / "data" / "season" / "league.json") ->
         return {"name": c["name"], "short_name": c["short_name"], "kit": c["kit"], "club_id": c["club_id"],
                 "squad": [{"global_id": p["global_id"], "name": p["name"]} for p in c["squad"]]}
 
-    g = league["generator"]
+    g = {"minutes": 15.0, "periods": 2, "track_hz": 1.0, "profile": "realistic"}  # the league's settings on main
     return {
         "sample_syn_0294": dict(seed=294, minutes=3.0, track_hz=1.0, profile="demo"),
         "library_syn_0141": dict(seed=141, minutes=3.0, track_hz=1.0, profile="demo"),

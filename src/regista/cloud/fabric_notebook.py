@@ -31,9 +31,9 @@ STAT_SQL: dict[str, str] = {
 
 PLAYED_SQL = """
 CREATE OR REPLACE TEMP VIEW played AS
-SELECT l.global_id, COUNT(*) AS appearances, SUM(m.played_s / 60.0D) AS minutes_raw
-FROM lineups l JOIN matches m ON l.match_id = m.match_id
-WHERE l.starter AND l.global_id IS NOT NULL
+SELECT l.global_id, COUNT(*) AS appearances, SUM(l.played_s / 60.0D) AS minutes_raw
+FROM lineups l
+WHERE l.played_s > 0 AND l.global_id IS NOT NULL
 GROUP BY l.global_id
 """
 

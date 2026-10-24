@@ -162,6 +162,8 @@ def rules_summary(season: Season, p: Record, model: str = RULES_MODEL) -> Record
     if best:
         against = f" against {best['opponent']}" if best.get("opponent") else ""
         sentences.append((f"Best moment: {_moment_words(best['title'])} in round {best['round']}{against}.", [best["id"]]))
+    if len(sentences) < 2:  # a substitute with a few minutes and nothing to rank: say so rather than overclaim
+        sentences.append((f"{surname} has played too little so far for rates to mean much.", ["P1"]))
     return _summary(sentences, fs, model, basis(p))
 
 

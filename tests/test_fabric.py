@@ -286,10 +286,13 @@ def test_player_season_is_what_the_profiles_show(tables):
 
 def test_matches_rows_give_the_minutes_the_profiles_count(tables):
     small, _root, season, t = tables
-    played = {m["match_id"]: m["played_s"] for m in t["matches"]}
+    played = {(r["match_id"], r["global_id"]): r["played_s"] for r in t["lineups"]}
     for gid, p in season.profiles.items():
         if p["appearances"]:
-            assert p["minutes"] == round(sum(played[m["match_id"]] for m in p["matches"]) / 60.0, 1)
+            assert p["minutes"] == round(sum(played[(m["match_id"], gid)] for m in p["matches"]) / 60.0, 1)
+    # time on the pitch never exceeds the match, and substitutes who came on have some
+    whole = {m["match_id"]: m["played_s"] for m in t["matches"]}
+    assert all(r["played_s"] <= whole[r["match_id"]] + 1e-6 for r in t["lineups"])
     goals = {m["match_id"]: m["home_goals"] + m["away_goals"] for m in t["matches"]}
     for mid, n in goals.items():
         assert n == sum(1 for e in t["events"] if e["match_id"] == mid and e["event_type"] == "goal")

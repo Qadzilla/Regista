@@ -225,7 +225,7 @@ Designed in the sandbox (`ux/sandbox`, `sandbox/`), ported by PR (branch `ux/das
 
 This is the initial mapping. Change it as we learn what is practical in the time available.
 
-**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.1.1: adds `annotation.context`, `label.prior_watchability`, `label.review`). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
+**Layer boundary:** Ingest and Interpret form the **private vision layer**; Explain, Render, and Personalize form the **public intelligence layer**. The contract between them is the synthetic event stream, **defined in `data/synthetic/README.md` and enforced by the JSON Schemas in `src/regista/schemas/`** (schema version 0.2.0 since 2026-10-23: the league's events `substitution`, `penalty`, `aerial_duel`, `card_red`, `offside`, all from the generator in league mode only; streams without them, every committed sample included, stay 0.1.1). A synthetic match generator (`python -m regista.synth`) feeds the same contract for the public demo, and `regista.clips.derive_clips` is the reference implementation of the clip rule on top of it.
 
 ### 3.0 Code layout and how to run it
 
@@ -249,13 +249,16 @@ src/regista/player/          the Player view: store.py (Blob + Queue or a local 
 src/regista/season_api.py    /scout, /players/{id}, /api/season, /api/players, /api/players/{id}[/moments|/reel.mp4], /api/compare
 src/regista/player_api.py    the Player view (/me): uploads to the store (admin), progress, "is this you?" answers through the
                              identity review, finished pv_ matches fetched from the store and served via _match_dir and profiles
+src/regista/season/playing_time.py  time on the pitch from substitutions and red cards (profiles, build, Fabric lineups)
+src/regista/season/audit.py  can a scout trust it: split-half reliability within a kit slot, the scoring chart (python -m regista.season.audit)
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
                              on the claimed match, whose profiles executor (the Profile agent, after persist) refreshes the profile
 src/regista/static/player/add-match.js  "Add a match" on a profile: upload events + tracks (or, locally, a video through a vision-run
                              job), then "which one is you?" (team + kit number) as a claim; the Studio's Claims tab decides
-src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; generator profiles demo/realistic
+src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands (plus league-mode bands, --league [--repeat N]);
+                             generator profiles demo/realistic/league. League mode: hidden ratings drive outcomes (data/synthetic/README.md)
 src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
                              /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline
 src/regista/access.py        who may do what: Product open, Studio behind the view or admin key, writes admin-only
