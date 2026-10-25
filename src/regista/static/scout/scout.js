@@ -1253,7 +1253,7 @@
     state.openConvo = null; state.openReport = null; state.picker = null;
     repaintAll();
     paintSettings();
-    $('stResetNote').textContent = 'Done: messages, the shortlist, reports, needs and settings are back to how they started.';
+    $('stResetNote').textContent = 'Done: messages, the shortlist, reports, needs, settings and the Terminal workspaces are back to how they started.';
   });
 
   // ------------------------------------------------------------------ start

@@ -1714,6 +1714,17 @@
     if (!ready || (k !== null && k !== STORE_KEY)) return;
     readStore(); paintMeta(); if (onTerminal()) { renderLayout(); renderAll(); }
   });
+  // "Reset this demo" in Settings, in this tab: Regista.demo.reset() has just cleared the store (scout.js's listener runs
+  // first), but the storage event only reaches other tabs. Forget the workspaces and the history held in memory too, and
+  // drop a pending save, or the next save would write the old ones back.
+  const resetBtn = $('stReset');
+  if (resetBtn) resetBtn.addEventListener('click', () => {
+    clearTimeout(saveT);
+    store = { cur: 0, ws: [null, null, null], hist: [] };
+    histAt = -1; histDraft = ''; reel = null; scatCur = null; scrAct = null;
+    if (!ready) return;
+    readStore(); paintMeta(); stopVideo(''); renderLayout(); renderAll();
+  });
   window.addEventListener('hashchange', onRoute);
   onRoute();
 })();

@@ -133,6 +133,18 @@ def test_workspaces_and_history_stay_in_this_browser_through_the_shared_store(js
     assert "function resetWs()" in js and "function clean(s)" in js and "[0, 1, 2]" in js
 
 
+def test_reset_this_demo_resets_the_terminal_in_the_same_tab(js):
+    # Regista.demo.reset() clears the store, but the storage event only reaches other tabs: without this the terminal kept
+    # its workspaces and history in memory and wrote them back on its next save (found by the safeguard pass).
+    hook = re.search(r"\$\('stReset'\)[\s\S]{0,700}?\}\);", js)
+    assert hook, "the terminal does not listen to Reset this demo"
+    body = hook.group(0)
+    assert "clearTimeout(saveT)" in body and "store = { cur: 0, ws: [null, null, null], hist: [] }" in body and "readStore()" in body
+    # scout.js's own listener (demo.reset) must run first: it is registered by scout.js, which loads before terminal.js
+    scout = (SCOUT / "scout.js").read_text()
+    assert "demo.reset();" in scout and "the Terminal workspaces" in scout
+
+
 def test_the_terminal_only_reads(js):
     assert "method:" not in js and "'POST'" not in js and "'PUT'" not in js and "'DELETE'" not in js
     assert "fetch(" not in js            # every request goes through Regista.api, a GET without a key
