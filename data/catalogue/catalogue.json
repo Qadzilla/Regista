@@ -1,0 +1,676 @@
+{
+ "catalogue": "Regista catalogue",
+ "season": "2026/27",
+ "seed": 2027,
+ "version": 1,
+ "generator": {
+  "name": "regista-synth",
+  "version": "0.7.1"
+ },
+ "note": "Synthetic: invented players, clubs and competition names. Countries, regions and levels are classification labels. Camera type is a label: every match is rendered the same way.",
+ "levels": {
+  "tiers": [
+   {
+    "key": "semi_pro",
+    "label": "Semi-pro"
+   },
+   {
+    "key": "amateur",
+    "label": "Amateur"
+   },
+   {
+    "key": "college",
+    "label": "College / university"
+   },
+   {
+    "key": "academy",
+    "label": "Academy / youth"
+   }
+  ],
+  "age_groups": [
+   {
+    "key": "senior",
+    "label": "Senior"
+   },
+   {
+    "key": "college",
+    "label": "College"
+   },
+   {
+    "key": "U20",
+    "label": "Under 20"
+   },
+   {
+    "key": "U19",
+    "label": "Under 19"
+   },
+   {
+    "key": "U18",
+    "label": "Under 18"
+   },
+   {
+    "key": "U17",
+    "label": "Under 17"
+   }
+  ],
+  "genders": [
+   {
+    "key": "men",
+    "label": "Men"
+   },
+   {
+    "key": "women",
+    "label": "Women"
+   }
+  ],
+  "pools": [
+   {
+    "tier": "semi_pro",
+    "age_group": "senior",
+    "gender": "men",
+    "competitions": [
+     "co_eng_sp_men",
+     "co_ger_sp_men"
+    ]
+   },
+   {
+    "tier": "semi_pro",
+    "age_group": "senior",
+    "gender": "women",
+    "competitions": [
+     "co_eng_sp_women"
+    ]
+   },
+   {
+    "tier": "academy",
+    "age_group": "U18",
+    "gender": "men",
+    "competitions": [
+     "co_eng_u18"
+    ]
+   },
+   {
+    "tier": "college",
+    "age_group": "college",
+    "gender": "men",
+    "competitions": [
+     "co_usa_col_men",
+     "co_jpn_uni_men"
+    ]
+   },
+   {
+    "tier": "college",
+    "age_group": "college",
+    "gender": "women",
+    "competitions": [
+     "co_usa_col_women"
+    ]
+   },
+   {
+    "tier": "amateur",
+    "age_group": "senior",
+    "gender": "men",
+    "competitions": [
+     "co_esp_am_men",
+     "co_nga_am_men",
+     "co_mex_am_men"
+    ]
+   },
+   {
+    "tier": "academy",
+    "age_group": "U19",
+    "gender": "men",
+    "competitions": [
+     "co_esp_u19",
+     "co_mar_u19"
+    ]
+   },
+   {
+    "tier": "academy",
+    "age_group": "U20",
+    "gender": "men",
+    "competitions": [
+     "co_bra_u20"
+    ]
+   },
+   {
+    "tier": "academy",
+    "age_group": "U17",
+    "gender": "men",
+    "competitions": [
+     "co_gha_u17"
+    ]
+   }
+  ]
+ },
+ "competitions": [
+  {
+   "competition_id": "co_eng_sp_men",
+   "code": "rl",
+   "name": "Regista League",
+   "country": "England",
+   "region": "Northern England",
+   "tier": "semi_pro",
+   "age_group": "senior",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 6,
+   "uploaded_matches": 30,
+   "source": "league",
+   "path": "data/season/league.json",
+   "coverage": "full",
+   "uploads": {
+    "rl_r01_ash_fai": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_ash_02",
+      "club_id": "cl_ashby"
+     },
+     "camera": "tripod"
+    },
+    "rl_r01_eas_bro": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_brookfield"
+     },
+     "camera": "drone"
+    },
+    "rl_r01_cal_dun": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_calder"
+     },
+     "camera": "phone"
+    },
+    "rl_r02_eas_ash": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_ash_06",
+      "club_id": "cl_ashby"
+     },
+     "camera": "tripod"
+    },
+    "rl_r02_fai_dun": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_dun_08",
+      "club_id": "cl_dunmore"
+     },
+     "camera": "broadcast"
+    },
+    "rl_r02_cal_bro": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_brookfield"
+     },
+     "camera": "tripod"
+    },
+    "rl_r03_ash_dun": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_ash_09",
+      "club_id": "cl_ashby"
+     },
+     "camera": "tripod"
+    },
+    "rl_r03_cal_eas": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_eastwick"
+     },
+     "camera": "broadcast"
+    },
+    "rl_r03_fai_bro": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_fai_08",
+      "club_id": "cl_fairhaven"
+     },
+     "camera": "tripod"
+    },
+    "rl_r04_cal_ash": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_calder"
+     },
+     "camera": "drone"
+    },
+    "rl_r04_dun_bro": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_dun_10",
+      "club_id": "cl_dunmore"
+     },
+     "camera": "tripod"
+    },
+    "rl_r04_fai_eas": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_fairhaven"
+     },
+     "camera": "tripod"
+    },
+    "rl_r05_ash_bro": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_brookfield"
+     },
+     "camera": "tripod"
+    },
+    "rl_r05_fai_cal": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_calder"
+     },
+     "camera": "broadcast"
+    },
+    "rl_r05_dun_eas": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_eas_08",
+      "club_id": "cl_eastwick"
+     },
+     "camera": "broadcast"
+    },
+    "rl_r06_fai_ash": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_ash_03",
+      "club_id": "cl_ashby"
+     },
+     "camera": "broadcast"
+    },
+    "rl_r06_bro_eas": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_brookfield"
+     },
+     "camera": "tripod"
+    },
+    "rl_r06_dun_cal": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_calder"
+     },
+     "camera": "drone"
+    },
+    "rl_r07_ash_eas": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_eastwick"
+     },
+     "camera": "tripod"
+    },
+    "rl_r07_dun_fai": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_fairhaven"
+     },
+     "camera": "drone"
+    },
+    "rl_r07_bro_cal": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_brookfield"
+     },
+     "camera": "broadcast"
+    },
+    "rl_r08_dun_ash": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_ash_10",
+      "club_id": "cl_ashby"
+     },
+     "camera": "tripod"
+    },
+    "rl_r08_eas_cal": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_calder"
+     },
+     "camera": "phone"
+    },
+    "rl_r08_bro_fai": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_fai_04",
+      "club_id": "cl_fairhaven"
+     },
+     "camera": "broadcast"
+    },
+    "rl_r09_ash_cal": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_calder"
+     },
+     "camera": "tripod"
+    },
+    "rl_r09_bro_dun": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_dunmore"
+     },
+     "camera": "tripod"
+    },
+    "rl_r09_eas_fai": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_eastwick"
+     },
+     "camera": "tripod"
+    },
+    "rl_r10_bro_ash": {
+     "uploader": {
+      "type": "player",
+      "global_id": "pl_bro_11",
+      "club_id": "cl_brookfield"
+     },
+     "camera": "drone"
+    },
+    "rl_r10_cal_fai": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_fairhaven"
+     },
+     "camera": "tripod"
+    },
+    "rl_r10_eas_dun": {
+     "uploader": {
+      "type": "team",
+      "club_id": "cl_dunmore"
+     },
+     "camera": "broadcast"
+    }
+   }
+  },
+  {
+   "competition_id": "co_eng_sp_women",
+   "code": "ewo",
+   "name": "Pennine Women's League",
+   "country": "England",
+   "region": "Yorkshire",
+   "tier": "semi_pro",
+   "age_group": "senior",
+   "gender": "women",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 5,
+   "uploaded_matches": 5,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_eng_sp_women.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_eng_u18",
+   "code": "eu18",
+   "name": "Shires Academy League U18",
+   "country": "England",
+   "region": "West Midlands",
+   "tier": "academy",
+   "age_group": "U18",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 4,
+   "uploaded_matches": 4,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_eng_u18.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_usa_col_men",
+   "code": "ucm",
+   "name": "Atlantic Collegiate Soccer Conference",
+   "country": "USA",
+   "region": "New England",
+   "tier": "college",
+   "age_group": "college",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 6,
+   "uploaded_matches": 6,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_usa_col_men.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_usa_col_women",
+   "code": "ucw",
+   "name": "Pacific Coast Collegiate Conference",
+   "country": "USA",
+   "region": "California",
+   "tier": "college",
+   "age_group": "college",
+   "gender": "women",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 5,
+   "uploaded_matches": 5,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_usa_col_women.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_esp_am_men",
+   "code": "eam",
+   "name": "Regional Preferente Levante Interior",
+   "country": "Spain",
+   "region": "Valencian Community",
+   "tier": "amateur",
+   "age_group": "senior",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 5,
+   "uploaded_matches": 5,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_esp_am_men.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_esp_u19",
+   "code": "eu19",
+   "name": "Liga Juvenil Meseta Norte",
+   "country": "Spain",
+   "region": "Castile and Le\u00f3n",
+   "tier": "academy",
+   "age_group": "U19",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 5,
+   "uploaded_matches": 5,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_esp_u19.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_ger_sp_men",
+   "code": "gsp",
+   "name": "Weserland-Liga",
+   "country": "Germany",
+   "region": "Lower Saxony",
+   "tier": "semi_pro",
+   "age_group": "senior",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 6,
+   "uploaded_matches": 8,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_ger_sp_men.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_bra_u20",
+   "code": "bu20",
+   "name": "Campeonato Serrano Sub-20",
+   "country": "Brazil",
+   "region": "Minas Gerais",
+   "tier": "academy",
+   "age_group": "U20",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 4,
+   "uploaded_matches": 4,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_bra_u20.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_nga_am_men",
+   "code": "nam",
+   "name": "Ogun Riverside Amateur League",
+   "country": "Nigeria",
+   "region": "Ogun State",
+   "tier": "amateur",
+   "age_group": "senior",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 4,
+   "uploaded_matches": 4,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_nga_am_men.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_gha_u17",
+   "code": "gu17",
+   "name": "Ashanti Colts Academy League U17",
+   "country": "Ghana",
+   "region": "Ashanti",
+   "tier": "academy",
+   "age_group": "U17",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 4,
+   "uploaded_matches": 3,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_gha_u17.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_jpn_uni_men",
+   "code": "jum",
+   "name": "Minato Bay University League",
+   "country": "Japan",
+   "region": "Kanagawa",
+   "tier": "college",
+   "age_group": "college",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 4,
+   "uploaded_matches": 4,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_jpn_uni_men.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_mex_am_men",
+   "code": "mam",
+   "name": "Liga Amateur del Valle Alto",
+   "country": "Mexico",
+   "region": "Jalisco",
+   "tier": "amateur",
+   "age_group": "senior",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 4,
+   "uploaded_matches": 4,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_mex_am_men.json",
+   "coverage": "sparse"
+  },
+  {
+   "competition_id": "co_mar_u19",
+   "code": "mu19",
+   "name": "Ligue Juniors Atlas Centre U19",
+   "country": "Morocco",
+   "region": "F\u00e8s-Mekn\u00e8s",
+   "tier": "academy",
+   "age_group": "U19",
+   "gender": "men",
+   "format": "11-a-side",
+   "season": "2026/27",
+   "teams": 4,
+   "uploaded_matches": 3,
+   "source": "catalogue",
+   "path": "data/catalogue/competitions/co_mar_u19.json",
+   "coverage": "sparse"
+  }
+ ],
+ "careers": [
+  {
+   "global_id": "pl_sot_09",
+   "name": "Sergio Cruz",
+   "competitions": [
+    "co_esp_u19",
+    "co_esp_am_men"
+   ],
+   "clubs": [
+    "cl_sotoalto",
+    "cl_torrevalle"
+   ],
+   "story": "an academy striker stepping up to a senior amateur side while still eligible for the juvenil"
+  },
+  {
+   "global_id": "pl_nvc_08",
+   "name": "Alberto Navarro",
+   "competitions": [
+    "co_esp_u19",
+    "co_esp_am_men"
+   ],
+   "clubs": [
+    "cl_navalcastro",
+    "cl_riuseca"
+   ],
+   "story": "an academy midfielder stepping up to a senior amateur side while still eligible for the juvenil"
+  },
+  {
+   "global_id": "pl_msa_07",
+   "name": "Olivia King",
+   "competitions": [
+    "co_usa_col_women",
+    "co_eng_sp_women"
+   ],
+   "clubs": [
+    "cl_mesa_alta",
+    "cl_oxenridge"
+   ],
+   "story": "an English student-athlete who plays for a home club outside the college season"
+  },
+  {
+   "global_id": "pl_sms_04",
+   "name": "Finn Schmidt",
+   "competitions": [
+    "co_usa_col_men",
+    "co_ger_sp_men"
+   ],
+   "clubs": [
+    "cl_saltmarsh",
+    "cl_moevenstedt"
+   ],
+   "story": "a German student-athlete who plays for a semi-pro side at home outside the college season"
+  },
+  {
+   "global_id": "pl_kbc_11",
+   "name": "Edson Jimenez",
+   "competitions": [
+    "co_usa_col_men",
+    "co_mex_am_men"
+   ],
+   "clubs": [
+    "cl_kestrel_bay",
+    "cl_agave_azul"
+   ],
+   "story": "a Mexican student-athlete who plays for an amateur side at home outside the college season"
+  }
+ ]
+}
