@@ -676,3 +676,23 @@ def test_fewest_least_lowest_and_worst_rank_from_the_other_end(league, js):
     # fewest: smallest first; worst: the better way reversed (the most conceded first); the line says which end
     assert "end === 'fewest' ? true" in rank and "end === 'worst' ? !lowerBetter" in rank
     assert "' (worst first)'" in rank and "' (fewest first; more is better)'" in rank
+
+
+def test_plural_verbs_and_best_roles_after_a_position(league):
+    # Review round 3: "which forwards dribble the most" ranked Dribbled past (the opposite stat), plural verbs after a
+    # position found nothing or the wrong stat, and "which forwards are the best finishers" found nothing.
+    verbs = {"dribble": "take_ons_won", "shoot": "shots", "score": "goals", "assist": "assists", "head": "aerial_duels_won",
+             "run": "distance", "press": "pressures", "carry": "progressive_carries", "pass": "progressive_passes"}
+    qs = {}
+    for v, key in verbs.items():
+        qs[f"which forwards {v} the most"] = key
+        qs[f"who {v}s the most" if not v.endswith(("ss", "sh")) else f"who {v}es the most"] = key
+    qs["who carries the most"] = "progressive_carries"
+    qs.update({"which forwards are the best finishers": "np_goals", "which forwards are the top scorers": "goals",
+               "which midfielders are the best creators": "sca", "which forwards are the best dribblers": "take_ons_won",
+               "which defenders are the best tacklers": "tkl_int_padj", "which forwards dribble the most": "take_ons_won"})
+    qs.pop("who carrys the most", None)
+    got = interpret(league, list(qs))["q"]
+    bad = {q: (got[q]["do"], got[q]["key"]) for q, key in qs.items() if (got[q]["do"], got[q]["key"]) != ("rankKey", key)}
+    assert not bad, bad
+    assert got["which forwards are the best finishers"]["pos"] == "FW" and got["which midfielders are the best creators"]["pos"] == "MF"

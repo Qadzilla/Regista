@@ -81,7 +81,7 @@
   const SYN = [
     [/^(finishers|finishing|finisher)$/, 'np_goals', 'FW'],
     [/^(scorers|goalscorers|goal scorers|scorer|goalscorer|scoring|goals)$/, 'goals', null],
-    [/^(dribblers|dribbler|dribbling|dribbles)$/, 'take_ons_won', null],
+    [/^(dribblers|dribbler|dribbling|dribbles|dribble)$/, 'take_ons_won', null],
     [/^(creators|creator|chance creators|playmakers|playmaker|creating|creativity|chance creation|chances created|chances)$/, 'sca', null],
     [/^(assisters|assist makers|providers|assists|assisting)$/, 'assists', null],
     [/^(shooters|shooting|shot takers)$/, 'shots', null],
@@ -105,7 +105,10 @@
   const VERB = { scores: 'goals', score: 'goals', scored: 'goals', assists: 'assists', assisted: 'assists', creates: 'creators', create: 'creators',
     shoots: 'shooters', dribbles: 'dribblers', tackles: 'tacklers', passes: 'passers', runs: 'runners', covers: 'runners', presses: 'pressers',
     saves: 'saves', carries: 'carriers', heads: 'headers', concedes: 'goals_conceded', concede: 'goals_conceded', conceded: 'goals_conceded',
-    fouls: 'fouls', wins: null };
+    fouls: 'fouls', wins: null,
+    // the same verbs after a plural ("which forwards dribble the most", "which keepers save the most")
+    assist: 'assists', shoot: 'shooters', dribble: 'dribblers', tackle: 'tacklers', pass: 'passers', run: 'runners', cover: 'runners',
+    press: 'pressers', save: 'saves', carry: 'carriers', head: 'headers', foul: 'fouls' };
   // The opening words of a question or a request, as many as there are ("who has", "show me", "can you show me").
   const OPEN = /^(can\s+you|could\s+you|please|i\s+want\s+to\s+see|let\s+me\s+see|who\s+(are|is|were|was|has|have|had|got|gets)|which\s+players?\s+(are|is|have|has)|which\s+players?|who|show\s+me|show|find\s+me|find|list|give\s+me|get\s+me|get|open|pull\s+up|look\s+up|search\s+for|search|go\s+to|take\s+me\s+to|play|watch|see)\s+/;
   // "which forwards have", "what defenders", "which keeper has": a position asked about. The position is kept and the
@@ -246,7 +249,9 @@
         let core = s0;
         for (let sm = core.match(SUPER); sm; sm = core.match(SUPER)) core = core.slice(sm[0].length);
         core = core.replace(/^(the|best|top|most|leading|greatest|highest|fewest|least|lowest|worst)$/, '');
-        s0 = core ? `${posw} ${s0}` : `${s0} ${posw}`.trim();
+        // a role noun after "the best" ("which forwards are the best finishers") reads with the position after it
+        const role = core && SYN.some(([re]) => re.test(core));
+        s0 = core && !role ? `${posw} ${s0}` : `${s0} ${posw}`.trim();
       }
       if (!s0) return null;
       // "most", "highest": the biggest numbers first, even for a stat where lower is better ("most yellow cards" lists who
