@@ -1619,16 +1619,14 @@ class SeasonMetrics:
     def evidence_total(self, ps: PlayerSeason, key: str) -> int:
         """How many moments are behind this number (``evidence``'s ``moments``), without building the items: the distinct
         events behind an event metric, or the matches behind a physical one. A ratio or a sum lists an event once per key
-        it counts toward (``total`` counts those rows: a pass and its completion are two), and a reader shows each event
-        once, so this counts each event once. The Scout terminal shows it ("play its 124 moments", the rows its clips
-        drawer plays) and draws a number with nothing behind it as plain text."""
+        it counts toward (``total`` counts those rows: a pass and its completion are two), and even one key can list an
+        event twice (a pass that leads to two shots is two shot-creating actions); a reader shows each event once, so
+        this counts each event once, for one key as for several. The Scout terminal shows it ("play its 124 moments", the
+        rows its clips drawer plays) and draws a number with nothing behind it as plain text."""
         m = CATALOGUE[key]
         if m.group == "physical":
             return len(self._match_evidence(ps, key))
-        keys = m.evidence_keys()
-        if len(keys) == 1:
-            return len(ps.evidence.get(keys[0], []))
-        return len({self._moment_id(e) for k in keys for e in ps.evidence.get(k, [])})
+        return len({self._moment_id(e) for k in m.evidence_keys() for e in ps.evidence.get(k, [])})
 
     @staticmethod
     def _moment_id(e: tuple) -> tuple:

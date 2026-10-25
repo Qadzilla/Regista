@@ -10,9 +10,12 @@
 //   player {p, alts} · stat {p, alts, key} · hlPlayer {p, alts} · hlFocus · rankKey {key, pos, club}
 //   minutes {pos, club} · many {keys, pos, club, p} · none
 // rankKey carries most: true when the question asks for the most or the highest (the biggest numbers first, whichever
-// way the stat is better).
+// way the stat is better), fewest: true for the fewest, least or lowest (the smallest first), worst: true for the worst
+// (the stat's better way reversed).
 // Every stat in the catalogue is found by its key, its label or its short column label, alone or inside a question
-// ("most <stat>", "<stat> per 90", "who has the most <stat>", "top 5 <stat>", "best <stat>").
+// ("most <stat>", "<stat> per 90", "who has the most <stat>", "top 5 <stat>", "best <stat>", "fewest <stat>"), with a
+// position or a club before or after ("forwards with the most <stat>", "most <stat> for forwards", "most <stat> at
+// Brookfield", "most <stat> in the league").
 (function (root) {
   'use strict';
   const R = root.Regista = root.Regista || {};
@@ -101,15 +104,24 @@
   // "who scores the most", "who assists the most": the verb names the stat.
   const VERB = { scores: 'goals', score: 'goals', scored: 'goals', assists: 'assists', assisted: 'assists', creates: 'creators', create: 'creators',
     shoots: 'shooters', dribbles: 'dribblers', tackles: 'tacklers', passes: 'passers', runs: 'runners', covers: 'runners', presses: 'pressers',
-    saves: 'saves', carries: 'carriers', heads: 'headers', wins: null };
+    saves: 'saves', carries: 'carriers', heads: 'headers', concedes: 'goals_conceded', concede: 'goals_conceded', conceded: 'goals_conceded',
+    fouls: 'fouls', wins: null };
   // The opening words of a question or a request, as many as there are ("who has", "show me", "can you show me").
   const OPEN = /^(can\s+you|could\s+you|please|i\s+want\s+to\s+see|let\s+me\s+see|who\s+(are|is|were|was|has|have|had|got|gets)|which\s+players?\s+(are|is|have|has)|which\s+players?|who|show\s+me|show|find\s+me|find|list|give\s+me|get\s+me|get|open|pull\s+up|look\s+up|search\s+for|search|go\s+to|take\s+me\s+to|play|watch|see)\s+/;
   // "per 90" is how every rate here is shown already
   const PER90 = /\s*(\/\s*90|per 90( minutes)?|per ninety|p90|per game|per match|a game|a match)(?=\s|$)/g;
-  // Words that ask for the most of something, read off one at a time ("top 5", "the most", "highest").
-  const SUPER = /^(the|best|top|most|leading|greatest|highest|good|great|strongest|biggest|elite|\d+)\s+/;
+  // Words that ask for one end of a ranking, read off one at a time ("top 5", "the most", "highest", "the fewest").
+  const SUPER = /^(the|best|top|most|leading|greatest|highest|good|great|strongest|biggest|largest|elite|fewest|least|lowest|smallest|worst|weakest|poorest|bottom|\d+)\s+/;
   const MINUTES_W = /^(minutes|minutes played|mins|playing time|game time)$/;
-  const MOST = /\b(most|highest|biggest|largest|greatest)\b/;
+  // Which end: the biggest numbers first, the smallest first, or the stat's better way reversed. The first such word wins.
+  const ENDS = /\b(most|highest|biggest|largest|greatest|fewest|least|lowest|smallest|worst|weakest|poorest|bottom)\b/;
+  const endOf = (w) => !w ? null : /^(fewest|least|lowest|smallest)$/.test(w) ? 'fewest' : /^(worst|weakest|poorest|bottom)$/.test(w) ? 'worst' : 'most';
+  // The same words anywhere in what is left, read off before a stat is looked up by the start of its words.
+  const ENDS_W = /^(most|more|highest|biggest|largest|greatest|fewest|fewer|least|less|lowest|smallest|worst|weakest|poorest|bottom)$/;
+  // A position said as a place ("in midfield", "in attack").
+  const MIDWORDS = { midfield: 'MF', defence: 'DF', defense: 'DF', attack: 'FW' };
+  const posWord = (w) => posOf(w) || MIDWORDS[w] || null;
+  const LEAGUE_W = /\s+(in the league|in the regista league|in regista league|this season|in the season|right now|overall)$/;
 
   function create(ctx) {
     const metrics = () => ctx.metrics() || [];
@@ -202,46 +214,78 @@
       let asked = false;                               // an opener, "per 90" or a superlative was read off
       const s90 = s0.replace(PER90, '').replace(/\s+/g, ' ').trim();
       if (s90 !== s0) { asked = true; s0 = s90; }
+      // "in the league", "this season": the whole league is what the table shows already.
+      const sl = s0.replace(LEAGUE_W, '').trim();
+      if (sl !== s0 && sl) { asked = true; s0 = sl; }
       let watch = false, who = false;
       for (let m = s0.match(OPEN); m; m = s0.match(OPEN)) { if (/^(play|watch|see|i want|let me)/.test(m[1])) watch = true; if (/^(who|which)/.test(m[1])) who = true; s0 = s0.slice(m[0].length); asked = true; }
-      if (who) { const v = s0.split(' ')[0]; if (VERB[v]) s0 = [VERB[v], ...s0.split(' ').slice(1).filter(w => !/^(the|most|more|best|often|goals|chances|ground|ball)$/.test(w))].join(' '); }
+      if (who) { const v = s0.split(' ')[0]; if (VERB[v]) s0 = [VERB[v], ...s0.split(' ').slice(1).filter(w => !/^(the|most|more|best|often|goals|chances|ground|ball|least|less|fewest|fewer|times)$/.test(w))].join(' '); }
       if (!s0) return null;
       // "most", "highest": the biggest numbers first, even for a stat where lower is better ("most yellow cards" lists who
-      // has the most cards). "best" and "top" keep the stat's better way ("best goals conceded" is the fewest).
-      const most = MOST.test(norm(t));
-      const statIntent = (m, pos, cl) => ({ do: 'rankKey', key: m.key, pos: pos || null, club: cl || null, ...(most ? { most: true } : {}) });
+      // has the most cards); "fewest", "least", "lowest": the smallest first ("fewest goals conceded"); "worst": the
+      // stat's better way reversed ("worst finishers"). "best" and "top" keep the stat's better way ("best goals conceded"
+      // is the fewest).
+      const end = endOf((norm(t).match(ENDS) || [])[1]);
+      const statIntent = (m, pos, cl) => ({ do: 'rankKey', key: m.key, pos: pos || null, club: cl || null, ...(end ? { [end]: true } : {}) });
+      // Each word of "the most…" read off the front, one at a time: the text itself first, then what is left after each.
+      const fronts = (x) => { const o = [x]; for (let sm = x.match(SUPER); sm; sm = x.match(SUPER)) { x = x.slice(sm[0].length); o.push(x); } return o; };
       // The whole question, then each word of "the most…" read off it, as one stat's name: every stat by its key, label or
       // short label ("most xG", "the most touches in the box", "top 5 non-penalty xG", "best save %"). Tried before
-      // position and club words, which some stat names hold ("Keeper passes", "On-pitch goals for").
-      let s = s0;
-      for (;;) {
-        const ex = exactMetric(s);
-        if (ex && (asked || s !== norm(t))) return statIntent(ex, null, null);
-        if (MINUTES_W.test(s)) return { do: 'minutes', pos: null, club: null };
-        const sm = s.match(SUPER);
-        if (!sm) break;
-        s = s.slice(sm[0].length); asked = true;
+      // position and club words, which some stat names hold ("Keeper passes", "On-pitch goals for", "Mid third pass %").
+      for (const x of fronts(s0)) {
+        const ex = exactMetric(x);
+        if (ex && (asked || x !== norm(t))) return statIntent(ex, null, null);
+        if (MINUTES_W.test(x)) return { do: 'minutes', pos: null, club: null };
       }
-      // "at Brookfield", "for Calder", "from Dunmore": a club filter on the ranking (or "Brookfield best finishers").
+      // A stat's exact name with a position before it ("forwards with the most goals", "forwards most goals", "the best
+      // midfielders by xA") or after it ("most goals for forwards", "most xA among midfielders", "most tackles in
+      // midfield"); the stat's own words are tried whole before a word is taken as the position's.
+      const exactWithPos = (x0) => {
+        for (const x of fronts(x0)) {
+          const w = x.split(' ');
+          if (w.length > 1 && posWord(w[0])) {
+            const rest = w.slice(1).join(' ').replace(/^(?:with|who have|who has|that have|that has|having|by|on|for)\s+/, '');
+            for (const y of fronts(rest)) { const ex = exactMetric(y); if (ex) return { m: ex, pos: posWord(w[0]) }; }
+          }
+          if (w.length > 1 && posWord(w[w.length - 1])) {
+            const before = w.slice(0, -1).join(' ');
+            for (const y of [before, before.replace(/\s+(?:for|among|in|of|by|from|at)(?:\s+the)?$/, '')]) {
+              for (const z of fronts(y)) { const ex = exactMetric(z); if (ex) return { m: ex, pos: posWord(w[w.length - 1]) }; }
+            }
+          }
+        }
+        return null;
+      };
+      const wp = exactWithPos(s0);
+      if (wp) return statIntent(wp.m, wp.pos, null);
+      // "at Brookfield", "for Calder", "from Dunmore": a club filter on the ranking (or "Brookfield best finishers"). The
+      // last such word is tried first, so a stat's own "from" or "in" stays its own ("passes from the defensive third at
+      // Brookfield").
       let cl = null;
-      const cm = s0.match(/\s(?:at|for|from|in)\s+(.+)$/);
-      if (cm && clubStrict(cm[1])) { cl = clubStrict(cm[1]); s0 = s0.slice(0, cm.index).trim(); }
-      else { const w0 = s0.split(' '); if (w0.length > 1 && clubStrict(w0[0]) && !resolvePlayer(w0[0], true).p) { cl = clubStrict(w0[0]); s0 = w0.slice(1).join(' '); } }
-      s = s0;
+      const preps = [...s0.matchAll(/\s(?:at|for|from|in)(?=\s)/g)].reverse();     // a lookahead: "goals for at Brookfield"
+      for (const pm of preps) {
+        const c = clubStrict(s0.slice(pm.index + pm[0].length).trim());
+        if (c) { cl = c; s0 = s0.slice(0, pm.index).trim(); break; }
+      }
+      if (!cl) { const w0 = s0.split(' '); if (w0.length > 1 && clubStrict(w0[0]) && !resolvePlayer(w0[0], true).p) { cl = clubStrict(w0[0]); s0 = w0.slice(1).join(' '); } }
+      if (cl) {
+        for (const x of fronts(s0)) { const ex = exactMetric(x); if (ex) return statIntent(ex, null, cl); }
+        const cwp = exactWithPos(s0);
+        if (cwp) return statIntent(cwp.m, cwp.pos, cl);
+      }
+      let s = s0;
       for (let sm = s.match(SUPER); sm; sm = s.match(SUPER)) { s = s.slice(sm[0].length); asked = true; }
-      s = s.replace(/\s+(in the league|in the regista league|this season|in the season|right now)$/, '').trim();
       let many = null;
       if (s) {
-        if (cl) { const ex = exactMetric(s); if (ex) return statIntent(ex, null, cl); }
-        // A position word anywhere ("forwards", "strikers", "in midfield"), with what is left read as a stat.
+        // A position word anywhere ("forwards", "strikers", "in midfield"), with what is left read as a stat once the
+        // question's own words ("with", "the most", "for") are read off too.
         const toks = s.split(' ');
         let pos = null;
-        const MIDWORDS = { midfield: 'MF', defence: 'DF', defense: 'DF', attack: 'FW' };
         const rest = toks.filter(w => {
-          const p = posOf(w) || MIDWORDS[w] || null;
+          const p = posWord(w);
           if (p && !pos) { pos = p; return false; }
           return true;
-        }).filter(w => !/^(at|for|by|on|in|of|the|with)$/.test(w)).join(' ');
+        }).filter(w => !/^(at|for|by|on|in|of|the|with|among|who|have|has|that|having)$/.test(w) && !ENDS_W.test(w)).join(' ');
         if (pos && !rest) {
           const d = ctx.defaults() || {}, k = (asked && BEST_BY[pos] && hasMetric(BEST_BY[pos])) ? BEST_BY[pos] : (d[pos === 'ALL' ? 'all' : pos] || d.all || []).find(hasMetric);
           if (k) return statIntent(metricOf(k), pos, cl);

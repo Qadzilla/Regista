@@ -744,7 +744,12 @@
       r.legend = ratio && count0 ? `One row per event: ✓ counts toward ${km[0].label} (the top of the ratio), ✗ only toward ${km[1].label}.`
         : ratio ? `One row per event, with its ${km[0].label}.` : 'One row per event, with what it counts toward.';
     } else {
-      r.items = ev.items.map(it => ({ when: when(it), minute: it.minute, val: evText(m, it.value), note: it.note ? words(it.note) : '', video: it.video_url || null, match_id: it.match_id }));
+      // One key can list an event twice (a pass that leads to two shots is two shot-creating actions): one row per
+      // event, as evidence_total counts them, saying how many times it counts.
+      r.items = mergeEvidence(ev).map(g => {
+        const n = g.v.length, v = n > 1 ? g.v.reduce((a, b) => a + b, 0) : g.v[0];
+        return { when: when(g.it), minute: g.it.minute, val: evText(m, v), note: [...g.notes.map(words), n > 1 ? `counts ${n} times` : ''].filter(Boolean).join(' · '), video: g.it.video_url || null, match_id: g.it.match_id };
+      });
     }
     if (!ev.complete) r.note = [r.note, 'Some moments did not load; pick the number again to retry.'].filter(Boolean).join(' ');
     if (match) {
@@ -1559,7 +1564,7 @@
     const it = W.interpret(t);
     if (it.do === 'help') { openHelp(); out('Help is open. Escape closes it.'); return; }
     if (it.do === 'rank') return cmdRank(it.rest);
-    if (it.do === 'rankKey') return cmdRank('', it.club, { m: MK.get(it.key), pos: it.pos, most: it.most });
+    if (it.do === 'rankKey') return cmdRank('', it.club, { m: MK.get(it.key), pos: it.pos, most: it.most, fewest: it.fewest, worst: it.worst });
     if (it.do === 'minutes') return rankMinutes(it.pos, it.club);
     if (it.do === 'cmp') return cmdCmp(it.rest);
     if (it.do === 'scat') return cmdScat(it.rest);
@@ -1660,8 +1665,12 @@
       m = r.m;
     }
     if (!pos && gkOnly(m)) pos = 'GK';
-    // "most yellow cards": the most first, though fewer is better; otherwise a stat ranks its better way first.
-    const low = m.higher_is_better === false && !(given && given.most);
+    // "most yellow cards": the most first, though fewer is better; "fewest goals conceded", "lowest xG": the smallest
+    // first; "worst finishers": the better way reversed; otherwise a stat ranks its better way first.
+    const lowerBetter = m.higher_is_better === false, end = given ? (given.most ? 'most' : given.fewest ? 'fewest' : given.worst ? 'worst' : null) : null;
+    const low = end === 'most' ? false : end === 'fewest' ? true : end === 'worst' ? !lowerBetter : lowerBetter;
+    const why = end === 'worst' ? ' (worst first)' : low ? (lowerBetter ? ' (lowest first: lower is better)' : ' (fewest first; more is better)')
+      : lowerBetter ? ' (most first; fewer is better)' : '';
     const g = gen;
     S.scr.pos = pos === 'ALL' ? null : pos;
     // The ranked column goes first, so the order of the rows is explained by the first number the scout reads (at 375 px
@@ -1680,7 +1689,7 @@
       const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
       const nr = ranks.filter(x => x != null).length, un = rows.length - nr;
       // The line first, then the scroll: on a phone the line is in the page flow and pushes the table down.
-      out(`${cap1(posText(S.scr.pos))}${cl ? ` at ${cl.name}` : ''} ranked by ${m.label}${low ? ' (lowest first: lower is better)' : m.higher_is_better === false ? ' (most first; fewer is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
+      out(`${cap1(posText(S.scr.pos))}${cl ? ` at ${cl.name}` : ''} ranked by ${m.label}${why}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
       showPanel('scrn', true, scrollTable(m.key));
     };
     if (ensureCols([m.key, ...S.scr.cols])) finish();

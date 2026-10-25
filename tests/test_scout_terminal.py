@@ -316,7 +316,7 @@ const TW = window.Regista.terminalWords;
 const W = TW.create({ metrics: () => L.cat.metrics, defaults: () => L.cat.default_columns, clubs: () => L.season.clubs,
   players: () => players, byId: (id) => players.find(p => p.id === id), focus: () => players.find(p => p.id === 'pl_bro_09') });
 const shape = (r) => ({ do: r.do, key: r.key || null, keys: r.keys || null, pos: r.pos || null, rest: r.rest || null,
-  head: r.head || null, p: r.p ? r.p.id : null, club: r.club ? r.club.club_id : null, most: !!r.most });
+  head: r.head || null, p: r.p ? r.p.id : null, club: r.club ? r.club.club_id : null, most: !!r.most, fewest: !!r.fewest, worst: !!r.worst });
 const out = { short: Object.fromEntries(L.cat.metrics.map(m => [m.key, TW.shortLabel(m)])), loose: {}, q: {} };
 for (const m of L.cat.metrics) out.loose[m.key] = [...new Set([m.key, m.label, TW.shortLabel(m)].map(TW.loose))];
 for (const q of JSON.parse(process.argv[3])) out.q[q] = shape(W.interpret(q));
@@ -348,7 +348,14 @@ def interpret(league: Path, queries: list[str]) -> dict:
 
 
 QUESTION_FORMS = ["{}", "most {}", "the most {}", "who has the most {}", "who has the most {}?", "{} per 90", "most {} per 90",
-                  "top {}", "top 5 {}", "highest {}", "best {}", "show me the most {}", "rank {}"]
+                  "top {}", "top 5 {}", "highest {}", "best {}", "show me the most {}", "rank {}", "{} per 90 minutes", "{} p90",
+                  "MOST {}", "highest {} per game", "which players have the most {}", "most {} in the league",
+                  "fewest {}", "least {}", "lowest {}", "the fewest {}"]
+# With a position or a club before or after the stat: (form, position, club).
+PLACED_FORMS = [("forwards with the most {}", "FW", None), ("forwards most {}", "FW", None), ("most {} for forwards", "FW", None),
+                ("midfielders with the fewest {}", "MF", None), ("most {} among defenders", "DF", None),
+                ("most {} at Brookfield", None, "cl_brookfield"), ("Brookfield most {}", None, "cl_brookfield"),
+                ("most {} for forwards at Brookfield", "FW", "cl_brookfield"), ("forwards with the most {} at Brookfield", "FW", "cl_brookfield")]
 
 
 def test_every_stat_answers_by_key_label_and_short_label_in_plain_questions(league):
@@ -369,6 +376,32 @@ def test_every_stat_answers_by_key_label_and_short_label_in_plain_questions(leag
     bad = [f"{q} -> {got[q]}" for q in queries
            if not (got[q]["do"] == "rankKey" and got[q]["key"] == want[q]) and not (q.startswith("rank ") and got[q]["do"] == "rank")]
     assert not bad, f"{len(bad)} questions missed their stat, e.g. " + "; ".join(bad[:8])
+    # "fewest", "least", "lowest" ask for the smallest numbers first; "most", "highest" for the biggest
+    for q in queries:
+        if q.split(" ")[0] in ("fewest", "least", "lowest") or q.startswith("the fewest "):
+            assert got[q]["fewest"] and not got[q]["most"], q
+        elif q.split(" ")[0].lower() in ("most", "highest"):
+            assert got[q]["most"] and not got[q]["fewest"], q
+
+
+def test_every_stat_answers_with_a_position_or_a_club_before_or_after_it(league):
+    # Review round 1: "forwards with the most goals" answered Nothing found (the position was read off after the leading
+    # superlatives, so "most" stayed), and stat names holding filler, position or club-like words ("Shots on target",
+    # "Mid third pass %", "Passes from the defensive third") lost them to the filler filter or the club pattern.
+    from regista.season.metrics import CATALOGUE
+
+    probe = interpret(league, [])
+    queries, want = [], {}
+    for key, m in CATALOGUE.items():
+        for name in {key, m.label, probe["short"][key]}:
+            for form, pos, club in PLACED_FORMS:
+                q = form.format(name)
+                queries.append(q)
+                want[q] = (key, pos, club)
+    got = interpret(league, queries)["q"]
+    bad = [f"{q} -> {got[q]}" for q in queries
+           if (got[q]["do"], got[q]["key"], got[q]["pos"], got[q]["club"]) != ("rankKey", *want[q])]
+    assert not bad, f"{len(bad)} of {len(queries)} questions missed, e.g. " + "; ".join(bad[:8])
 
 
 def test_every_stats_names_are_its_own(league):
@@ -533,6 +566,52 @@ def test_a_ratios_count_is_the_moments_the_drawer_plays_each_event_once():
     assert next(p for p in sc["points"] if p["global_id"] == "pl_bro_09")["x_evidence_total"] == 124
 
 
+def test_every_numbers_moment_count_is_the_drawers_row_count_for_every_player_and_metric():
+    # Review round 1: one pass that creates two shots is two shot-creating actions, so a single key could list an event
+    # twice; the screen counted rows (18), /metrics counted events (16) and the drawer listed every row (18). One rule now:
+    # each event once, in the screen's and the scatter's evidence_total, in /metrics' moments and in the drawer's rows
+    # (terminal.js mergeEvidence for every event metric; one row per match for a physical one).
+    from regista import api
+    from regista.season.metrics import CATALOGUE
+    from regista.terminal_api import metrics as season_metrics
+
+    c = TestClient(api.app)
+    keys = list(CATALOGUE)
+    screen: dict[str, dict[str, int]] = {}
+    for i in range(0, len(keys), 16):
+        chunk, offset = keys[i:i + 16], 0
+        while True:
+            page = c.get("/api/terminal/screen", params={"min_minutes": 0, "limit": 200, "offset": offset, "metrics": ",".join(chunk)}).json()
+            for p in page["players"]:
+                screen.setdefault(p["global_id"], {}).update({k: v["evidence_total"] for k, v in p["values"].items()})
+            offset += len(page["players"])
+            if not page["players"] or offset >= page["total"]:
+                break
+    sm = season_metrics()
+    assert len(screen) == len(sm.players) and all(len(v) == len(keys) for v in screen.values())
+    bad = []
+    for gid, cells in screen.items():
+        table = c.get(f"/api/players/{gid}/metrics", params={"evidence_limit": 0}).json()["metrics"]
+        ps = sm.players[gid]
+        for k in keys:
+            ev = sm.evidence(ps, k)          # every item, as the drawer pages them in
+            rows = len(ev["items"]) if ev["per_match"] else len({(it["match_id"], it["event_id"] or f"t{it['t']}") for it in ev["items"]})
+            if not (cells[k] == table[k]["evidence"]["moments"] == rows):
+                bad.append(f"{gid} {k}: screen {cells[k]}, /metrics {table[k]['evidence']['moments']}, drawer {rows}")
+    assert not bad, f"{len(bad)} cells disagree, e.g. " + "; ".join(bad[:6])
+    # Femi Toure's shot-creating actions: a pass that led to two shots is one moment, counted twice in the stat
+    toure = sm.evidence(sm.players["pl_bro_09"], "sca")
+    assert toure["total"] > toure["moments"] == screen["pl_bro_09"]["sca"]
+
+
+def test_the_drawer_lists_each_event_once_for_one_key_too(js):
+    reel = _fn(js, "evidenceReel")
+    single = reel[reel.index("} else {", reel.index("(ev.keys || []).length > 1")):]
+    assert "mergeEvidence(ev).map(" in single and "counts ${n} times" in single
+    assert "return len({self._moment_id(e) for k in m.evidence_keys() for e in ps.evidence.get(k, [])})" in (
+        Path(__file__).resolve().parents[1] / "src/regista/season/metrics.py").read_text()
+
+
 def test_most_of_a_stat_where_lower_is_better_lists_the_most_first(league, js):
     # "most yellow cards" asks who has the most cards; it ranked the players with none first, as "best" would (safeguard).
     # "most", "highest" and the like list the biggest numbers first; "best", "top" and a bare stat keep the better way.
@@ -542,7 +621,30 @@ def test_most_of_a_stat_where_lower_is_better_lists_the_most_first(league, js):
         assert q[k]["do"] == "rankKey" and q[k]["most"], k
     for k in ("best goals conceded", "top yellow cards", "yellow cards"):
         assert q[k]["do"] == "rankKey" and not q[k]["most"], k
-    assert "{ m: MK.get(it.key), pos: it.pos, most: it.most }" in _fn(js, "run")
+    assert "{ m: MK.get(it.key), pos: it.pos, most: it.most, fewest: it.fewest, worst: it.worst }" in _fn(js, "run")
     rank = _fn(js, "cmdRank")
-    assert "const low = m.higher_is_better === false && !(given && given.most);" in rank
+    assert "const low = end === 'most' ? false : end === 'fewest' ? true : end === 'worst' ? !lowerBetter : lowerBetter;" in rank
     assert "S.scr.sort = { k: m.key, dir: low ? 1 : -1 };" in rank and "(most first; fewer is better)" in rank
+
+
+def test_fewest_least_lowest_and_worst_rank_from_the_other_end(league, js):
+    # Review round 1: "fewest yellow cards", "least fouls", "lowest xG", "fewest goals conceded", "who concedes the least"
+    # and "worst finishers" answered Nothing found. "fewest", "least", "lowest" list the smallest numbers first, whichever
+    # way the stat is better; "worst" reverses the stat's better way.
+    q = interpret(league, ["fewest yellow cards", "least fouls", "lowest xG", "fewest goals conceded", "who concedes the least",
+                           "who concedes the least goals?", "worst finishers", "the lowest pass completion", "forwards with the fewest goals",
+                           "fewest goals at Brookfield", "worst goals conceded"])["q"]
+    assert q["fewest yellow cards"] == {**q["fewest yellow cards"], "do": "rankKey", "key": "yellow_cards", "fewest": True, "most": False}
+    assert q["least fouls"]["do"] == "rankKey" and q["least fouls"]["key"] == "fouls" and q["least fouls"]["fewest"]
+    assert q["lowest xG"]["do"] == "rankKey" and q["lowest xG"]["key"] == "xg" and q["lowest xG"]["fewest"]
+    for k in ("fewest goals conceded", "who concedes the least", "who concedes the least goals?"):
+        assert q[k] == {**q[k], "do": "rankKey", "key": "goals_conceded", "fewest": True}, k
+    assert q["worst finishers"] == {**q["worst finishers"], "do": "rankKey", "key": "np_goals", "pos": "FW", "worst": True}
+    assert q["the lowest pass completion"]["key"] == "pass_pct" and q["the lowest pass completion"]["fewest"]
+    assert q["forwards with the fewest goals"] == {**q["forwards with the fewest goals"], "key": "goals", "pos": "FW", "fewest": True}
+    assert q["fewest goals at Brookfield"] == {**q["fewest goals at Brookfield"], "key": "goals", "club": "cl_brookfield", "fewest": True}
+    assert q["worst goals conceded"]["worst"] and not q["worst goals conceded"]["fewest"]
+    rank = _fn(js, "cmdRank")
+    # fewest: smallest first; worst: the better way reversed (the most conceded first); the line says which end
+    assert "end === 'fewest' ? true" in rank and "end === 'worst' ? !lowerBetter" in rank
+    assert "' (worst first)'" in rank and "' (fewest first; more is better)'" in rank
