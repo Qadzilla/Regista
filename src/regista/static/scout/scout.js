@@ -1,8 +1,8 @@
 // The Scout dashboard (/scout): Maya Lindqvist, chief scout at Fairhaven FC (a synthetic persona, like the league).
-// Seven sections, one per hash (Regista.sections, shared/regista.js): #overview, #find, #shortlist, #reports, #messages,
-// #team, #settings. A section's hash may name a player: /scout#messages/<id> opens (or starts) the conversation with
-// them, #shortlist/<id> puts them on the shortlist and in compare, #reports/<id> opens their draft. The scout bar on
-// /players/{id} links here that way (it writes first, then goes; the hash alone is enough too).
+// Eight sections, one per hash (Regista.sections, shared/regista.js): #overview, #find, #terminal (terminal.js), #shortlist,
+// #reports, #messages, #team, #settings. A section's hash may name a player: /scout#messages/<id> opens (or starts) the
+// conversation with them, #shortlist/<id> puts them on the shortlist and in compare, #reports/<id> opens their draft. The
+// scout bar on /players/{id} links here that way (it writes first, then goes; the hash alone is enough too).
 //
 // LIVE, from the API: the league (/api/season), every player's card (/api/players: the filters are the server's),
 // the Scout agent (POST /api/scout/ask, Data Search or Foundry), compare (/api/compare) and the moments behind every

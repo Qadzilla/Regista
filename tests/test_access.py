@@ -33,8 +33,10 @@ ACCESS = {
     "GET /api/players/{gid}/metrics": "public",
     "GET /api/players/{gid}/form": "public",
     "GET /api/players/{gid}/similar": "public",
+    "GET /api/players/{gid}/shots": "public",
     "GET /api/teams": "public",
     "GET /api/teams/{club_id}/style": "public",
+    "GET /api/teams/{club_id}/shots": "public",
     # The Player view (reads open: synthetic players, records without paths or keys; writes admin-only)
     "GET /me": "public",
     "GET /api/player/uploads": "public",

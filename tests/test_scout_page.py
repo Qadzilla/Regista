@@ -1,5 +1,6 @@
 """The Scout dashboard (/scout): served by the app, loading only same-origin scripts and no inline script (the CSP allows
-``script-src 'self'`` only), with its seven sections in the left panel and the hooks other pages build on.
+``script-src 'self'`` only), with its eight sections in the left panel and the hooks other pages build on (the Terminal
+section has its own tests: tests/test_scout_terminal.py).
 
 What is live comes from the API (the league, the players and their filters, the Scout agent, compare, profiles);
 what is the visitor's own (messages, shortlist stages and notes, reports, needs, settings) goes through Regista.demo
@@ -18,7 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 SCOUT = Path(__file__).resolve().parents[1] / "src/regista/static/scout"
-SECTIONS = ["overview", "find", "shortlist", "reports", "messages", "team", "settings"]
+SECTIONS = ["overview", "find", "terminal", "shortlist", "reports", "messages", "team", "settings"]
 
 
 @pytest.fixture(scope="module")
@@ -46,7 +47,7 @@ def test_scout_serves_the_page_not_the_placeholder(page):
     assert '<nav class="views"' in page and 'href="/scout" class="parent" aria-current="page"' in page and 'href="/"' in page
 
 
-def test_the_left_panel_lists_the_seven_scout_sections(page):
+def test_the_left_panel_lists_the_eight_scout_sections(page):
     nav = re.search(r'<nav class="views" aria-label="Views">(.*?)</nav>', page, flags=re.S).group(1)
     sub = re.search(r'<div class="subviews" role="group" aria-label="Scout sections">(.*?)</div>', nav, flags=re.S)
     assert sub, "the Scout sections are missing from the left panel"
@@ -74,7 +75,8 @@ def test_the_page_loads_only_same_origin_scripts_and_no_inline_script(page):
     assert not re.search(r'\sstyle\s*=', page), "style attribute"
     srcs = [re.search(r'src="([^"]+)"', a).group(1) for a, _ in scripts]
     # the shared helpers, the per-visitor store, the shared profile renderer's helpers, then the page
-    assert srcs == ["/static/shared/regista.js", "/static/shared/demo.js", "/static/player/profile-view.js", "/static/scout/scout.js"]
+    assert srcs == ["/static/shared/regista.js", "/static/shared/demo.js", "/static/player/profile-view.js", "/static/scout/scout.js",
+                    "/static/scout/terminal.js"]   # the Terminal section, after the page's own script (tests/test_scout_terminal.py)
 
 
 def test_the_files_the_page_loads_are_served(client, page):

@@ -146,7 +146,7 @@ class Metric:
                 "positions": list(self.positions), "higher_is_better": self.higher_is_better,
                 "per90": self.kind == "per90", "ratio": self.kind == "ratio",
                 "components": [k for k in (self.num, self.den) if k], "evidence_from": list(self.evidence_keys()),
-                "realism": realism(self.key)}
+                "digits": self.digits, "realism": realism(self.key)}
 
     def evidence_keys(self) -> tuple[str, ...]:
         if self.evidence:
@@ -742,6 +742,7 @@ class MatchMetrics:
     team_evidence: dict[str, dict[str, list[tuple]]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(list)))
     moves: list[tuple] = field(default_factory=list)    # (pid, event id, t, "pass" | "carry", sx, sy, ex, ey, success)
     shots_xt: list[tuple] = field(default_factory=list)  # (sx, sy, xg), non-penalty shots in the attacking frame
+    shot_list: list[Record] = field(default_factory=list)  # every shot (penalties too): where, xG, outcome (the shot map)
 
     def add(self, pid: str | None, key: str, value: float = 1.0, rec: Record | None = None, note: str | None = None) -> None:
         if not pid:
@@ -877,6 +878,13 @@ def analyse_match(stream: list[Record]) -> MatchMetrics:
             goal = "goal" in q
             penalty = "penalty" in q
             last_shot_penalty = penalty
+            mm.shot_list.append({"event_id": r["id"], "pid": pid, "team": team, "t": r["t"], "period": period,
+                                 "x": None if start is None else round(start[0], 1), "y": None if start is None else round(start[1], 1),
+                                 "end_x": None if end is None else round(end[0], 1), "end_y": None if end is None else round(end[1], 1),
+                                 "xg": round(xg, 3), "outcome": next((o for o in ("goal", "saved", "blocked", "off_target") if o in q),
+                                                                     r.get("outcome")),
+                                 "body_part": r.get("body_part"), "penalty": penalty,
+                                 "distance_m": None if metrics.get("shot_distance_m") is None else round(float(metrics["shot_distance_m"]), 1)})
             mm.add(pid, "xg", xg, r)
             mm.team_add(team, "xg_for", xg)
             mm.team_add(team, "shots_for", 1)
@@ -1368,6 +1376,9 @@ class SeasonMetrics:
         self.players: dict[str, PlayerSeason] = {}
         self.match_rows: list[Record] = []     # {match_id, round, date, home, away, score, title}
         self.clip_index: list[ClipIndex] = []
+        self.match_clock: list[Record] = []     # per match: the header's period table (football minutes of a time)
+        self.shots: list[Record] = []           # every league shot, in match and time order (the shot maps and team reels)
+        self._shot_at: dict[tuple[str, str], Record] = {}
         self.teams: dict[str, Record] = {}
         self.xt: XTModel | None = None
         self.min_minutes = 0.0
@@ -1415,6 +1426,21 @@ class SeasonMetrics:
             score = header.get("score", {})
             self.match_rows.append({"match_id": mm.match_id, "round": fx["round"], "date": fx["date"], "home": fx["home"],
                                     "away": fx["away"], "score": score})
+            self.match_clock.append({"periods": header.get("periods", [])})
+            for s in mm.shot_list:
+                cid = club_of_team.get(s["team"])
+                gid = local.get(s["pid"])
+                clip, _owner = self.clip_index[mi].find(s["pid"], s["event_id"], s["t"])
+                shot = {"match_id": mm.match_id, "round": fx["round"], "home": fx["home"], "away": fx["away"],
+                        "club_id": cid, "opponent": fx["away"] if cid == fx["home"] else fx["home"],
+                        "global_id": gid if gid in self.people else None, "player_id": s["pid"],
+                        "event_id": s["event_id"], "t": round(s["t"], 2), "minute": self.minute(mi, s["t"]),
+                        "period": s["period"], "x": s["x"], "y": s["y"], "end_x": s["end_x"], "end_y": s["end_y"],
+                        "xg": s["xg"], "distance_m": s["distance_m"], "outcome": s["outcome"], "body_part": s["body_part"],
+                        "penalty": s["penalty"], "clip_id": clip,
+                        "video_url": f"/api/matches/{mm.match_id}/clips/{clip}.mp4" if clip else None}
+                self.shots.append(shot)
+                self._shot_at[(mm.match_id, s["event_id"])] = shot
             for team, c in mm.teams.items():
                 cid = club_of_team.get(team)
                 if cid not in teams:
@@ -1516,8 +1542,20 @@ class SeasonMetrics:
                 ps.percentiles[m.key] = round(100.0 - pct if m.higher_is_better is False else pct)
 
     def describe(self, key: str) -> Record:
-        """A metric's public description plus its split-half reliability in this league (None when not measured)."""
-        return {**CATALOGUE[key].public(), "reliability": self.reliability.get("metrics", {}).get(key)}
+        """A metric's public description plus its split-half reliability in this league (None when not measured) and, for
+        a ratio, the attempts a player needs for a percentile this season (``min_attempts``, with its rule)."""
+        m = CATALOGUE[key]
+        t = self.thresholds.get(m.min_den) if m.kind == "ratio" and m.min_den else None
+        return {**m.public(), "reliability": self.reliability.get("metrics", {}).get(key),
+                "min_attempts": t["min"] if t else None, "min_attempts_rule": t["rule"] if t else None}
+
+    def minute(self, mi: int, t: float | None) -> int | None:
+        """The football minute (1-based, as Regista's clip labels count it) of a time in match ``mi``: matches last 30
+        minutes on a 90-minute clock (the second half starts at 46'), so it cannot be read off ``t``."""
+        from regista.clips import match_minute
+
+        periods = self.match_clock[mi]["periods"] if mi < len(self.match_clock) else []
+        return None if t is None or not periods else match_minute({"periods": periods}, t)
 
     def noisy(self, key: str) -> bool:
         """Within a role, is one season's ranking on this metric mostly luck (split-half r below NOISE_R)?"""
@@ -1556,30 +1594,34 @@ class SeasonMetrics:
         return out
 
     # ------------------------------------------------------------------ evidence
-    def evidence(self, ps: PlayerSeason, key: str, limit: int | None = None) -> Record:
-        """The events behind a metric (``Metric.evidence_keys``), in match order, each with its match, time, value and clip.
-        ``limit`` None gives every item, a number at most that many (0: none); ``total`` always counts them all."""
+    def evidence(self, ps: PlayerSeason, key: str, limit: int | None = None, offset: int = 0) -> Record:
+        """The events behind a metric (``Metric.evidence_keys``), in match order, each with its match, time, football
+        minute, value and clip. ``offset`` skips that many items (paging); ``limit`` None gives every item from there, a
+        number at most that many (0: none); ``total`` always counts them all, so a reader can page until it has them all."""
         m = CATALOGUE[key]
         keys = m.evidence_keys()
+        offset = max(0, int(offset))
         if m.group == "physical":
             items = self._match_evidence(ps, key)
-            return {"keys": [key], "total": len(items), "items": items if limit is None else items[:limit], "per_match": True}
+            page = items[offset:] if limit is None else items[offset:offset + limit]
+            return {"keys": [key], "total": len(items), "offset": offset, "items": page, "per_match": True}
         rows = []
         for k in keys:
             for e in ps.evidence.get(k, []):
                 rows.append((k, e))
         rows.sort(key=lambda r: (r[1][0], r[1][3] or 0.0))
         total = len(rows)
-        if limit is not None:
-            rows = rows[:limit]
-        return {"keys": list(keys), "total": total, "items": [self._evidence_item(k, e) for k, e in rows], "per_match": False}
+        rows = rows[offset:] if limit is None else rows[offset:offset + limit]
+        return {"keys": list(keys), "total": total, "offset": offset, "items": [self._evidence_item(k, e) for k, e in rows],
+                "per_match": False}
 
     def _evidence_item(self, key: str, e: tuple) -> Record:
         mi, pid, eid, t, value, note = e
         row = self.match_rows[mi]
         cid, owner = self.clip_index[mi].find(pid, eid, t) if pid else (None, None)
         item: Record = {"metric": key, "match_id": row["match_id"], "round": row["round"], "player_id": pid, "event_id": eid,
-                        "t": None if t is None else round(t, 2), "value": round(value, 4), "clip_id": cid}
+                        "t": None if t is None else round(t, 2), "minute": self.minute(mi, t), "value": round(value, 4),
+                        "clip_id": cid}
         if note:
             item["note"] = note
         if cid:
@@ -1741,10 +1783,38 @@ class SeasonMetrics:
                 "per_match": per_match, "evidence": {"set_piece_xg": sp}}
 
     def _team_evidence_item(self, e: tuple, key: str) -> Record:
+        """A team number's event (a set-piece shot), with its minute and, from the season's shots, who took it and its clip."""
         mi, _pid, eid, t, value, _note = e
         row = self.match_rows[mi]
-        return {"metric": key, "match_id": row["match_id"], "round": row["round"], "event_id": eid, "t": round(t, 2),
-                "value": round(value, 4), "link": f"/?match={row['match_id']}&t={round(t, 1)}"}
+        item: Record = {"metric": key, "match_id": row["match_id"], "round": row["round"], "event_id": eid, "t": round(t, 2),
+                        "minute": self.minute(mi, t), "value": round(value, 4), "link": f"/?match={row['match_id']}&t={round(t, 1)}"}
+        shot = self._shot_at.get((row["match_id"], eid))
+        if shot:
+            item |= {"global_id": shot["global_id"], "name": self._name(shot["global_id"]), "xg": shot["xg"],
+                     "outcome": shot["outcome"], "clip_id": shot["clip_id"], "video_url": shot["video_url"]}
+        return item
+
+    def _name(self, gid: str | None) -> str | None:
+        return self.people[gid]["name"] if gid in self.people else None
+
+    def player_shots(self, gid: str) -> list[Record]:
+        """Every shot the player took in the league, penalties included, in match and time order."""
+        return [self._public_shot(s) for s in self.shots if s["global_id"] == gid]
+
+    def team_shots(self, club_id: str, side: str = "for") -> list[Record]:
+        """Every shot by the club (``for``) or by its opponents in its matches (``against``), each with who took it."""
+        out = []
+        for s in self.shots:
+            if club_id not in (s["home"], s["away"]) or (s["club_id"] == club_id) != (side == "for"):
+                continue
+            out.append(self._public_shot(s))
+        return out
+
+    def _public_shot(self, s: Record) -> Record:
+        gid = s["global_id"]
+        p = self.people.get(gid) or {}
+        return {**{k: v for k, v in s.items() if k != "player_id"}, "name": p.get("name"), "short_name": p.get("short_name"),
+                "position": p.get("position"), "kit_number": p.get("kit_number")}
 
 
 def _failed_move_starts(stream: list[Record]) -> list[tuple[float, float]]:

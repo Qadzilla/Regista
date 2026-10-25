@@ -41,14 +41,16 @@ table. Every response says the data is synthetic.
 
 | Endpoint | What it returns |
 |---|---|
-| `GET /api/metrics` | the catalogue, the groups, the sources, the season's thresholds and the fitted xT grid |
-| `GET /api/terminal/screen` | players with chosen columns (`metrics=a,b,...`, up to 16; default: the position's core set). Filters: `position`, `role` (the 4-3-3 slot), `club`, `min_minutes` (default: the qualifying minimum), `age_min`/`age_max`, `foot`, `q`. Also `sort`, `order`, `limit` |
+| `GET /api/metrics` | the catalogue (each metric with its display `digits` and, for a ratio, `min_attempts` and its rule), the groups, the sources, the season's thresholds, the fitted xT grid and the `pitch` (size, attacking frame, the touch grid and its events) |
+| `GET /api/terminal/screen` | players with chosen columns (`metrics=a,b,...`, up to 16; default: the position's core set). Filters: `position`, `role` (the 4-3-3 slot), `club`, `min_minutes` (default: the qualifying minimum), `age_min`/`age_max`, `foot`, `q`. Also `sort`, `order`, `limit`, `offset` (page past `limit`; `total` counts every row) |
 | `GET /api/terminal/rank?metric=` | a leaderboard (ties share a rank). Players without enough attempts are listed separately, unranked |
 | `GET /api/terminal/scatter?x=&y=` | two metrics per player, plus the pool's medians |
-| `GET /api/players/{id}/metrics` | every metric (or one `group`), each with its value, count, percentile, peers, and the first `evidence_limit` (default 10) events with their total. `evidence=KEY` returns one metric's full evidence, up to 500 events |
+| `GET /api/players/{id}/metrics` | every metric (or one `group`), each with its value, count, percentile, peers, and the first `evidence_limit` (default 10) events with their total. `evidence=KEY` returns one metric's evidence in pages of up to 500 events from `evidence_offset`; page on while `offset + len(items) < total` to read every moment. Each event has its football `minute` |
+| `GET /api/players/{id}/shots` | every shot the player took, penalties included: attacking-frame location and end point, xG, outcome, body part, penalty, minute, round, opponent, clip (the terminal's shot map) |
 | `GET /api/players/{id}/form?metrics=` | per-match values, then mean, sd, coefficient of variation, and the last 3 matches against the season value |
 | `GET /api/players/{id}/similar?n=` | the most similar players in the same position |
-| `GET /api/teams`, `GET /api/teams/{club_id}/style` | each club's style values, league rank, league mean, per-match values; set-piece xG has its evidence (the shots) |
+| `GET /api/teams`, `GET /api/teams/{club_id}/style` | each club's style values, league rank, league mean, per-match values; set-piece xG has its evidence (the shots, each with its taker, minute and clip) |
+| `GET /api/teams/{club_id}/shots?side=for\|against` | every shot by the club or against it in its matches, with who took it, xG, outcome, minute and clip (the terminal's team reels) |
 
 Inputs are validated the same way as the existing endpoints:
 

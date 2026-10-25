@@ -245,8 +245,13 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
   - **The metrics engine** (`season/metrics.py`: 127 player and 19 team-style metrics, each with definition, rule and
     source) and **its API** (`terminal_api.py`). `regista.synth.report --league` checks the season against Premier
     League bands (`docs/realism-report.md`), and `regista.season.audit` measures split-half reliability.
-- **Part B, the terminal's screens (next):** to be built first in the sandbox (`ux/sandbox`), then ported into Scout as a
-  **Terminal** section. They are not shown as working until they run.
+- **Part B, the terminal's screens:** designed in the sandbox (`ux/sandbox`, approved by Zaid), then ported into Scout as
+  the **Terminal** section (`/scout#terminal`; `static/scout/terminal.js` and `terminal.css`; branch `ux/terminal`, not
+  yet merged or deployed; report `docs/redesign/terminal/build.md`). It reads the real API only (no export file) and
+  writes nothing; workspaces live in `Regista.store`. Port decisions (Zaid): evidence is complete (every moment behind a
+  number, paged through `evidence_offset`), and the sandbox reviewers' four open items are fixed. Added read-only API:
+  `/api/players/{id}/shots`, `/api/teams/{club_id}/shots`, `digits`/`min_attempts`/`pitch` in `/api/metrics`, `minute`
+  on evidence, `offset` on the screen.
 - **Femi Toure (pl_bro_09) is clearly the star** (Zaid, 2026-10-24): the league's top scorer with 5 league goals, none a
   penalty, two more than anyone (rounds 1, 1, 6, 8, 10), and the leader in goals, non-penalty goals and npxG per 90 in
   the terminal; the demo's hook. His hidden ratings do it (league attributes version 2, `STAR_RATINGS`: finishing 99,
@@ -312,7 +317,8 @@ src/regista/api.py           FastAPI service: the Product at /, matches (feature
 src/regista/access.py        who may do what: Product open, Studio behind the view or admin key, writes admin-only
 src/regista/studio_api.py    Regista Studio (/studio): the control room's router; /api/studio/* behind the Studio keys
 src/regista/static/          product/ (the Product at /: index.html, app.js, product.css, timeline.js), studio/ (the Studio),
-                             shared/ (regista.css tokens, regista.js helpers)
+                             shared/ (regista.css tokens, regista.js helpers), scout/ (the Scout dashboard; terminal.js and
+                             terminal.css: the Terminal section, read-only on the terminal API)
 src/regista/studio/          the Studio's facts (runs, to-do, data, cache), the local vision jobs runner, and the status CLI
                              (python3 -m regista.studio status [--url URL])
 Dockerfile                   python:3.11-slim + fonts-dejavu; uvicorn regista.api:app on :8000 (built by GitHub Actions; no docker here)

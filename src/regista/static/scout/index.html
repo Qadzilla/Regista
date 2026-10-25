@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="/static/shared/regista.css">
 <link rel="stylesheet" href="/static/shared/dashboard.css">
 <link rel="stylesheet" href="/static/scout/scout.css">
+<link rel="stylesheet" href="/static/scout/terminal.css">
 </head>
 <body>
 <header class="top">
@@ -16,7 +17,7 @@
 </header>
 
 <div class="shell">
-<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find">Find players</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
+<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find">Find players</a><a href="/scout#terminal" data-section="terminal">Terminal</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
 <div class="shell-main">
 
 <main class="pf sc" id="main">
@@ -106,6 +107,33 @@
       </div>
       <p class="muted small sc-tablehint">Pick a club to show only its players.</p>
     </section>
+  </div>
+
+  <!-- Terminal: the Scout terminal. A command line with Bloomberg-style mnemonics over linked panels; every number opens
+       every moment behind it. terminal.js fills it from the API (read only); workspaces stay in this browser. -->
+  <div class="pv" data-panel="terminal" hidden>
+   <div class="tx">
+    <h1 class="sr">Terminal</h1>
+    <div class="tx-top">
+      <form class="tx-cmd" id="txForm" role="search" autocomplete="off">
+        <label class="tx-prompt" for="txIn" aria-hidden="true">CMD&gt;</label>
+        <div class="tx-combo">
+          <input id="txIn" type="text" role="combobox" aria-label="Command line" aria-expanded="false" aria-controls="txAc" aria-autocomplete="list"
+                 spellcheck="false" autocapitalize="off" maxlength="200" placeholder="TOURE · RANK FW npxg · CMP · SCAT · TEAM BRO · HELP">
+          <ul id="txAc" class="tx-ac" role="listbox" aria-label="Suggestions" hidden></ul>
+        </div>
+        <button type="submit" class="tx-go" aria-label="Go">&lt;GO&gt;</button>
+        <kbd class="tx-kbd" title="Cmd+K or Ctrl+K focuses the command line">&#8984;K</kbd>
+      </form>
+      <p class="tx-out" id="txOut" role="status" aria-live="polite"></p>
+      <div class="tx-fkeys" id="txKeys" aria-label="Panels"></div>
+      <div class="tx-help" id="txHelp" role="dialog" aria-labelledby="txHelpH" hidden></div>
+    </div>
+    <div class="tx-meta" id="txMeta"></div>
+    <div class="tx-sel" id="txSel" aria-label="Selected players"></div>
+    <div class="tx-grid" id="txGrid"></div>
+    <div class="tx-tip" id="txTip" role="tooltip" hidden></div>
+   </div>
   </div>
 
   <!-- Shortlist: stages and compare -->
@@ -236,5 +264,6 @@
 <script src="/static/shared/demo.js"></script>
 <script src="/static/player/profile-view.js" defer></script>
 <script src="/static/scout/scout.js" defer></script>
+<script src="/static/scout/terminal.js" defer></script>
 </body>
 </html>

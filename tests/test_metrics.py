@@ -526,3 +526,123 @@ def test_ratings_never_appear_in_terminal_json(client):
     for name, body in payloads.items():
         assert not _hidden_keys(body), (name, _hidden_keys(body)[:5])
     assert not math.isnan(payloads["metrics"]["minutes"])
+
+
+# ---------------------------------------------------------------------------- what the Scout terminal's screens read
+
+def test_the_catalogue_carries_digits_minimum_attempts_and_the_pitch(client):
+    cat = client.get("/api/metrics").json()
+    for m in cat["metrics"]:
+        assert isinstance(m["digits"], int), m["key"]
+        spec = CATALOGUE[m["key"]]
+        if spec.kind == "ratio" and spec.min_den:
+            assert m["min_attempts"] == cat["season"]["thresholds"][spec.min_den]["min"] and m["min_attempts_rule"]
+        else:
+            assert m["min_attempts"] is None and m["min_attempts_rule"] is None
+    assert all(isinstance(m["digits"], int) for m in cat["team_metrics"])
+    assert cat["pitch"]["length"] == 105.0 and cat["pitch"]["width"] == 68.0 and cat["pitch"]["heatmap_grid"] == [12, 8]
+    assert "touch" in cat["pitch"]["heatmap_events"] and "attacking left to right" in cat["pitch"]["frame"]
+
+
+def test_evidence_pages_until_every_moment_is_read(client):
+    """Zaid's decision for the terminal: every moment behind a number. evidence=KEY returns pages of up to 500 items from
+    evidence_offset; reading page after page gives the whole list, in the same order as one unpaged read."""
+    whole = client.get(f"/api/players/{STAR}/metrics", params={"evidence": "pass_pct"}).json()["evidence"]
+    assert whole["offset"] == 0 and len(whole["items"]) == whole["total"] > 6
+    pages, offset = [], 0
+    while True:
+        ev = client.get(f"/api/players/{STAR}/metrics",
+                        params={"evidence": "pass_pct", "evidence_limit": 4, "evidence_offset": offset}).json()["evidence"]
+        assert ev["offset"] == offset and ev["total"] == whole["total"]
+        if not ev["items"]:
+            break
+        pages += ev["items"]
+        offset += len(ev["items"])
+    assert pages == whole["items"]
+    # every event item carries its football minute (matches last 30 minutes on a 90-minute clock: 1-15, then 46-60)
+    assert all(isinstance(i["minute"], int) and (1 <= i["minute"] <= 16 or 46 <= i["minute"] <= 61) for i in whole["items"])
+    # physical numbers page the same way (one value per match)
+    phys = client.get(f"/api/players/{STAR}/metrics", params={"evidence": "distance", "evidence_offset": 1}).json()["evidence"]
+    assert phys["per_match"] and phys["offset"] == 1 and len(phys["items"]) == phys["total"] - 1
+    past = client.get(f"/api/players/{STAR}/metrics", params={"evidence": "pass_pct", "evidence_offset": 99999}).json()
+    assert past["evidence"]["items"] == [] and past["evidence"]["total"] == whole["total"]
+
+
+def test_no_evidence_list_is_longer_than_a_page_reads_in_one_call_unpaged(client):
+    """A reader that never pages still gets everything while every list fits one page; the terminal pages anyway."""
+    from regista.terminal_api import MAX_EVIDENCE
+
+    one = client.get(f"/api/players/{STAR}/metrics", params={"evidence": "touches"}).json()["evidence"]
+    assert len(one["items"]) == one["total"] <= MAX_EVIDENCE
+
+
+def test_the_screen_pages_past_its_limit(client):
+    whole = client.get("/api/terminal/screen", params={"min_minutes": 0, "limit": 200, "metrics": "npxg"}).json()
+    rows, offset = [], 0
+    while offset < whole["total"]:
+        page = client.get("/api/terminal/screen", params={"min_minutes": 0, "limit": 5, "offset": offset, "metrics": "npxg"}).json()
+        assert page["offset"] == offset and page["players"]
+        rows += page["players"]
+        offset += len(page["players"])
+    assert [p["global_id"] for p in rows] == [p["global_id"] for p in whole["players"]]
+
+
+def test_a_players_shots_agree_with_the_engine(client, small):
+    _league, _root, sm = small
+    body = client.get(f"/api/players/{STAR}/shots").json()
+    shots = body["shots"]
+    assert body["total"] == len(shots) > 0 and body["synthetic"] and body["pitch"]["length"] == 105.0
+    ps = sm.player(STAR)
+    np_shots = [s for s in shots if not s["penalty"]]
+    assert len(np_shots) == ps.totals.get("shots", 0)                            # the Shots metric leaves penalties out
+    assert abs(sum(s["xg"] for s in np_shots) - ps.totals.get("npxg", 0.0)) < 0.01
+    assert body["penalties"] == len(shots) - len(np_shots) and body["goals"] == sum(s["outcome"] == "goal" for s in shots)
+    for s in shots:
+        assert s["global_id"] == STAR and s["name"] == "Femi Toure" and s["club_id"] == "cl_brookfield"
+        assert 0 <= s["x"] <= 105 and 0 <= s["y"] <= 68 and s["outcome"] in ("goal", "saved", "blocked", "off_target")
+        assert isinstance(s["minute"], int) and s["opponent"] != s["club_id"] and s["round"] == 1
+        assert s["video_url"] is None or s["video_url"] == f"/api/matches/{s['match_id']}/clips/{s['clip_id']}.mp4"
+    assert any(s["video_url"] for s in shots)
+
+
+def test_a_clubs_shots_for_and_against_add_up_to_its_numbers(client, small):
+    _league, _root, sm = small
+    for cid in ("cl_brookfield", "cl_eastwick"):
+        totals = sm.teams[cid]["totals"]
+        mine = client.get(f"/api/teams/{cid}/shots", params={"side": "for"}).json()
+        theirs = client.get(f"/api/teams/{cid}/shots", params={"side": "against"}).json()
+        assert mine["side"] == "for" and theirs["side"] == "against"
+        assert mine["total"] == totals.get("shots_for", 0) and abs(mine["xg"] - totals.get("xg_for", 0.0)) < 0.01
+        assert theirs["total"] == totals.get("shots_against", 0) and abs(theirs["xg"] - totals.get("xg_against", 0.0)) < 0.01
+        assert all(s["club_id"] == cid and s["name"] for s in mine["shots"])
+        assert all(s["club_id"] != cid and cid in (s["home"], s["away"]) for s in theirs["shots"])
+    assert client.get("/api/teams/cl_brookfield/shots").json()["side"] == "for"    # side defaults to the club's own
+
+
+def test_set_piece_evidence_names_the_taker_and_the_clip(client):
+    st = client.get("/api/teams/cl_brookfield/style").json()
+    for e in st["evidence"]["set_piece_xg"]:
+        assert isinstance(e["minute"], int)
+        assert e["name"] and e["global_id"].startswith("pl_") and e["xg"] == pytest.approx(e["value"], abs=1e-3)
+        assert e["video_url"] is None or e["video_url"].startswith(f"/api/matches/{e['match_id']}/clips/")
+
+
+@pytest.mark.parametrize("url,code", [
+    ("/api/players/pl_nobody_99/shots", 404),
+    ("/api/players/not-an-id/shots", 400),
+    ("/api/teams/cl_nowhere/shots", 404),
+    ("/api/teams/NOT/shots", 400),
+    ("/api/teams/cl_brookfield/shots?side=sideways", 422),
+    ("/api/players/pl_bro_09/metrics?evidence=touches&evidence_offset=-1", 422),
+    ("/api/players/pl_bro_09/metrics?evidence_offset=5", 422),
+    ("/api/terminal/screen?offset=-1", 422),
+])
+def test_the_terminals_new_reads_check_their_inputs(client, url, code):
+    assert client.get(url).status_code == code
+
+
+def test_the_new_reads_never_carry_the_hidden_ratings(client):
+    for body in (client.get(f"/api/players/{STAR}/shots").json(), client.get("/api/teams/cl_brookfield/shots?side=against").json(),
+                 client.get(f"/api/players/{STAR}/metrics", params={"evidence": "pass_pct", "evidence_offset": 2}).json(),
+                 client.get("/api/metrics").json()["pitch"]):
+        assert not _hidden_keys(body), _hidden_keys(body)[:5]

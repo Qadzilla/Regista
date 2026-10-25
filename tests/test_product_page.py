@@ -144,7 +144,7 @@ VIEWS = [("/", "Home"), ("/me", "Player profile"), ("/scout", "Scout")]
 # A dashboard's sections, indented under its link in the left panel (shared/regista.css .subviews, shared/regista.js
 # sections()); /players/{id} shows Scout's. Home has none. A page listed in SECTIONS_REQUIRED must have them.
 SECTIONS = {"/me": ["overview", "profile", "matches", "messages", "team", "settings"],
-            "/scout": ["overview", "find", "shortlist", "reports", "messages", "team", "settings"]}
+            "/scout": ["overview", "find", "terminal", "shortlist", "reports", "messages", "team", "settings"]}
 SECTIONS_REQUIRED = {"player/index.html", "me/index.html", "scout/index.html"}
 
 
