@@ -99,7 +99,7 @@ must keep them invented and check that no name is a real club or league they kno
 | `co_usa_col_men` | `ucm` | Atlantic Collegiate Soccer Conference | USA | New England | college | college | men | 6 | 6 | sparse |
 | `co_usa_col_women` | `ucw` | Pacific Coast Collegiate Conference | USA | California | college | college | women | 5 | 5 | sparse |
 | `co_esp_am_men` | `eam` | Regional Preferente Levante Interior | Spain | Valencian Community | amateur | senior | men | 5 | 5 | sparse |
-| `co_esp_u19` | `eu19` | Liga Juvenil Meseta Norte | Spain | Castile and León | academy | U19 | men | 5 | 5 | sparse |
+| `co_esp_u19` | `eu19` | Liga Juvenil Levante Interior | Spain | Valencian Community | academy | U19 | men | 5 | 5 | sparse |
 | `co_ger_sp_men` | `gsp` | Weserland-Liga | Germany | Lower Saxony | semi_pro | senior | men | 6 | 8 | sparse |
 | `co_bra_u20` | `bu20` | Campeonato Serrano Sub-20 | Brazil | Minas Gerais | academy | U20 | men | 4 | 4 | sparse |
 | `co_nga_am_men` | `nam` | Ogun Riverside Amateur League | Nigeria | Ogun State | amateur | senior | men | 4 | 4 | sparse |

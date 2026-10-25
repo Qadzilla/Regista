@@ -31,7 +31,7 @@ with the pins) and `python -m regista.catalogue competitions`.
 | Atlantic Collegiate Soccer Conference (`co_usa_col_men`) | USA | New England | college / college / men | 6 | 108 | 6 | 2026-08-29 to 2026-10-17 | broadcast 2, drone 2, tripod 2 | 5/1 |
 | Pacific Coast Collegiate Conference (`co_usa_col_women`) | USA | California | college / college / women | 5 | 90 | 5 | 2026-08-22 to 2026-10-17 | broadcast 2, drone 2, tripod 1 | 4/1 |
 | Regional Preferente Levante Interior (`co_esp_am_men`) | Spain | Valencian Community | amateur / senior / men | 5 | 90 | 5 | 2026-10-24 to 2027-03-20 | phone 4, tripod 1 | 1/4 |
-| Liga Juvenil Meseta Norte (`co_esp_u19`) | Spain | Castile and León | academy / U19 / men | 5 | 90 | 5 | 2026-09-05 to 2027-03-13 | drone 1, tripod 4 | 4/1 |
+| Liga Juvenil Levante Interior (`co_esp_u19`) | Spain | Valencian Community | academy / U19 / men | 5 | 90 | 5 | 2026-09-05 to 2027-03-13 | drone 1, tripod 4 | 4/1 |
 | Weserland-Liga (`co_ger_sp_men`) | Germany | Lower Saxony | semi_pro / senior / men | 6 | 108 | 8 | 2026-08-08 to 2027-01-23 | broadcast 3, drone 1, phone 2, tripod 2 | 5/3 |
 | Campeonato Serrano Sub-20 (`co_bra_u20`) | Brazil | Minas Gerais | academy / U20 / men | 4 | 72 | 4 | 2026-08-08 to 2026-11-21 | drone 2, phone 1, tripod 1 | 3/1 |
 | Ogun Riverside Amateur League (`co_nga_am_men`) | Nigeria | Ogun State | amateur / senior / men | 4 | 72 | 4 | 2026-11-21 to 2027-03-27 | drone 1, phone 2, tripod 1 | 1/3 |
@@ -167,7 +167,7 @@ measures each level on regenerated full round robins (design.md §10).
 | Atlantic Collegiate Soccer Conference | 6 | 1.50 | 10.8 | 279 | 0.85 | 10.2 | 11.2 | 6.7 |
 | Pacific Coast Collegiate Conference | 5 | 0.20 | 5.0 | 287 | 0.81 | 13.0 | 14.0 | 10.2 |
 | Regional Preferente Levante Interior | 5 | 0.80 | 5.8 | 288 | 0.84 | 10.4 | 15.2 | 9.2 |
-| Liga Juvenil Meseta Norte | 5 | 1.00 | 7.2 | 282 | 0.81 | 11.6 | 15.8 | 8.4 |
+| Liga Juvenil Levante Interior | 5 | 1.00 | 7.2 | 282 | 0.81 | 11.6 | 15.8 | 8.4 |
 | Weserland-Liga | 8 | 0.38 | 8.5 | 285 | 0.81 | 12.8 | 16.8 | 8.2 |
 | Campeonato Serrano Sub-20 | 4 | 0.75 | 7.5 | 293 | 0.86 | 11.5 | 12.0 | 7.5 |
 | Ogun Riverside Amateur League | 4 | 1.00 | 9.8 | 286 | 0.85 | 9.2 | 11.5 | 6.2 |

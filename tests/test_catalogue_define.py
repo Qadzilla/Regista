@@ -232,6 +232,43 @@ def test_a_career_player_has_matches_in_both_competitions_never_two_on_one_date(
         assert len(dates) == len(set(dates)), (gid, dates)
 
 
+def test_each_career_story_fits_its_fixtures_and_registration(comps, careers):
+    """Review B M2 and S5: a story never contradicts the player's own fixtures, and a Spanish juvenil plays for a senior
+    side in his own territorial federation (one licence a season: his club's affiliated senior side)."""
+    for gid, car in careers.items():
+        (src, dst), (src_club, dst_club) = car["competitions"], car["clubs"]
+        story = car["story"]
+        dst_fx = sorted((f for f in comps[dst]["fixtures"] if dst_club in (f["home"], f["away"])), key=lambda f: f["date"])
+        src_end = BY_ID[src].window[1]
+        if "outside the college season" in story:
+            assert all(f["date"] > src_end or f["date"] < BY_ID[src].window[0] for f in dst_fx), (gid, story)
+        if "after the college season" in story:   # Olivia King: her home club's opening match, then after the season
+            assert dst_fx[0]["round"] == 1 and all(f["date"] > src_end for f in dst_fx[1:]), (gid, story)
+        if BY_ID[src].country == "Spain":
+            assert BY_ID[src].region == BY_ID[dst].region and BY_ID[src].region in story
+            assert "affiliated" in story and "territorial federation" in story
+
+
+def test_youth_birth_dates_meet_each_competitions_cut_off(comps, index):
+    """Review B S6: every youth squad is born inside its competition's rule (taxonomy.BIRTH_CUTOFFS), which is a public
+    label (eligibility); moving a date of birth never touched a rating or a match (dates of birth do not reach the
+    generator)."""
+    from regista.catalogue.taxonomy import BIRTH_CUTOFFS
+    from regista.season.league import LEAGUE_FIELDS
+
+    assert "date_of_birth" not in LEAGUE_FIELDS
+    youth = {c.competition_id for c in COMPETITIONS if c.tier == "academy"}
+    assert set(BIRTH_CUTOFFS) == youth
+    for cid in youth:
+        earliest, rule = BIRTH_CUTOFFS[cid]
+        assert all(p["date_of_birth"] >= earliest for _c, p in _people(comps[cid])), cid
+        assert comps[cid]["competition"]["eligibility"] == rule
+        assert next(e for e in index["competitions"] if e["competition_id"] == cid)["eligibility"] == rule
+    assert D.within_cutoff("2007-11-03", "co_esp_u19") == "2008-11-03"
+    assert D.within_cutoff("2009-08-20", "co_gha_u17") == "2010-08-20"
+    assert D.within_cutoff("2007-11-03", "co_ger_sp_men") == "2007-11-03"
+
+
 # ---------------------------------------------------------------------------------------------------------- coverage
 
 def test_sparse_uploads_cover_every_club_with_uploader_and_camera(comps):

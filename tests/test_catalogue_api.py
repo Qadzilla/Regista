@@ -165,12 +165,21 @@ def test_the_cross_country_screen_pages_through_every_row_with_pools(client, cm)
 
 
 def test_screen_filters_sort_and_order(client):
+    # academy spans four levels: sorted by each row's percentile within its own pool, best first
     acad = ok(client, "/api/catalogue/players", tier="academy", position="FW", sort="npxg", limit=200)
     assert acad["players"] and all(r["tier"] == "academy" and r["position"] == "FW" for r in acad["players"])
-    vals = [r["values"]["npxg"]["value"] for r in acad["players"] if r["values"]["npxg"]["value"] is not None]
-    assert vals == sorted(vals, reverse=True)
-    asc = ok(client, "/api/catalogue/players", tier="academy", position="FW", sort="npxg", order="asc", limit=200)
+    assert acad["rank_by"] == "pool" and acad["boards"] is None and acad["rank_rule"]
+    pcts = [r["values"]["npxg"]["percentile"] for r in acad["players"] if r["values"]["npxg"]["percentile"] is not None]
+    assert pcts and pcts == sorted(pcts, reverse=True)
+    # rank_by=value keeps the raw ranking as an explicit option
+    raw = ok(client, "/api/catalogue/players", tier="academy", position="FW", sort="npxg", rank_by="value", limit=200)
+    vals = [r["values"]["npxg"]["value"] for r in raw["players"] if r["values"]["npxg"]["value"] is not None]
+    assert raw["rank_by"] == "value" and vals == sorted(vals, reverse=True)
+    asc = ok(client, "/api/catalogue/players", tier="academy", position="FW", sort="npxg", order="asc", rank_by="value",
+             limit=200)
     assert [r["values"]["npxg"]["value"] for r in asc["players"] if r["values"]["npxg"]["value"] is not None] == sorted(vals)
+    one = ok(client, f"/api/competitions/{GER}/players", position="FW", sort="npxg", limit=200)   # one level: by value
+    assert one["rank_by"] == "value"
     women = ok(client, "/api/catalogue/players", gender="women", limit=200)
     assert {r["competition_id"] for r in women["players"]} == {"co_eng_sp_women", "co_usa_col_women"}
     careers = ok(client, "/api/catalogue/players", career="true", min_minutes=0, limit=200)
@@ -286,6 +295,62 @@ def test_england_in_competition_scope_is_todays_screen_and_cards(client):
     ccards = ok(client, "/api/players", competition=ENGLAND_ID, scope="competition", limit=200)
     pct = {c["global_id"]: {k: h["percentile"] for k, h in c["headline"].items()} for c in cards["players"]}
     assert {c["global_id"]: {k: h["percentile"] for k, h in c["headline"].items()} for c in ccards["players"]} == pct
+
+
+def test_englands_catalogue_cards_count_a_confirmed_upload_as_todays_cards_do(client, monkeypatch, tmp_path):
+    """Review A #1: England's catalogue-mode cards come from the app's own season, so a finished Player-view upload counts
+    there exactly as on today's cards; the terminal metrics and the career rows stay on the league's fixtures (as the
+    Scout terminal does), say so (``basis``) and name the matches only the profile counts."""
+    import shutil
+
+    from regista import player_api
+    from regista.schema import iter_jsonl
+    from regista.season import profiles
+    from regista.season.league import load_league
+
+    league = load_league(LEAGUE)
+    base_card = next(c for c in ok(client, "/api/players", limit=200)["players"] if c["global_id"] == STAR)
+    fx = next(f for f in league["fixtures"] if "cl_brookfield" in (f["home"], f["away"]))
+    d = shutil.copytree(SEASON_ROOT / fx["match_id"], tmp_path / "pv_fake")
+    header = next(iter_jsonl(d / "events.jsonl"))
+    pid = next(p["player_id"] for p in header["players"] if p.get("global_player_id") == STAR)
+    row = {"match_id": d.name, "match_dir": str(d), "player_id": pid, "global_id": STAR, "upload_id": "up_fake"}
+    monkeypatch.setattr(player_api, "uploaded_matches", lambda force=False: [row])
+    profiles.invalidate()
+    try:
+        today = {c["global_id"]: c for c in ok(client, "/api/players", limit=200)["players"]}
+        assert today[STAR]["appearances"] == base_card["appearances"] + 1
+        for params in ({"competition": ENGLAND_ID, "scope": "competition"}, {"competition": ENGLAND_ID}):
+            cat = ok(client, "/api/players", limit=200, **params)
+            assert cat["basis"] and "Player-view uploads" in cat["basis"]
+            mine = next(c for c in cat["players"] if c["global_id"] == STAR)
+            assert (mine["appearances"], mine["minutes"]) == (today[STAR]["appearances"], today[STAR]["minutes"])
+            assert {k: h["per90"] for k, h in mine["headline"].items()} == \
+                {k: h["per90"] for k, h in today[STAR]["headline"].items()}
+            if params.get("scope") == "competition":
+                for gid, c in ((c["global_id"], c) for c in cat["players"]):
+                    assert {k: h["percentile"] for k, h in c["headline"].items()} == \
+                        {k: h["percentile"] for k, h in today[gid]["headline"].items()}
+        prof = ok(client, f"/api/players/{STAR}", include="career")
+        eng = next(r for r in prof["career"]["career"] if r["competition_id"] == ENGLAND_ID)
+        assert prof["appearances"] == eng["appearances"] + 1          # the career rows: league fixtures only, said so
+        assert prof["career"]["profile_only_matches"] == ["pv_fake"] and prof["career"]["basis"]
+    finally:
+        profiles.invalidate()
+
+
+def test_players_total_counts_every_card_when_paged(client):
+    """Review A #2: without offset /api/players is what it always was; with offset, total counts every filtered card."""
+    plain = ok(client, "/api/players", limit=5)
+    assert plain["total"] == len(plain["players"]) == 5 and "offset" not in plain
+    every = ok(client, "/api/players", limit=200)["total"]
+    page = ok(client, "/api/players", limit=5, offset=10)
+    assert page["total"] == every and page["offset"] == 10 and len(page["players"]) == 5
+    assert [c["global_id"] for c in page["players"]] == \
+        [c["global_id"] for c in ok(client, "/api/players", limit=200)["players"][10:15]]
+    assert ok(client, "/api/players", limit=5, offset=0)["total"] == every
+    cat = ok(client, "/api/players", limit=5, offset=10, competition=ENGLAND_ID)
+    assert cat["total"] == every
 
 
 def test_existing_endpoints_answer_other_competitions_in_todays_shapes(client):
@@ -446,6 +511,11 @@ def test_the_catalogue_mcp_tools_are_listed_and_answer(client):
     assert sp["warning"]                                    # men across levels
     eng = mcp_server.search_catalogue_players(competition=ENGLAND_ID, position="FW", sort="np_goals", limit=1)
     assert eng["players"][0]["global_id"] == STAR and eng["warning"] is None
+    assert sp["rank_by"] == "pool" and all(p["board"] == "men" for p in sp["players"])
+    both = mcp_server.search_catalogue_players(position="FW", sort="np_goals", limit=50)
+    assert both["boards"] == ["men", "women"] and both["players"][0]["global_id"] == STAR
+    raw = mcp_server.search_catalogue_players(gender="men", position="FW", sort="npxg", limit=5, rank_by="value")
+    assert raw["rank_by"] == "value" and "error" in mcp_server.search_catalogue_players(sort="npxg", rank_by="luck")
     assert "error" in mcp_server.search_catalogue_players(sort="charisma")
     assert "error" in mcp_server.search_catalogue_players(competition="co_nowhere")
     gp = mcp_server.get_catalogue_player("Sergio Cruz")

@@ -12,7 +12,8 @@
   "age_group": "senior",
   "gender": "women",
   "format": "11-a-side",
-  "season": "2026/27"
+  "season": "2026/27",
+  "eligibility": null
  },
  "generator": {
   "name": "regista-synth",

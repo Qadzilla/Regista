@@ -47,8 +47,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
 from regista.catalogue import store
-from regista.catalogue.metrics import (ALL_WARNING, POOL_RULE, RELIABILITY_NOTE, SYNTHETIC_NOTE, CatalogueMetrics,
-                                       load_catalogue_metrics)
+from regista.catalogue.metrics import (ALL_WARNING, POOL_RULE, RANK_RULE, RELIABILITY_NOTE, SYNTHETIC_NOTE,
+                                       CatalogueMetrics, load_catalogue_metrics)
+from regista.catalogue.profiles import ENGLAND_BASIS
 from regista.catalogue.taxonomy import ENGLAND_ID, levels_public
 from regista.catalogue.tools import comp_labels, competition_summary, entries_matching
 from regista.season.metrics import CATALOGUE, DEFAULT_COLUMNS, TEAM_CATALOGUE
@@ -82,7 +83,9 @@ UPLOADER_TYPE = Annotated[str | None, Query(pattern="^(team|player)$")]
 
 CAMERA_NOTE = ("Camera type is a label of the upload: Regista renders every match with the same broadcast-style view, and "
                "the vision layer is measured only on that render. Nothing here processes phone or drone footage differently.")
-MIXED_WARNING = "rows from different levels: read each percentile against its own pool"
+MIXED_WARNING = ALL_WARNING   # rows from different levels: the same caution as scope all
+RANK_BY = Annotated[Literal["pool", "value"] | None, Query(description="pool: percentile within each row's own pool "
+                                                                       "(default across levels); value: the raw value")]
 WARM = {"state": "idle", "error": None}
 _warm_lock = threading.Lock()
 
@@ -190,12 +193,17 @@ def catalogue_metrics() -> CatalogueMetrics:
 
 def catalogue_profiles():
     """Every competition's ``Season`` (moments, touch maps, matches, results), with the metrics engine's unrounded
-    minutes so a profile stat's pooled percentile ranks rates as ``Season`` does."""
+    minutes so a profile stat's pooled percentile ranks rates as ``Season`` does. England's is the app's own season
+    (``season_api.season()``: fixtures, confirmed claims and finished Player-view uploads), so England's catalogue-mode
+    cards are today's cards (``ENGLAND_BASIS``)."""
     from regista.api import CATALOGUE_ROOT, SEASON_LEAGUE, SEASON_ROOT
     from regista.catalogue.profiles import load_catalogue_profiles
 
+    from regista.season_api import season as league_season
+
     cm = catalogue_metrics()
     cp = load_catalogue_profiles(_index_path(), CATALOGUE_ROOT, SEASON_LEAGUE, SEASON_ROOT)
+    cp.use_england(league_season())   # the app's own: fixtures plus confirmed claims and Player-view uploads
     if not cp.exact_minutes:
         cp.use_minutes({(cid, gid): ps.minutes for cid in cm.order for gid, ps in cm.metrics[cid].players.items()})
     return cp
@@ -426,17 +434,25 @@ async def get_competition(competition_id: str) -> Record:
     return await run_in_threadpool(run)
 
 
+def _boards(cm: CatalogueMetrics, rows: list, genders: list[str] | None) -> list[Record] | None:
+    if not genders:
+        return None
+    return [{"gender": g, "rows": sum(1 for c, _ps in rows if cm.labels[c]["gender"] == g)} for g in genders]
+
+
 def _screen(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metrics_raw, position, role, club, q,
-            min_minutes, age_min, age_max, foot, camera, career, sort, order, limit, offset) -> Record:
+            min_minutes, age_min, age_max, foot, camera, career, sort, order, limit, offset, rank_by=None) -> Record:
     _check_ages(age_min, age_max)
     keys = _keys(metrics_raw, default=DEFAULT_COLUMNS.get(position, DEFAULT_COLUMNS[None]))
     sort_key = _key(sort) if sort else keys[0]
     cids, rows = _rows(cm, w, default_all=default_all, position=position, role=role, club=club, q=q,
                        min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot, camera=camera, career=career)
-    rows = cm.sort(rows, sort_key, order)
+    rows, mode, genders, _ranked = cm.order_rows(rows, sort_key, scope, order, rank_by)
     return {"columns": [_describe(cm, k, cids, scope) for k in keys], "scope": scope, "sort": sort_key, "order": order,
+            "rank_by": mode, "rank_rule": RANK_RULE, "boards": _boards(cm, rows, genders),
             "total": len(rows), "offset": offset, "limit": limit,
-            "players": [{**_card(cm, cid, ps), "values": {k: cm.cell(cid, ps.info["global_id"], k, scope) for k in keys}}
+            "players": [{**_card(cm, cid, ps), "board": cm.labels[cid]["gender"],
+                         "values": {k: cm.cell(cid, ps.info["global_id"], k, scope) for k in keys}}
                         for cid, ps in rows[offset:offset + limit]],
             "competitions": cids, "pools": _pools_of(cm, cids, scope), "pool_rule": POOL_RULE,
             "reliability_note": RELIABILITY_NOTE, "warning": _warning(cm, cids, scope), "filters": w.public(),
@@ -449,17 +465,19 @@ async def competition_players(competition_id: str, scope: ScopeDep,
                               position: POSITION = None, role: ROLE = None, club: CLUB = None, q: NAME_Q = None,
                               min_minutes: MIN_MINUTES = None, age_min: AGE = None, age_max: AGE = None, foot: FOOT = None,
                               sort: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None,
-                              order: Literal["asc", "desc"] | None = None, limit: int = Query(50, ge=1, le=200),
+                              order: Literal["asc", "desc"] | None = None, rank_by: RANK_BY = None,
+                              limit: int = Query(50, ge=1, le=200),
                               offset: int = Query(0, ge=0, le=MAX_OFFSET)) -> Record:
     """One competition's players with metric columns (default: the position's core set), percentiles in ``scope``
-    (level by default). ``min_minutes`` defaults to the competition's qualifying minutes."""
+    (level by default). ``min_minutes`` defaults to the competition's qualifying minutes. Sorted by value (one level);
+    ``rank_by=pool`` sorts by percentile."""
     _known_competition(competition_id)
 
     def run() -> Record:
         return _screen(catalogue_metrics(), Where(competition=competition_id), scope or "level", default_all=False,
                        metrics_raw=metrics_, position=position, role=role, club=club, q=q, min_minutes=min_minutes,
                        age_min=age_min, age_max=age_max, foot=foot, camera=None, career=None, sort=sort, order=order,
-                       limit=limit, offset=offset)
+                       limit=limit, offset=offset, rank_by=rank_by)
 
     return await run_in_threadpool(run)
 
@@ -473,17 +491,20 @@ async def catalogue_players(w: WhereDep, scope: ScopeDep,
                             min_minutes: MIN_MINUTES = None, age_min: AGE = None, age_max: AGE = None, foot: FOOT = None,
                             camera: CAMERA = None, career: bool | None = None,
                             sort: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None,
-                            order: Literal["asc", "desc"] | None = None, limit: int = Query(50, ge=1, le=200),
+                            order: Literal["asc", "desc"] | None = None, rank_by: RANK_BY = None,
+                            limit: int = Query(50, ge=1, le=200),
                             offset: int = Query(0, ge=0, le=MAX_OFFSET)) -> Record:
     """The cross-country screen: one row per player and competition (a career player has two), each cell with its pool
     and sample. Percentiles in ``scope`` (level by default). ``min_minutes`` defaults to each row's own competition's
     qualifying minutes; ``camera`` keeps players with an appearance in a match filmed on that camera type; ``career=true``
-    only players in two competitions. Paged by ``offset`` and ``limit`` (``total`` counts every row)."""
+    only players in two competitions. Rows from more than one level are sorted by each row's percentile within its own
+    pool (``rank_by=value`` sorts by the raw value), and men and women are on separate boards (``RANK_RULE``). Paged by
+    ``offset`` and ``limit`` (``total`` counts every row)."""
 
     def run() -> Record:
         return _screen(catalogue_metrics(), w, scope or "level", default_all=True, metrics_raw=metrics_, position=position,
                        role=role, club=club, q=q, min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot,
-                       camera=camera, career=career, sort=sort, order=order, limit=limit, offset=offset)
+                       camera=camera, career=career, sort=sort, order=order, limit=limit, offset=offset, rank_by=rank_by)
 
     return await run_in_threadpool(run)
 
@@ -544,6 +565,7 @@ async def catalogue_player(gid: str, scope: ScopeDep, competition: COMPETITION =
         out["profile_url"] = f"/players/{gid}" if any(c == ENGLAND_ID for c, _p in cm.people[gid]) else None
         out["summary_note"] = ("Each row's summary is the rules summary of that competition's uploaded matches (ranks among "
                                "the competition's players); no Foundry summary is written for catalogue players yet.")
+        out["basis"] = ENGLAND_BASIS if out["profile_url"] else None
         return out
 
     return await run_in_threadpool(run)
@@ -568,36 +590,49 @@ async def player_career(gid: str) -> Record:
 
 def career_block(cm: CatalogueMetrics, gid: str) -> Record:
     """What ``include=career`` adds to ``/api/players/{id}`` and ``/api/players/{id}/career`` returns."""
+    england = any(c == ENGLAND_ID for c, _p in cm.people.get(gid, []))
     return {"career": cm.career(gid), "overall": cm.overall(gid), "story": (cm.careers.get(gid) or {}).get("story"),
-            "api_url": f"/api/catalogue/players/{gid}"}
+            "basis": ENGLAND_BASIS if england else None, "api_url": f"/api/catalogue/players/{gid}"}
 
 
 def _rank(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metric: str, position, role, club,
-          min_minutes, age_min, age_max, foot, camera, career, order, limit, offset) -> Record:
+          min_minutes, age_min, age_max, foot, camera, career, order, limit, offset, rank_by=None) -> Record:
     _check_ages(age_min, age_max)
     key = _key(metric)
     m = CATALOGUE[key]
     cids, rows = _rows(cm, w, default_all=default_all, position=position, role=role, club=club, min_minutes=min_minutes,
                        age_min=age_min, age_max=age_max, foot=foot, camera=camera, career=career)
-    rows = cm.sort(rows, key, order)
-    ranked = [(cid, ps) for cid, ps in rows
-              if cm.metrics[cid].qualified(ps, m) or (m.kind == "total" and ps.values.get(key) is not None)]
+    rows, mode, genders, by_pct = cm.order_rows(rows, key, scope, order, rank_by)
+    if mode == "pool":
+        ranked = [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) in by_pct]
+    else:
+        ranked = [(cid, ps) for cid, ps in rows
+                  if cm.metrics[cid].qualified(ps, m) or (m.kind == "total" and ps.values.get(key) is not None)]
     ranked_ids = {(cid, ps.info["global_id"]) for cid, ps in ranked}
     rest = [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) not in ranked_ids]
-    out, prev, place = [], None, 0
+    out, prev, place, board, n_in_board = [], None, 0, None, 0
     for i, (cid, ps) in enumerate(ranked, start=1):
+        gid = ps.info["global_id"]
+        g = cm.labels[cid]["gender"]
+        if g != board:   # each gender's board ranks from 1
+            board, n_in_board, prev = g, 0, None
+        n_in_board += 1
         v = round(ps.values[key], m.digits)
-        if v != prev:
-            place, prev = i, v
+        tie = (cm.percentile(cid, ps, key, scope), v) if mode == "pool" else v
+        if tie != prev:
+            place, prev = n_in_board, tie
         if i <= offset:
             continue
         if len(out) >= limit:
             break
-        out.append({"rank": place, **_card(cm, cid, ps), **cm.cell(cid, ps.info["global_id"], key, scope),
+        out.append({"rank": place, "board": g, **_card(cm, cid, ps), **cm.cell(cid, gid, key, scope),
                     "evidence_count": sum(len(ps.evidence.get(k, [])) for k in m.evidence_keys())})
-    return {"metric": _describe(cm, key, cids, scope), "scope": scope, "players": out, "ranked": len(ranked),
-            "offset": offset, "limit": limit,
-            "unranked": [{**_card(cm, cid, ps), **cm.cell(cid, ps.info["global_id"], key, scope)} for cid, ps in rest[:limit]],
+    boards = None if not genders else [{"gender": g, "ranked": sum(1 for c, _ps in ranked if cm.labels[c]["gender"] == g)}
+                                       for g in genders]
+    return {"metric": _describe(cm, key, cids, scope), "scope": scope, "rank_by": mode, "rank_rule": RANK_RULE,
+            "boards": boards, "players": out, "ranked": len(ranked), "offset": offset, "limit": limit,
+            "unranked": [{**_card(cm, cid, ps), "board": cm.labels[cid]["gender"], **cm.cell(cid, ps.info["global_id"], key, scope)}
+                         for cid, ps in rest[:limit]],
             "competitions": cids, "pool_rule": POOL_RULE, "warning": _warning(cm, cids, scope), "filters": w.public(),
             "synthetic": True, "note": SYNTHETIC_NOTE}
 
@@ -607,15 +642,19 @@ async def catalogue_rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], w: 
                          position: POSITION = None, role: ROLE = None, club: CLUB = None, min_minutes: MIN_MINUTES = None,
                          age_min: AGE = None, age_max: AGE = None, foot: FOOT = None, camera: CAMERA = None,
                          career: bool | None = None, order: Literal["asc", "desc"] | None = None,
+                         rank_by: RANK_BY = None,
                          limit: int = Query(25, ge=1, le=200), offset: int = Query(0, ge=0, le=MAX_OFFSET)) -> Record:
-    """One metric's leaderboard across the filtered catalogue. Ranked by value (best first unless ``order``); each row's
-    percentile is read against its own pool, and rows from different levels carry a ``warning``. Ratios rank only rows
-    with their competition's minimum attempts (the rest are listed after, unranked)."""
+    """One metric's leaderboard across the filtered catalogue. Rows from more than one level are ranked by each row's
+    percentile within its own pool (best first unless ``order``; ties by pool size, minutes, then value), never by raw
+    values from different levels; within one level by value. ``rank_by`` forces either. Men and women are never ranked
+    together: a selection holding both gives one board per gender (``boards``; each row's ``board``; ranks restart at
+    1). Rows without a percentile (pool rank) or without their competition's minimum attempts (value rank) are listed
+    after, unranked."""
 
     def run() -> Record:
         return _rank(catalogue_metrics(), w, scope or "level", default_all=True, metric=metric, position=position,
                      role=role, club=club, min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot,
-                     camera=camera, career=career, order=order, limit=limit, offset=offset)
+                     camera=camera, career=career, order=order, limit=limit, offset=offset, rank_by=rank_by)
 
     return await run_in_threadpool(run)
 
@@ -751,7 +790,8 @@ def season_payload(competition_id: str, stats: list[Record]) -> Record:
 def players_payload(w: Where, scope: str, *, position, club, q, min_minutes, sort, limit, offset,
                     stats: list[Record]) -> Record:
     """``/api/players`` with catalogue filters: profile cards from each selected competition's ``Season``, each headline
-    percentile replaced by the scope's (with its pool), sorted together; paged by ``offset``."""
+    percentile replaced by the scope's (with its pool), sorted together; paged by ``offset``. England's cards come from
+    the app's own season (fixtures, confirmed claims, Player-view uploads), so they are today's cards (``basis``)."""
     from regista.season.profiles import _sort_key, card
 
     cm = catalogue_metrics()
@@ -787,7 +827,7 @@ def players_payload(w: Where, scope: str, *, position, club, q, min_minutes, sor
                      "api_url": f"/api/catalogue/players/{p['global_id']}"})
     return {"players": rows, "total": len(found), "offset": offset, "sort": sort, "stats": stats, "scope": scope,
             "competitions": cids, "filters": w.public(), "pool_rule": POOL_RULE, "warning": _warning(cm, cids, scope),
-            "synthetic": True, "note": SYNTHETIC_NOTE}
+            "basis": ENGLAND_BASIS if ENGLAND_ID in cids else None, "synthetic": True, "note": SYNTHETIC_NOTE}
 
 
 def screen_payload(w: Where, scope: str, **kw: Any) -> Record:

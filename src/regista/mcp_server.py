@@ -229,18 +229,21 @@ def list_competitions(country: str | None = None, tier: str | None = None, age_g
 def search_catalogue_players(tier: str | None = None, age_group: str | None = None, gender: str | None = None,
                              country: str | None = None, competition: str | None = None, position: str | None = None,
                              sort: str = "minutes", order: str = "desc", scope: str = "level", limit: int = 10,
-                             min_minutes: float | None = None) -> dict[str, Any]:
+                             min_minutes: float | None = None, rank_by: str | None = None) -> dict[str, Any]:
     """Players across the catalogue's competitions, one row per player and competition. Filters: tier, age_group, gender,
     country, competition (an id from list_competitions), position (GK, DF, MF, FW). sort: minutes or a Scout terminal
     metric key (npxg, np_goals, xa, sca, take_ons_won, progressive_passes, tackles_won, interceptions, pass_pct, ...).
     scope: level (default: peers of the same tier, age group, gender and position), competition, or all (every level of
     one gender; levels differ, so read each percentile against its pool). min_minutes: empty for each competition's
-    qualifying minutes. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small, reason)."""
+    qualifying minutes. Rows from more than one level are ranked by each row's percentile within its own pool, not by raw
+    values from different levels, and men and women come on separate boards (each row's board); rank_by "value" ranks
+    by the raw value instead. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small,
+    reason)."""
     from regista.catalogue.tools import search_players
 
     return search_players(_catalogue(), tier=tier, age_group=age_group, gender=gender, country=country,
                           competition=competition, position=position, sort=sort, order=order, scope=scope, limit=limit,
-                          min_minutes=min_minutes)
+                          min_minutes=min_minutes, rank_by=rank_by)
 
 
 @server.tool()

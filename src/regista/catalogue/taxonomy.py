@@ -129,13 +129,31 @@ class Competition:
     def level(self) -> Level:
         return LEVELS[self.level_key]
 
+    @property
+    def eligibility(self) -> str | None:
+        """The competition's birth-date rule (youth only), as a public label."""
+        cut = BIRTH_CUTOFFS.get(self.competition_id)
+        return cut[1] if cut else None
+
     def labels(self) -> dict[str, Any]:
         return {"competition_id": self.competition_id, "code": self.code, "name": self.name, "country": self.country,
                 "region": self.region, "tier": self.tier, "age_group": self.age_group, "gender": self.gender,
-                "format": FORMAT, "season": SEASON}
+                "format": FORMAT, "season": SEASON, "eligibility": self.eligibility}
 
 
 ENGLAND_ID = "co_eng_sp_men"
+
+# Youth competitions' birth-date rules: (earliest date of birth, the rule as a public label). Ages are drawn as whole
+# years on 1 August 2026 (``Level.age_range``); a date of birth before the competition's cut-off moves forward whole years
+# until it is inside (``regista.catalogue.define``; dates of birth do not reach the generator, so no match moves). Each
+# rule follows the country's usual convention for that age group, applied to an invented competition.
+BIRTH_CUTOFFS: dict[str, tuple[str, str]] = {
+    "co_eng_u18": ("2008-09-01", "born on or after 1 September 2008 (England's school-year cut-off for U18 in 2026/27)"),
+    "co_esp_u19": ("2008-01-01", "born 2008-2010 (the juvenil age group in Spain's 2026/27 season)"),
+    "co_bra_u20": ("2006-01-01", "born 2006 or later (calendar-year cut-off for a 2026 Sub-20 competition)"),
+    "co_gha_u17": ("2010-01-01", "born 2010 or later (calendar-year cut-off for U17 in 2026/27)"),
+    "co_mar_u19": ("2008-01-01", "born 2008 or later (calendar-year cut-off for U19 in 2026/27)"),
+}
 # The 14 competitions, in design.md §2.2's order. England semi-pro men is the existing Regista League (league.json).
 COMPETITIONS: list[Competition] = [
     Competition(ENGLAND_ID, "rl", "Regista League", "England", "Northern England", "semi_pro", "senior", "men", 6, 30, 0),
@@ -152,7 +170,7 @@ COMPETITIONS: list[Competition] = [
                 (("USA", 76), ("Canada", 8), ("England", 6), ("Mexico", 5), ("Germany", 3), ("Japan", 2))),
     Competition("co_esp_am_men", "eam", "Regional Preferente Levante Interior", "Spain", "Valencian Community", "amateur",
                 "senior", "men", 5, 5, 5, ("2026-09-12", "2027-05-08"), (("Spain", 90), ("Morocco", 6), ("Brazil", 4))),
-    Competition("co_esp_u19", "eu19", "Liga Juvenil Meseta Norte", "Spain", "Castile and León", "academy", "U19", "men",
+    Competition("co_esp_u19", "eu19", "Liga Juvenil Levante Interior", "Spain", "Valencian Community", "academy", "U19", "men",
                 5, 5, 6, ("2026-09-05", "2027-04-24"), (("Spain", 92), ("Morocco", 5), ("Brazil", 3))),
     Competition("co_ger_sp_men", "gsp", "Weserland-Liga", "Germany", "Lower Saxony", "semi_pro", "senior", "men",
                 6, 8, 7, ("2026-08-08", "2027-05-22"),

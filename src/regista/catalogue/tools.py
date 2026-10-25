@@ -11,13 +11,14 @@ from pathlib import Path
 from typing import Any
 
 from regista.catalogue import store
-from regista.catalogue.metrics import ALL_WARNING, POOL_RULE, SYNTHETIC_NOTE, CatalogueMetrics
+from regista.catalogue.metrics import ALL_WARNING, POOL_RULE, RANK_BY, RANK_RULE, SYNTHETIC_NOTE, CatalogueMetrics
 from regista.catalogue.taxonomy import AGE_GROUPS, GENDERS, TIERS, levels_public
 from regista.season.metrics import CATALOGUE, DEFAULT_COLUMNS
 
 Record = dict[str, Any]
 
-LABEL_KEYS = ("competition_id", "name", "country", "region", "tier", "age_group", "gender", "format", "season", "coverage")
+LABEL_KEYS = ("competition_id", "name", "country", "region", "tier", "age_group", "gender", "format", "season", "coverage",
+              "eligibility")
 SCOPES = ("level", "competition", "all")
 POSITIONS = ("GK", "DF", "MF", "FW")
 MAX_LIMIT = 50
@@ -85,9 +86,11 @@ def list_competitions(index: Path | str | None = None, *, country: str | None = 
 
 def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=None, country=None, competition=None,
                    position=None, sort: str = "minutes", order: str = "desc", scope: str = "level", limit: int = 10,
-                   min_minutes: float | None = None) -> Record:
+                   min_minutes: float | None = None, rank_by: str | None = None) -> Record:
     """Player-competition rows across the catalogue, filtered and ranked by any terminal metric (or minutes); each with the
-    sorted metric's value, its percentile in ``scope`` and the pool it came from."""
+    sorted metric's value, its percentile in ``scope`` and the pool it came from. A metric across levels ranks by
+    percentile within each row's pool, genders on separate boards (``CatalogueMetrics.order_rows``); ``rank_by`` value
+    ranks by the raw value."""
     err = filter_errors(tier=tier, age_group=age_group, gender=gender, position=position, scope=scope)
     if err:
         return {"error": err}
@@ -97,20 +100,24 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
         return {"error": f"unknown sort {sort!r}: minutes or a Scout terminal metric key such as npxg, goals, take_ons_won"}
     if order not in ("asc", "desc"):
         return {"error": "order is asc or desc"}
+    if rank_by is not None and rank_by not in RANK_BY:
+        return {"error": f"unknown rank_by {rank_by!r}: one of {', '.join(RANK_BY)}"}
     limit = max(1, min(int(limit), MAX_LIMIT))
     rows = cm.select(tier=tier, age_group=age_group, gender=gender, country=country, competition=competition,
                      position=position, min_minutes=min_minutes)
+    mode, genders = None, None
     if sort == "minutes":
         rows.sort(key=lambda r: ((-1 if order == "desc" else 1) * r[1].minutes, r[1].info["name"], r[0]))
     else:
-        rows = cm.sort(rows, sort, order)
+        rows, mode, genders, _ranked = cm.order_rows(rows, sort, scope, order, rank_by)
     out = []
     for cid, ps in rows[:limit]:
         gid = ps.info["global_id"]
         row = {"global_id": gid, "name": ps.info["name"], **cm.labels_of(cid), "club": ps.info["club"],
                "position": ps.info["position"], "role": ps.info.get("role"), "age": ps.info.get("age"),
                "minutes": round(ps.minutes, 1), "appearances": ps.appearances,
-               "qualified": ps.minutes >= cm.metrics[cid].min_minutes, "career": len(cm.people.get(gid, [])) > 1}
+               "qualified": ps.minutes >= cm.metrics[cid].min_minutes, "career": len(cm.people.get(gid, [])) > 1,
+               "board": cm.labels[cid]["gender"]}
         if sort != "minutes":
             c = cm.cell(cid, gid, sort, scope)
             row["stat"] = {"key": sort, "label": CATALOGUE[sort].label, "value": c["value"], "percentile": c["percentile"],
@@ -118,7 +125,8 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
                                                                                    "position", "size", "small", "reason")}}
         out.append(row)
     levels = {cm.level[cid] for cid, _ps in rows}
-    return {"players": out, "total": len(rows), "sort": sort, "order": order, "scope": scope,
+    return {"players": out, "total": len(rows), "sort": sort, "order": order, "scope": scope, "rank_by": mode,
+            "rank_rule": RANK_RULE if mode else None, "boards": genders,
             "warning": ALL_WARNING if scope == "all" or len(levels) > 1 else None, "pool_rule": POOL_RULE,
             "note": SYNTHETIC_NOTE}
 

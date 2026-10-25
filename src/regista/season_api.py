@@ -138,26 +138,33 @@ async def list_players(w: WhereDep, scope: ScopeDep,
                        min_minutes: float = Query(0.0, ge=0.0, le=10000.0),
                        sort: Annotated[str, Query(pattern=r"^[a-z0-9_]{1,40}$")] = "minutes",
                        limit: int = Query(50, ge=1, le=200),
-                       offset: int = Query(0, ge=0, le=100000)) -> dict[str, Any]:
+                       offset: int | None = Query(None, ge=0, le=100000)) -> dict[str, Any]:
     """Profile cards, filtered and sorted (highest first; ``sort=name`` is alphabetical).
+
+    Without ``offset`` the response is what it always was (``total`` is the number of cards returned). With ``offset``
+    (0 included) the cards are paged: ``offset`` and ``limit`` select the page, ``total`` counts every card the filters
+    keep, and the response says ``offset``.
 
     Catalogue filters (``competition``, ``country``, ``tier`` or ``level``, ``age_group``, ``gender``) or ``scope``
     (``pool``: level, competition or all) answer from the catalogue: cards from each selected competition (England
     semi-pro men unless a filter picks others), each headline percentile in ``scope`` (level by default) with its pool;
-    ``total`` then counts every row and ``offset`` pages past ``limit``."""
+    ``total`` then always counts every card the filters keep and ``offset`` pages past ``limit``."""
     if catalogue_mode(w, scope):
         from regista.catalogue_api import players_payload
 
         return await run_in_threadpool(lambda: players_payload(w, scope or "level", position=position, club=club, q=q,
                                                                min_minutes=min_minutes, sort=sort, limit=limit,
-                                                               offset=offset, stats=stat_catalogue()))
+                                                               offset=offset or 0, stats=stat_catalogue()))
     s = await run_in_threadpool(season)
     try:
-        rows = s.players(position=position, club=club, q=q, min_minutes=min_minutes, sort=sort, limit=offset + limit)
+        rows = s.players(position=position, club=club, q=q, min_minutes=min_minutes, sort=sort,
+                         limit=limit if offset is None else 1_000_000)
     except ValueError as exc:
         raise HTTPException(422, str(exc))
-    rows = rows[offset:]
-    return {"players": rows, "total": len(rows), "sort": sort, "stats": stat_catalogue()}
+    if offset is None:
+        return {"players": rows, "total": len(rows), "sort": sort, "stats": stat_catalogue()}
+    return {"players": rows[offset:offset + limit], "total": len(rows), "offset": offset, "sort": sort,
+            "stats": stat_catalogue()}
 
 
 @router.get("/api/players/{gid}")
@@ -179,6 +186,9 @@ async def get_player(gid: str, include: Annotated[str | None, Query(pattern="^ca
 
             cm = catalogue_metrics()
             out["career"] = career_block(cm, gid) if gid in cm.people else None
+            if out["career"] is not None:   # what the profile counts that the catalogue's league-only rows do not
+                out["career"]["profile_only_matches"] = [m["match_id"] for m in p["matches"]
+                                                         if m.get("source") in ("claim", "upload")]
         return out
 
     return await run_in_threadpool(build)

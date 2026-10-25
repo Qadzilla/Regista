@@ -134,9 +134,28 @@ def catalogue_reliability_checks(index: Path | None = None) -> list[dict]:
              "stale": data.get("stale")}]
 
 
+def catalogue_realism_checks(index: Path | None = None) -> list[dict]:
+    """The realism verdicts shipped with the image were measured for this catalogue and generator, so a served check says
+    pass, fail or not separated (``regista.catalogue.realism``); a stale or missing file would serve "not measured"."""
+    from regista.catalogue import realism as rea
+    from regista.catalogue import store
+    from regista.catalogue.taxonomy import ENGLAND_ID
+    from regista.season.league import load_league
+
+    index = index or Path(os.environ.get("REGISTA_CATALOGUE", "data/catalogue/catalogue.json"))
+    try:
+        league = load_league(store.competition_path(store.entry(ENGLAND_ID, index), index))
+        data = rea.load(index.with_name(rea.FILE_NAME), league, store.new_competitions(index))
+    except Exception as exc:  # noqa: BLE001 - reported, then the exit code says it failed
+        return [{"check": "catalogue-realism", "ok": False, "error": f"{type(exc).__name__}: {exc}"}]
+    checks = data.get("bands", []) + data.get("orders", [])
+    return [{"check": "catalogue-realism", "ok": "stale" not in data and bool(checks)
+             and all(c.get("verdict") for c in checks), "checks": len(checks), "stale": data.get("stale")}]
+
+
 def main() -> int:
     results = (file_checks() + vision_checks() + season_checks() + catalogue_checks() + catalogue_reliability_checks()
-               + asyncio.run(checks()))
+               + catalogue_realism_checks() + asyncio.run(checks()))
     for r in results:
         print(json.dumps(r))
     return 0 if all(r["ok"] for r in results) else 1

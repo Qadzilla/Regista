@@ -155,6 +155,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 6,
    "uploaded_matches": 30,
    "source": "league",
@@ -395,6 +396,7 @@
    "gender": "women",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 5,
    "uploaded_matches": 5,
    "source": "catalogue",
@@ -412,6 +414,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": "born on or after 1 September 2008 (England's school-year cut-off for U18 in 2026/27)",
    "teams": 4,
    "uploaded_matches": 4,
    "source": "catalogue",
@@ -429,6 +432,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 6,
    "uploaded_matches": 6,
    "source": "catalogue",
@@ -446,6 +450,7 @@
    "gender": "women",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 5,
    "uploaded_matches": 5,
    "source": "catalogue",
@@ -463,6 +468,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 5,
    "uploaded_matches": 5,
    "source": "catalogue",
@@ -472,14 +478,15 @@
   {
    "competition_id": "co_esp_u19",
    "code": "eu19",
-   "name": "Liga Juvenil Meseta Norte",
+   "name": "Liga Juvenil Levante Interior",
    "country": "Spain",
-   "region": "Castile and Le\u00f3n",
+   "region": "Valencian Community",
    "tier": "academy",
    "age_group": "U19",
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": "born 2008-2010 (the juvenil age group in Spain's 2026/27 season)",
    "teams": 5,
    "uploaded_matches": 5,
    "source": "catalogue",
@@ -497,6 +504,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 6,
    "uploaded_matches": 8,
    "source": "catalogue",
@@ -514,6 +522,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": "born 2006 or later (calendar-year cut-off for a 2026 Sub-20 competition)",
    "teams": 4,
    "uploaded_matches": 4,
    "source": "catalogue",
@@ -531,6 +540,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 4,
    "uploaded_matches": 4,
    "source": "catalogue",
@@ -548,6 +558,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": "born 2010 or later (calendar-year cut-off for U17 in 2026/27)",
    "teams": 4,
    "uploaded_matches": 3,
    "source": "catalogue",
@@ -565,6 +576,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 4,
    "uploaded_matches": 4,
    "source": "catalogue",
@@ -582,6 +594,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": null,
    "teams": 4,
    "uploaded_matches": 4,
    "source": "catalogue",
@@ -599,6 +612,7 @@
    "gender": "men",
    "format": "11-a-side",
    "season": "2026/27",
+   "eligibility": "born 2008 or later (calendar-year cut-off for U19 in 2026/27)",
    "teams": 4,
    "uploaded_matches": 3,
    "source": "catalogue",
@@ -618,7 +632,7 @@
     "cl_sotoalto",
     "cl_torrevalle"
    ],
-   "story": "an academy striker stepping up to a senior amateur side while still eligible for the juvenil"
+   "story": "a juvenil striker who, while still eligible for the juvenil, also plays for the senior amateur club his academy side is affiliated with, in the same territorial federation (Valencian Community)"
   },
   {
    "global_id": "pl_nvc_08",
@@ -631,7 +645,7 @@
     "cl_navalcastro",
     "cl_riuseca"
    ],
-   "story": "an academy midfielder stepping up to a senior amateur side while still eligible for the juvenil"
+   "story": "a juvenil midfielder who, while still eligible for the juvenil, also plays for the senior amateur club his academy side is affiliated with, in the same territorial federation (Valencian Community)"
   },
   {
    "global_id": "pl_msa_07",
@@ -644,7 +658,7 @@
     "cl_mesa_alta",
     "cl_oxenridge"
    ],
-   "story": "an English student-athlete who plays for a home club outside the college season"
+   "story": "an English student-athlete at a US college who is also registered with her home club in Yorkshire and plays for it when she is in England: its opening match in September and after the college season"
   },
   {
    "global_id": "pl_sms_04",

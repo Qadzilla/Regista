@@ -1,5 +1,7 @@
 """The catalogue's matches, pinned: the first 16 hex digits of each catalogue match's ``events.jsonl`` as
-``regista.catalogue.build`` writes it, recorded on macOS (arm64, Python 3.13) with generator 0.7.1.
+``regista.catalogue.build`` writes it, recorded on macOS (arm64, Python 3.13) with generator 0.7.1. The five Spain U19 pins were re-recorded in review round 1:
+the competition was renamed (Liga Juvenil Levante Interior, Valencian Community) and its name is in each match's header;
+nothing else in those streams moved.
 
 Like the Regista League's (``regista.season.pins``), catalogue matches are built on demand on the server (Linux,
 Python 3.11, the Docker image) and must be the same matches on every machine. ``tests/test_catalogue_build.py`` checks
@@ -26,9 +28,9 @@ CATALOGUE_PINS: dict[str, str] = {
     "cm_ucw_07_msa_rcu": "94cc4f0bd64a44ed", "cm_ucw_09_crl_rcu": "68b5a77ab5bbb693",
     "cm_eam_03_tvl_ams": "82dd690110fd66d2", "cm_eam_04_rsc_tvl": "a3de27de282370a5",
     "cm_eam_05_ams_fta": "28ad4677f11c1a09", "cm_eam_06_bnc_fta": "69f24124a700380f",
-    "cm_eam_10_fta_ams": "62189fd91faa3e10", "cm_eu19_01_pij_sot": "a66a488e2f0ffd22",
-    "cm_eu19_05_vdc_sot": "2e85695dc01bf63a", "cm_eu19_06_nvc_pnr": "85964dedb4f66346",
-    "cm_eu19_07_vdc_pij": "5bc5edc91741d3b7", "cm_eu19_10_pij_nvc": "1f604da8077ee820",
+    "cm_eam_10_fta_ams": "62189fd91faa3e10", "cm_eu19_01_pij_sot": "49dcea559e126be1",
+    "cm_eu19_05_vdc_sot": "7c687dcd179e951a", "cm_eu19_06_nvc_pnr": "14d231c62b039588",
+    "cm_eu19_07_vdc_pij": "e4c3328c097c6292", "cm_eu19_10_pij_nvc": "00010f0f7f0dbb80",
     "cm_gsp_01_hbg_hsb": "e6410dece8bd3097", "cm_gsp_01_mvs_vor": "bd8a7d6156ba1781",
     "cm_gsp_01_lmr_ehr": "75289fad2577f04b", "cm_gsp_02_hsb_ehr": "0d39b7921d773302",
     "cm_gsp_04_lmr_hbg": "61c9b627b3d652cc", "cm_gsp_05_hsb_lmr": "19c1bf1901f7209e",

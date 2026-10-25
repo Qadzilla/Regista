@@ -2,8 +2,10 @@
 labelled moments, touch map and match list, and each competition's uploaded matches and results.
 
 The metrics side (``regista.catalogue.metrics``) holds the numbers and their pools; this holds what a profile shows beside
-them. England semi-pro men is the Regista League's fixtures (``Season.build`` on ``league.json``: no claims or Player-view
-uploads in the catalogue view, so its moments sit beside its fixture-only metrics); every other competition is
+them. England semi-pro men is the Regista League's ``Season``: built here on ``league.json``'s fixtures, and replaced by the
+app's own (``season_api.season()``: the fixtures plus confirmed claims and finished Player-view uploads) through
+``use_england``, so a catalogue-mode profile card for an England player is today's card. The metrics side stays on the
+league's fixtures, as the Scout terminal does (``ENGLAND_BASIS``). Every other competition is
 ``Season.build(comp, root, min_minutes_floor=45, min_pool=5)``, the same rules as its metrics.
 
 A sparse competition's results are its uploaded matches only, never a league table (``results_note``).
@@ -25,6 +27,9 @@ from regista.season.profiles import Season
 Record = dict[str, Any]
 
 RESULTS_NOTE = "uploaded matches only, not a league table"
+ENGLAND_BASIS = ("England semi-pro men: profile cards, summaries and moments count the Regista League's fixtures plus "
+                 "confirmed claims and finished Player-view uploads, as the existing profile does; the terminal metrics, "
+                 "their pools and the career rows count the league's 30 fixtures only, as the Scout terminal does.")
 MOMENTS_KEPT = 40
 
 
@@ -50,8 +55,19 @@ class CatalogueProfiles:
                 self.exact_minutes = dict(minutes)
                 self._pools.clear()
 
+    def use_england(self, season: Season) -> None:
+        """Serve England semi-pro men from ``season`` (the app's: fixtures, claims and uploads). Pools are rebuilt when it
+        changes."""
+        with self._lock:
+            if self.seasons.get(ENGLAND_ID) is not season:
+                self.seasons[ENGLAND_ID] = season
+                self._pools.clear()
+
     def _minutes(self, cid: str, p: Record) -> float:
-        return self.exact_minutes.get((cid, p["global_id"]), p["minutes"])
+        """The row's unrounded minutes when the metrics engine counted the same matches (it rounds to the profile's),
+        else the profile's own (an England profile with a claim or an upload has more minutes than the league's)."""
+        exact = self.exact_minutes.get((cid, p["global_id"]))
+        return exact if exact is not None and round(exact, 1) == p["minutes"] else p["minutes"]
 
     def scope_competitions(self, cid: str, scope: str) -> list[str]:
         """The competitions a row of ``cid`` is compared with: itself, its level (tier, age group, gender), or every level

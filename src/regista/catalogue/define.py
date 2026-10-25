@@ -36,8 +36,8 @@ from typing import Any
 
 from regista.catalogue import clubs as club_data
 from regista.catalogue.names import pools
-from regista.catalogue.taxonomy import (BY_ID, CAMERA_WEIGHTS, COMPETITIONS, ENGLAND_ID, SEASON, TEAM_UPLOAD_P, Competition,
-                                        Level, levels_public)
+from regista.catalogue.taxonomy import (BIRTH_CUTOFFS, BY_ID, CAMERA_WEIGHTS, COMPETITIONS, ENGLAND_ID, SEASON,
+                                        TEAM_UPLOAD_P, Competition, Level, levels_public)
 from regista.detmath import Random
 from regista.season import league as L
 from regista.synth.generator import BENCH, FORMATION_433, GENERATOR_NAME, LEAGUE_GENERATOR_VERSION
@@ -60,11 +60,14 @@ PRIMARY_MIN, GK_PRIMARY_MIN, GK_GK_MIN = 150.0, 150.0, 120.0
 # The five careers (design.md §2.4): (source, destination, roles, the person's nationality or None, story)
 CAREERS: list[tuple[str, str, tuple[str, ...], str | None, str]] = [
     ("co_esp_u19", "co_esp_am_men", ("ST",), None,
-     "an academy striker stepping up to a senior amateur side while still eligible for the juvenil"),
+     "a juvenil striker who, while still eligible for the juvenil, also plays for the senior amateur club his academy "
+     "side is affiliated with, in the same territorial federation (Valencian Community)"),
     ("co_esp_u19", "co_esp_am_men", ("CM",), None,
-     "an academy midfielder stepping up to a senior amateur side while still eligible for the juvenil"),
+     "a juvenil midfielder who, while still eligible for the juvenil, also plays for the senior amateur club his academy "
+     "side is affiliated with, in the same territorial federation (Valencian Community)"),
     ("co_usa_col_women", "co_eng_sp_women", ("W",), "England",
-     "an English student-athlete who plays for a home club outside the college season"),
+     "an English student-athlete at a US college who is also registered with her home club in Yorkshire and plays for it "
+     "when she is in England: its opening match in September and after the college season"),
     ("co_usa_col_men", "co_ger_sp_men", ("CB",), "Germany",
      "a German student-athlete who plays for a semi-pro side at home outside the college season"),
     ("co_usa_col_men", "co_mex_am_men", ("ST", "W"), "Mexico",
@@ -211,6 +214,19 @@ def person_attributes(rng: Random, p: Record, lv: Level) -> tuple[Record, Record
     return bio, attrs
 
 
+def within_cutoff(date_of_birth: str, competition_id: str) -> str:
+    """A youth competition's date of birth moved forward whole years until it meets the competition's birth-date rule
+    (``taxonomy.BIRTH_CUTOFFS``). No random draw: the attribute stream is untouched, and dates of birth never reach the
+    generator, so no rating and no match moves."""
+    cut = BIRTH_CUTOFFS.get(competition_id)
+    if not cut:
+        return date_of_birth
+    dob, earliest = dt.date.fromisoformat(date_of_birth), dt.date.fromisoformat(cut[0])
+    while dob < earliest:
+        dob = dob.replace(year=dob.year + 1, day=min(dob.day, 28) if (dob.month, dob.day) == (2, 29) else dob.day)
+    return dob.isoformat()
+
+
 def _assign_attributes(c: Competition, clubs: list[Record]) -> set[str]:
     """Bio and hidden ratings for every squad entry (in place), then one standout per ``STANDOUTS`` pair within the
     competition. Returns the standouts' global ids. No star: Femi Toure stays the one star (England)."""
@@ -219,6 +235,7 @@ def _assign_attributes(c: Competition, clubs: list[Record]) -> set[str]:
     everyone = [p for cl in clubs for p in cl["squad"]]
     for p in everyone:
         bio, attrs = person_attributes(rng, p, lv)
+        bio["date_of_birth"] = within_cutoff(bio["date_of_birth"], c.competition_id)
         nat = p.pop("nationality")
         p.update(role=L.role_of(p["kit_number"]), **bio, nationality=nat, attributes=attrs)
     standouts: set[str] = set()

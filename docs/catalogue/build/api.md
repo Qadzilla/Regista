@@ -58,7 +58,16 @@ examples below are real responses on the committed catalogue, trimmed (`…` mar
 **Paging.**
 - `offset` with `limit` (at most 200) on `/api/catalogue/players`, `/api/competitions/{id}/players`,
   `/api/catalogue/rank`, `/api/catalogue/matches`, and `/api/players` in catalogue mode. `total` counts every row.
-- `/api/players` without catalogue parameters also accepts `offset`, but its response keeps today's keys.
+- `/api/players` without catalogue parameters: without `offset` the response is today's, exactly (`total` is the number
+  of cards returned, as it always was). With `offset` (0 included) it pages, `total` counts every card the filters keep,
+  and the response adds `offset` (review A, round 1).
+- **Ranking across levels (review B, round 1).** A list whose rows come from more than one level (`/api/catalogue/rank`,
+  the sort of `/api/catalogue/players`, the MCP tool `search_catalogue_players`, and the terminal endpoints with
+  catalogue parameters) ranks each row by its percentile within its own pool, best first, then rows from pools that are
+  not small, then more minutes, then the value. Rows without a percentile follow, unranked. Within one level the order
+  is by value, as before. `rank_by=pool|value` forces either; the response says `rank_by` and `rank_rule`. Men and women
+  are never ranked together: a list holding both has one board per gender (`boards`, each row's `board`; ranks
+  restart at 1 on each board).
 
 **Never served.**
 - Hidden ratings (`attributes`, every rating key) and level scales (`skill_offset`, `stamina_offset`, `speed_mult`,
@@ -178,7 +187,7 @@ The cross-country screen. There is one row per player and competition, so a care
 GET /api/catalogue/players?tier=academy&age_group=U19&position=FW&metrics=np_goals&sort=np_goals&limit=1
 {"scope": "level", "sort": "np_goals", "order": null, "total": 13, "offset": 0, "limit": 1,
  "competitions": ["co_esp_u19", "co_mar_u19"], "warning": null, "filters": {"tier": "academy", "age_group": "U19"},
- "players": [{"global_id": "pl_pij_09", "name": "Alejandro Perez", "competition": "Liga Juvenil Meseta Norte", "country": "Spain",
+ "players": [{"global_id": "pl_pij_09", "name": "Alejandro Perez", "competition": "Liga Juvenil Levante Interior", "country": "Spain",
               "club": "Atlético Pinarejo Juvenil", "age": 18, "minutes": 58.7, "career": false, …,
               "values": {"np_goals": {"value": 1.53, "percentile": 96, "peers": 13, "noisy": true,
                                       "pool": {"scope": "level", "tier": "academy", "age_group": "U19", "gender": "men", "position": "FW",
@@ -207,7 +216,7 @@ GET /api/catalogue/players/pl_sot_09?metrics=np_goals&moments=1
             {"competition_id": "co_esp_am_men", "competition": "Regional Preferente Levante Interior", "club": "CF Torrevalle",
              "kit_number": 9, "role": "ST", "appearances": 2, "minutes": 50.4, "qualified": true, "first_match": "2026-10-24",
              "last_match": "2026-11-14", "matches": ["cm_eam_03_tvl_ams", "cm_eam_04_rsc_tvl"], …}],
- "career_story": "an academy striker stepping up to a senior amateur side while still eligible for the juvenil",
+ "career_story": "a juvenil striker who, while still eligible for the juvenil, also plays for the senior amateur club his academy side is affiliated with, in the same territorial federation (Valencian Community)",
  "overall": {"competitions": 2, "competitions_played": 2, "appearances": 4, "minutes": 92.6, "totals": {…},
              "note": "Counts and minutes are summed across competitions; per-90 rates and percentiles stay per competition, …"},
  "rows": [{"competition_id": "co_esp_u19", …},
@@ -248,22 +257,29 @@ GET /api/players/pl_kbc_11/career
 
 ### `GET /api/catalogue/rank`
 
-One metric's leaderboard across the filtered catalogue: `metric`, plus the screen's filters, `scope`, `order`, `limit`
-and `offset`.
-- Each row's percentile is read against its own pool.
-- Ratios rank only rows with their competition's minimum attempts. The rest are listed after, unranked.
+One metric's leaderboard across the filtered catalogue: `metric`, plus the screen's filters, `scope`, `order`,
+`rank_by`, `limit` and `offset`.
+- Each row's percentile is read against its own pool. Across levels the board ranks by that percentile (`rank_by`
+  pool), within one level by value; a selection with both genders has one board per gender.
+- Value rank: ratios rank only rows with their competition's minimum attempts. Pool rank: only rows with a percentile.
+  The rest are listed after, unranked.
 
 ```
 GET /api/catalogue/rank?metric=np_goals&gender=men&position=FW&limit=3
-{"metric": {…}, "scope": "level", "ranked": 108, "offset": 0, "limit": 3,
- "warning": "rows from different levels: read each percentile against its own pool",
- "players": [{"rank": 1, "name": "Ulises Perez", "competition": "Atlantic Collegiate Soccer Conference", "value": 3.25, "percentile": 97,
-              "pool": {"scope": "level", "tier": "college", "age_group": "college", "size": 18, "small": false, …}, …},
-             {"rank": 2, "name": "Mason Nelson", …, "value": 2.17, "percentile": 92, …},
-             {"rank": 3, "name": "Sergio Cruz", "competition": "Regional Preferente Levante Interior", "value": 1.79, "percentile": 98,
-              "pool": {"tier": "amateur", "age_group": "senior", "size": 27, …}, …}],
+{"metric": {…}, "scope": "level", "rank_by": "pool", "rank_rule": "…", "boards": null, "ranked": 108, "offset": 0, "limit": 3,
+ "warning": "rows from different levels: read each percentile against its own pool. Raw event rates barely encode level …",
+ "players": [{"rank": 1, "board": "men", "name": "Femi Toure", "competition": "Regista League", "value": 1.64, "percentile": 98,
+              "pool": {"scope": "level", "tier": "semi_pro", "age_group": "senior", "size": 33, "small": false, …}, …},
+             {"rank": 2, "board": "men", "name": "Sergio Cruz", "competition": "Regional Preferente Levante Interior",
+              "value": 1.79, "percentile": 98, "pool": {"tier": "amateur", "age_group": "senior", "size": 27, …}, …},
+             {"rank": 3, "board": "men", "name": "Ulises Perez", "competition": "Atlantic Collegiate Soccer Conference",
+              "value": 3.25, "percentile": 97, "pool": {"tier": "college", "age_group": "college", "size": 18, …}, …}],
  "unranked": […], "competitions": [… 12 men's competitions], "pool_rule": "…", …}
 ```
+
+Without `gender` the same request gives `"boards": [{"gender": "men", "ranked": 108}, {"gender": "women", "ranked": 20}]`:
+the men's board first, then the women's, which starts again at rank 1 (Hannah Mitchell, Pennine Women's League).
+`rank_by=value` gives the old raw-value order on each board.
 
 ### `GET /api/catalogue/compare`
 
@@ -314,7 +330,7 @@ Every response keeps today's top-level keys. Each adds the fields described here
 | Endpoint | New parameters | What they do |
 |---|---|---|
 | `GET /api/season` | `competition` | That competition with the same keys. `table` is its uploaded matches' results; `table_note` says so. `rounds` lists matchdays with uploads, each match with uploader and camera. `percentiles` gains `scope` and `min_pool`. `competition` holds the labels. For England: today's response plus `competition` and `table_note: null`. |
-| `GET /api/players` | `competition`, `country`, `tier`/`level`, `age_group`, `gender`, `scope`/`pool`, `offset` | Cards from each selected competition. Each headline percentile is in `scope` (level by default) with its `pool`. Cards gain competition labels, `career` and `api_url`. `total` counts every row. |
+| `GET /api/players` | `competition`, `country`, `tier`/`level`, `age_group`, `gender`, `scope`/`pool`, `offset` | Cards from each selected competition. Each headline percentile is in `scope` (level by default) with its `pool`. Cards gain competition labels, `career` and `api_url`. `total` counts every row. England's cards come from the app's own season (fixtures, confirmed claims, Player-view uploads), so they are today's cards; `basis` says so. |
 | `GET /api/players/{id}` | `include=career` | Adds `career` (the career block). |
 | `GET /api/metrics` | `competition`, `scope` | Each metric described in that competition: ratio minimums, the reliability table it reads, its realism check. Plus the catalogue `season` block. The xT grid outside England is England's. |
 | `GET /api/terminal/screen`, `/rank`, `/scatter` | the five competition filters, `scope`/`pool` | Same keys. Cells and points carry `pool` and `sample` (scatter: `x_pool`, `y_pool`). `season` becomes the catalogue block: scope, competitions with their minimums and samples, the pool rule, the warning, and the competition's thresholds when there is one competition. |
@@ -375,7 +391,7 @@ GET /api/teams/cl_hollenburg/style?competition=co_ger_sp_men
 | Tool | Arguments | Returns |
 |---|---|---|
 | `list_competitions` | country, tier, age_group, gender | the competition summaries, levels and careers |
-| `search_catalogue_players` | tier, age_group, gender, country, competition, position, sort (minutes or any terminal metric), order, scope (level default), limit (at most 50), min_minutes | one row per player and competition; the sorted metric's value, percentile, noisy flag and pool; a warning across levels |
+| `search_catalogue_players` | tier, age_group, gender, country, competition, position, sort (minutes or any terminal metric), order, scope (level default), limit (at most 50), min_minutes, rank_by | one row per player and competition; the sorted metric's value, percentile, noisy flag and pool; a warning across levels; across levels ranked by percentile within each row's pool, genders on separate boards |
 | `get_catalogue_player` | player (global id, full name, or a unique part of a name), scope | `CatalogueMetrics.player` (bio, career, overall, rows with pools), no evidence lists; candidates when the name is ambiguous |
 
 Bad arguments return `{"error": …}` so an agent can correct itself. Example:
@@ -432,6 +448,5 @@ get_catalogue_player("Olivia King") -> {"global_id": "pl_msa_07", "rows": [co_us
   the page.
 - **The Foundry Scout agent** still has only the three league tools (`SCOUT_TOOLS`). Giving it the catalogue tools is a
   decision for Zaid (design.md §8.4, §13).
-- **Ranking across levels.** `/api/catalogue/rank` and the screen across levels rank raw values. Every row carries its
-  own pool and the response warns, but the order mixes levels by design (a college forward tops the men's npxG list). A
-  "rank by percentile within level" sort could be added if the UI wants it.
+- **Ranking across levels.** Resolved in review round 1: across levels the lists rank by percentile within each row's
+  pool and keep genders on separate boards; raw-value ranking stays available with `rank_by=value`.

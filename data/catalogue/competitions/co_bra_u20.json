@@ -12,7 +12,8 @@
   "age_group": "U20",
   "gender": "men",
   "format": "11-a-side",
-  "season": "2026/27"
+  "season": "2026/27",
+  "eligibility": "born 2006 or later (calendar-year cut-off for a 2026 Sub-20 competition)"
  },
  "generator": {
   "name": "regista-synth",

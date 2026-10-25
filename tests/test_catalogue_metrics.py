@@ -302,11 +302,54 @@ def test_noisy_reads_englands_table_in_competition_scope_and_the_level_table_els
         assert cm.noisy(GER, key, "competition") == bool(lv[key]["noisy"])   # no per-competition table outside England
     d = cm.describe("npxg", GER)
     assert d["reliability"] == lv["npxg"] and d["reliability_source"] == "level semi_pro/senior/men"
+    star = cm.metrics[ENGLAND_ID].players[STAR]   # England's competition scope keeps today's flag, whatever the minutes
+    assert all(cm.cell(ENGLAND_ID, STAR, k, "competition")["noisy"] == england.noisy(k) for k in CATALOGUE)
+    assert cm.cell(ENGLAND_ID, STAR, "npxg", "competition")["r_at_minutes"] is None and star.minutes > 200
+
+
+def test_a_rows_noisy_flag_is_adjusted_to_its_own_minutes(cm):
+    """Review B S4: the level's split-half r was measured on half-seasons; a row's flag adjusts it to the row's minutes
+    with Spearman-Brown (r_k = k r / (1 + (k - 1) r), k = minutes / median half-season minutes) and is noisy below 0.3,
+    so a short upload is flagged where half a season is not."""
+    flipped = 0
+    for cid in cm.order:
+        if cid == ENGLAND_ID:
+            continue
+        lv = cm.reliability["levels"][cm.level[cid]]
+        half = lv["median_half_minutes"]
+        for gid, ps in cm.metrics[cid].players.items():
+            if ps.minutes <= 0:
+                continue
+            for key in ("npxg", "pass_pct", "tackles_won", "distance"):
+                r = lv["metrics"][key]["r"]
+                cell = cm.cell(cid, gid, key, "level")
+                if r is None:
+                    continue
+                k = ps.minutes / half
+                want = r if r <= 0 else k * r / (1 + (k - 1) * r)
+                assert cell["r_at_minutes"] == round(want, 3) and cell["noisy"] == (want < 0.3), (cid, gid, key)
+                flipped += cell["noisy"] and not lv["metrics"][key]["noisy"]
+    assert flipped > 0   # some short rows are noisy where the level's half-season flag is not
+    assert cm.reliability_at(GER, "npxg", 0.0) is None
+
+
+def test_womens_speed_zone_numbers_say_they_use_the_mens_thresholds(cm):
+    """Review B S8: women's pools read the men's FIFA zones (20 and 25 km/h), so their zone numbers carry a note."""
+    from regista.catalogue.realism import WOMEN_ZONE_NOTE, ZONE_KEYS
+
+    for cid in ("co_eng_sp_women", "co_usa_col_women", GER):
+        gid = next(iter(cm.metrics[cid].players))
+        for key in ZONE_KEYS:
+            cell = cm.cell(cid, gid, key, "level")
+            assert cell.get("threshold_note") == (WOMEN_ZONE_NOTE if cid != GER else None)
+            assert (cm.describe(key, cid)["realism"]["zone_note"] is not None) == (cid != GER)
+        assert "threshold_note" not in cm.cell(cid, gid, "npxg", "level")
 
 
 def test_realism_claims_only_what_is_checked():
     eng = realism("pass_pct", ENGLAND_ID)
-    assert eng["kind"] == "reference" and eng["tuned"] and "upper reference" in eng["note"]
+    assert eng["kind"] == "reference" and eng["tuned"] and "Premier-League-calibrated scale" in eng["note"]
+    assert "overstate" in eng["note"] and "within their pools" in eng["note"]
     assert [o["id"] for o in eng["orders"]] == ["amateur_pass_pct", "women_pass_pct_semi_pro"]
     ger = realism("npxg", GER)
     assert ger["kind"] == "reference" and not ger["tuned"] and ger["premier_league_bands"]
@@ -321,6 +364,51 @@ def test_realism_claims_only_what_is_checked():
             assert r["premier_league_bands"] == []
 
 
+def test_the_committed_realism_verdicts_are_current_and_served():
+    """Review B M1: a served realism note says what was checked and what was measured, with the committed verdict, never
+    the source's sentence as a fact: the U17 band and the amateur pass order fail, and a margin inside season-to-season
+    noise is not separated."""
+    from regista.catalogue import realism as rea
+
+    data = rea.load(INDEX.with_name(rea.FILE_NAME), load_league(LEAGUE), store.new_competitions(INDEX))
+    assert "stale" not in data, data.get("stale")
+    assert [b["id"] for b in data["bands"]] == [b["id"] for b in BANDS]
+    assert [o["id"] for o in data["orders"]] == [o["id"] for o in ORDERS]
+    assert all(c["verdict"] in ("pass", "fail", "not separated") for c in data["bands"] + data["orders"])
+    u17 = realism("peak_speed_mean", "co_gha_u17", data)
+    assert u17["kind"] == "band" and u17["verdict"] == "fail" and u17["band"]["value"] > u17["band"]["high"]
+    assert "fails" in u17["note"] and "the source reports" in u17["note"] and f"{u17['band']['value']:,.2f}" in u17["note"]
+    amateur = realism("pass_pct", "co_esp_am_men", data)
+    assert amateur["verdict"] == "fail" and "fails" in amateur["note"]
+    losses = {o["id"]: o for o in data["orders"]}["women_ball_losses_semi_pro"]
+    assert losses["verdict"] == "not separated" and not losses["steps"][0]["separated"]
+    assert "not separated" in realism("ball_losses", "co_eng_sp_women", data)["note"]
+    for o in data["orders"]:   # each step's verdict follows its margin and its noise
+        for st in o["steps"]:
+            sep = abs(st["margin"]) >= rea.SEPARATION_SE * st["se"]
+            assert st["separated"] == sep
+            assert st["verdict"] == ("not separated" if not sep else "pass" if st["margin"] > 0 else "fail")
+    for c in COMPETITIONS:   # no served note states a checked direction without its measured verdict
+        for key in ("pass_pct", "ball_losses", "peak_speed_mean", "distance", "sprint_distance", "hi_distance"):
+            r = realism(key, c.competition_id, data)
+            for o in r["orders"]:
+                assert o["verdict"] and o["values"]
+            if r["kind"] in ("band", "order"):
+                assert r["verdict"] and ("Measured" in r["note"])
+
+
+def test_the_image_smoke_test_checks_the_realism_verdicts(tmp_path):
+    from regista.cloud.smoke import catalogue_realism_checks
+
+    [ok] = catalogue_realism_checks(INDEX)
+    assert ok["ok"] and ok["checks"] == len(BANDS) + len(ORDERS)
+    (tmp_path / "data" / "catalogue").mkdir(parents=True)
+    fake = tmp_path / "data" / "catalogue" / "catalogue.json"
+    fake.write_text(INDEX.read_text())
+    [bad] = catalogue_realism_checks(fake)
+    assert not bad["ok"]
+
+
 def test_band_and_order_checks_read_level_aggregates():
     agg = {"academy/U17/men": {"peak_speed_mean": 26.0}, "amateur/senior/men": {"pass_pct": 80.0},
            "semi_pro/senior/men": {"pass_pct": 84.0}}
@@ -331,6 +419,14 @@ def test_band_and_order_checks_read_level_aggregates():
     agg["amateur/senior/men"]["pass_pct"] = 85.0
     assert {x["id"]: x for x in order_checks(agg)}["amateur_pass_pct"]["verdict"] == "fail"
     assert len(BANDS) == 1 and all(o["sources"] for o in ORDERS)
+    # with per-season values a small margin inside the noise is not separated
+    per = {"amateur/senior/men": [{"pass_pct": v} for v in (83.0, 85.0, 87.0)],
+           "semi_pro/senior/men": [{"pass_pct": v} for v in (83.5, 84.0, 84.5)]}
+    agg["amateur/senior/men"]["pass_pct"] = 84.0 - 0.2
+    o = {x["id"]: x for x in order_checks(agg, per)}["amateur_pass_pct"]
+    assert o["verdict"] == "not separated" and o["steps"][0]["se"] > 0
+    b = band_checks({"academy/U17/men": {"peak_speed_mean": 29.68}})[0]
+    assert b["verdict"] == "fail" and b["outside_by"] == 0.98
 
 
 # ---------------------------------------------------------------------------- privacy and pools at a glance
@@ -424,6 +520,16 @@ def test_a_levels_reliability_reproduces():
     results = measure(comps, data["seasons"], load_metrics(LEAGUE, SEASON_ROOT).xt)
     again = json.loads(json.dumps(cat_rel.table(results), sort_keys=True))
     assert again["academy/U17/men"] == data["levels"]["academy/U17/men"]
+    # ... and the same seasons give the committed U17 band verdict (data/catalogue/realism.json)
+    from regista.catalogue import realism as rea
+    from regista.catalogue.measure import level_aggregates
+
+    committed = json.loads(INDEX.with_name(rea.FILE_NAME).read_text())
+    agg = json.loads(json.dumps(level_aggregates(results), sort_keys=True))
+    assert agg["academy/U17/men"] == committed["levels"]["academy/U17/men"]
+    band = rea.band_checks(agg)[0]
+    assert {k: band[k] for k in ("value", "outside_by", "verdict")} == \
+        {k: committed["bands"][0][k] for k in ("value", "outside_by", "verdict")}
 
 
 def test_the_image_smoke_test_checks_the_level_reliability(tmp_path):

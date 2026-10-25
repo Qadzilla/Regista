@@ -51,6 +51,9 @@ def test_the_image_carries_the_catalogue_and_builds_its_matches():
     # ... and its per-level split-half reliability (regista.catalogue.reliability.load)
     assert "COPY data/catalogue/reliability.json ./data/catalogue/reliability.json" in docker
     assert not _excluded("data/catalogue/reliability.json")
+    # ... and the realism verdicts the served notes quote (regista.catalogue.realism.load)
+    assert "COPY data/catalogue/realism.json ./data/catalogue/realism.json" in docker
+    assert not _excluded("data/catalogue/realism.json")
     assert "RUN python -m regista.catalogue build" in docker and "REGISTA_CATALOGUE=" in docker
     assert not _excluded("data/catalogue/catalogue.json") and not _excluded("data/catalogue/competitions/co_ger_sp_men.json")
     assert _excluded("data/catalogue/matches/cm_gsp_01_hbg_hsb/events.jsonl")

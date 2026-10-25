@@ -53,7 +53,7 @@ Qualified rows (minutes at or above the competition's minimum) per competition:
 | Atlantic Collegiate Soccer Conference | 6 | 94 | 33 | 45 |
 | Pacific Coast Collegiate Conference | 5 | 80 | 31 | 45 |
 | Regional Preferente Levante Interior | 5 | 80 | 32 | 45 |
-| Liga Juvenil Meseta Norte | 5 | 80 | 41 | 45 |
+| Liga Juvenil Levante Interior | 5 | 80 | 41 | 45 |
 | Weserland-Liga | 8 | 97 | 55 | 45 |
 | Campeonato Serrano Sub-20 | 4 | 63 | 22 | 45 |
 | Ogun Riverside Amateur League | 4 | 64 | 31 | 45 |
@@ -267,6 +267,11 @@ How `noisy` is read:
   table, because no per-competition table exists.
 - So an England number can be noisy in one scope and not the other. Of 127 metrics, the semi-pro men level table and
   England's own table disagree on 15 (for example shots, take-ons won, xG).
+- **A row's own minutes (review round 1).** The level tables are measured on half-seasons (median 85-142 minutes);
+  sparse rows have 45-60. A row's flag therefore adjusts the level's r to the row's minutes with Spearman-Brown,
+  r_k = k r / (1 + (k - 1) r) with k = minutes / median half-season minutes, and is noisy when r_k is below 0.3 (served
+  as `r_at_minutes`). Example: r = 0.45 at 142 minutes is 0.26 at 60 minutes, so noisy. England's competition scope
+  keeps today's flag. A list of noisy metrics without a row (`season.noisy`) still reads the level's half-season flag.
 
 **What it cannot say.** The table measures half a *full* season of the level. Every sparse competition's uploads are
 smaller than that (3-8 matches against 12-30 in the full round robin), so a metric marked noisy is noisier still on
@@ -292,27 +297,31 @@ The kinds are design.md §10's:
 Premier League bands never stand below senior semi-pro and college men (tested). The second-half drop in women's
 high-intensity running [S1] is not checked, because the engine's metrics do not split halves (`NOT_CHECKED`).
 
-### Preview of the checks on the measurement seasons (phase 5 owns the verdicts)
+### The checks on the measurement seasons (verdicts committed in review round 1)
 
 The same 1,524 measurement matches give level aggregates (`measure.level_aggregates`):
 - per 90 rates per outfield player;
 - pass completion over all outfield passes;
 - the mean of outfielders' match top speeds, from matches with 10+ minutes.
 
-`band_checks` and `order_checks` were run on them. Reproduce with
-`python -m regista.catalogue reliability --aggregates PATH`. **Two checks fail.** As the design says, they are
-reported here with their numbers and nothing was retuned.
+`band_checks` and `order_checks` were run on them. Since review round 1 the verdicts are committed as
+`data/catalogue/realism.json` (written beside `reliability.json` by `python -m regista.catalogue reliability`, stamped
+with the same fingerprint, checked by a quick test, the U17 band re-measured by the slow test, shipped in the image and
+checked by its smoke test) and served with every metric's `realism`: the value or values, the margin, and the verdict.
+An order step now also needs its margin to be at least two standard errors of the season-to-season spread (six
+measurement seasons per level); a smaller margin is **not separated**, never a pass. **Two checks fail and three are
+not separated.** As the design says, they are reported here with their numbers and nothing was retuned.
 
 | Check | Values (lowest level first) | Verdict |
 |---|---|---|
 | U17 band: mean peak match speed 24.9-28.7 km/h [S5] | **29.68** | **fail** (0.98 km/h above the top of the band) |
 | Amateurs complete fewer passes than semi-pros [S10] | amateur **81.38%**, semi-pro men **80.53%** | **fail** (amateurs 0.85 points higher) |
 | Amateurs sprint less than semi-pros [S9] | 209 m, 233 m per 90 | pass |
-| Peak speed rises U17 < U18 < U19 < U20 < senior [S5, S6] | 29.68, 30.26, 30.57, 30.63, 31.46 km/h | pass |
-| Distance per 90 rises with age [S8] | 9,855, 10,034, 10,040, 10,122, 10,365 m | pass (U18 to U19 by 6 m) |
+| Peak speed rises U17 < U18 < U19 < U20 < senior [S5, S6] | 29.68, 30.26, 30.57, 30.63, 31.46 km/h | **not separated** (U19 to U20 by 0.06, noise +/- 0.09) |
+| Distance per 90 rises with age [S8] | 9,855, 10,034, 10,040, 10,122, 10,365 m | **not separated** (U18 to U19 by 6 m, noise +/- 60) |
 | Women complete fewer passes, semi-pro [S1] | 79.68%, 80.53% | pass (0.85 points) |
 | Women complete fewer passes, college [S1] | 79.18%, 81.04% | pass |
-| Women lose the ball more, semi-pro [S1] | men 12.68, women 12.73 per 90 | pass (by 0.05: a coin flip, not a finding) |
+| Women lose the ball more, semi-pro [S1] | men 12.68, women 12.73 per 90 | **not separated** (by 0.05, noise +/- 0.24) |
 | Women lose the ball more, college [S1] | men 12.18, women 13.12 per 90 | pass |
 | Women cover less at 20 km/h or more, semi-pro [S1, S2] | 825 m, 1,040 m per 90 | pass |
 | Women cover less at 20 km/h or more, college [S1, S2] | 817 m, 985 m per 90 | pass |
@@ -348,6 +357,25 @@ Other aggregates, for context (team per 90):
 
 These pass completions count outfield passes as the engine's `pass_pct` defines them, so they read lower than the
 indicative per-match table in catalogue.md, which counts differently. They are not bands.
+
+**What this table says plainly (review B, S2).** The levels differ in their hidden ratings and in pace, but barely in
+the event data a scout reads: pass completion is 79.0-81.4% at every level (amateurs above semi-pro men), ball losses
+12.1-13.4 per 90 everywhere, and U20 scores the fewest goals. Both sides of a synthetic match scale together, so most
+outcome rates cancel. So "levels genuinely differ" holds for the ratings and the physical numbers, not for raw event
+rates: compare players through their percentiles within their own pools. The `all`-scope and mixed-level warnings say
+this on every response. A level-relative passing and retention effect (design.md §5.2) would change it but moves every
+catalogue pin: Zaid's call.
+
+**Absolute scale (review B, S7).** The Regista League was tuned to sit inside Premier League bands, and every other level
+is scaled from it, so absolute values everywhere (England's peak speeds reach 36.7 km/h) sit on a
+Premier-League-calibrated scale and likely overstate real football below the professional line. Every served realism
+note says so.
+
+**Women's speed zones (review B, S8).** Every level is measured on the men's FIFA zones (20 and 25 km/h). Women's
+tournaments use 19 and 23 km/h [S11], so women's zone numbers are low (median sprints per 90: 3.3 England semi-pro women,
+1.5 USA college women, 11.8 England semi-pro men) and many players have none. Women's cells on the five zone metrics
+carry `threshold_note` and their realism a `zone_note`. Computing women's own zones needs the generator's physical
+record to carry them, which moves the women's pins: Zaid's call.
 
 ## Hidden ratings
 

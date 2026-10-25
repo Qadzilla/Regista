@@ -4,10 +4,10 @@
   build [--workers N]       regenerate every catalogue match into REGISTA_CATALOGUE_ROOT (default data/catalogue/matches)
   check                     build, then compare every match's events with its pin (regista.catalogue.pins)
   competitions              the 14 competitions: country, level, teams, people, uploaded matches, cameras
-  reliability [--repeats N] [--aggregates PATH]
+  reliability [--repeats N] [--out PATH] [--realism PATH] [--aggregates PATH]
                             measure every level on full regenerated seasons and write data/catalogue/reliability.json
-                            (a few minutes on ten cores); --aggregates also writes the level aggregates the realism
-                            checks read (regista.catalogue.realism)
+                            and the realism verdicts beside it, data/catalogue/realism.json (a few minutes on ten
+                            cores); --aggregates also writes the bare level aggregates
   levels [--scope S]        the percentile pools: per level (or competition, or all) and position, how many players
                             qualify on minutes, and which pools are small
   player ID [--scope S]     one player across the catalogue: career, then the position's default metrics per competition
@@ -77,12 +77,14 @@ def _competitions() -> int:
     return 0
 
 
-def _reliability(repeats: int, workers: int | None, out: str | None, aggregates: str | None) -> int:
+def _reliability(repeats: int, workers: int | None, out: str | None, aggregates: str | None,
+                 realism_out: str | None = None) -> int:
     import json
 
     from regista.catalogue import reliability as rel
     from regista.catalogue import store
     from regista.catalogue.measure import level_aggregates, measure
+    from regista.catalogue import realism as rea
     from regista.catalogue.realism import band_checks, order_checks
     from regista.season.league import load_league
     from regista.season.metrics import load_metrics
@@ -101,6 +103,12 @@ def _reliability(repeats: int, workers: int | None, out: str | None, aggregates:
     for level, lv in data["levels"].items():
         noisy = sum(1 for v in lv["metrics"].values() if v["noisy"])
         print(f"  {level:24s} {lv['matches']:5d} matches, half {lv['median_half_minutes']} min, {noisy} noisy")
+    verdicts = rea.compute(league, comps, repeats, results)
+    rpath = Path(realism_out) if realism_out else path.with_name(rea.FILE_NAME)
+    rpath.write_text(json.dumps(verdicts, indent=1, sort_keys=True) + "\n")
+    print(f"wrote {rpath}")
+    for c in verdicts["bands"] + verdicts["orders"]:
+        print(f"  {c['id']:28s} {c['verdict']}")
     if aggregates:
         agg = level_aggregates(results)
         Path(aggregates).write_text(json.dumps({"levels": agg, "bands": band_checks(agg), "orders": order_checks(agg)},
@@ -161,6 +169,7 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--workers", type=int, default=None)
     r.add_argument("--out", default=None)
     r.add_argument("--aggregates", default=None)
+    r.add_argument("--realism", default=None)
     lv = sub.add_parser("levels")
     lv.add_argument("--scope", default="level", choices=("level", "competition", "all"))
     pl = sub.add_parser("player")
@@ -170,7 +179,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd == "reliability":
         from regista.catalogue.measure import DEFAULT_REPEATS
 
-        return _reliability(args.repeats or DEFAULT_REPEATS, args.workers, args.out, args.aggregates)
+        return _reliability(args.repeats or DEFAULT_REPEATS, args.workers, args.out, args.aggregates, args.realism)
     if args.cmd == "levels":
         return _levels(args.scope)
     if args.cmd == "player":
