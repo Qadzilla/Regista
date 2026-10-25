@@ -385,6 +385,9 @@
   }
 
   // ------------------------------------------------------------------ output line
+  // Commands wait for the network, so an older one can finish after a newer command or a click that picks a player. Each
+  // command and each picked player bumps `gen`; a command whose gen is no longer current drops its line and its scroll.
+  let gen = 0;
   function out(msg, kind, html) {
     const o = $('txOut'); if (!o) return;
     o.className = 'tx-out' + (kind === 'err' ? ' err' : '');
@@ -479,14 +482,10 @@
   // Select a player: every panel follows. What the panels need loads in the background (they say "Loading…" meanwhile).
   function select(pid, quiet) {
     const p = PID.get(pid); if (!p) return;
+    if (!quiet) gen++;  // a player picked by hand overrides any command still loading
     S.focus = pid; S.club = p.club_id; scatCur = null;
     save(); renderAll();
     if (!quiet) out(`${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number}`);
-  }
-  // The same, waiting for the player's numbers first, so a command can bring them into view once they are drawn.
-  async function selectReady(pid) {
-    await Promise.all([settle(full(pid)), settle(similar(pid))]);
-    select(pid, true);
   }
   function renderSel() {
     const f = PID.get(S.focus);
@@ -1297,6 +1296,7 @@
   }
   async function run(text) {
     const t = String(text || '').trim().replace(/\s*<GO>$/i, '').trim().slice(0, 200); if (!t) return;
+    const g = ++gen;
     if (store.hist[store.hist.length - 1] !== t) { store.hist.push(t); if (store.hist.length > 50) store.hist.shift(); save(); }
     histAt = -1;
     const toks = t.split(/\s+/), head = toks[0].toUpperCase(), rest = t.slice(toks[0].length).trim();
@@ -1316,8 +1316,11 @@
       out(`${head} ${p.name}: loading…`);
       // What the panel draws loads first, so the output line and the panel are final before it is brought into view.
       const extra = head === 'SHOT' ? shotsOf(p.id) : head === 'FORM' ? formOf(p.id, [...(CAT.default_columns[p.position] || CAT.default_columns.all), S.form.k || ''].filter(Boolean)) : head === 'HEAT' ? heatOf(p.id) : null;
-      await Promise.all([selectReady(p.id), extra ? settle(extra) : null]);
+      await Promise.all([settle(full(p.id)), settle(similar(p.id)), extra ? settle(extra) : null]);
+      if (g !== gen) return;  // a newer command or a picked player took over meanwhile
+      select(p.id, true);
       await panelsSettled();
+      if (g !== gen) return;
       let line;
       if (head === 'SIM') { const sm = similar(p.id).v; line = `SIM ${p.name}: ${((sm && sm.similar) || []).map(s => `${s.name} ${Number(s.similarity).toFixed(2)}`).join(', ') || 'none'}.`; }
       else if (head === 'SHOT') { const sh = (shotsOf(p.id).v || {}).shots || []; const g = sh.filter(s => s.outcome === 'goal').length; line = `SHOT ${p.name}: ${sh.length} shots, ${g} goal${g === 1 ? '' : 's'}. Each shot plays its clip.`; }
@@ -1334,8 +1337,11 @@
     if (r.p) {
       const p = r.p;
       out(`${p.name}: loading…`);
-      await selectReady(p.id);
+      await Promise.all([settle(full(p.id)), settle(similar(p.id))]);
+      if (g !== gen) return;
+      select(p.id, true);
       await panelsSettled();
+      if (g !== gen) return;
       out('', '', esc(`${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number}`) + altsHtml(r.alts, ''));
       // Bring the card and the player's numbers into view, not just the card's top strip.
       showPanel('plyr', true, '.tx-best');
@@ -1347,9 +1353,11 @@
     out(`Not a player, club or command: "${t}". Try TOURE, RANK FW npxg, TEAM BRO or HELP.`, 'err');
   }
   async function team(c, line) {
+    const g = gen;
     S.club = c.club_id; save();
     if (!visible('team')) showPanel('team', false); else renderTeam();
     await panelsSettled();
+    if (g !== gen) return;
     out(line);
     showPanel('team', true);
   }
@@ -1410,11 +1418,14 @@
     const ids = [...new Set(rs.map(r => r.p.id))].slice(0, 3);
     if (ids.length === 1 && ids[0] !== S.focus) ids.unshift(S.focus);
     if (ids.length < 2) { out('CMP needs two or three different players.', 'err'); return; }
+    const g = gen;
     out('CMP: loading…');
     await Promise.all(ids.map(id => settle(full(id))));
+    if (g !== gen) return;
     S.compare = ids; S.focus = ids[0]; S.club = PID.get(ids[0]).club_id; save();
     renderAll();
     await panelsSettled();
+    if (g !== gen) return;
     const amb = rs.filter(r => r.alts && r.alts.length);
     out('', '', esc(`CMP ${ids.map(id => PID.get(id).name).join(' · ')}: radar and table vs each player's position peers.`)
       + (amb.length ? ` <span class="tx-dim">"${esc(amb[0].q)}" could also be:</span> ${amb[0].alts.slice(0, 5).map(p => runBtn(`CMP ${ids.map(id => id === amb[0].p.id ? p.name : PID.get(id).name).join(', ')}`, `${p.name} ${p.short_name}`)).join(' ')}` : ''));
@@ -1431,10 +1442,13 @@
     }
     if (!mx) { out('SCAT needs two metrics: SCAT <metricX> <metricY> [<position>], e.g. SCAT npxg xa FW. Metric keys autocomplete.', 'err'); return; }
     S.scat.x = mx.key; S.scat.y = my.key; if (pos !== undefined) S.scat.pos = pos; scatCur = null; save();
+    const g = gen;
     out(`SCAT · ${mx.label} × ${my.label}: loading…`);
     await settle(scatOf(mx.key, my.key, S.scat.pos));
+    if (g !== gen) return;
     if (!visible('scat')) showPanel('scat', false); else renderScat();
     await panelsSettled();
+    if (g !== gen) return;
     const pts = scatPoints() || [];
     out(`SCAT · ${mx.label} × ${my.label}${S.scat.pos ? ' · ' + POSN[S.scat.pos] : ''}: ${pts.length} players.`);
     showPanel('scat', true);

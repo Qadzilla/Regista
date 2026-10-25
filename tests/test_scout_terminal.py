@@ -243,7 +243,7 @@ def test_fix_4_commands_wait_for_every_shown_panel_before_they_scroll(js):
     run = _fn(js, "run")
     for show in ("showPanel(PANEL_CMD[head], true", "showPanel('plyr', true, '.tx-best')"):
         i = run.index(show)
-        assert run.rfind("await panelsSettled();", 0, i) > run.rfind("await selectReady(p.id)", 0, i)
+        assert run.rfind("await panelsSettled();", 0, i) > run.rfind("select(p.id, true);", 0, i)
     for name, show in (("cmdCmp", "showPanel('radar')"), ("cmdScat", "showPanel('scat', true)"), ("team", "showPanel('team', true)")):
         body = _fn(js, name)
         assert body.index("await panelsSettled();") < body.index(show), name
@@ -261,3 +261,19 @@ def test_the_synthetic_data_is_said_once_and_numbers_say_where_they_come_from(js
     tip = _fn(js, "tipHtml")
     assert "m.definition" in tip and "m.rule" in tip and "CAT.sources" in tip and "m.noisy" in tip and "m.min_attempts" in tip
     assert "rel.noisy" in js and "aria-describedby" in js
+
+
+def test_a_stale_command_drops_its_line_and_scroll(js):
+    # Commands wait for the network: an older one finishing after a newer command, or after a player picked by hand, must
+    # not replace the newer output line or scroll away from it (review B, round 3).
+    assert "let gen = 0;" in js
+    assert "if (!quiet) gen++;" in _fn(js, "select")  # a hand-picked player overrides a command still loading
+    run = _fn(js, "run")
+    assert "const g = ++gen;" in run
+    for show in ("showPanel(PANEL_CMD[head], true", "showPanel('plyr', true, '.tx-best')"):
+        i = run.index(show)
+        assert run.rfind("if (g !== gen) return;", 0, i) > run.rfind("await panelsSettled();", 0, i)
+    for name, show in (("cmdCmp", "showPanel('radar')"), ("cmdScat", "showPanel('scat', true)"), ("team", "showPanel('team', true)")):
+        body = _fn(js, name)
+        assert "const g = gen;" in body, name
+        assert body.rfind("if (g !== gen) return;", 0, body.index(show)) > body.rfind("await panelsSettled();", 0, body.index(show)), name
