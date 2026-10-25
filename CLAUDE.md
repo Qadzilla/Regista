@@ -508,7 +508,16 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-24.** Part A of the Scout terminal (§2.10) is built on `feature/terminal-engine` and **merge-ready**
+**As of 2026-10-25 (early).** The Scout terminal is live, all three parts. Part A + C (PR #36, merge 1900d8a): player
+attributes, league-mode generator 0.7.1 (identical on macOS and Linux via `regista.detmath`, guarded by season pins),
+10 Hz physical, the metrics engine and API, refreshed seeds, docs and Fabric (756 of 756); Femi Toure 5 league goals, two
+clear. Part B (PR #37, merge 4eecdfc, revision `regista-api--d1025024757`): `/scout#terminal` on the real API (commands,
+nine linked panels, complete evidence that plays, per-visitor workspaces). Checked live, read-only: the terminal at 1440
+and 375 px with no console errors, SHOT TOURE (19 shots, 5 goals), 18 of 18 moments behind his shot-creating actions, a
+clip playing; the first view of each clip on a fresh revision renders it, so warm the clips before recording. 838 tests.
+Left: Zaid's recorded match, the demo video, the pitch, making the repo public, submitting by 2026-10-27.
+
+**Earlier, 2026-10-24.** Part A of the Scout terminal (§2.10) is built on `feature/terminal-engine` and **merge-ready**
 (PR #36: CI green on Linux, the season pins checked inside the image; not merged, not deployed): player attributes,
 league mode (generator 0.7.1, schema 0.2.0), 10 Hz physical motion, the metrics engine (127 player, 19 team-style
 metrics) and its API, after two review rounds and three closing rounds (`docs/scout-terminal/build/`; closing round 3
