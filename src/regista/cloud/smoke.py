@@ -7,7 +7,8 @@ CI runs this inside the freshly built image (.github/workflows/build-image.yml),
 .NET binary whose runtime needs (ICU, OpenSSL) differ between a laptop and the slim Linux image. Listing tools is an
 MCP handshake only: nothing is queried. The file checks catch a build that forgot package data (the Product and Studio
 pages ship as ``regista/static``) or a ``.dockerignore`` that dropped a sample match. The season check compares the
-league the image built with the committed pins, on the platform the live app runs on.
+league the image built with the committed pins, on the platform the live app runs on, and the catalogue check does
+the same for the catalogue's uploaded matches (``regista.catalogue.pins``).
 """
 
 from __future__ import annotations
@@ -99,8 +100,23 @@ def season_checks(league_path: Path | None = None, root: Path | None = None) -> 
     return [{"check": "season-pins", "ok": not moved, "root": str(root), "differs": moved}]
 
 
+def catalogue_checks(index: Path | None = None, root: Path | None = None) -> list[dict]:
+    """The catalogue's matches the Dockerfile built inside the image are the committed ones, bit for bit
+    (``regista.catalogue.pins``), like the league's."""
+    from regista.catalogue import store
+    from regista.catalogue.pins import drift
+
+    index = index or Path(os.environ.get("REGISTA_CATALOGUE", "data/catalogue/catalogue.json"))
+    root = root or Path(os.environ.get("REGISTA_CATALOGUE_ROOT", "data/catalogue/matches"))
+    try:
+        moved = drift(store.new_competitions(index), root)
+    except Exception as exc:  # noqa: BLE001 - reported, then the exit code says it failed
+        return [{"check": "catalogue-pins", "ok": False, "error": f"{type(exc).__name__}: {exc}"}]
+    return [{"check": "catalogue-pins", "ok": not moved, "root": str(root), "differs": moved}]
+
+
 def main() -> int:
-    results = file_checks() + vision_checks() + season_checks() + asyncio.run(checks())
+    results = file_checks() + vision_checks() + season_checks() + catalogue_checks() + asyncio.run(checks())
     for r in results:
         print(json.dumps(r))
     return 0 if all(r["ok"] for r in results) else 1

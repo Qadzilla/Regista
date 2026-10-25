@@ -42,3 +42,13 @@ def test_the_image_carries_the_league_and_builds_its_matches():
     # ... and the split-half reliability that marks noisy metrics (regista.season.reliability.load)
     assert "COPY data/season/reliability.json ./data/season/reliability.json" in docker
     assert not _excluded("data/season/reliability.json")
+
+
+def test_the_image_carries_the_catalogue_and_builds_its_matches():
+    docker = (REPO / "Dockerfile").read_text()
+    assert "COPY data/catalogue/catalogue.json ./data/catalogue/catalogue.json" in docker
+    assert "COPY data/catalogue/competitions ./data/catalogue/competitions" in docker
+    assert "RUN python -m regista.catalogue build" in docker and "REGISTA_CATALOGUE=" in docker
+    assert not _excluded("data/catalogue/catalogue.json") and not _excluded("data/catalogue/competitions/co_ger_sp_men.json")
+    assert _excluded("data/catalogue/matches/cm_gsp_01_hbg_hsb/events.jsonl")
+    assert "data/catalogue/matches/" in (REPO / ".gitignore").read_text()

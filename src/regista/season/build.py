@@ -19,7 +19,7 @@ import shutil
 import tempfile
 import threading
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from regista.clips import derive_clips
 from regista.schema import write_jsonl
@@ -79,9 +79,12 @@ def is_current(league: Record, fixture: Record, root: Path) -> bool:
         return False
 
 
-def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
+def materialise(league: Record, fixture: Record, root: Path | str, *, manifest_extra: Record | None = None,
+                title_fn: Callable[[Record, Record, dict[str, int]], str] | None = None) -> Path:
     """The fixture's match folder under ``root``, generated now if it is missing or stale. Safe to call from many
-    threads: one builds, the others wait for it."""
+    threads: one builds, the others wait for it. ``manifest_extra`` (keys added to or replacing the manifest's) and
+    ``title_fn`` (the manifest title) are for the catalogue's matches (``regista.catalogue.build``); without them the
+    manifest is the league's, as it always was."""
     root = Path(root)
     dest = root / fixture["match_id"]
     if is_current(league, fixture, root):
@@ -108,13 +111,15 @@ def materialise(league: Record, fixture: Record, root: Path | str) -> Path:
             manifest = {
                 "match_id": fixture["match_id"], "collection": "season", "league": league["league"], "season": league["season"],
                 "round": fixture["round"], "date": fixture["date"], "home": fixture["home"], "away": fixture["away"],
-                "title": title(league, fixture, result.score),
+                "title": (title_fn or title)(league, fixture, result.score),
                 "subtitle": f"{league['league']} {league['season']}, round {fixture['round']}: thirty generated minutes, "
                             "every player's moments cut and labelled.",
                 "score": result.score, "fingerprint": fingerprint(league, fixture),
                 "generator": {**league["generator"], "seed": fixture["seed"]},
                 "video_duration_s": result.match["video"]["duration_s"], "clip_count": len(clips),
             }
+            if manifest_extra:
+                manifest.update(manifest_extra)
             (tmp / "manifest.json").write_text(json.dumps(manifest, indent=1) + "\n")
             if is_current(league, fixture, root):
                 # another process got there first (build_all's worker processes do not share this thread lock): keep its
@@ -162,9 +167,10 @@ def _build_all(league: Record, root: Path, workers: int | None) -> list[Path]:
     return [materialise(league, f, root) for f in league["fixtures"]]
 
 
-def ensure_tracks(league: Record, fixture: Record, root: Path | str) -> Path:
+def ensure_tracks(league: Record, fixture: Record, root: Path | str, *, manifest_extra: Record | None = None,
+                  title_fn: Callable[[Record, Record, dict[str, int]], str] | None = None) -> Path:
     """The match folder with ``tracks.jsonl`` present (regenerated from the fixture, identical to the first build)."""
-    dest = materialise(league, fixture, root)
+    dest = materialise(league, fixture, root, manifest_extra=manifest_extra, title_fn=title_fn)
     if (dest / "tracks.jsonl").exists():
         return dest
     with _locks_guard:

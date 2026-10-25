@@ -1,6 +1,6 @@
 {
  "generator_version": "0.7.1",
- "league_fingerprint": "5fceb20c3903f148",
+ "league_fingerprint": "a91152377b0055b4",
  "method": "split-half reliability within role: rounds 1-5 against rounds 6-10 of each season, each half computed with the terminal's engine and qualifying rule; values centred on the role's mean in that season; rows pooled over 6 regenerated seasons (seeds shifted by 1000). r is the split-half correlation, season_r its Spearman-Brown estimate for a whole season, 2r/(1+r). noisy: r below 0.3, so one season's ranking within a role is mostly luck",
  "metrics": {
   "accelerations_high": {

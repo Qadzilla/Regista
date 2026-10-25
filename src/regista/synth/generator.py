@@ -34,6 +34,9 @@ LEAGUE_GENERATOR_VERSION = "0.7.1"   # with them (league mode): player ratings d
 #        the back line steps up in possession, full-backs and wingers hold the width, centre-backs hit some balls long
 # 0.7.1: the same match on every platform: exp, log, sin, cos, hypot and Gaussians from ``regista.detmath`` instead of
 #        libm, whose last bits differ between macOS and Linux (a league fixture came out different on CI); same tuning
+# catalogue (not a version: inert without it, so every league stream and pin is unchanged): an optional team-spec key
+#        ``style_offset`` ({"keep": x, "press": y}) re-centres TEAM_STYLE on a competition whose players sit on another
+#        level of the rating scale (regista.catalogue); without it every low-level side would sit at the style clamp
 
 PITCH_L = 105.0
 PITCH_W = 68.0
@@ -400,6 +403,7 @@ class Team:
     squad: list[dict[str, Any]] | None = None        # fixed names and global ids, formation order then bench
     players: list[Player] = field(default_factory=list)
     style: dict[str, float] = field(default_factory=dict)   # league mode: team style from the starters' ratings (TEAM_STYLE)
+    style_offset: dict[str, float] | None = None   # catalogue: TEAM_STYLE's centres moved to the competition's level
 
     @property
     def goal(self) -> Point:
@@ -686,6 +690,8 @@ class MatchSim:
         xi = [p for p in team.players[:11] if p.position != "GK"]
         for key, (ratings, centre, sd) in TEAM_STYLE.items():
             mean = sum(sum((p.attrs or {}).get(r, SKILL_CENTRE[r]) for r in ratings) / len(ratings) for p in xi) / max(1, len(xi))
+            if team.style_offset:  # a catalogue competition on another level: style is relative to its own sides
+                centre = centre + team.style_offset.get(key, 0.0)
             out[key] = clamp((mean - centre) / sd, -2.5, 2.5)
         return out
 
@@ -2385,6 +2391,8 @@ def _team_specs(teams: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
             base["kit"] = {**base["kit"], **{k: str(v) for k, v in given["kit"].items()}}
         if "club_id" in given:
             base["club_id"] = str(given["club_id"])
+        if given.get("style_offset"):
+            base["style_offset"] = {str(k): float(v) for k, v in given["style_offset"].items()}
         if "squad" in given:
             squad = [_squad_member(m) for m in given["squad"]]
             if len(squad) != len(FORMATION_433) + len(BENCH):

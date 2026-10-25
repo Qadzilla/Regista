@@ -309,6 +309,10 @@ src/regista/player_api.py    the Player view (/me): uploads to the store (admin)
 src/regista/season/playing_time.py  time on the pitch from substitutions and red cards (profiles, build, Fabric lineups)
 src/regista/season/audit.py  can a scout trust it: split-half reliability within a kit slot, the scoring chart (python -m regista.season.audit)
 src/regista/season/reliability.py  split-half reliability per metric (data/season/reliability.json); below 0.3 is marked noisy
+src/regista/catalogue/       the catalogue (feature/catalogue, not merged): 13 more synthetic competitions in 10 countries below the
+                             professional line (taxonomy.py levels and scales, names.py, clubs.py, define.py -> data/catalogue/,
+                             store.py, build.py -> data/catalogue/matches/, pins.py CATALOGUE_PINS for all 60 uploaded matches);
+                             England semi-pro men is league.json by reference, untouched (docs/catalogue/build/design.md)
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
@@ -389,6 +393,7 @@ python3 -m regista.recap data/synthetic/sample/syn_0294 --player t_home_09 [--en
 python3 -m regista.mcp_server --list-tools        # or without the flag: stdio MCP server for any MCP host
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
 python3 -m regista.season build && python3 -m regista.season table && python3 -m regista.season players --position FW --sort take_ons_won
+python3 -m regista.catalogue define --check && python3 -m regista.catalogue check && python3 -m regista.catalogue competitions
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python3 -m regista.synth.report --league [--repeat 6] [--out docs/realism-report.md]   # the league against every band (6 seasons pooled)
 python3 -m regista.season.audit                                # split-half reliability, the top scorers (Femi Toure first)

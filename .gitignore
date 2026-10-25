@@ -21,6 +21,8 @@ data/studio/
 data/player/
 # regenerated from data/season/league.json (python -m regista.season build)
 data/season/matches/
+# regenerated from data/catalogue/ (python -m regista.catalogue build)
+data/catalogue/matches/
 footage/
 
 # Model weights and large artifacts
