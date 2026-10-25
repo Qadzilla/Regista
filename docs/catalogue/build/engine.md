@@ -38,7 +38,7 @@ passes, and so do `SEASON_PINS`, `CATALOGUE_PINS` and `tests/test_backcompat.py`
 - **Every other competition** is built with `SeasonMetrics.from_streams(comp, streams, xt=england.xt, min_minutes_floor=45, min_pool=5)`
   (design.md D7 and §7.2):
   - 3-8 matches cannot fit a 12 × 8 xT grid, so these competitions use England's fitted grid as a fixed reference.
-  - Qualifying minutes are `max(45, a third of the club's minutes)`. Every sparse competition comes out at 45.
+  - Qualifying minutes are `max(45, a third of the busiest club's minutes)`. Every sparse competition comes out at 45.
   - A club with one uploaded match leaves its players unqualified. There is not enough footage, and a test checks this.
 - **Cost**: building the 13 sparse competitions' engines takes 1.4 s on Zaid's Mac, with the England engine already
   cached (0.8 s cold). The profiles side takes 1.8 s.
