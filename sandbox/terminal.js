@@ -254,6 +254,8 @@
   function evText(m, v) {
     if (v == null) return '';
     if (v === 1 && !['xG', 'xT', 'm', 'km/h'].includes(m.unit)) return '';
+    // xA's moments are the key passes, exported as 1 each (no per-pass xA): showing "xG 1" would misstate them.
+    if (v === 1 && m.key === 'xa') return '';
     const n = Number(v);
     const s = Number.isInteger(n) ? String(n) : (Math.abs(n) < 1 ? n.toFixed(3) : n.toFixed(1));
     return ['xG', 'xT'].includes(m.unit) ? `${m.unit} ${s}` : ['m', 'km/h'].includes(m.unit) ? `${s} ${m.unit}` : s;
@@ -268,10 +270,13 @@
 
   // ------------------------------------------------------------------ static pieces: the header line, examples, footer, layout
   // The right end of the one header line: what "≈" means (the details hold the rules), and the three saved layouts.
+  // The export's sample note in this view's words: "regular" (not "qualified"), ≈ (not "noisy"), and no module name.
+  const plainSample = (t) => String(t || '').replace(/\ba qualified player's\b/g, "a regular's").replace(/\bqualified\b/g, 'regular')
+    .replace(/a metric marked noisy/g, 'a stat marked ≈').replace(/ \(split-half reliability, [\w.]+\)/g, '');
   function paintMeta() {
     const sm = D.season.sample || {};
     $('txMeta').innerHTML = `<details class="tx-about"><summary><span class="tx-noisy" aria-hidden="true">≈</span> small sample, read with care</summary>
-        <div class="tx-aboutp"><p>${esc(sm.note || '')}</p>
+        <div class="tx-aboutp"><p>${esc(plainSample(sm.note))}</p>
         <p><span class="tx-noisy">≈</span> marks a stat whose split-half reliability within a role is below ${esc(D.season.noise_r)}: one season cannot yet tell players in the same role apart on it.</p>
         <p>Percentiles compare a player with the regulars (at least ${esc(minMin())} minutes) in the same position: goalkeepers, defenders, midfielders or forwards. Where lower is better, the percentile is turned round.</p>
         <p>Every number opens the moments behind it: the first ${esc(10)} play here, with a link to the full list on the app. Physical numbers list one value per match (no single clip).</p></div></details>
@@ -327,7 +332,24 @@
             <button type="button" data-act="pmove" data-id="${p.id}" data-d="-1" aria-label="Move ${t} earlier" title="Move earlier"${i === 0 ? ' disabled' : ''}>${ICON.left}</button><button type="button" data-act="pmove" data-id="${p.id}" data-d="1" aria-label="Move ${t} later" title="Move later"${i === on.length - 1 ? ' disabled' : ''}>${ICON.right}</button><button type="button" data-act="psize" data-id="${p.id}" aria-label="${t}: ${SIZE_NAME[pp.size]}, make it ${SIZE_NAME[nx]}" title="Size: ${SIZE_NAME[pp.size]} (click for ${SIZE_NAME[nx]})">${ICON.size}</button><button type="button" data-act="pclose" data-id="${p.id}" aria-label="Hide ${t}" title="Hide (its button above brings it back)">${ICON.close}</button></span></header>
         <div class="tx-pb" data-body></div></section>`;
     }).join('') || '<p class="tx-empty">Every panel is hidden. Press a panel button above to bring one back.</p>';
+    watchTall(tall ? [on[1].id, on[2].id] : null);
     paintKeys(); paintNav();
+  }
+  // The tall players table is capped at the height of the two panels beside it, kept in step as they change.
+  // fitTall runs after every paint too, since a hidden tab may hold back ResizeObserver callbacks.
+  let tallRO = null, tallIds = null;
+  function fitTall() {
+    const sc = $('tx-p-scrn'), a = tallIds && $('tx-p-' + tallIds[0]), b = tallIds && $('tx-p-' + tallIds[1]);
+    if (!sc || !a || !b) return;
+    const gap = parseFloat(getComputedStyle($('txGrid')).rowGap) || 8;
+    sc.style.setProperty('--tx-tallh', `${Math.max(480, Math.floor(a.offsetHeight + gap + b.offsetHeight))}px`);
+  }
+  function watchTall(ids) {
+    if (tallRO) { tallRO.disconnect(); tallRO = null; }
+    tallIds = ids;
+    if (!ids) return;
+    if (typeof ResizeObserver === 'function') { tallRO = new ResizeObserver(fitTall); [ids[0], ids[1]].forEach(id => { const el = $('tx-p-' + id); if (el) tallRO.observe(el); }); }
+    fitTall();
   }
   // Phones: a sticky row of the panels, so a scout jumps to one instead of scrolling past them all.
   function paintNav() {
@@ -385,6 +407,7 @@
     const scs = [...body.querySelectorAll('.tx-scroll')].map(s => [s.scrollTop, s.scrollLeft]);
     if (tipFor && body.contains(tipFor)) hideTip();
     body.innerHTML = html;
+    if (tallIds && tallIds.includes(id)) fitTall();
     [...body.querySelectorAll('.tx-scroll')].forEach((s, i) => { if (scs[i]) { s.scrollTop = scs[i][0]; s.scrollLeft = scs[i][1]; } });
     if (fid) {
       const el = body.querySelector(`[data-fid="${CSS.escape(fid)}"]`);
@@ -413,12 +436,12 @@
   }
   // Beside the search: the selected player, and the comparison when there is one.
   function renderSel() {
-    const f = PID.get(S.focus), last = (p) => p.name.split(' ').slice(-1)[0];
+    const f = PID.get(S.focus);
     const chips = S.compare.map((id, i) => { const p = PID.get(id); return `<span class="tx-chip" style="--c:${CMP_COL[i]}"><button type="button" data-act="sel" data-pid="${esc(id)}" data-fid="chip-${esc(id)}" title="Select ${esc(p.name)}">${esc(p.name)}</button><button type="button" class="tx-x" data-act="cmprm" data-pid="${esc(id)}" aria-label="Remove ${esc(p.name)} from the comparison" title="Remove from the comparison">&times;</button></span>`; }).join('');
     const inCmp = S.compare.includes(S.focus);
     let btn = '';
     if (!S.compare.length || (inCmp && S.compare.length < 3)) btn = `<button type="button" class="tx-mini tx-cmpw" data-act="cmpwith" title="Type a player to compare with">Compare with…</button>`;
-    else if (!inCmp) btn = `<button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(S.focus)}">Add ${esc(last(f))} to the comparison${S.compare.length >= 3 ? ` (replaces ${esc(last(PID.get(S.compare[0])))})` : ''}</button>`;
+    else if (!inCmp) btn = `<button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(S.focus)}">Add ${esc(f.name)} to the comparison${S.compare.length >= 3 ? ` (replaces ${esc(PID.get(S.compare[0]).name)})` : ''}</button>`;
     $('txSel').innerHTML = `<span class="tx-sl">Selected:</span><button type="button" class="tx-focus" data-act="pane" data-id="plyr" title="Go to the player card">${esc(f.name)} <span>${esc(f.short_name)} · ${esc(f.position)} · #${esc(f.kit_number)}</span></button>
       ${S.compare.length ? `<span class="tx-sl">Comparing:</span>${chips}` : ''}${btn}
       ${S.compare.length ? '<button type="button" class="tx-mini" data-act="cmpclear" title="Stop comparing">Clear</button>' : ''}`;
@@ -1303,7 +1326,11 @@
         s.push(...metricSugs(cur, 1, true, `rank ${POSN[PID.get(S.focus).position]} `).slice(0, 3).map(x => ({ ...x, detail: `rank ${POSN[PID.get(S.focus).position]}` })));
       } else s = playerSugs(words.join(' '), toks.length, true);
     } else if (['SIM', 'SHOT', 'FORM', 'HEAT', 'RDR', 'PLYR'].includes(head)) s = playerSugs(args.join(' '), args.length, true);
-    else if (head === 'CMP') { const more = /,|\band\b|\bvs?\b/i.test(ph.rest); s = trailing((q, k) => playerSugs(q, k, more)); }
+    else if (head === 'CMP') {
+      // Players already named before the last "," / "and" / "vs" are not suggested again (Compare with… names the selected one).
+      const more = /,|\band\b|\bvs?\b/i.test(ph.rest), m = ph.rest.match(/^(.*)(,|\band\b|\bvs?\b)/i), named = m ? norm(m[1]) : '';
+      s = trailing((q, k) => playerSugs(q, k, more).filter(x => !named || !named.includes(norm(x.text))));
+    }
     else if (head === 'TEAM') { const n = norm(args.join(' ')); s = D.clubs.filter(c => !n || norm(c.short_name).startsWith(n) || norm(c.name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).map(c => ({ kind: 'Club', text: c.name, detail: c.short_name, insert: c.name, k: args.length, run: true })); }
     else if (head === 'RANK') {
       if (args.length === 1) s = [...POS_SUG(cur, false), ...metricSugs(cur, 1, true)];
@@ -1355,7 +1382,7 @@
         <li><kbd>Tab</kbd> takes a suggestion</li><li><kbd>Esc</kbd> closes suggestions, help, tips and the clips drawer</li><li><kbd>Alt 1–9</kbd> jump to a panel, in the order of the panel buttons (each button's tooltip shows its key)</li>
         <li>In the players table: arrow keys, Home/End, Enter</li><li>In the scatter: arrow keys pick a player, Enter selects</li></ul>
       <h3 class="tx-h3">How the panels link</h3><p>One selected player and up to three compared players drive every panel. Selecting a player anywhere (a row in the table, a dot in the scatter, a similar player, the squad, a legend) updates the rest. Every underlined number plays the moments behind it in the clips drawer, from ${esc(APP.replace(/^https?:\/\//, ''))}; the first ${esc(10)} are listed, with a link to all of them.</p>
-      <h3 class="tx-h3">The numbers</h3><p>${esc(D.note)}</p><p>${esc(D.season.sample.note)}</p><p><span class="tx-noisy">≈</span> small sample, read with care: the stat cannot yet tell players in the same role apart over one season.</p>
+      <h3 class="tx-h3">The numbers</h3><p>${esc(D.note)}</p><p>${esc(plainSample(D.season.sample.note))}</p><p><span class="tx-noisy">≈</span> small sample, read with care: the stat cannot yet tell players in the same role apart over one season.</p>
       <h3 class="tx-h3">Sources</h3><ul class="tx-srcs">${srcs}</ul></div>`;
     h.hidden = false; h._opener = opener || null;
     $('txHelpH').focus();
@@ -1587,7 +1614,7 @@
   let lastW = window.innerWidth, resizeT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(resizeT);
-    resizeT = setTimeout(() => { if (!ready) return; placeNav(); navCurrent(); if (window.innerWidth === lastW) return; lastW = window.innerWidth; if (visible('form')) renderForm(); if (visible('scat')) renderScat(); }, 150);
+    resizeT = setTimeout(() => { if (!ready) return; placeNav(); navCurrent(); fitTall(); if (window.innerWidth === lastW) return; lastW = window.innerWidth; if (visible('form')) renderForm(); if (visible('scat')) renderScat(); }, 150);
   });
   window.addEventListener('hashchange', onRoute);
   onRoute();
