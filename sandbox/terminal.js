@@ -1,68 +1,95 @@
-// The Scout terminal (sandbox, part B6): Maya Lindqvist's Terminal section under Scout (#scout/terminal). A command line
-// with Bloomberg-style mnemonics (TOURE <GO>, RANK FW npxg, CMP, SCAT, SIM, SHOT, FORM, TEAM, HELP) over linked panels:
-// screener, player, radar or pizza vs position peers, clips, shot map, heat map, form, scatter, team style. Selecting a
-// player in any panel updates the others; every number opens the moments behind it (the engine's evidence) in the clips
-// panel, which plays them from the app named in terminal.json ("app": the live app, which serves this league since part A merged).
-// terminal.json is part A's metrics engine exported by tools/export_terminal.py; it holds no hidden ratings.
-// Three workspaces (panels, players, columns) are kept in this browser only (localStorage, wrapped in try/catch).
+// The Scout terminal (sandbox, part B6; the "intuitive" round): Maya Lindqvist's Terminal section under Scout
+// (#scout/terminal). A search box on top (a name, a club, a stat, or a plain command such as "rank forwards goals",
+// "compare Toure and Ustinov", "plot npxG against xA", "similar to Toure"; the old mnemonics RANK, CMP, SCAT, SIM, SHOT,
+// FORM, HEAT, RDR, TEAM and HELP still work) over linked panels: players table, player card, radar vs position peers, shot
+// map, touch map, form, scatter, team. Selecting a player in any panel updates the others; every number opens the moments
+// behind it (the engine's evidence) in the clips drawer, which plays them from the app named in terminal.json ("app": the
+// live app, which serves this league since part A merged). terminal.json is part A's metrics engine exported by
+// tools/export_terminal.py; it holds no hidden ratings. Three saved layouts (panels, players, columns) are kept in this
+// browser only (localStorage, wrapped in try/catch).
 (function () {
   'use strict';
   const $ = (id) => document.getElementById(id);
   const esc = (v) => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const norm = (s) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const norm = (s) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   const ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
   const POS = ['GK', 'DF', 'MF', 'FW'];
   const POSN = { GK: 'goalkeepers', DF: 'defenders', MF: 'midfielders', FW: 'forwards' };
   const POS1 = { GK: 'Goalkeeper', DF: 'Defender', MF: 'Midfielder', FW: 'Forward' };
   const POS_WORDS = { GK: 'GK', GOALKEEPER: 'GK', GOALKEEPERS: 'GK', KEEPER: 'GK', KEEPERS: 'GK', DF: 'DF', DEF: 'DF', DEFENDER: 'DF', DEFENDERS: 'DF',
-    MF: 'MF', MID: 'MF', MIDFIELDER: 'MF', MIDFIELDERS: 'MF', FW: 'FW', FWD: 'FW', FORWARD: 'FW', FORWARDS: 'FW', ALL: 'ALL' };
+    MF: 'MF', MID: 'MF', MIDFIELDER: 'MF', MIDFIELDERS: 'MF', FW: 'FW', FWD: 'FW', FORWARD: 'FW', FORWARDS: 'FW', STRIKER: 'FW', STRIKERS: 'FW',
+    ALL: 'ALL', PLAYERS: 'ALL', EVERYONE: 'ALL' };
   const CMP_COL = ['#ffcd28', '#4cc9f0', '#f472b6'];
   const GROUP_COL = { shooting: '#ffcd28', creation: '#ff9f43', passes: '#4cc9f0', carrying: '#5ad17a', defence: '#ff6b6b',
     goalkeeping: '#2dd4bf', physical: '#a3a9b8', value: '#c084fc' };
-  // F-key order. Sizes span 4, 6, 8 or 12 of the workspace's 12 columns (S, M, L, XL).
+  // Panel-button order (Alt+1 to Alt+9). Sizes span 4, 6, 8 or 12 of the layout's 12 columns (S, M, L, XL). Clips is not
+  // in the grid: it is a drawer that opens when a number is clicked (a bottom sheet on phones).
   const PANELS = [
-    { id: 'scrn', key: 'SCRN', title: 'Screener', size: 'L' },
-    { id: 'plyr', key: 'PLYR', title: 'Player', size: 'S' },
-    { id: 'radar', key: 'RDR', title: 'Radar vs peers', size: 'S' },
-    { id: 'clips', key: 'CLIP', title: 'Clips', size: 'S' },
-    { id: 'shot', key: 'SHOT', title: 'Shot map', size: 'S' },
-    { id: 'heat', key: 'HEAT', title: 'Heat map', size: 'S' },
-    { id: 'form', key: 'FORM', title: 'Form', size: 'S' },
-    { id: 'scat', key: 'SCAT', title: 'Scatter', size: 'S' },
-    { id: 'team', key: 'TEAM', title: 'Team style', size: 'XL' },
+    { id: 'scrn', title: 'Players', size: 'L', cmd: 'RANK' },
+    { id: 'plyr', title: 'Player', size: 'S', cmd: 'PLYR' },
+    { id: 'radar', title: 'Radar', size: 'S', cmd: 'RDR' },
+    { id: 'clips', title: 'Clips', size: 'S', drawer: true },
+    { id: 'shot', title: 'Shots', size: 'S', cmd: 'SHOT' },
+    { id: 'heat', title: 'Touch map', size: 'S', cmd: 'HEAT' },
+    { id: 'form', title: 'Form', size: 'S', cmd: 'FORM' },
+    { id: 'scat', title: 'Scatter', size: 'S', cmd: 'SCAT' },
+    { id: 'team', title: 'Team', size: 'L', cmd: 'TEAM' },
   ];
-  // The default layout: the screener with the clips beside it (a number clicked plays in view), then the player, radar
-  // and form it drives, then the pitch charts and the scatter, then the team.
-  const DEFAULT_ORDER = ['scrn', 'clips', 'plyr', 'radar', 'form', 'shot', 'heat', 'scat', 'team'];
+  // The default layout: the players table on the left with the player card and radar it drives stacked on its right,
+  // then form, shots and touch map, then the scatter and the team.
+  const DEFAULT_ORDER = ['scrn', 'plyr', 'radar', 'form', 'shot', 'heat', 'scat', 'team'];
   const SIZES = ['S', 'M', 'L', 'XL'];
   const SIZE_NEXT = { S: 'M', M: 'L', L: 'XL', XL: 'S' };
+  const SIZE_NAME = { S: 'small', M: 'medium', L: 'large', XL: 'full width' };
+  // Commands in plain words, each with an example. The mnemonic (the key) is still accepted, as are the aliases below.
   const COMMANDS = {
-    RANK: { args: '<position> <metric>', help: 'Rank a position on any metric; the screener sorts by it.', ex: 'RANK FW npxg' },
-    CMP: { args: '<player> <player> [<player>]', help: 'Compare two or three players on the radar and side by side.', ex: 'CMP Femi Toure Amari Ustinov' },
-    SCAT: { args: '<metricX> <metricY> [<position>]', help: 'Plot one metric against another.', ex: 'SCAT npxg xa FW' },
-    SIM: { args: '<player>', help: 'The five most similar players (cosine on the position template).', ex: 'SIM TOURE' },
-    SHOT: { args: '<player>', help: 'Every shot, sized by xG; each plays its clip.', ex: 'SHOT TOURE' },
-    FORM: { args: '<player>', help: 'Match by match, any metric.', ex: 'FORM TOURE' },
-    HEAT: { args: '<player>', help: 'Where the player touches the ball.', ex: 'HEAT TOURE' },
-    RDR: { args: '<player>', help: 'Pizza chart vs position peers.', ex: 'RDR TOURE' },
-    TEAM: { args: '<club>', help: 'Team style: possession, pressing, directness, chances.', ex: 'TEAM BRO' },
-    HELP: { args: '', help: 'Commands, keys and what the numbers mean.', ex: 'HELP' },
+    RANK: { word: 'rank', args: '<position> <stat>', help: 'Rank a position on any stat; the players table sorts by it.', ex: 'rank forwards non-penalty xG' },
+    CMP: { word: 'compare', args: '<player> and <player> [and <player>]', help: 'Two or three players on the radar and side by side.', ex: 'compare Femi Toure and Amari Ustinov' },
+    SCAT: { word: 'plot', args: '<stat> against <stat> [<position>]', help: 'One stat against another, a dot per player.', ex: 'plot non-penalty xG against xA forwards' },
+    SIM: { word: 'similar to', args: '<player>', help: 'The five players most like them, on their position\'s stats.', ex: 'similar to Femi Toure' },
+    SHOT: { word: 'shots', args: '<player>', help: 'Every shot, sized by xG; each plays its clip.', ex: 'shots Femi Toure' },
+    FORM: { word: 'form', args: '<player>', help: 'Match by match, any stat.', ex: 'form Femi Toure' },
+    HEAT: { word: 'touch map', args: '<player>', help: 'Where the player has the ball.', ex: 'touch map Femi Toure' },
+    RDR: { word: 'radar', args: '<player>', help: 'Percentiles against players in the same position.', ex: 'radar Femi Toure' },
+    TEAM: { word: 'team', args: '<club>', help: 'How a club plays: possession, pressing, directness, chances.', ex: 'team Brookfield Rovers' },
+    HELP: { word: 'help', args: '', help: 'Commands, keys and what the numbers mean.', ex: 'help' },
   };
+  const ALIAS = { COMPARE: 'CMP', PLOT: 'SCAT', SCATTER: 'SCAT', SIMILAR: 'SIM', SHOTS: 'SHOT', RADAR: 'RDR', CLUB: 'TEAM', PLAYER: 'PLYR', '?': 'HELP',
+    HEATMAP: 'HEAT', TOUCHMAP: 'HEAT' };
+  // Multi-word heads ("who plays like Toure?", "similar to Toure", "touch map Toure") come first.
+  const HEAD_RE = /^(who\s+plays\s+like|plays\s+like|similar\s+to|players?\s+like|touch\s+map|heat\s+map|shot\s+map)(?=\s|$)/i;
+  function parseHead(t) {
+    const m = t.match(HEAD_RE);
+    if (m) {
+      const w = norm(m[1]), after = t.slice(m[1].length);
+      return { head: /^(who|plays|similar|player)/.test(w) ? 'SIM' : w.startsWith('shot') ? 'SHOT' : 'HEAT', rest: after.replace(/^\s+/, ''), started: /^\s/.test(after), word: m[1] };
+    }
+    const w = t.split(/\s+/)[0], up = w.toUpperCase(), after = t.slice(w.length);
+    return { head: ALIAS[up] || up, rest: after.replace(/^\s+/, ''), started: /^\s/.test(after), word: w };
+  }
   const LS = 'regista.terminal.v1';
+  const VER = 3;
 
   let D = null, APP = '', loading = false, ready = false;
   const MK = new Map(), TK = new Map(), PID = new Map(), CID = new Map(), TEAMS = new Map(), SHOTS = new Map();
   let store = { cur: 0, ws: [null, null, null], hist: [] }, S = null, storageOK = true, saveT = 0;
   let reel = null, histAt = -1, acItems = [], acAt = -1, scatCur = null, scrAct = null, tipFor = null;
+  // The sandbox's own player pages (#scout/player/<id>) exist for the players in scout.json; the rest open on the live app.
+  let profileIds = new Set(), colMenuOpen = false, actFrom = null, drawerFrom = null;
 
   // ------------------------------------------------------------------ loading (the first time the section opens)
   function onRoute() {
     if (!location.hash.startsWith('#scout/terminal')) { const v = clipVideo(); if (v) v.pause(); hideTip(); return; }
     if (!D && !loading) load();
+    if (ready) setTimeout(() => { placeNav(); navCurrent(); }, 0);
   }
   function load() {
     loading = true;
     out('Loading the Regista League…');
+    fetch('scout.json').then(r => r.ok ? r.json() : null).then(sd => {
+      if (sd && Array.isArray(sd.players)) profileIds = new Set(sd.players.map(p => p.global_id));
+      if (ready && visible('plyr')) renderPlyr();
+    }).catch(() => {});
     fetch('terminal.json').then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(setup).catch(e => { loading = false; out('Could not load terminal.json (' + e.message + ').', 'err'); });
   }
@@ -77,9 +104,11 @@
       for (const s of p.shots || []) SHOTS.set(s.match_id + '|' + s.event_id, { p, s });
     }
     readStore();
-    paintMeta(); paintKeys(); renderLayout(); renderAll();
+    $('txDrawerBody').appendChild(buildClipBody());
+    paintMeta(); paintExamples(); paintFoot(); paintKeys(); renderLayout(); renderAll();
     ready = true;
-    out(`Ready: ${d.players.length} players, ${d.metrics.length} metrics, ${d.matches.length} matches. Type a name, a command or HELP, then Enter.`);
+    placeNav();
+    out(`Ready: ${d.players.length} players, ${d.metrics.length} stats, ${d.matches.length} matches. Search a name, a club or a stat, or try an example.`);
     if (location.hash.startsWith('#scout/terminal') && wantFocus) $('txIn').focus();
   }
   let wantFocus = false;
@@ -88,23 +117,27 @@
   function defaults() {
     const f = PID.has('pl_bro_09') ? 'pl_bro_09' : D.players.find(p => p.minutes > 0).id, fp = PID.get(f);
     const cols = (D.default_columns[fp.position] || D.default_columns.all).filter(k => MK.has(k));
-    return { v: 2, panels: DEFAULT_ORDER.map(id => PANELS.find(p => p.id === id)).map(p => ({ id: p.id, on: true, size: p.size })), focus: f, compare: [], club: fp.club_id,
+    return { v: VER, panels: DEFAULT_ORDER.map(id => PANELS.find(p => p.id === id)).map(p => ({ id: p.id, on: true, size: p.size })), focus: f, compare: [], club: fp.club_id,
       scr: { pos: fp.position, cols, sort: { k: cols[0], dir: -1 }, qual: true, mode: 'val', q: '' },
       scat: { x: 'npxg', y: 'xa', pos: fp.position, all: false }, form: { k: null }, radar: { tpl: 'pos' } };
   }
   function clean(s) {
     const o = defaults();
-    if (!s || typeof s !== 'object' || (s.v !== 1 && s.v !== 2)) return o;
+    if (!s || typeof s !== 'object' || ![1, 2, 3].includes(s.v)) return o;
     // Version 1 had three sizes (L spanned the full width) and a default layout three screens tall: a v1 layout that is
     // still that default takes the new one; a layout the visitor changed is kept, its L read as XL.
     const V1_DEFAULT = 'scrn:L,plyr:S,radar:S,clips:S,shot:S,heat:S,form:S,scat:M,team:M';
     if (s.v === 1 && Array.isArray(s.panels) && s.panels.map(p => p && `${p.id}:${p.size}`).join(',') === V1_DEFAULT && s.panels.every(p => p.on !== false)) s.panels = null;
     else if (s.v === 1 && Array.isArray(s.panels)) s.panels = s.panels.map(p => p && p.size === 'L' ? { ...p, size: 'XL' } : p);
+    // Version 2 kept Clips in the grid; version 3 opens it as a drawer. A v2 layout that is still the v2 default takes the
+    // new default (the table with the player card and radar beside it); a changed one keeps its order and sizes, minus Clips.
+    const V2_DEFAULT = 'scrn:L,clips:S,plyr:S,radar:S,form:S,shot:S,heat:S,scat:S,team:XL';
+    if (s.v === 2 && Array.isArray(s.panels) && s.panels.map(p => p && `${p.id}:${p.size}`).join(',') === V2_DEFAULT && s.panels.every(p => p.on !== false)) s.panels = null;
     if (Array.isArray(s.panels)) {
       const seen = new Set(), ps = [];
       for (const p of s.panels) {
         const def = p && PANELS.find(x => x.id === p.id);
-        if (def && !seen.has(p.id)) { seen.add(p.id); ps.push({ id: p.id, on: p.on !== false, size: SIZES.includes(p.size) ? p.size : def.size }); }
+        if (def && !def.drawer && !seen.has(p.id)) { seen.add(p.id); ps.push({ id: p.id, on: p.on !== false, size: SIZES.includes(p.size) ? p.size : def.size }); }
       }
       for (const p of o.panels) if (!seen.has(p.id)) ps.push(p);
       o.panels = ps;
@@ -149,12 +182,12 @@
   function switchWs(i) {
     store.cur = i; S = store.ws[i] = clean(store.ws[i]);
     save(); paintMeta(); renderLayout(); renderAll();
-    out(`Workspace ${i + 1}.`);
+    out(`Saved layout ${i + 1}.`);
   }
   function resetWs() {
     S = store.ws[store.cur] = defaults();
-    reel = null; save(); paintMeta(); renderLayout(); renderAll();
-    out(`Workspace ${store.cur + 1} reset to its defaults.`);
+    save(); paintMeta(); renderLayout(); renderAll();
+    out(`Layout ${store.cur + 1} reset to the default.`);
   }
 
   // ------------------------------------------------------------------ formatting
@@ -168,12 +201,36 @@
   const unitText = (m) => m.kind === 'per90' ? `${m.unit} per 90` : m.kind === 'padj' ? `${m.unit} per 90, possession-adjusted`
     : m.kind === 'ratio' ? (m.unit === '%' ? 'percentage' : `${m.unit}, average`) : m.kind === 'max' ? `${m.unit}, season peak`
     : m.kind === 'mean' ? `${m.unit}, mean of matches` : `${m.unit}, season total`;
-  const noisy = (m) => m.noisy ? '<span class="tx-noisy" aria-label="noisy">≈</span>' : '';
+  const noisy = (m) => m.noisy ? '<span class="tx-noisy" role="img" aria-label="small sample, read with care">≈</span>' : '';
+  // Short column labels, so the table's headers fit on one or two lines; the full name, definition and source stay in the
+  // tooltip on hover and focus.
+  const SHORT = { np_goals_minus_xg: 'NP goals − xG', tkl_int_padj: 'Tkl + int (adj.)', progressive_passes_received: 'Prog. passes received',
+    sot_faced: 'On target faced', npxg_plus_xa: 'NP xG + xA', xa: 'xA', sca: 'Shot-creating actions', gca: 'Goal-creating actions',
+    pressured_pass_pct: 'Compl. under pressure', passes_under_pressure_completed: 'Under pressure, completed', clean_sheet_pct: 'Clean sheet %',
+    clean_sheets: 'Clean sheets', gk_avg_pass_length: 'Keeper pass length', peak_speed: 'Top speed', peak_speed_mean: 'Top speed (typical)' };
+  function shortLabel(m) {
+    if (SHORT[m.key]) return SHORT[m.key];
+    return m.label.replace(/^Non-penalty /, 'NP ').replace(/^npxG/, 'NP xG').replace(/Progressive /, 'Prog. ').replace(/progressive /, 'prog. ')
+      .replace(/ into the penalty area$/, ' into box').replace(/^Completion /, 'Compl. ').replace(/ completed$/, ' compl.')
+      .replace(/^Passes from the /, 'Passes, ').replace(/^Passes in the /, 'Passes, ').replace(/^Passes into the /, 'Passes into ')
+      .replace(/^Defensive-third /, 'Def. third ').replace(/^Middle-third /, 'Mid third ').replace(/^Final-third /, 'Final third ')
+      .replace(/ \(30-min matches\)$/, '').replace(/ per shot$/, '/shot').replace(/ into the final third$/, ' into final third')
+      .replace(/^Compl\. (from|in) the (defensive|middle|final) third$/, (x, w, t) => `${{ defensive: 'Def.', middle: 'Mid', final: 'Final' }[t]} third pass %`);
+  }
+  // What a clickable number opens: "▶ 18 moments" (or matches, for numbers built per match).
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : w === 'match' ? 'es' : 's'}`;
+  function evCount(p, mk) {
+    const ev = p && p.evidence && p.evidence[mk];
+    return ev ? plural(ev.total, ev.per_match ? 'match' : 'moment') : null;
+  }
+  const playText = (p, mk) => { const n = evCount(p, mk); return n ? `play its ${n}` : 'open its moments'; };
   function shade(m, pct) {
     if (pct == null) return '';
     const a = (0.05 + 0.4 * pct / 100).toFixed(3);
     return m.higher_is_better === null ? `background:rgba(110,140,200,${a})` : `background:rgba(255,205,40,${a})`;
   }
+  // The qualifying minutes as people say them ("101+ minutes"; the engine's threshold is a third of a club's minutes).
+  const minMin = () => Math.ceil(Number(D.season.min_minutes) || 0);
   const cellOf = (p, k) => (p && p.metrics && p.metrics[k]) || null;
   const pctOf = (p, k) => { const c = cellOf(p, k); return c ? c.percentile : null; };
   // Why a value has no percentile, as the engine decides it (metrics.py _percentiles): the metric has no percentiles at all
@@ -183,9 +240,9 @@
     if (!c || c.value == null || c.percentile != null) return null;
     if (!m.has_percentile) return { text: 'no percentile: a season count, ranked by value only', small: false };
     if (!m.positions.includes(p.position)) return { text: `no percentile: not scored for ${POSN[p.position]} (scored for ${m.positions.join(' ')})`, small: false };
-    if (!p.qualified) return { text: `no percentile: under ${D.season.min_minutes} minutes`, small: true };
+    if (!p.qualified) return { text: `no percentile: under ${minMin()} minutes`, small: true };
     if (!c.qualified) return { text: `no percentile: below the minimum attempts${c.den != null && m.min_attempts ? ` (${c.den} attempts, needs ${m.min_attempts})` : ''}`, small: true };
-    return { text: `no percentile: the only qualified ${POS1[p.position].toLowerCase()} on this metric, so no peers to rank against`, small: false };
+    return { text: `no percentile: the only regular ${POS1[p.position].toLowerCase()} on this metric, so no peers to rank against`, small: false };
   }
   const initials = (p) => { const w = p.name.split(' '); return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : p.name; };
   function surname(p) { const w = norm(p.name).split(' '); return w.slice(1).join(' ') || w[0]; }
@@ -209,47 +266,96 @@
     if (html) o.innerHTML = html; else o.textContent = msg;
   }
 
-  // ------------------------------------------------------------------ static pieces: meta strip, function keys, layout
+  // ------------------------------------------------------------------ static pieces: the header line, examples, footer, layout
+  // The right end of the one header line: what "≈" means (the details hold the rules), and the three saved layouts.
   function paintMeta() {
     const sm = D.season.sample || {};
-    const first = String(D.note || '').split('. ')[0].replace(/\.$/, '');
-    $('txMeta').innerHTML = `<p class="tx-syn"><b>SYNTHETIC DATA</b> ${esc(first)}.</p>
-      <details class="tx-about"><summary>Small sample · <span class="tx-noisy">≈</span> noisy</summary>
-        <p>${esc(sm.note || '')}</p>
-        <p><span class="tx-noisy">≈</span> ${esc(D.season.noisy_rule)} (r below ${esc(D.season.noise_r)}).</p>
-        <p>Percentiles: ${esc(D.season.percentile_rule)}. Peers: ${esc(D.season.peer_groups)}. Qualified: at least ${esc(D.season.min_minutes)} minutes.</p>
-        <p>${esc(D.evidence_rule)}</p></details>
-      <div class="tx-ws" role="group" aria-label="Workspaces"><span class="tx-wsl">WS</span>
-        ${[0, 1, 2].map(i => `<button type="button" data-act="ws" data-i="${i}" aria-pressed="${store.cur === i}" aria-label="Workspace ${i + 1}">${i + 1}</button>`).join('')}
-        <button type="button" data-act="reset" class="tx-reset">Reset</button>
-        ${storageOK ? '' : '<span class="tx-warn" title="This browser blocks storage, so workspaces last until you leave the page.">not saved: storage blocked</span>'}</div>`;
+    $('txMeta').innerHTML = `<details class="tx-about"><summary><span class="tx-noisy" aria-hidden="true">≈</span> small sample, read with care</summary>
+        <div class="tx-aboutp"><p>${esc(sm.note || '')}</p>
+        <p><span class="tx-noisy">≈</span> marks a stat whose split-half reliability within a role is below ${esc(D.season.noise_r)}: one season cannot yet tell players in the same role apart on it.</p>
+        <p>Percentiles compare a player with the regulars (at least ${esc(minMin())} minutes) in the same position: goalkeepers, defenders, midfielders or forwards. Where lower is better, the percentile is turned round.</p>
+        <p>Every number opens the moments behind it: the first ${esc(10)} play here, with a link to the full list on the app. Physical numbers list one value per match (no single clip).</p></div></details>
+      <div class="tx-ws" role="group" aria-label="Saved layouts"><span class="tx-wsl">Saved layouts:</span>
+        ${[0, 1, 2].map(i => `<button type="button" data-act="ws" data-i="${i}" aria-pressed="${store.cur === i}" aria-label="Saved layout ${i + 1}" title="Saved layout ${i + 1}: panels, players and columns, kept in this browser">${i + 1}</button>`).join('')}
+        <button type="button" data-act="reset" class="tx-reset" title="Put this layout back to the default">Reset layout</button>
+        ${storageOK ? '' : '<span class="tx-warn" title="This browser blocks storage, so layouts last until you leave the page.">not saved: storage blocked</span>'}</div>`;
   }
+  // Example searches under the box, each running the command it stands for.
+  function paintExamples() {
+    const f = PID.has('pl_bro_09') ? PID.get('pl_bro_09') : PID.get(S.focus);
+    const rival = D.players.find(p => p.name === 'Amari Ustinov') || (f.similar && f.similar[0] && PID.get(f.similar[0].id));
+    const exs = [['Best finishers', 'rank forwards non-penalty goals'],
+      ...(rival ? [[`Compare ${f.name.split(' ').slice(-1)[0]} and ${rival.name.split(' ').slice(-1)[0]}`, `compare ${f.name} and ${rival.name}`]] : []),
+      [`Who plays like ${f.name.split(' ').slice(-1)[0]}?`, `similar to ${f.name}`]];
+    $('txEx').innerHTML = `<span class="tx-exl">Try</span>${exs.map(([l, c]) => `<button type="button" class="tx-exb" data-act="run" data-cmd="${esc(c)}" data-keep title="Runs: ${esc(c)}">${esc(l)}</button>`).join('')}`;
+  }
+  // Synthetic data, said once and plainly, at the bottom of the section.
+  function paintFoot() {
+    const first = String(D.note || '').split('. ')[0].replace(/\.$/, ''), i = first.indexOf(': ');
+    const lead = i > 0 ? first.slice(0, i) : 'Synthetic data', rest = i > 0 ? first.slice(i + 2) : first;
+    $('txFoot').innerHTML = `<b>${esc(lead)}:</b> ${esc(rest)}. Clips play from ${esc(APP.replace(/^https?:\/\//, ''))}.`;
+  }
+  const keyOf = (id) => PANELS.findIndex(p => p.id === id) + 1;
   function paintKeys() {
-    $('txKeys').innerHTML = PANELS.map((p, i) => {      // in F-key order, whatever the layout
-      const pp = S.panels.find(x => x.id === p.id) || { on: false }, n = i + 1;
-      // Not a toggle: an F-key always shows its panel and moves to it, so it says whether the panel is hidden instead.
-      return `<button type="button" class="tx-fkey" data-act="fkey" data-id="${p.id}" data-on="${pp.on}" aria-label="F${n} ${esc(p.key)} ${esc(p.title)}${pp.on ? '' : ', hidden: show it'}" title="${esc(p.title)}${pp.on ? '' : ' (hidden)'}: go to it (Alt+${n})"><b>F${n}</b> ${esc(p.key)}<span>${esc(p.title)}</span></button>`;
-    }).join('') + `<button type="button" class="tx-fkey help" data-act="help" aria-haspopup="dialog"><b>?</b> HELP<span>Commands and keys</span></button>`;
+    const dOpen = drawerOpen();
+    $('txKeys').innerHTML = PANELS.map((p, i) => {      // in shortcut order, whatever the layout
+      const n = i + 1, pp = p.drawer ? { on: dOpen } : S.panels.find(x => x.id === p.id) || { on: false };
+      // Not a toggle: a panel button always shows its panel and moves to it, so it says whether the panel is hidden instead.
+      const tip = p.drawer ? `Clips: open the clips drawer (Alt+${n})` : `${p.title}${pp.on ? ': go to it' : ' is hidden: show it'} (Alt+${n})`;
+      return `<button type="button" class="tx-fkey" data-act="fkey" data-id="${p.id}" data-on="${pp.on}" aria-keyshortcuts="Alt+${n}"${p.drawer ? ` aria-expanded="${dOpen}" aria-controls="txDrawer"` : ''}
+        aria-label="${esc(p.title)}${p.drawer || pp.on ? '' : ', hidden: show it'}" title="${esc(tip)}">${esc(p.title)}</button>`;
+    }).join('') + `<button type="button" class="tx-fkey help" data-act="help" aria-haspopup="dialog" title="Commands, keys and what the numbers mean">Help</button>`;
   }
+  const ICON = {
+    left: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3 5 8l5 5"/></svg>',
+    right: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m6 3 5 5-5 5"/></svg>',
+    size: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M9.5 2.5h4v4M13.5 2.5 9 7M6.5 13.5h-4v-4M2.5 13.5 7 9"/></svg>',
+    close: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
+  };
   function renderLayout() {
     const g = $('txGrid');
-    const keepClips = $('txClipBody');
-    g.innerHTML = S.panels.filter(p => p.on).map((pp) => {
-      const p = PANELS.find(x => x.id === pp.id), n = PANELS.indexOf(p) + 1;
-      return `<section class="tx-panel s-${pp.size}" id="tx-p-${p.id}" data-panel="${p.id}" aria-labelledby="tx-h-${p.id}">
-        <header class="tx-ph"><h2 id="tx-h-${p.id}" tabindex="-1"><span class="tx-fk">F${n}</span> ${esc(p.key)} <span class="tx-pt">${esc(p.title)}</span></h2>
+    const on = S.panels.filter(p => p.on && !(PANELS.find(x => x.id === p.id) || {}).drawer);
+    // The players table runs down beside the two panels that follow it when they are small (the default: the player card
+    // and the radar stacked on its right), on screens wide enough for that.
+    const tall = on.length >= 3 && on[0].id === 'scrn' && on[0].size === 'L' && on[1].size === 'S' && on[2].size === 'S';
+    g.innerHTML = on.map((pp, i) => {
+      const p = PANELS.find(x => x.id === pp.id), t = esc(p.title), nx = SIZE_NEXT[pp.size];
+      return `<section class="tx-panel s-${pp.size}${tall && i === 0 ? ' tall' : ''}" id="tx-p-${p.id}" data-panel="${p.id}" aria-labelledby="tx-h-${p.id}">
+        <header class="tx-ph"><h2 id="tx-h-${p.id}" tabindex="-1">${t}</h2>
           <span class="tx-pctx" data-ctx></span>
-          <span class="tx-pbtns"><button type="button" data-act="pmove" data-id="${p.id}" data-d="-1" aria-label="Move ${esc(p.title)} earlier" title="Move earlier">&#9664;</button><button type="button" data-act="pmove" data-id="${p.id}" data-d="1" aria-label="Move ${esc(p.title)} later" title="Move later">&#9654;</button><button type="button" data-act="psize" data-id="${p.id}" aria-label="${esc(p.title)} size ${pp.size}, change" title="Size: S, M, L or XL">${pp.size}</button><button type="button" data-act="pclose" data-id="${p.id}" aria-label="Hide ${esc(p.title)}" title="Hide (F-key brings it back)">&times;</button></span></header>
+          <span class="tx-pbtns" role="group" aria-label="Arrange ${t}">
+            <button type="button" data-act="pmove" data-id="${p.id}" data-d="-1" aria-label="Move ${t} earlier" title="Move earlier"${i === 0 ? ' disabled' : ''}>${ICON.left}</button><button type="button" data-act="pmove" data-id="${p.id}" data-d="1" aria-label="Move ${t} later" title="Move later"${i === on.length - 1 ? ' disabled' : ''}>${ICON.right}</button><button type="button" data-act="psize" data-id="${p.id}" aria-label="${t}: ${SIZE_NAME[pp.size]}, make it ${SIZE_NAME[nx]}" title="Size: ${SIZE_NAME[pp.size]} (click for ${SIZE_NAME[nx]})">${ICON.size}</button><button type="button" data-act="pclose" data-id="${p.id}" aria-label="Hide ${t}" title="Hide (its button above brings it back)">${ICON.close}</button></span></header>
         <div class="tx-pb" data-body></div></section>`;
-    }).join('') || '<p class="tx-empty">Every panel is hidden. Press a function key above to bring one back.</p>';
-    const cb = document.querySelector('#tx-p-clips [data-body]');
-    if (cb) cb.appendChild(keepClips || buildClipBody());
-    paintKeys();
+    }).join('') || '<p class="tx-empty">Every panel is hidden. Press a panel button above to bring one back.</p>';
+    paintKeys(); paintNav();
+  }
+  // Phones: a sticky row of the panels, so a scout jumps to one instead of scrolling past them all.
+  function paintNav() {
+    const on = S.panels.filter(p => p.on);
+    $('txNav').innerHTML = on.map(pp => { const p = PANELS.find(x => x.id === pp.id); return p && !p.drawer ? `<button type="button" data-act="fkey" data-id="${p.id}">${esc(p.title)}</button>` : ''; }).join('')
+      + `<button type="button" data-act="fkey" data-id="clips" aria-expanded="${drawerOpen()}" aria-controls="txDrawer">Clips</button>`;
+    navCurrent();
+  }
+  let navHold = null, navHoldT = 0;
+  function navCurrent(jumped) {
+    const nav = $('txNav'); if (!nav || getComputedStyle(nav).display === 'none') return;
+    // A jump marks its panel at once and holds it while the smooth scroll runs.
+    if (jumped) { navHold = jumped; clearTimeout(navHoldT); navHoldT = setTimeout(() => { navHold = null; }, 900); }
+    const line = barBottom() + 12;
+    let cur = navHold;
+    if (!cur) for (const sec of document.querySelectorAll('#txGrid .tx-panel')) { if (sec.getBoundingClientRect().top <= line) cur = sec.dataset.panel; }
+    if (!cur) { const f = document.querySelector('#txGrid .tx-panel'); cur = f && f.dataset.panel; }
+    for (const b of nav.querySelectorAll('button')) {
+      const isCur = b.dataset.id === cur;
+      if (isCur !== (b.getAttribute('aria-current') === 'true')) { if (isCur) b.setAttribute('aria-current', 'true'); else b.removeAttribute('aria-current'); }
+      if (isCur) { const bl = b.offsetLeft, br = bl + b.offsetWidth; if (bl < nav.scrollLeft || br > nav.scrollLeft + nav.clientWidth) nav.scrollLeft = bl - 16; }
+    }
   }
   const visible = (id) => S.panels.some(p => p.id === id && p.on);
   // Show a panel and bring what the command is about into view: its chart or table (or `sel` inside it), not just its top
   // edge, since a panel whose header peeks in at the bottom of the screen hides the chart the scout asked for.
-  function showPanel(id, scroll = true, sel) {
+  function showPanel(id, scroll = true, sel, force = false) {
+    if (id === 'clips') { openDrawer(true); return; }
     const pp = S.panels.find(p => p.id === id);
     if (pp && !pp.on) { pp.on = true; save(); renderLayout(); renderAll(); }
     if (scroll) {
@@ -257,7 +363,7 @@
       if (el) {
         const body = el.querySelector('[data-body]');
         const target = (sel && el.querySelector(sel)) || (body && body.querySelector('svg.tx-svg, .tx-tablewrap')) || body || el;
-        if (!inViewFit(target, 0.6)) scrollToShow(el, target);
+        if (force) scrollToShow(el, el); else if (!inViewFit(target, 0.6)) scrollToShow(el, target);
         el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
       }
     }
@@ -305,13 +411,26 @@
     save(); renderAll();
     if (!quiet) out(`${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number}`);
   }
+  // Beside the search: the selected player, and the comparison when there is one.
   function renderSel() {
-    const f = PID.get(S.focus);
-    const chips = S.compare.map((id, i) => { const p = PID.get(id); return `<span class="tx-chip" style="--c:${CMP_COL[i]}"><button type="button" data-act="sel" data-pid="${esc(id)}" data-fid="chip-${esc(id)}">${esc(p.name)}</button><button type="button" class="tx-x" data-act="cmprm" data-pid="${esc(id)}" aria-label="Remove ${esc(p.name)} from the comparison">&times;</button></span>`; }).join('');
-    $('txSel').innerHTML = `<span class="tx-sl">FOCUS</span><button type="button" class="tx-focus" data-act="pane" data-id="plyr">${esc(f.name)} <span>${esc(f.short_name)} ${esc(f.position)} #${esc(f.kit_number)}</span></button>
-      <span class="tx-sl">CMP</span>${chips || '<span class="tx-dim">none</span>'}
-      ${S.compare.includes(S.focus) || S.compare.length >= 3 ? '' : `<button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(S.focus)}">+ add ${esc(f.name.split(' ').slice(-1)[0])}</button>`}
-      ${S.compare.length ? '<button type="button" class="tx-mini" data-act="cmpclear">Clear</button>' : ''}`;
+    const f = PID.get(S.focus), last = (p) => p.name.split(' ').slice(-1)[0];
+    const chips = S.compare.map((id, i) => { const p = PID.get(id); return `<span class="tx-chip" style="--c:${CMP_COL[i]}"><button type="button" data-act="sel" data-pid="${esc(id)}" data-fid="chip-${esc(id)}" title="Select ${esc(p.name)}">${esc(p.name)}</button><button type="button" class="tx-x" data-act="cmprm" data-pid="${esc(id)}" aria-label="Remove ${esc(p.name)} from the comparison" title="Remove from the comparison">&times;</button></span>`; }).join('');
+    const inCmp = S.compare.includes(S.focus);
+    let btn = '';
+    if (!S.compare.length || (inCmp && S.compare.length < 3)) btn = `<button type="button" class="tx-mini tx-cmpw" data-act="cmpwith" title="Type a player to compare with">Compare with…</button>`;
+    else if (!inCmp) btn = `<button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(S.focus)}">Add ${esc(last(f))} to the comparison${S.compare.length >= 3 ? ` (replaces ${esc(last(PID.get(S.compare[0])))})` : ''}</button>`;
+    $('txSel').innerHTML = `<span class="tx-sl">Selected:</span><button type="button" class="tx-focus" data-act="pane" data-id="plyr" title="Go to the player card">${esc(f.name)} <span>${esc(f.short_name)} · ${esc(f.position)} · #${esc(f.kit_number)}</span></button>
+      ${S.compare.length ? `<span class="tx-sl">Comparing:</span>${chips}` : ''}${btn}
+      ${S.compare.length ? '<button type="button" class="tx-mini" data-act="cmpclear" title="Stop comparing">Clear</button>' : ''}`;
+  }
+  // "Compare with…": the search box takes "compare <selected>, " and suggests the player to add.
+  function compareWith() {
+    const names = (S.compare.includes(S.focus) ? S.compare : [S.focus, ...S.compare]).map(id => PID.get(id).name);
+    const inp = $('txIn');
+    inp.value = `compare ${names.join(', ')}, `;
+    inp.focus({ preventScroll: true }); inp.setSelectionRange(inp.value.length, inp.value.length);
+    suggest();
+    out(`Type the player to compare with ${listText(names)}, then pick them or press Enter.`);
   }
   function addCompare(pid) {
     if (S.compare.includes(pid)) return;
@@ -322,7 +441,7 @@
   // ------------------------------------------------------------------ evidence into the clips panel
   function evidenceReel(pid, mk, match) {
     const p = PID.get(pid), m = MK.get(mk), ev = p.evidence && p.evidence[mk], c = cellOf(p, mk);
-    const r = { title: `${p.name} · ${m.label}`, sub: c ? `${fmt(m, c.value)}${m.kind === 'ratio' && m.unit === '%' ? '' : ' ' + unitText(m)}${c.num != null ? ` · ${c.num} of ${c.den}` : c.total != null && m.kind !== 'total' ? ` · ${c.total} in total` : ''}${c.percentile != null ? ` · ${ord(c.percentile)} pctl` : ''}` : 'No minutes this season',
+    const r = { title: `${p.name} · ${m.label}`, sub: c ? `${fmt(m, c.value)}${m.kind === 'ratio' && m.unit === '%' ? '' : ' ' + unitText(m)}${c.num != null ? ` · ${c.num} of ${c.den}` : c.total != null && m.kind !== 'total' ? ` · ${c.total} in total` : ''}${c.percentile != null ? ` · ${ord(c.percentile)} percentile` : ''}` : 'No minutes this season',
       total: ev ? ev.total : 0, shown: ev ? ev.items.length : 0, items: [], i: -1, pid, mk, match: match || null,
       full: `${APP}/api/players/${encodeURIComponent(pid)}/metrics?evidence=${encodeURIComponent(mk)}`, note: '' };
     if (!ev) { r.note = 'No evidence for this number.'; return r; }
@@ -361,32 +480,62 @@
   }
   function openReel(r, startAt = 0) {
     reel = r;
-    if (!visible('clips')) showPanel('clips', false);
+    const was = drawerOpen();
     renderClips();
     const first = r.items.findIndex((it, i) => i >= startAt && it.video);
     if (first >= 0) play(first, true); else if (r.items.length) { reel.i = startAt; renderClips(); stopVideo(r.items[startAt] ? 'nolink' : ''); }
     else stopVideo('');
-    // The scout must see the clip start: if most of the video (or, with nothing to play, the list) is out of view, behind
-    // the sticky command bar or below the fold, bring the clips panel up.
-    const el = $('tx-p-clips');
-    if (el) {
-      const scr = el.querySelector('.tx-screen'), target = scr && !scr.hidden ? scr : el.querySelector('.tx-cliphead') || el;
-      if (!inView(target, 0.75)) scrollToPanel(el);
-      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
-    }
+    // The first number opens the drawer and moves keyboard focus into it (Escape or Close brings it back); while it is
+    // open, later numbers just change what it plays, so a scout can keep arrowing through the table.
+    openDrawer(!was);
+    out(`Playing ${r.title}: ${plural(r.items.length, r.unit === 'match' ? 'match' : 'moment')}${r.total > r.items.length && !r.match ? ` of ${r.total}` : ''}.`);
   }
-  // The bottom of what stays on top while scrolling: the sticky command bar (its height changes with the output line); on
-  // a phone, where the bar scrolls away, the site header and the row of view tabs under it.
-  function barBottom() {
-    const bar = document.querySelector('.tx-top');
-    if (bar && getComputedStyle(bar).position === 'sticky') return bar.getBoundingClientRect().bottom;
+  const drawerOpen = () => { const d = $('txDrawer'); return !!d && !d.hidden; };
+  function openDrawer(focus) {
+    const d = $('txDrawer'), was = !d.hidden;
+    if (!was) {
+      const from = actFrom && actFrom.el && document.contains(actFrom.el) ? actFrom : { el: document.activeElement };
+      drawerFrom = from;
+      d.hidden = false; document.querySelector('.tx').classList.add('tx-dopen');
+      renderClips(); paintKeys(); paintNav();
+    } else if (actFrom && actFrom.el && !d.contains(actFrom.el)) drawerFrom = actFrom;
+    if (focus) $('txDrawerH').focus({ preventScroll: true });
+  }
+  function closeDrawer() {
+    const d = $('txDrawer'); if (!d || d.hidden) return;
+    const v = clipVideo(); if (v) v.pause();
+    const had = d.contains(document.activeElement);
+    d.hidden = true; document.querySelector('.tx').classList.remove('tx-dopen');
+    paintKeys(); paintNav();
+    const back = drawerFrom; drawerFrom = null;
+    if (!had && document.activeElement && document.activeElement !== document.body) return;
+    // Back to what opened it, or, when a repaint replaced that control, to the same control in its panel.
+    const usable = (el) => el && document.contains(el) && el.getClientRects().length;
+    let el = back && usable(back.el) ? back.el : null;
+    if (!el && back && back.sel) el = [...((back.scope && $(back.scope)) || document).querySelectorAll(back.sel)].find(usable) || null;
+    if (!el && back && back.scope && $(back.scope)) el = $(back.scope).querySelector('h2') || null;
+    (el || $('txIn')).focus({ preventScroll: true });
+  }
+  // The bottom of what stays on top while scrolling: the sticky search bar on a wide screen; on a phone, where the bar
+  // scrolls away, the site header, the row of view tabs under it and the terminal's own row of panels.
+  function siteBottom() {
     const side = document.querySelector('.side'), top = document.querySelector('.top');
     return Math.max(0, side && getComputedStyle(side).flexDirection === 'row' ? side.getBoundingClientRect().bottom : 0, top ? top.getBoundingClientRect().bottom : 0);
   }
-  // At least `frac` of the element is on screen, below the sticky command bar.
-  function inView(node, frac) {
-    const r = node.getBoundingClientRect(); if (!r.height) return false;
-    return Math.min(r.bottom, window.innerHeight) - Math.max(r.top, barBottom()) >= r.height * frac;
+  function barBottom() {
+    const bar = document.querySelector('.tx-top');
+    if (bar && getComputedStyle(bar).position === 'sticky') return bar.getBoundingClientRect().bottom;
+    // The panel row's bottom once it has stuck (where it will be after a scroll down), not where it sits before that.
+    const nav = $('txNav');
+    return Math.max(siteBottom(), nav && getComputedStyle(nav).display !== 'none' ? (parseFloat(nav.style.top) || 0) + nav.offsetHeight : 0);
+  }
+  // The phone's panel row sticks just under the site header and the view tabs, whose height depends on the screen.
+  function placeNav() {
+    const nav = $('txNav'); if (!nav || getComputedStyle(nav).display === 'none') return;
+    const top = document.querySelector('.top'), side = document.querySelector('.side');
+    let y = top ? top.offsetHeight : 0;
+    if (side && getComputedStyle(side).flexDirection === 'row' && getComputedStyle(side).position === 'sticky') y += side.offsetHeight;
+    nav.style.top = y + 'px';
   }
   // At least `frac` of the element is on screen below the command bar, or of the screen's height when the element is taller.
   function inViewFit(node, frac) {
@@ -394,8 +543,6 @@
     const room = window.innerHeight - barBottom();
     return Math.min(r.bottom, window.innerHeight) - Math.max(r.top, barBottom()) >= Math.min(r.height, room) * frac;
   }
-  // Scroll a panel's top to just below the command bar.
-  function scrollToPanel(el) { scrollToShow(el, el); }
   // Scroll so the panel's top sits just below the command bar, unless that leaves the target running off the bottom: then
   // the target's own top goes there.
   function scrollToShow(el, target) {
@@ -406,7 +553,7 @@
   }
   function openEvidence(pid, mk, match) { if (PID.has(pid) && MK.has(mk)) openReel(evidenceReel(pid, mk, match)); }
 
-  // ------------------------------------------------------------------ CLIP: the clips panel (its video stays put)
+  // ------------------------------------------------------------------ Clips: the drawer (its video element is built once)
   function buildClipBody() {
     const b = document.createElement('div');
     b.id = 'txClipBody';
@@ -430,11 +577,11 @@
   function renderClips() {
     const b = $('txClipBody'); if (!b) return;
     const head = b.querySelector('[data-r="head"]'), list = b.querySelector('[data-r="list"]');
-    const ctx = document.querySelector('#tx-p-clips [data-ctx]');
+    const ctx = $('txDrawerCtx');
     b.querySelector('.tx-screen').hidden = !reel;
     b.querySelector('.tx-clipctl').hidden = !reel;
     if (!reel) {
-      head.innerHTML = '<p class="tx-dim">Pick any number in any panel: the moments behind it play here.</p>';
+      head.innerHTML = '<p class="tx-dim">Click any underlined number in any panel: the moments behind it play here.</p>';
       list.innerHTML = ''; if (ctx) ctx.textContent = ''; return;
     }
     const capped = reel.total > reel.shown;
@@ -524,7 +671,6 @@
   function renderScrn() {
     const sc = S.scr, rows = screenRows(), cols = sc.cols.filter(k => MK.has(k));
     const sortAttr = (k) => sc.sort.k === k ? (sc.sort.dir === -1 ? 'descending' : 'ascending') : 'none';
-    const arrow = (k) => sc.sort.k === k ? (sc.sort.dir === -1 ? ' ▼' : ' ▲') : '';
     if (!scrAct || !rows.some(p => p.id === scrAct.pid)) scrAct = { pid: rows.some(p => p.id === S.focus) ? S.focus : (rows[0] && rows[0].id), c: 0 };
     if (scrAct.c > cols.length) scrAct.c = 0;
     const cell = (p, k, ci) => {
@@ -532,31 +678,40 @@
       if (!c) return `<td class="num"><span class="tx-dim">–</span></td>`;
       const txt = sc.mode === 'pct' ? (c.percentile == null ? '–' : c.percentile) : fmt(m, c.value);
       const np = noPct(p, m, c);
-      const lab = `${p.name}, ${m.label} ${fmt(m, c.value)}${c.percentile != null ? `, ${ord(c.percentile)} percentile` : np ? `, ${np.text}` : ''}. Open its moments`;
+      const n = evCount(p, k);
+      const lab = `${p.name}, ${m.label} ${fmt(m, c.value)}${c.percentile != null ? `, ${ord(c.percentile)} percentile` : np ? `, ${np.text}` : ''}. ${n ? `Play its ${n}` : 'Open its moments'}`;
       return `<td class="num"><button type="button" class="tx-n${np && np.small ? ' uq' : ''}" style="${shade(m, c.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-nav data-fid="c-${esc(p.id)}-${esc(k)}" tabindex="${act ? 0 : -1}" aria-label="${esc(lab)}">${esc(txt)}</button></td>`;
     };
-    const head = `<tr><th class="tx-stk" aria-sort="${sortAttr('name')}"><button type="button" data-act="sort" data-k="name" data-fid="h-name">Player${arrow('name')}</button></th>
-      <th aria-sort="${sortAttr('club')}"><button type="button" data-act="sort" data-k="club" data-fid="h-club">Club${arrow('club')}</button></th><th>Pos</th>
-      <th class="num" aria-sort="${sortAttr('min')}"><button type="button" data-act="sort" data-k="min" data-fid="h-min">Min${arrow('min')}</button></th>
-      ${cols.map(k => { const m = MK.get(k); return `<th class="num" aria-sort="${sortAttr(k)}"><span class="tx-th"><button type="button" data-act="sort" data-k="${esc(k)}" data-mk="${esc(k)}" data-fid="h-${esc(k)}">${esc(m.label)}${noisy(m)}${arrow(k)}</button><button type="button" class="tx-x" data-act="rmcol" data-k="${esc(k)}" aria-label="Remove the ${esc(m.label)} column">&times;</button></span></th>`; }).join('')}</tr>`;
+    // A click on a header sorts (again: the other way); the sorted column is the yellow one, and the panel's header says
+    // which way. Removing a column is in the Columns menu.
+    const sortBtn = (k, label, extra = '') => `<button type="button" data-act="sort" data-k="${esc(k)}" data-fid="h-${esc(k)}"${extra}>${label}</button>`;
+    const head = `<tr><th class="tx-stk" aria-sort="${sortAttr('name')}">${sortBtn('name', 'Player')}</th>
+      <th aria-sort="${sortAttr('club')}">${sortBtn('club', 'Club')}</th><th>Pos</th>
+      <th class="num" aria-sort="${sortAttr('min')}">${sortBtn('min', 'Mins', ' title="Minutes played"')}</th>
+      ${cols.map(k => { const m = MK.get(k); return `<th class="num" aria-sort="${sortAttr(k)}">${sortBtn(k, `${esc(shortLabel(m))}${noisy(m)}`, `${shortLabel(m).length <= 12 ? ' class="nw"' : ''} data-mk="${esc(k)}" aria-label="${esc(m.label)}${m.noisy ? ', small sample' : ''}, sort"`)}</th>`; }).join('')}</tr>`;
     const ranks = screenRanks(rows);
     const body = rows.map((p, r) => {
       const ci = S.compare.indexOf(p.id), act = scrAct.pid === p.id && scrAct.c === 0;
-      return `<tr class="${p.id === S.focus ? 'on' : ''}${ci >= 0 ? ' cmp' : ''}"${ci >= 0 ? ` style="--c:${CMP_COL[ci]}"` : ''}>
+      return `<tr class="${p.id === S.focus ? 'on' : ''}${ci >= 0 ? ' cmp' : ''}" data-row="${esc(p.id)}"${ci >= 0 ? ` style="--c:${CMP_COL[ci]}"` : ''}>
         <th class="tx-stk" scope="row"><span class="tx-rk">${ranks[r] == null ? '–' : ranks[r]}</span><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-nav data-fid="n-${esc(p.id)}" tabindex="${act ? 0 : -1}"${p.id === S.focus ? ' aria-current="true"' : ''}>${esc(p.name)}</button></th>
         <td>${esc(p.short_name)}</td><td>${esc(p.position)} <span class="tx-dim">${esc(p.role)}</span></td><td class="num">${esc(Math.round(p.minutes))}</td>
         ${cols.map((k, i) => cell(p, k, i)).join('')}</tr>`;
     }).join('');
     const html = `<div class="tx-ctls">
-        <div class="tx-seg" role="group" aria-label="Position">${[null, ...POS].map(v => `<button type="button" data-act="scrpos" data-v="${v || ''}" aria-pressed="${sc.pos === v}">${v || 'ALL'}</button>`).join('')}</div>
-        <label class="tx-ctl"><span class="sr">Filter by name or club</span><input type="search" data-r="scrq" data-fid="scr-q" value="${esc(sc.q)}" placeholder="Filter name / club" autocomplete="off"></label>
-        <label class="tx-chk"><input type="checkbox" data-r="scrqual" data-fid="scr-qual"${sc.qual ? ' checked' : ''}> Qualified (${esc(D.season.min_minutes)}+ min)</label>
-        <div class="tx-seg" role="group" aria-label="Show"><button type="button" data-act="scrmode" data-v="val" aria-pressed="${sc.mode === 'val'}">Value</button><button type="button" data-act="scrmode" data-v="pct" aria-pressed="${sc.mode === 'pct'}">Pctl</button></div>
-        <label class="tx-ctl"><span class="sr">Add a column</span><select data-r="addcol" data-fid="scr-add"><option value="">+ Add column…</option>${metricOptions(null, m => !cols.includes(m.key))}</select></label>
-        <button type="button" class="tx-mini" data-act="scrdef">Default columns</button></div>
-      <p class="tx-cap">${rows.length} ${esc(sc.pos ? POSN[sc.pos] : 'players')}${sc.qual ? ', qualified' : ''} · ranked by value (ratios need the minimum attempts) · shading = percentile vs position peers, where the metric is scored for that position · arrow keys move, Enter opens</p>
+        <div class="tx-seg" role="group" aria-label="Position">${[null, ...POS].map(v => `<button type="button" data-act="scrpos" data-v="${v || ''}" aria-pressed="${sc.pos === v}" title="${v ? esc(POS1[v] + 's') : 'Every position'}">${v || 'All'}</button>`).join('')}</div>
+        <label class="tx-ctl"><span class="sr">Filter by name or club</span><input type="search" data-r="scrq" data-fid="scr-q" value="${esc(sc.q)}" placeholder="Filter by name or club" autocomplete="off"></label>
+        <label class="tx-chk"><input type="checkbox" data-r="scrqual" data-fid="scr-qual"${sc.qual ? ' checked' : ''}> Regulars only (${esc(minMin())}+ minutes)</label>
+        <div class="tx-seg" role="group" aria-label="Show"><button type="button" data-act="scrmode" data-v="val" aria-pressed="${sc.mode === 'val'}">Value</button><button type="button" data-act="scrmode" data-v="pct" aria-pressed="${sc.mode === 'pct'}">Percentile</button></div>
+        <details class="tx-menu" data-r="colmenu"${colMenuOpen ? ' open' : ''}><summary class="tx-mini" data-fid="scr-cols">Columns (${cols.length})</summary>
+          <div class="tx-menup" role="group" aria-label="Columns">
+            ${cols.length ? `<ul class="tx-collist">${cols.map(k => { const m = MK.get(k); return `<li><span>${esc(m.label)}${noisy(m)}</span><button type="button" class="tx-x" data-act="rmcol" data-k="${esc(k)}" data-fid="rm-${esc(k)}" aria-label="Remove the ${esc(m.label)} column" title="Remove">&times;</button></li>`; }).join('')}</ul>` : '<p class="tx-dim">No stat columns.</p>'}
+            <label class="tx-ctl tx-addcol"><span>Add</span><select data-r="addcol" data-fid="scr-add"><option value="">a stat…</option>${metricOptions(null, m => !cols.includes(m.key))}</select></label>
+            <button type="button" class="tx-mini" data-act="scrdef">Default columns</button></div></details></div>
+      <p class="tx-cap">${rows.length} ${esc(sc.pos ? POSN[sc.pos] : 'players')}${sc.qual ? ', regulars only' : ''} · ranked by value (ratios need the minimum attempts) · shading = percentile vs the same position · click a row to select, a number to play its moments</p>
       <div class="tx-scroll tx-tablewrap"><table class="tx-table"><thead>${head}</thead><tbody data-r="grid">${body || `<tr><td colspan="${4 + cols.length}" class="tx-dim">No players match.</td></tr>`}</tbody></table></div>`;
-    paint('scrn', html, esc(sc.sort.k && MK.has(sc.sort.k) ? `sorted by ${MK.get(sc.sort.k).label}` : ''));
+    const sm = MK.get(sc.sort.k), dirWord = sc.sort.dir === -1 ? (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'Z to A' : 'highest first') : (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'A to Z' : 'lowest first');
+    const sortName = sm ? shortLabel(sm) : { name: 'name', club: 'club', min: 'minutes' }[sc.sort.k];
+    paint('scrn', html, sortName ? esc(`Sorted by ${sortName}, ${dirWord}`) : '');
   }
 
   // ------------------------------------------------------------------ PLYR: the player card, top numbers, similar players
@@ -568,24 +723,25 @@
       ['Minutes', Math.round(p.minutes)], ['Apps', p.appearances]];
     const html = `<div class="tx-card"><span class="tx-shirt" aria-hidden="true">${shirt(p)}</span>
         <div><p class="tx-name">${esc(p.name)}</p><p class="tx-line">${esc(p.club)} · ${esc(POS1[p.position])} (${esc(p.role)}) · #${esc(p.kit_number)}
-          ${p.qualified ? '<span class="tx-tag">QUALIFIED</span>' : `<span class="tx-tag dim">UNDER ${esc(D.season.min_minutes)} MIN</span>`}</p></div></div>
+          ${p.qualified ? `<span class="tx-tag" title="At least ${esc(minMin())} minutes, so the player has percentiles">Regular</span>` : `<span class="tx-tag dim">Under ${esc(minMin())} minutes</span>`}</p>
+          <p class="tx-prof">${profileIds.has(p.id) ? `<a href="#scout/player/${encodeURIComponent(p.id)}">Open profile &rarr;</a>` : `<a href="${esc(`${APP}/players/${encodeURIComponent(p.id)}`)}" target="_blank" rel="noopener">Open profile on the live app &#8599;</a>`}</p></div></div>
       <dl class="tx-bio">${bio.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
-      <div class="tx-acts"><button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(p.id)}"${S.compare.includes(p.id) ? ' disabled' : ''}>+ Compare</button>
-        <button type="button" class="tx-mini" data-act="run" data-cmd="SHOT ${esc(p.name)}">Shots</button><button type="button" class="tx-mini" data-act="run" data-cmd="FORM ${esc(p.name)}">Form</button>
-        <button type="button" class="tx-mini" data-act="run" data-cmd="TEAM ${esc(p.short_name)}">Team</button></div>
-      ${p.minutes > 0 ? `<h3 class="tx-h3">Best vs ${esc(POSN[p.position])}</h3>
+      <div class="tx-acts"><button type="button" class="tx-mini" data-act="cmpwith" data-fid="card-cmp"${S.compare.length >= 3 && S.compare.includes(p.id) ? ' disabled' : ''}>Compare with…</button>
+        <button type="button" class="tx-mini" data-act="run" data-keep data-cmd="shots ${esc(p.name)}">Shots</button><button type="button" class="tx-mini" data-act="run" data-keep data-cmd="form ${esc(p.name)}">Form</button>
+        <button type="button" class="tx-mini" data-act="run" data-keep data-cmd="team ${esc(p.club)}">Team</button></div>
+      ${p.minutes > 0 ? `<h3 class="tx-h3">Best among ${esc(POSN[p.position])}</h3>
       <table class="tx-mt"><tbody>${strengths.map(m => mrow(p, m)).join('')}</tbody></table>` : '<p class="tx-dim">No minutes this season.</p>'}
-      <h3 class="tx-h3" id="txSimHead" tabindex="-1">SIM · most similar</h3>
+      <h3 class="tx-h3" id="txSimHead" tabindex="-1">Plays like</h3>
       ${(p.similar || []).length ? `<ol class="tx-sim">${p.similar.map(s => { const q = PID.get(s.id); return `<li><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(s.id)}" data-fid="sim-${esc(s.id)}">${esc(s.name)}</button>
         <span class="tx-dim">${esc(short(s.club_id))} ${esc(q ? q.position : '')}</span><span class="tx-simbar" aria-label="similarity ${esc(s.similarity)}"><i style="width:${Math.max(2, Math.round(s.similarity * 100))}%"></i></span><span class="num">${esc(s.similarity.toFixed(2))}</span>
         <span class="tx-shared">${s.shared_strengths.filter(k => MK.has(k)).map(k => `<button type="button" class="tx-kchip" data-act="ev" data-pid="${esc(s.id)}" data-mk="${esc(k)}" data-fid="sim-${esc(s.id)}-${esc(k)}">${esc(MK.get(k).label)}</button>`).join('')}</span></li>`; }).join('')}</ol>
-        <p class="tx-cap">Cosine similarity on the ${esc(p.position === 'GK' ? 'goalkeeper' : 'outfield')} template; chips are shared strengths (open them for that player).</p>` : '<p class="tx-dim">No similar players (too few minutes).</p>'}`;
+        <p class="tx-cap">Similarity (1 = identical) on the ${esc(p.position === 'GK' ? 'goalkeeper' : 'outfield')} stats; the chips are strengths they share (each plays that player's moments).</p>` : '<p class="tx-dim">No similar players (too few minutes).</p>'}`;
     paint('plyr', html, esc(p.short_name));
   }
   // One metric row: label (definition on hover), value button (evidence), percentile bar.
   function mrow(p, m, opts = {}) {
     const c = cellOf(p, m.key);
-    const val = c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(m.key)}" data-fid="${esc((opts.fid || 'm') + '-' + p.id + '-' + m.key)}" aria-label="${esc(`${m.label} ${fmt(m, c.value)}, open its moments`)}">${esc(fmt(m, c.value))}</button>` : '<span class="tx-dim">–</span>';
+    const val = c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(m.key)}" data-fid="${esc((opts.fid || 'm') + '-' + p.id + '-' + m.key)}" aria-label="${esc(`${m.label} ${fmt(m, c.value)}, ${playText(p, m.key)}`)}">${esc(fmt(m, c.value))}</button>` : '<span class="tx-dim">–</span>';
     const pc = c ? c.percentile : null;
     return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(m.key)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span></th><td class="num">${val}</td>
       <td class="tx-pbar"><span class="tx-bar" style="--g:${GROUP_COL[m.group] || '#ffcd28'}"><i style="width:${pc == null ? 0 : Math.max(2, pc)}%"></i></span></td><td class="num tx-pc">${pc == null ? '–' : esc(pc)}</td></tr>`;
@@ -602,7 +758,7 @@
     const n = keys.length;
     return keys.map((k, i) => {
       const a = (i + 0.5) * 2 * Math.PI / n, [x, y] = polar(cx, cy, R + 10, a), s = Math.sin(a);
-      const lab = MK.get(k).label, t = lab.length > 16 ? lab.slice(0, 15) + '…' : lab;
+      const lab = shortLabel(MK.get(k)), t = lab.length > 18 ? lab.slice(0, 17) + '…' : lab;
       return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${s > 0.25 ? 'start' : s < -0.25 ? 'end' : 'middle'}" class="tx-axl">${esc(t)}</text>`;
     }).join('');
   }
@@ -630,20 +786,20 @@
       keys.forEach((k, i) => { const [x, y] = polar(cx, cy, R, (i + 0.5) * 2 * Math.PI / n); svg += `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="tx-ring"/>`; });
       const ptsOf = (p) => keys.map((k, i) => { const pc = pctOf(p, k); return polar(cx, cy, r0 + (R - r0) * (pc == null ? 0 : pc) / 100, (i + 0.5) * 2 * Math.PI / n).map(v => v.toFixed(1)).join(','); }).join(' ');
       players.forEach((p, j) => { svg += `<polygon points="${ptsOf(p)}" fill="${CMP_COL[j]}" fill-opacity=".14" stroke="${CMP_COL[j]}" stroke-width="2"/>`; });
-      // The focus player, when not one of the compared, is drawn as a dashed outline so selecting a player still moves RDR.
+      // The selected player, when not one of the compared, is drawn as a dashed outline so selecting a player still moves the radar.
       if (outsider) svg += `<polygon points="${ptsOf(f)}" fill="none" stroke="#fff" stroke-width="1.5" stroke-dasharray="4 3" class="tx-rfocus"/>`;
     }
     svg += axisLabels(keys, cx, cy, R) + '</svg>';
     const legend = players.map((p, j) => `<button type="button" class="tx-leg" style="--c:${CMP_COL[players.length > 1 ? j : 0]}" data-act="sel" data-pid="${esc(p.id)}" data-fid="rl-${esc(p.id)}">${esc(p.name)} <span class="tx-dim">${esc(p.short_name)} ${esc(p.position)}</span></button>`).join('')
-      + (outsider ? `<span class="tx-leg tx-legf">${esc(outsider.name)} <span class="tx-dim">${esc(outsider.short_name)} ${esc(outsider.position)} · focus, dashed</span></span>` : '');
-    const outLine = outsider ? `<p class="tx-cap tx-rnote">Comparing ${players.length}; ${esc(outsider.name)} (the focus) is the dashed outline, not in the table. <button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(outsider.id)}" data-fid="r-add">+ add${players.length >= 3 ? ` (replaces ${esc(players[0].name.split(' ').slice(-1)[0])})` : ''}</button></p>` : '';
+      + (outsider ? `<span class="tx-leg tx-legf">${esc(outsider.name)} <span class="tx-dim">${esc(outsider.short_name)} ${esc(outsider.position)} · selected, dashed</span></span>` : '');
+    const outLine = outsider ? `<p class="tx-cap tx-rnote">Comparing ${players.length}; ${esc(outsider.name)} (selected) is the dashed outline, not in the table. <button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(outsider.id)}" data-fid="r-add">Add to the comparison${players.length >= 3 ? ` (replaces ${esc(players[0].name.split(' ').slice(-1)[0])})` : ''}</button></p>` : '';
     const tbl = players.length === 1 ? `<table class="tx-mt"><tbody>${keys.map(k => mrow(base, MK.get(k), { fid: 'r' })).join('')}</tbody></table>`
       : `<div class="tx-scroll tx-tablewrap"><table class="tx-mt tx-cmp"><thead><tr><th>Metric</th>${players.map((p, j) => `<th class="num" style="color:${CMP_COL[j]}">${esc(initials(p))}</th>`).join('')}</tr></thead><tbody>
-        ${keys.map(k => { const m = MK.get(k); return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(k)}">${esc(m.label)}${noisy(m)}</span></th>${players.map(p => { const c = cellOf(p, k); return `<td class="num">${c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="rc-${esc(p.id)}-${esc(k)}" aria-label="${esc(`${p.name}, ${m.label} ${fmt(m, c.value)}, open its moments`)}">${esc(fmt(m, c.value))}</button><span class="tx-pc"> ${c.percentile == null ? '–' : esc(c.percentile)}</span>` : '<span class="tx-dim">–</span>'}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`;
-    const html = `<div class="tx-ctls"><div class="tx-seg" role="group" aria-label="Metrics"><button type="button" data-act="rtpl" data-v="pos" aria-pressed="${S.radar.tpl === 'pos'}">${esc(base.position)} template</button><button type="button" data-act="rtpl" data-v="all" aria-pressed="${S.radar.tpl === 'all'}">All-round</button></div></div>
+        ${keys.map(k => { const m = MK.get(k); return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(k)}">${esc(m.label)}${noisy(m)}</span></th>${players.map(p => { const c = cellOf(p, k); return `<td class="num">${c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="rc-${esc(p.id)}-${esc(k)}" aria-label="${esc(`${p.name}, ${m.label} ${fmt(m, c.value)}, ${playText(p, k)}`)}">${esc(fmt(m, c.value))}</button><span class="tx-pc"> ${c.percentile == null ? '–' : esc(c.percentile)}</span>` : '<span class="tx-dim">–</span>'}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`;
+    const html = `<div class="tx-ctls"><div class="tx-seg" role="group" aria-label="Metrics"><button type="button" data-act="rtpl" data-v="pos" aria-pressed="${S.radar.tpl === 'pos'}">${esc(POS1[base.position])} stats</button><button type="button" data-act="rtpl" data-v="all" aria-pressed="${S.radar.tpl === 'all'}">All-round</button></div></div>
       <div class="tx-legs">${legend}</div>${outLine}${svg}
-      <p class="tx-cap">Percentile vs qualified ${esc(players.length > 1 ? 'peers in each player’s own position' : POSN[base.position])}${players.length > 1 ? '' : '; blue-grey wedges are style markers (ranked, not judged)'}. Values open their moments.</p>${tbl}`;
-    paint('radar', html, players.length > 1 ? (outsider ? `CMP + ${esc(outsider.name.split(' ').slice(-1)[0])}` : 'CMP') : esc(base.short_name));
+      <p class="tx-cap">Percentile vs regular ${esc(players.length > 1 ? 'players in each one’s own position' : POSN[base.position])}${players.length > 1 ? '' : '; blue-grey wedges are style markers (ranked, not judged)'}. Values play their moments.</p>${tbl}`;
+    paint('radar', html, players.length > 1 ? esc(`Comparing ${players.length}${outsider ? ` + ${outsider.name.split(' ').slice(-1)[0]}` : ''}`) : esc(`vs ${POSN[base.position]}`));
   }
 
   // ------------------------------------------------------------------ SHOT and HEAT: pitch charts
@@ -660,7 +816,7 @@
   const OUTC = { goal: 'Goal', saved: 'Saved', blocked: 'Blocked', off_target: 'Off target' };
   function numBtn(p, k, fid) {
     const m = MK.get(k), c = cellOf(p, k); if (!m) return '';
-    return `<span class="tx-stat"><span class="tx-ml" data-mk="${esc(k)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span>${c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="${esc(fid + k)}" aria-label="${esc(`${m.label} ${fmt(m, c.value)}, open its moments`)}">${esc(fmt(m, c.value))}</button>${c.total != null && m.kind !== 'total' && m.kind !== 'ratio' ? `<span class="tx-dim">${esc(c.total)} tot</span>` : ''}` : '<span class="tx-dim">–</span>'}</span>`;
+    return `<span class="tx-stat"><span class="tx-ml" data-mk="${esc(k)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span>${c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="${esc(fid + k)}" aria-label="${esc(`${m.label} ${fmt(m, c.value)}, ${playText(p, k)}`)}">${esc(fmt(m, c.value))}</button>${c.total != null && m.kind !== 'total' && m.kind !== 'ratio' ? `<span class="tx-dim">${esc(c.total)} in total</span>` : ''}` : '<span class="tx-dim">–</span>'}</span>`;
   }
   function renderShot() {
     const p = PID.get(S.focus), shots = p.shots || [];
@@ -676,7 +832,7 @@
     const html = shots.length || p.minutes ? `<div class="tx-stats">${['shots', 'goals', 'npxg', 'npxg_per_shot', 'shots_on_target'].map(k => numBtn(p, k, 'sh-')).join('')}</div>${svg}
       <p class="tx-legend"><span class="o-goal">● Goal</span> <span class="o-saved">● Saved</span> <span class="o-blocked">● Blocked</span> <span class="o-off_target">○ Off target</span> · size = xG · ${nps.length} non-penalty, ${shots.length - nps.length} penalty</p>`
       : '<p class="tx-dim">No minutes this season.</p>';
-    paint('shot', shots.length ? html : html.replace('</svg>', '<text x="78" y="36" text-anchor="middle" class="tx-axl" style="font-size:3.4px">No shots</text></svg>'), esc(`${p.short_name} · ${shots.length}`));
+    paint('shot', shots.length ? html : html.replace('</svg>', '<text x="78" y="36" text-anchor="middle" class="tx-axl" style="font-size:3.4px">No shots</text></svg>'), esc(`${p.name} · ${plural(shots.length, 'shot')}`));
   }
   function shotReel(p, start) {
     const r = { kind: 'shots', pid: p.id, title: `${p.name} · Shots`, sub: `${p.shots.length} shots, penalties included`, total: p.shots.length, shown: p.shots.length, i: -1, note: '',
@@ -696,7 +852,7 @@
     const html = `<div class="tx-stats">${['touches', 'touches_in_box', 'progressive_passes_received'].map(k => numBtn(p, k, 'ht-')).join('')}</div>
       <svg viewBox="-1.5 -1.5 108 71" class="tx-svg tx-pitchsvg" role="img" aria-label="Heat map: ${total} on-ball actions, attacking left to right"><rect x="0" y="0" width="105" height="68" class="tx-turf"/>${cells}${fullPitch()}<path d="M44,72 L61,72" class="tx-dir"/></svg>
       <p class="tx-cap">${esc(total)} on-ball actions this season (${esc(evList)}), so more than the Touches count, which is touch records only. Attacking left to right, ${esc(cols)} by ${esc(rows)} cells. The map has no clip per cell; the numbers above open their moments.</p>`;
-    paint('heat', html, esc(p.short_name));
+    paint('heat', html, esc(p.name));
   }
 
   // ------------------------------------------------------------------ FORM: match by match
@@ -734,7 +890,7 @@
     if (lo < 0) svg += tick(Math.min(...nums));
     fm.matches.forEach((mm, i) => {
       const v = vals[i], x = L + i * bw + 2, w = Math.max(4, bw - 4), cx = (x + w / 2).toFixed(1);
-      const lab = `Round ${mm.round} ${mm.home ? 'v' : 'at'} ${club(mm.opponent).name}, ${mm.score}, ${Math.round(mm.minutes)} min: ${m.label} ${fmt(m, v)}. Open its moments`;
+      const lab = `Round ${mm.round} ${mm.home ? 'v' : 'at'} ${club(mm.opponent).name}, ${mm.score}, ${Math.round(mm.minutes)} min: ${m.label} ${fmt(m, v)}. Play that match's moments`;
       let bar = '';
       if (v == null) bar = `<text x="${cx}" y="${(y0 - 4).toFixed(1)}" text-anchor="middle" class="tx-axl">–</text>`;
       else {
@@ -750,13 +906,13 @@
     const cons = fm.consistency || {};
     const ctab = Object.keys(cons).filter(c => MK.has(c)).map(c => { const cm = MK.get(c), x = cons[c], tr = x.last3_minus_season;
       return `<tr${c === k ? ' class="on"' : ''}><th scope="row"><button type="button" class="tx-lk" data-act="formk" data-k="${esc(c)}" data-mk="${esc(c)}" data-fid="fk-${esc(c)}">${esc(cm.label)}${noisy(cm)}</button></th>
-        <td class="num"><button type="button" class="tx-n" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(c)}" data-fid="fm-${esc(c)}" aria-label="${esc(`${cm.label} mean ${x.mean}, open its moments`)}">${esc(fmt(cm, x.mean))}</button></td><td class="num">${esc(x.sd)}</td><td class="num">${x.cv == null ? '–' : esc(x.cv)}</td>
+        <td class="num"><button type="button" class="tx-n" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(c)}" data-fid="fm-${esc(c)}" aria-label="${esc(`${cm.label} mean ${x.mean}, ${playText(p, c)}`)}">${esc(fmt(cm, x.mean))}</button></td><td class="num">${esc(x.sd)}</td><td class="num">${x.cv == null ? '–' : esc(x.cv)}</td>
         <td class="num ${tr > 0 ? 'up' : tr < 0 ? 'dn' : ''}">${tr == null ? '–' : (tr > 0 ? '+' : '') + esc(tr)}</td></tr>`; }).join('');
     const html = `<div class="tx-ctls"><label class="tx-ctl"><span class="sr">Metric</span><select data-r="formk" data-fid="form-k">${metricOptions(k)}</select></label>
         <span class="tx-ml" data-mk="${esc(k)}" data-pid="${esc(p.id)}" tabindex="0">${esc(m.label)}${noisy(m)} <span class="tx-dim">ⓘ</span></span></div>${svg}
       <p class="tx-cap">${esc(FORM_UNIT[m.kind] || 'Each match')}. Bars open that match's moments.</p>
-      ${ctab ? `<div class="tx-scroll tx-tablewrap"><table class="tx-mt tx-cons"><thead><tr><th>Consistency</th><th class="num">Mean</th><th class="num">SD</th><th class="num">CV</th><th class="num" title="Last three matches minus the season">L3−S</th></tr></thead><tbody>${ctab}</tbody></table></div>` : ''}`;
-    paint('form', html, esc(`${p.short_name} · ${fm.matches.length} m`));
+      ${ctab ? `<div class="tx-scroll tx-tablewrap"><table class="tx-mt tx-cons"><thead><tr><th>Consistency</th><th class="num">Mean</th><th class="num" title="Standard deviation across matches">SD</th><th class="num" title="Coefficient of variation: SD divided by the mean">CV</th><th class="num" title="The last three matches minus the season">Last 3 vs season</th></tr></thead><tbody>${ctab}</tbody></table></div>` : ''}`;
+    paint('form', html, esc(`${p.name} · ${plural(fm.matches.length, 'match')}`));
   }
 
   // ------------------------------------------------------------------ SCAT: one metric against another
@@ -798,13 +954,13 @@
     const read = cur ? `<p class="tx-read"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(cur.p.id)}" data-fid="scat-sel">${esc(cur.p.name)}</button> <span class="tx-dim">${esc(cur.p.short_name)} ${esc(cur.p.position)}</span>
         <span class="tx-ml" data-mk="${esc(x)}">${esc(mx.label)}</span><button type="button" class="tx-n" style="${shade(mx, cur.a.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(x)}" data-fid="scat-x">${esc(fmt(mx, cur.a.value))}</button>
         <span class="tx-ml" data-mk="${esc(y)}">${esc(my.label)}</span><button type="button" class="tx-n" style="${shade(my, cur.b.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(y)}" data-fid="scat-y">${esc(fmt(my, cur.b.value))}</button></p>`
-      : '<p class="tx-read tx-dim">The focus player is not on this chart (position or qualification). Arrow keys in the chart pick a player.</p>';
+      : '<p class="tx-read tx-dim">The selected player is not on this chart (position, or not a regular). Arrow keys in the chart pick a player.</p>';
     const html = `<div class="tx-ctls"><label class="tx-ctl"><span>X</span><select data-r="scx" data-fid="scat-xs">${metricOptions(x)}</select></label>
         <label class="tx-ctl"><span>Y</span><select data-r="scy" data-fid="scat-ys">${metricOptions(y)}</select></label>
-        <div class="tx-seg" role="group" aria-label="Position">${[null, ...POS].map(v => `<button type="button" data-act="scpos" data-v="${v || ''}" aria-pressed="${pos === v}">${v || 'ALL'}</button>`).join('')}</div>
-        <label class="tx-chk"><input type="checkbox" data-r="scall" data-fid="scat-all"${all ? ' checked' : ''}> Include unqualified</label></div>${svg}${read}
-      <p class="tx-cap">${pts.length} ${esc(pos ? POSN[pos] : 'players')}${all ? '' : ', qualified on both'} · dashed lines = medians · click a dot to select</p>`;
-    paint('scat', html, esc(`${x} × ${y}`));
+        <div class="tx-seg" role="group" aria-label="Position">${[null, ...POS].map(v => `<button type="button" data-act="scpos" data-v="${v || ''}" aria-pressed="${pos === v}" title="${v ? esc(POS1[v] + 's') : 'Every position'}">${v || 'All'}</button>`).join('')}</div>
+        <label class="tx-chk"><input type="checkbox" data-r="scall" data-fid="scat-all"${all ? ' checked' : ''}> Include non-regulars</label></div>${svg}${read}
+      <p class="tx-cap">${pts.length} ${esc(pos ? POSN[pos] : 'players')}${all ? '' : ', regulars with a value on both'} · dashed lines = medians · click a dot to select</p>`;
+    paint('scat', html, esc(`${shortLabel(mx)} against ${shortLabel(my)}`));
   }
 
   // ------------------------------------------------------------------ TEAM: team style
@@ -826,7 +982,7 @@
     const squad = D.players.filter(p => p.club_id === S.club).sort((a, b) => b.minutes - a.minutes);
     const html = `<div class="tx-seg tx-clubs" role="group" aria-label="Club">${D.clubs.map(k => `<button type="button" data-act="club" data-cid="${esc(k.club_id)}" aria-pressed="${k.club_id === S.club}" title="${esc(k.name)}">${esc(k.short_name)}</button>`).join('')}</div>
       <p class="tx-name">${esc(c.name)} <span class="tx-dim">${esc(ord(row.position || 0))} · ${esc(row.points)} pts · ${esc(row.won)}-${esc(row.drawn)}-${esc(row.lost)} · ${esc(row.goals_for)}:${esc(row.goals_against)}</span></p>
-      <div class="tx-team"><div class="tx-scroll tx-tablewrap"><table class="tx-mt"><thead><tr><th>Style</th><th class="num">Value</th><th class="num">Rank</th><th class="num">Lg avg</th><th><span class="sr">Range</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+      <div class="tx-team"><div class="tx-scroll tx-tablewrap"><table class="tx-mt"><thead><tr><th>Style</th><th class="num">Value</th><th class="num">Rank</th><th class="num">League avg</th><th><span class="sr">Range</span></th></tr></thead><tbody>${rows}</tbody></table></div>
         <div><h3 class="tx-h3">Squad by minutes</h3><ol class="tx-squad tx-scroll">${squad.map(p => `<li class="${p.id === S.focus ? 'on' : ''}"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-fid="sq-${esc(p.id)}">${esc(p.name)}</button><span class="tx-dim">${esc(p.position)} #${esc(p.kit_number)}</span><span class="num">${esc(Math.round(p.minutes))}′</span></li>`).join('')}</ol></div></div>
       <p class="tx-cap">Rank 1 = best${lowBest.length ? `: the lowest for ${esc(listText(lowBest))}` : ''}. Grey markers are style, ranked but not judged, and their rank 1 is the highest. The bar spans the league's six clubs; the white tick is the league average. /90 = per 90 minutes; possession, PPDA and the other ratios are season values over every match. Shot numbers (xG, goals, shots) open every shot behind them; the others open one value per match.</p>`;
     paint('team', html, esc(c.short_name));
@@ -889,18 +1045,26 @@
     if (compact) {
       const p = PID.get(el.dataset.pid), c = p && cellOf(p, mk); if (!c) return '';
       const np = noPct(p, m, c);
-      return `<p class="tt-h">${esc(m.label)}${m.noisy ? ' <span class="tt-w">≈ noisy</span>' : ''}</p><p class="tt-p"><b>${esc(p.name)}</b> ${esc(fmt(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : ''} · ${c.percentile == null ? esc(np ? np.text : 'no percentile') : `${esc(ord(c.percentile))} pctl vs ${esc(POSN[p.position])}`}</p><p class="tt-s">Enter opens its moments · the column header has the definition</p>`;
+      const n = evCount(p, mk);
+      return `<p class="tt-h">${esc(m.label)}${m.noisy ? ' <span class="tt-w">≈ small sample</span>' : ''}</p><p class="tt-p"><b>${esc(p.name)}</b> ${esc(fmt(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : ''} · ${c.percentile == null ? esc(np ? np.text : 'no percentile') : `${esc(ord(c.percentile))} percentile vs ${esc(POSN[p.position])}`}</p>${n ? `<p class="tt-play">&#9654; ${esc(n)} · Enter plays them</p>` : ''}<p class="tt-s">The column header has the definition</p>`;
     }
     const src = (m.sources || []).map(s => (D.sources[s] || {}).title || s).join('; ');
     const judge = m.higher_is_better === null ? 'Style marker: ranked, not judged' : m.higher_is_better ? 'Higher is better' : 'Lower is better';
-    let h = `<p class="tt-h">${esc(m.label)} <span class="tt-k">${esc(m.key)}</span></p><p>${esc(m.definition)}</p>
+    let h = `<p class="tt-h">${esc(m.label)}</p><p>${esc(m.definition)}</p>
       <p class="tt-s"><b>Rule</b> ${esc(m.rule)}${src ? ` · <b>Source</b> ${esc(src)}` : ''}</p><p class="tt-s">${esc(mk ? unitText(m) : m.unit)} · ${esc(judge)}${mk && m.positions ? ` · matters for ${esc(m.positions.join(' '))}` : ''}</p>`;
-    if (mk && m.noisy) h += `<p class="tt-w">≈ Noisy: split-half r ${esc(m.reliability_r)} (below ${esc(D.season.noise_r)}); one season cannot yet separate players in the same role.</p>`;
+    if (mk && m.noisy) h += `<p class="tt-w">≈ Small sample, read with care: split-half r ${esc(m.reliability_r)} (below ${esc(D.season.noise_r)}); one season cannot yet separate players in the same role.</p>`;
     if (mk && m.min_attempts) h += `<p class="tt-s">Percentile needs at least ${esc(m.min_attempts)}: ${esc(m.min_attempts_rule)}</p>`;
     const p = el.dataset.pid && PID.get(el.dataset.pid), c = p && mk ? cellOf(p, mk) : null;
-    if (c) h += `<p class="tt-p"><b>${esc(p.name)}</b> ${esc(fmt(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : c.total != null && m.kind !== 'total' ? ` (${esc(c.total)} in total)` : ''} · ${c.percentile == null ? esc((noPct(p, m, c) || { text: 'no percentile' }).text) : `${esc(ord(c.percentile))} percentile among qualified ${esc(POSN[p.position])}`}</p>`;
+    if (c) h += `<p class="tt-p"><b>${esc(p.name)}</b> ${esc(fmt(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : c.total != null && m.kind !== 'total' ? ` (${esc(c.total)} in total)` : ''} · ${c.percentile == null ? esc((noPct(p, m, c) || { text: 'no percentile' }).text) : `${esc(ord(c.percentile))} percentile among regular ${esc(POSN[p.position])}`}</p>`;
     const tv = tk && el.dataset.cid ? TEAMS.get(el.dataset.cid) : null;
     if (tv && tv.values[tk]) h += `<p class="tt-p">Rank ${esc(tv.values[tk].rank)} of ${esc(tv.values[tk].of)} · league average ${esc(fmt(m, tv.values[tk].league_mean))}</p>`;
+    // A clickable number says what it opens.
+    if (el.classList.contains('tx-n')) {
+      let n = null;
+      if (c) n = evCount(p, mk);
+      else if (tv && tv.values[tk]) { const r = teamReel(el.dataset.cid, tk); n = plural(r.items.length, r.unit === 'match' ? 'match' : r.items.some(it => it.video) ? 'moment' : 'item'); }
+      if (n) h += `<p class="tt-play">&#9654; ${esc(n)} · click to play</p>`;
+    }
     return h;
   }
   function showTip(el, compact) {
@@ -986,66 +1150,71 @@
   }
   const posOf = (t) => POS_WORDS[String(t || '').toUpperCase()] || null;
   const runBtn = (cmd, label) => `<button type="button" class="tx-mini" data-act="run" data-cmd="${esc(cmd)}">${esc(label || cmd)}</button>`;
-  const altsHtml = (alts, cmd) => alts && alts.length ? ` <span class="tx-dim">· also:</span> ${alts.slice(0, 6).map(p => runBtn(`${cmd ? cmd + ' ' : ''}${p.name}`, `${p.name} ${p.short_name}`)).join(' ')}` : '';
-  function onePlayer(arg, cmd) {
+  const cmdWord = (head) => COMMANDS[head] ? COMMANDS[head].word : '';
+  const altsHtml = (alts, head) => alts && alts.length ? ` <span class="tx-dim">· also:</span> ${alts.slice(0, 6).map(p => runBtn(`${cmdWord(head) ? cmdWord(head) + ' ' : ''}${p.name}`, `${p.name} ${p.short_name}`)).join(' ')}` : '';
+  function onePlayer(arg) {
     if (!arg.trim()) return { p: PID.get(S.focus), alts: [] };
     const r = resolvePlayer(arg);
     if (r.p) return r;
     out(`No player called "${arg}". Type part of a name; suggestions appear as you type.`, 'err');
     return null;
   }
+  const posText = (pos) => pos ? POSN[pos] : 'players';
+  const cap1 = (t) => t.charAt(0).toUpperCase() + t.slice(1);
   function run(text) {
-    const t = String(text || '').trim().replace(/\s*<GO>$/i, '').trim(); if (!t) return;
+    const t = String(text || '').trim().replace(/\s*<GO>$/i, '').replace(/[?!.]+$/, '').trim(); if (!t) return;
     if (store.hist[store.hist.length - 1] !== t) { store.hist.push(t); if (store.hist.length > 50) store.hist.shift(); save(); }
     histAt = -1;
-    const toks = t.split(/\s+/), head = toks[0].toUpperCase().replace(/<GO>$/, ''), rest = t.slice(toks[0].length).replace(/<GO>\s*$/i, '').trim();
-    if (head === 'HELP' || head === '?') { openHelp(); out('Help is open. Escape closes it.'); return; }
+    const ph = parseHead(t), head = ph.head, rest = ph.rest.replace(/<GO>\s*$/i, '').trim();
+    if (head === 'HELP') { openHelp(); out('Help is open. Escape closes it.'); return; }
     if (head === 'RANK') return cmdRank(rest);
     if (head === 'CMP') return cmdCmp(rest);
     if (head === 'SCAT') return cmdScat(rest);
     if (head === 'TEAM') {
       const c = resolveClub(rest) || (rest ? null : club(S.club));
-      if (!c || !c.club_id) { out(`No club called "${rest}". Clubs: ${D.clubs.map(x => x.short_name).join(', ')}.`, 'err'); return; }
-      S.club = c.club_id; save(); reveal('team', renderTeam); out(`TEAM ${c.short_name} · ${c.name}: team style, ranked across the league's six clubs.`); return;
+      if (!c || !c.club_id) { out(`No club called "${rest}". Clubs: ${D.clubs.map(x => x.name).join(', ')}.`, 'err'); return; }
+      S.club = c.club_id; save(); reveal('team', renderTeam); out(`${c.name}: how they play, ranked across the league's six clubs.`); return;
     }
     const PANEL_CMD = { SIM: 'plyr', SHOT: 'shot', FORM: 'form', HEAT: 'heat', RDR: 'radar', PLYR: 'plyr' };
     if (PANEL_CMD[head]) {
-      const r = onePlayer(rest, head); if (!r) return;
+      const r = onePlayer(rest); if (!r) return;
       const p = r.p;
       select(p.id, true); showPanel(PANEL_CMD[head], true, head === 'SIM' ? '.tx-sim' : head === 'PLYR' ? '.tx-card' : null);
       let line;
-      if (head === 'SIM') { line = `SIM ${p.name}: ${(p.similar || []).map(s => `${s.name} ${s.similarity.toFixed(2)}`).join(', ') || 'none'}.`; }
-      else if (head === 'SHOT') line = `SHOT ${p.name}: ${(p.shots || []).length} shots, ${((g) => `${g} goal${g === 1 ? '' : 's'}`)((p.shots || []).filter(s => s.outcome === 'goal').length)}. Each shot plays its clip.`;
-      else if (head === 'FORM') line = `FORM ${p.name}: ${(p.form && p.form.matches || []).length} matches. Bars open that match's moments.`;
-      else line = `${head} ${p.name} · ${p.club}.`;
+      if (head === 'SIM') { line = `Plays like ${p.name}: ${(p.similar || []).map(s => `${s.name} ${s.similarity.toFixed(2)}`).join(', ') || 'nobody yet (too few minutes)'}.`; }
+      else if (head === 'SHOT') line = `${p.name}: ${plural((p.shots || []).length, 'shot')}, ${plural((p.shots || []).filter(s => s.outcome === 'goal').length, 'goal')}. Each shot plays its clip.`;
+      else if (head === 'FORM') line = `${p.name}: ${plural((p.form && p.form.matches || []).length, 'match')}. Each bar plays that match's moments.`;
+      else if (head === 'HEAT') line = `${p.name}: where they have the ball, attacking left to right.`;
+      else if (head === 'RDR') line = `${p.name}: percentiles against ${POSN[p.position]}.`;
+      else line = `${p.name} · ${p.club}.`;
       out('', '', esc(line) + altsHtml(r.alts, head));
       return;
     }
-    if (COMMANDS[head]) return;
-    const c = resolveClub(t), team = (k) => { S.club = k.club_id; save(); reveal('team', renderTeam); out(`TEAM ${k.short_name} · ${k.name}.`); };
+    const c = resolveClub(t), team = (k) => { S.club = k.club_id; save(); reveal('team', renderTeam); out(`${k.name}: how they play.`); };
     if (c && (norm(c.short_name) === norm(t) || norm(c.name) === norm(t))) return team(c);
     const r = resolvePlayer(t);
     if (r.p) { const p = r.p; select(p.id, true); showPanel('plyr', true, '.tx-card'); out('', '', esc(`${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number}`) + altsHtml(r.alts, '')); return; }
     if (c) return team(c);
     const mm = resolveMetric(t);
     if (mm.m) return cmdRank(mm.m.key);
-    out(`Not a player, club or command: "${t}". Try TOURE, RANK FW npxg, TEAM BRO or HELP.`, 'err');
+    out(`Nothing found for "${t}". Try a surname, a club, a stat such as "goals", or "rank forwards non-penalty xG". Help lists everything.`, 'err');
   }
   function cmdRank(rest) {
     const toks = rest.split(/\s+/).filter(Boolean);
     let pos = null;
     if (toks.length && posOf(toks[0])) pos = posOf(toks.shift());
     else if (toks.length > 1 && posOf(toks[toks.length - 1])) pos = posOf(toks.pop());
+    if (toks.length > 1 && /^(by|on)$/i.test(toks[0])) toks.shift();      // rank forwards by goals
     const r = resolveMetric(toks.join(' '));
     if (!r.m) {
-      if (r.many) out('', 'err', `"${esc(toks.join(' '))}" matches ${r.many.length} metrics: ${r.many.slice(0, 6).map(m => runBtn(`RANK ${pos || 'ALL'} ${m.key}`, m.label)).join(' ')}`);
-      else out('RANK needs a metric: RANK <position> <metric>, e.g. RANK FW npxg. Suggestions appear as you type.', 'err');
+      if (r.many) out('', 'err', `"${esc(toks.join(' '))}" matches ${r.many.length} stats: ${r.many.slice(0, 6).map(m => runBtn(`rank ${pos && pos !== 'ALL' ? POSN[pos] : 'all'} ${m.label}`, m.label)).join(' ')}`);
+      else out('Rank needs a stat: rank <position> <stat>, for example "rank forwards non-penalty xG". Suggestions appear as you type.', 'err');
       return;
     }
     const m = r.m;
     S.scr.pos = pos === 'ALL' ? null : pos;
     // The ranked column goes first, so the order of the rows is explained by the first number the scout reads (at 375 px
-    // only one metric column fits).
+    // only one stat column fits).
     S.scr.cols = [m.key, ...S.scr.cols.filter(k => k !== m.key)];
     S.scr.sort = { k: m.key, dir: m.higher_is_better === false ? 1 : -1 };
     S.scr.q = ''; scrAct = null; save();
@@ -1054,7 +1223,7 @@
     const tw = document.querySelector('#tx-p-scrn .tx-tablewrap');
     if (tw) {
       tw.scrollLeft = 0; tw.scrollTop = 0;
-      // On a phone the first metric column can still run past the table's edge (Club, Pos and Min come first): scroll the
+      // On a phone the first stat column can still run past the table's edge (Club, Pos and Mins come first): scroll the
       // table, not the page, until the ranked column shows whole.
       const th = tw.querySelector(`thead th [data-k="${CSS.escape(m.key)}"]`), cell = th && th.closest('th');
       if (cell) { const over = cell.getBoundingClientRect().right - tw.getBoundingClientRect().right; if (over > 0) tw.scrollLeft = over + 4; }
@@ -1063,77 +1232,89 @@
     const rows = screenRows(), ranks = screenRanks(rows), tops = rows.filter((_, i) => ranks[i] === 1), c = tops[0] && cellOf(tops[0], m.key);
     const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
     const nr = ranks.filter(x => x != null).length, un = rows.length - nr;
-    out(`RANK ${S.scr.pos || 'ALL'} ${m.key}: ${rows.length} ${S.scr.pos ? POSN[S.scr.pos] : 'players'} by ${m.label}${m.higher_is_better === false ? ' (lowest first)' : ''}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `; top ${names} ${fmt(m, c.value)}${tops.length > 1 ? `, tied at rank 1` : ''}` : ''}.`);
+    out(`${cap1(posText(S.scr.pos))} ranked by ${m.label}${m.higher_is_better === false ? ' (lowest first: lower is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${fmt(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
   }
   function cmdCmp(rest) {
     const rs = resolvePlayers(rest);
     const bad = rs.find(r => !r.p);
-    if (bad || !rs.length) { out(rest ? `No player called "${bad.q}".` : 'CMP needs two or three players: CMP <player> <player> [<player>].', 'err'); return; }
+    if (bad || !rs.length) { out(rest ? `No player called "${bad.q}".` : 'Compare needs two or three players: compare <player> and <player>.', 'err'); return; }
     const ids = [...new Set(rs.map(r => r.p.id))].slice(0, 3);
     if (ids.length === 1 && ids[0] !== S.focus) ids.unshift(S.focus);
-    if (ids.length < 2) { out('CMP needs two or three different players.', 'err'); return; }
+    if (ids.length < 2) { out('Compare needs two or three different players.', 'err'); return; }
     S.compare = ids; S.focus = ids[0]; S.club = PID.get(ids[0]).club_id; save();
     renderAll(); showPanel('radar');
     const amb = rs.filter(r => r.alts && r.alts.length);
-    out('', '', esc(`CMP ${ids.map(id => PID.get(id).name).join(' · ')}: radar and table vs each player's position peers.`)
-      + (amb.length ? ` <span class="tx-dim">"${esc(amb[0].q)}" could also be:</span> ${amb[0].alts.slice(0, 5).map(p => runBtn(`CMP ${ids.map(id => id === amb[0].p.id ? p.name : PID.get(id).name).join(', ')}`, `${p.name} ${p.short_name}`)).join(' ')}` : ''));
+    out('', '', esc(`Comparing ${listText(ids.map(id => PID.get(id).name))}: radar and table, each against their own position.`)
+      + (amb.length ? ` <span class="tx-dim">"${esc(amb[0].q)}" could also be:</span> ${amb[0].alts.slice(0, 5).map(p => runBtn(`compare ${ids.map(id => id === amb[0].p.id ? p.name : PID.get(id).name).join(', ')}`, `${p.name} ${p.short_name}`)).join(' ')}` : ''));
   }
+  const AGAINST = /^(against|vs|v|versus)$/i;
   function cmdScat(rest) {
     const toks = rest.split(/\s+/).filter(Boolean);
     let pos;
     if (toks.length > 2 && posOf(toks[toks.length - 1])) { const p = posOf(toks.pop()); pos = p === 'ALL' ? null : p; }
     let mx = null, my = null;
-    for (let k = 1; k < toks.length && !mx; k++) {
-      const a = resolveMetric(toks.slice(0, k).join(' ')), b = resolveMetric(toks.slice(k).join(' '));
+    const ai = toks.findIndex(w => AGAINST.test(w));
+    if (ai > 0) { const a = resolveMetric(toks.slice(0, ai).join(' ')), b = resolveMetric(toks.slice(ai + 1).join(' ')); if (a.m && b.m) { mx = a.m; my = b.m; } }
+    const ts = toks.filter(w => !AGAINST.test(w));
+    for (let k = 1; k < ts.length && !mx; k++) {
+      const a = resolveMetric(ts.slice(0, k).join(' ')), b = resolveMetric(ts.slice(k).join(' '));
       if (a.m && b.m) { mx = a.m; my = b.m; }
     }
-    if (!mx) { out('SCAT needs two metrics: SCAT <metricX> <metricY> [<position>], e.g. SCAT npxg xa FW. Metric keys autocomplete.', 'err'); return; }
+    if (!mx) { out('Plot needs two stats: plot <stat> against <stat> [position], for example "plot non-penalty xG against xA forwards". Stats autocomplete.', 'err'); return; }
     S.scat.x = mx.key; S.scat.y = my.key; if (pos !== undefined) S.scat.pos = pos; scatCur = null; save();
     reveal('scat', renderScat);
-    out(`SCAT ${mx.key} × ${my.key}${S.scat.pos ? ' ' + S.scat.pos : ''}: ${scatPoints().length} players.`);
+    out(`${mx.label} against ${my.label}${S.scat.pos ? `, ${POSN[S.scat.pos]}` : ''}: ${plural(scatPoints().length, 'player')}.`);
   }
 
-  // ------------------------------------------------------------------ the command line: autocomplete and history
+  // ------------------------------------------------------------------ the search box: autocomplete and history
   function playerSugs(q, k, run) {
     const n = norm(q);
     const score = (p) => { const nm = norm(p.name), sn = surname(p); if (!n) return 0; if (sn.startsWith(n)) return 0; if (nm.startsWith(n)) return 1; if (nm.split(' ').some(w => w.startsWith(n))) return 2; if (n.length >= 3 && nm.includes(n)) return 3; return 9; };
     let ps;
     if (!n) { const f = PID.get(S.focus); ps = [f, ...(f.similar || []).map(s => PID.get(s.id)).filter(Boolean)]; }
     else ps = D.players.filter(p => score(p) < 9).sort((a, b) => score(a) - score(b) || b.minutes - a.minutes);
-    return ps.slice(0, 7).map(p => ({ kind: 'PLAYER', text: p.name, detail: `${p.short_name} ${p.position} #${p.kit_number}`, insert: p.name, k, run }));
+    return ps.slice(0, 7).map(p => ({ kind: 'Player', text: p.name, detail: `${p.short_name} · ${p.position} · #${p.kit_number}`, insert: p.name, k, run }));
   }
-  function metricSugs(q, k, run, prefix = '', pos = null) {
+  const groupLabel = (m) => (D.groups.find(g => g.key === m.group) || {}).label || '';
+  function metricSugs(q, k, run, prefix = '', pos = null, suffix = '') {
     const n = norm(q), kk = n.replace(/[\s-]+/g, '_');
-    const score = (m) => { if (!n) return 0; if (m.key.startsWith(kk)) return 0; const l = norm(m.label); if (l.startsWith(n)) return 1; if (l.split(' ').some(w => w.startsWith(n))) return 2; if (m.key.includes(kk) || l.includes(n)) return 3; const ws = n.replace(/%/g, ' pct ').split(/[\s\-()+,/_]+/).filter(Boolean), mw = mwords(m); if (ws.length && ws.every(w => mw.some(x => x.startsWith(w)))) return 4; return 9; };
+    const score = (m) => { if (!n) return 0; const l = norm(m.label); if (l.startsWith(n)) return 0; if (m.key.startsWith(kk)) return 1; if (l.split(' ').some(w => w.startsWith(n))) return 2; if (m.key.includes(kk) || l.includes(n)) return 3; const ws = n.replace(/%/g, ' pct ').split(/[\s\-()+,/_]+/).filter(Boolean), mw = mwords(m); if (ws.length && ws.every(w => mw.some(x => x.startsWith(w)))) return 4; return 9; };
     const base = n ? D.metrics : (D.default_columns[pos || PID.get(S.focus).position] || D.default_columns.all).map(x => MK.get(x)).filter(Boolean);
     return base.filter(m => score(m) < 9).sort((a, b) => score(a) - score(b)).slice(0, 8)
-      .map(m => ({ kind: 'METRIC', text: `${m.label}${m.noisy ? ' ≈' : ''}`, detail: m.key, insert: prefix + m.key, k, run, mk: m.key }));
+      .map(m => ({ kind: 'Stat', text: `${m.label}${m.noisy ? ' ≈' : ''}`, detail: groupLabel(m), insert: prefix + m.label + suffix, k, run, mk: m.key }));
   }
+  const POS_SUG = (cur, run) => ['ALL', ...POS].filter(p => (p === 'ALL' ? 'all' : POSN[p]).startsWith(norm(cur)) || p.startsWith(cur.toUpperCase()))
+    .map(p => ({ kind: 'Position', text: p === 'ALL' ? 'all' : POSN[p], detail: p === 'ALL' ? 'every position' : p, insert: p === 'ALL' ? 'all' : POSN[p], k: 1, run }));
   function suggest() {
     const inp = $('txIn'), before = inp.value.slice(0, inp.selectionStart ?? inp.value.length);
+    if (!before.trim()) { acItems = []; return paintAc(); }
     const toks = before.split(/\s+/), cur = toks[toks.length - 1], words = toks.filter(Boolean);
-    const head = (toks[0] || '').toUpperCase(), inArgs = toks.length > 1 && COMMANDS[head];
+    const ph = parseHead(before.replace(/^\s+/, '')), head = ph.head;
+    const inArgs = ph.started && (COMMANDS[head] || head === 'PLYR');
+    const args = ph.rest.split(/\s+/);            // the last is the word being typed ('' after a space)
     let s = [];
     const trailing = (fn) => { for (let k = Math.min(3, toks.length - 1); k >= 1; k--) { const q = toks.slice(-k).join(' ').trim(); const r = fn(q, k); if (r.length && q) return r; } return fn(cur, 1); };
     if (!inArgs) {
-      if (!before.trim()) { acItems = []; return paintAc(); }
-      if (toks.length === 1) {
-        s.push(...Object.keys(COMMANDS).filter(c => c.startsWith(head)).map(c => ({ kind: 'CMD', text: c, detail: COMMANDS[c].args || COMMANDS[c].help, insert: c, k: 1, run: c === 'HELP' })));
+      if (toks.length === 1 || (words.length === 1 && !ph.started)) {
+        const n = norm(cur);
+        s.push(...Object.entries(COMMANDS).filter(([c, x]) => x.word.startsWith(n) || c.startsWith(cur.toUpperCase())).map(([c, x]) => ({ kind: 'Command', text: x.word, detail: x.args ? `${x.word} ${x.args}` : x.help, insert: x.word, k: 1, run: c === 'HELP' })));
         s.push(...playerSugs(cur, 1, true).slice(0, 5));
-        s.push(...D.clubs.filter(c => norm(c.short_name).startsWith(norm(cur)) || norm(c.name).split(' ').some(w => w.startsWith(norm(cur)))).map(c => ({ kind: 'CLUB', text: c.name, detail: `TEAM ${c.short_name}`, insert: `TEAM ${c.short_name}`, k: 1, run: true })));
-        s.push(...metricSugs(cur, 1, true, `RANK ${PID.get(S.focus).position} `).slice(0, 3));
+        s.push(...D.clubs.filter(c => norm(c.short_name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).map(c => ({ kind: 'Club', text: c.name, detail: 'how they play', insert: `team ${c.name}`, k: 1, run: true })));
+        s.push(...metricSugs(cur, 1, true, `rank ${POSN[PID.get(S.focus).position]} `).slice(0, 3).map(x => ({ ...x, detail: `rank ${POSN[PID.get(S.focus).position]}` })));
       } else s = playerSugs(words.join(' '), toks.length, true);
-    } else if (['SIM', 'SHOT', 'FORM', 'HEAT', 'RDR', 'PLYR'].includes(head)) s = playerSugs(toks.slice(1).join(' '), toks.length - 1, true);
-    else if (head === 'CMP') { s = trailing((q, k) => playerSugs(q, k, false)); }
-    else if (head === 'TEAM') { const n = norm(cur); s = D.clubs.filter(c => !n || norm(c.short_name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).map(c => ({ kind: 'CLUB', text: c.name, detail: c.short_name, insert: c.short_name, k: 1, run: true })); }
+    } else if (['SIM', 'SHOT', 'FORM', 'HEAT', 'RDR', 'PLYR'].includes(head)) s = playerSugs(args.join(' '), args.length, true);
+    else if (head === 'CMP') { const more = /,|\band\b|\bvs?\b/i.test(ph.rest); s = trailing((q, k) => playerSugs(q, k, more)); }
+    else if (head === 'TEAM') { const n = norm(args.join(' ')); s = D.clubs.filter(c => !n || norm(c.short_name).startsWith(n) || norm(c.name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).map(c => ({ kind: 'Club', text: c.name, detail: c.short_name, insert: c.name, k: args.length, run: true })); }
     else if (head === 'RANK') {
-      const args = toks.slice(1);
-      if (args.length === 1) s = [...['ALL', ...POS].filter(p => p.startsWith(cur.toUpperCase())).map(p => ({ kind: 'POS', text: p, detail: p === 'ALL' ? 'every position' : POSN[p], insert: p, k: 1, run: false })), ...metricSugs(cur, 1, true)];
-      else s = metricSugs(posOf(args[0]) ? args.slice(1).join(' ') : args.join(' '), posOf(args[0]) ? args.length - 1 : args.length, true, '', posOf(args[0]) === 'ALL' ? 'all' : posOf(args[0]));
+      if (args.length === 1) s = [...POS_SUG(cur, false), ...metricSugs(cur, 1, true)];
+      else { const p0 = posOf(args[0]), q = p0 ? args.slice(1) : args; s = metricSugs(q.join(' '), q.length, true, '', p0 === 'ALL' ? 'all' : p0); }
     } else if (head === 'SCAT') {
-      const args = toks.slice(1), done = args.slice(0, -1).filter(a => MK.has(norm(a))).length;
-      if (done >= 2) s = ['ALL', ...POS].filter(p => p.startsWith(cur.toUpperCase())).map(p => ({ kind: 'POS', text: p, detail: p === 'ALL' ? 'every position' : POSN[p], insert: p, k: 1, run: true }));
-      else s = metricSugs(cur, 1, false);
+      const ai = args.slice(0, -1).findIndex(w => AGAINST.test(w));
+      if (ai < 0) s = trailing((q, k) => metricSugs(q, k, false, '', null, ' against'));
+      else {
+        const after = args.slice(ai + 1), done = after.length > 1 && resolveMetric(after.slice(0, -1).join(' ')).m && cur === '';
+        s = done ? POS_SUG(cur, true) : metricSugs(after.join(' '), after.length, true);
+      }
     }
     acItems = s.slice(0, 9); acAt = -1;
     paintAc();
@@ -1141,7 +1322,7 @@
   function paintAc() {
     const ul = $('txAc'), inp = $('txIn');
     if (!acItems.length) { ul.hidden = true; ul.innerHTML = ''; inp.setAttribute('aria-expanded', 'false'); inp.removeAttribute('aria-activedescendant'); return; }
-    ul.innerHTML = acItems.map((s, i) => `<li role="option" id="txAc-${i}" aria-selected="${i === acAt}" data-i="${i}"${s.mk ? ` data-mk="${esc(s.mk)}"` : ''}><span class="tx-ak k-${esc(s.kind)}">${esc(s.kind)}</span><span class="tx-at">${esc(s.text)}</span><span class="tx-ad">${esc(s.detail)}</span></li>`).join('');
+    ul.innerHTML = acItems.map((s, i) => `<li role="option" id="txAc-${i}" aria-selected="${i === acAt}" data-i="${i}"${s.mk ? ` data-mk="${esc(s.mk)}"` : ''}><span class="tx-ak k-${esc(s.kind.toLowerCase())}">${esc(s.kind)}</span><span class="tx-at">${esc(s.text)}</span><span class="tx-ad">${esc(s.detail)}</span></li>`).join('');
     ul.hidden = false; inp.setAttribute('aria-expanded', 'true');
     if (acAt >= 0) { inp.setAttribute('aria-activedescendant', 'txAc-' + acAt); const li = $('txAc-' + acAt); if (li) li.scrollIntoView({ block: 'nearest' }); } else inp.removeAttribute('aria-activedescendant');
   }
@@ -1160,18 +1341,21 @@
   // ------------------------------------------------------------------ help
   function openHelp(opener) {
     const h = $('txHelp');
-    const srcs = Object.entries(D.sources).map(([k, s]) => `<li><span class="tt-k">${esc(k)}</span> ${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : esc(s.title)}</li>`).join('');
-    h.innerHTML = `<div class="tx-hhead"><h2 tabindex="-1" id="txHelpH">HELP · the Scout terminal</h2><button type="button" class="tx-mini" data-act="helpclose" aria-label="Close help">Esc &times;</button></div>
-      <div class="tx-hbody"><table class="tx-mt"><tbody>
-        <tr><th scope="row"><code>NAME</code> &lt;GO&gt;</th><td>Any surname or name opens the player: ${runBtn('TOURE')}</td></tr>
-        ${Object.entries(COMMANDS).map(([c, x]) => `<tr><th scope="row"><code>${esc(c)}</code> <span class="tx-dim">${esc(x.args)}</span></th><td>${esc(x.help)} ${c === 'HELP' ? '' : runBtn(x.ex)}</td></tr>`).join('')}
+    const srcs = Object.entries(D.sources).map(([k, s]) => `<li>${s.url ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : esc(s.title)}</li>`).join('');
+    const f = PID.get(S.focus), ex = (c, x) => c === 'TEAM' ? `team ${club(S.club).name}` : x.ex;
+    h.innerHTML = `<div class="tx-hhead"><h2 tabindex="-1" id="txHelpH">How to use the Scout terminal</h2><button type="button" class="tx-mini" data-act="helpclose" aria-label="Close help">Close &times;</button></div>
+      <div class="tx-hbody"><p>Type in the search box and press Enter. Click any example to run it.</p><table class="tx-mt tx-htable"><tbody>
+        <tr><th scope="row"><code>a name</code></th><td>Opens the player. ${runBtn(f.name.split(' ').slice(-1)[0])}</td></tr>
+        <tr><th scope="row"><code>a club</code> or <code>a stat</code></th><td>A club opens how it plays; a stat ranks every player on it. ${runBtn('goals')}</td></tr>
+        ${Object.entries(COMMANDS).filter(([c]) => c !== 'HELP').map(([c, x]) => `<tr><th scope="row"><code>${esc(x.word)}</code> <span class="tx-dim">${esc(x.args)}</span></th><td>${esc(x.help)} ${runBtn(ex(c, x))}</td></tr>`).join('')}
       </tbody></table>
+      <p class="tx-dim">Short forms still work: ${Object.entries(COMMANDS).map(([c, x]) => `<code>${esc(c)}</code>`).join(' ')} (for example <code>RANK FW npxg</code>).</p>
       <h3 class="tx-h3">Keys</h3><ul class="tx-keys">
-        <li><kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> focus the command line</li><li><kbd>Enter</kbd> is &lt;GO&gt;</li><li><kbd>↑</kbd> <kbd>↓</kbd> history, or move in the suggestions</li>
-        <li><kbd>Tab</kbd> takes a suggestion</li><li><kbd>Esc</kbd> closes suggestions, help and tips</li><li><kbd>Alt 1–9</kbd> jump to a panel (F1–F9)</li>
-        <li>In the screener: arrow keys, Home/End, Enter</li><li>In the scatter: arrow keys pick a player, Enter selects</li></ul>
-      <h3 class="tx-h3">Linking</h3><p>One focus player and up to three compared players drive every panel. Selecting a player anywhere (screener, scatter, similar players, squad, legend) updates the rest. Every number opens the moments behind it in CLIP; clips play from ${esc(APP)}. Evidence is the first ${esc(10)} per number; a link gives the full list.</p>
-      <h3 class="tx-h3">The numbers</h3><p>${esc(D.note)}</p><p>${esc(D.season.sample.note)}</p><p>Percentiles: ${esc(D.season.percentile_rule)}.</p>
+        <li><kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> goes to the search box</li><li><kbd>Enter</kbd> searches</li><li><kbd>↑</kbd> <kbd>↓</kbd> earlier searches, or move in the suggestions</li>
+        <li><kbd>Tab</kbd> takes a suggestion</li><li><kbd>Esc</kbd> closes suggestions, help, tips and the clips drawer</li><li><kbd>Alt 1–9</kbd> jump to a panel, in the order of the panel buttons (each button's tooltip shows its key)</li>
+        <li>In the players table: arrow keys, Home/End, Enter</li><li>In the scatter: arrow keys pick a player, Enter selects</li></ul>
+      <h3 class="tx-h3">How the panels link</h3><p>One selected player and up to three compared players drive every panel. Selecting a player anywhere (a row in the table, a dot in the scatter, a similar player, the squad, a legend) updates the rest. Every underlined number plays the moments behind it in the clips drawer, from ${esc(APP.replace(/^https?:\/\//, ''))}; the first ${esc(10)} are listed, with a link to all of them.</p>
+      <h3 class="tx-h3">The numbers</h3><p>${esc(D.note)}</p><p>${esc(D.season.sample.note)}</p><p><span class="tx-noisy">≈</span> small sample, read with care: the stat cannot yet tell players in the same role apart over one season.</p>
       <h3 class="tx-h3">Sources</h3><ul class="tx-srcs">${srcs}</ul></div>`;
     h.hidden = false; h._opener = opener || null;
     $('txHelpH').focus();
@@ -1181,13 +1365,16 @@
   // ------------------------------------------------------------------ events
   // Keyboard focus survives a repaint: after an action, if focus fell to <body> (the control was rebuilt or is gone), it
   // goes back to the same control (by data-fid, else by what it does), else to the nearest stable place: the panel's
-  // heading, the focus player in the selection bar, or the current workspace button.
+  // heading, the selected player beside the search, or the current saved-layout button.
   const sig = (el) => el.dataset.fid ? `[data-fid="${CSS.escape(el.dataset.fid)}"]`
     : '[data-act="' + CSS.escape(el.dataset.act) + '"]' + ['id', 'pid', 'i', 'v', 'k', 'cid', 'd', 'mk', 'tk', 'mid', 'cmd'].filter(k => el.dataset[k] != null).map(k => `[data-${k}="${CSS.escape(el.dataset[k])}"]`).join('');
   function doAct(t, e) {
-    const sel = sig(t), panel = t.closest('[data-panel]'), zone = t.closest('#txSel, #txMeta, #txKeys, #txHelp, #txOut');
+    const sel = sig(t), panel = t.closest('[data-panel]'), zone = t.closest('#txSel, #txMeta, #txKeys, #txHelp, #txOut, #txEx, #txNav, #txDrawer');
     const pid = panel && panel.dataset.panel, zid = zone && zone.id;
+    // What a number was clicked from, so closing the clips drawer can bring focus back to it.
+    actFrom = { el: t, sel, scope: pid ? 'tx-p-' + pid : zid };
     act(t, e);
+    actFrom = null;
     const a = document.activeElement;
     if (a && a !== document.body && document.contains(a)) return;
     // Look in the same place first (the PLYR panel and the selection bar both have "+ add" buttons for the same player).
@@ -1198,6 +1385,7 @@
       () => zid === 'txSel' && document.querySelector('#txSel .tx-focus'),
       () => zid === 'txMeta' && document.querySelector('#txMeta [data-act="ws"][aria-pressed="true"]'),
       () => zid === 'txKeys' && document.querySelector('#txKeys .tx-fkey'),
+      () => zid === 'txNav' && document.querySelector('#txNav button'),
       () => $('txIn')];
     for (const f of tries) {
       const el = f();
@@ -1218,49 +1406,72 @@
     if (a === 'sort') { const k = t.dataset.k; S.scr.sort = S.scr.sort.k === k ? { k, dir: -S.scr.sort.dir } : { k, dir: k === 'name' || k === 'club' ? 1 : (MK.get(k) && MK.get(k).higher_is_better === false ? 1 : -1) }; save(); renderScrn(); return; }
     if (a === 'rmcol') {
       const i = S.scr.cols.indexOf(t.dataset.k);
-      S.scr.cols = S.scr.cols.filter(k => k !== t.dataset.k); save(); renderScrn();
+      colMenuOpen = true; S.scr.cols = S.scr.cols.filter(k => k !== t.dataset.k); save(); renderScrn();
       const xs = document.querySelectorAll('#tx-p-scrn [data-act="rmcol"]'), next = xs[Math.min(i, xs.length - 1)] || document.querySelector('#tx-p-scrn [data-r="addcol"]');
       if (next) next.focus({ preventScroll: true });
       return;
     }
     if (a === 'scrpos') { S.scr.pos = t.dataset.v || null; scrAct = null; save(); renderScrn(); return; }
     if (a === 'scrmode') { S.scr.mode = t.dataset.v; save(); renderScrn(); return; }
-    if (a === 'scrdef') { S.scr.cols = (D.default_columns[S.scr.pos || 'all'] || D.default_columns.all).filter(k => MK.has(k)); save(); renderScrn(); return; }
+    if (a === 'scrdef') { colMenuOpen = true; S.scr.cols = (D.default_columns[S.scr.pos || 'all'] || D.default_columns.all).filter(k => MK.has(k)); save(); renderScrn(); return; }
     if (a === 'scpos') { S.scat.pos = t.dataset.v || null; scatCur = null; save(); renderScat(); return; }
     if (a === 'rtpl') { S.radar.tpl = t.dataset.v; save(); renderRadar(); return; }
     if (a === 'formk') { S.form.k = t.dataset.k; save(); renderForm(); return; }
     if (a === 'club') { S.club = t.dataset.cid; save(); renderTeam(); return; }
-    if (a === 'cmpadd') { addCompare(t.dataset.pid); out(`Comparing ${S.compare.map(id => PID.get(id).name).join(' · ')}.`); return; }
+    if (a === 'cmpadd') { addCompare(t.dataset.pid); out(`Comparing ${listText(S.compare.map(id => PID.get(id).name))}.`); return; }
+    if (a === 'cmpwith') { compareWith(); return; }
     if (a === 'cmprm') { S.compare = S.compare.filter(id => id !== t.dataset.pid); save(); renderAll(); return; }
     if (a === 'cmpclear') { S.compare = []; save(); renderAll(); return; }
     if (a === 'pane') { showPanel(t.dataset.id); return; }
-    if (a === 'fkey') { showPanel(t.dataset.id); const h = $('tx-h-' + t.dataset.id); if (h) h.focus({ preventScroll: true }); return; }
+    if (a === 'fkey') {
+      if (t.dataset.id === 'clips') { if (drawerOpen()) closeDrawer(); else openDrawer(true); return; }
+      // From the phone's panel row, the panel's top always comes up under the row.
+      showPanel(t.dataset.id, true, null, !!t.closest('#txNav')); if (t.closest('#txNav')) navCurrent(t.dataset.id); const h = $('tx-h-' + t.dataset.id); if (h) h.focus({ preventScroll: true }); return;
+    }
+    if (a === 'dclose') { closeDrawer(); return; }
     if (a === 'pclose') { const pp = S.panels.find(p => p.id === t.dataset.id); pp.on = false; save(); renderLayout(); renderAll(); const k = document.querySelector(`.tx-fkey[data-id="${t.dataset.id}"]`); if (k) k.focus(); return; }
-    if (a === 'psize') { const pp = S.panels.find(p => p.id === t.dataset.id); pp.size = SIZE_NEXT[pp.size] || 'S'; save(); renderLayout(); renderAll(); const b = document.querySelector(`[data-act="psize"][data-id="${pp.id}"]`); if (b) b.focus(); return; }
+    if (a === 'psize') { const pp = S.panels.find(p => p.id === t.dataset.id); pp.size = SIZE_NEXT[pp.size] || 'S'; save(); renderLayout(); renderAll(); const b = document.querySelector(`[data-act="psize"][data-id="${pp.id}"]`); if (b) b.focus(); out(`${PANELS.find(x => x.id === pp.id).title}: ${SIZE_NAME[pp.size]}.`); return; }
     if (a === 'pmove') {
       const i = S.panels.findIndex(p => p.id === t.dataset.id), d = +t.dataset.d;
       let j = i + d; while (S.panels[j] && !S.panels[j].on) j += d;
       if (!S.panels[j]) return;
       const [pp] = S.panels.splice(i, 1); S.panels.splice(j, 0, pp); save(); renderLayout(); renderAll();
-      const b = document.querySelector(`[data-act="pmove"][data-id="${pp.id}"][data-d="${d}"]`); if (b) b.focus(); return;
+      // The same arrow keeps focus, unless the panel reached the end: then the other arrow.
+      const b = document.querySelector(`[data-act="pmove"][data-id="${pp.id}"][data-d="${d}"]`), o = document.querySelector(`[data-act="pmove"][data-id="${pp.id}"][data-d="${-d}"]`);
+      (b && !b.disabled ? b : o).focus(); return;
     }
     if (a === 'ws') { switchWs(+t.dataset.i); return; }
     if (a === 'reset') { resetWs(); return; }
     if (a === 'help') { openHelp(t); return; }
     if (a === 'helpclose') { closeHelp(); return; }
-    if (a === 'run') { const c = t.dataset.cmd; if (!$('txHelp').hidden) $('txHelp').hidden = true; $('txIn').value = ''; run(c); $('txIn').focus({ preventScroll: true }); return; }
+    // An example or a suggestion button runs its command. From help (which closes) focus goes to the search box; elsewhere
+    // it stays on the button, so a phone does not pop its keyboard.
+    if (a === 'run') { const c = t.dataset.cmd, fromHelp = !$('txHelp').hidden && $('txHelp').contains(t); if (fromHelp) $('txHelp').hidden = true; $('txIn').value = ''; closeAc(); run(c); if (fromHelp) $('txIn').focus({ preventScroll: true }); return; }
   }
   function wire() {
     const root = document.querySelector('.tx');
     root.addEventListener('click', (e) => {
       const t = e.target.closest('[data-act]');
-      if (!t || !root.contains(t) || t.disabled || !ready) return;
+      if (!ready) return;
+      // A click anywhere on a row of the players table (not on its name or a number) selects that player.
+      if (!t) {
+        const tr = e.target.closest('tbody[data-r="grid"] tr[data-row]');
+        if (tr && !e.target.closest('a, button, input, select, summary')) { scrAct = { pid: tr.dataset.row, c: 0 }; select(tr.dataset.row); }
+        return;
+      }
+      if (!root.contains(t) || t.disabled) return;
       if (t.tagName === 'A') return;
       e.preventDefault(); doAct(t, e);
     });
+    // The Columns menu stays open across repaints (its state is kept here) and closes on a click outside it.
+    root.addEventListener('toggle', (e) => { if (e.target.classList && e.target.classList.contains('tx-menu')) colMenuOpen = e.target.open; }, true);
+    document.addEventListener('click', (e) => {
+      if (!colMenuOpen || e.target.closest('.tx-menu')) return;
+      colMenuOpen = false; for (const m of document.querySelectorAll('.tx .tx-menu[open]')) m.open = false;
+    });
     root.addEventListener('change', (e) => {
       const r = e.target.dataset.r; if (!r || !ready) return;
-      if (r === 'addcol' && e.target.value) { S.scr.cols.push(e.target.value); save(); renderScrn(); const sel = document.querySelector('[data-fid="scr-add"]'); if (sel) sel.focus(); }
+      if (r === 'addcol' && e.target.value) { colMenuOpen = true; S.scr.cols.push(e.target.value); save(); renderScrn(); const sel = document.querySelector('[data-fid="scr-add"]'); if (sel) sel.focus(); }
       if (r === 'scrqual') { S.scr.qual = e.target.checked; scrAct = null; save(); renderScrn(); }
       if (r === 'formk') { S.form.k = e.target.value; save(); renderForm(); }
       if (r === 'scx' || r === 'scy') { S.scat[r === 'scx' ? 'x' : 'y'] = e.target.value; scatCur = null; save(); renderScat(); }
@@ -1279,7 +1490,11 @@
     root.addEventListener('mouseout', (e) => { const el = e.target.closest('[data-mk],[data-tk]'); if (el && el === tipFor && !el.contains(e.relatedTarget) && document.activeElement !== el) hideTip(); });
     root.addEventListener('focusin', (e) => { const el = e.target.closest('[data-mk],[data-tk]'); if (el && !el.closest('#txAc')) showTip(el, !!(el.dataset.pid && el.closest('tbody[data-r="grid"]'))); else hideTip(); });
     root.addEventListener('focusout', (e) => { if (tipFor && e.target === tipFor) hideTip(); });
-    window.addEventListener('scroll', () => { if (tipFor && document.activeElement !== tipFor) hideTip(); }, { passive: true });
+    let navT = 0;
+    window.addEventListener('scroll', () => {
+      if (tipFor && document.activeElement !== tipFor) hideTip();
+      if (!navT) navT = setTimeout(() => { navT = 0; if (ready) navCurrent(); }, 80);
+    }, { passive: true });
     // the command line
     const inp = $('txIn');
     $('txForm').addEventListener('submit', (e) => {
@@ -1320,10 +1535,20 @@
         return;
       }
       if (!location.hash.startsWith('#scout/terminal') || !ready) return;
-      if (e.key === 'Escape') { hideTip(); closeHelp(); if (acItems.length) closeAc(); }
+      // Escape closes one thing at a time: help, the Columns menu, the suggestions, then the clips drawer.
+      if (e.key === 'Escape') {
+        hideTip();
+        if (!$('txHelp').hidden) { closeHelp(); return; }
+        const menu = document.querySelector('.tx .tx-menu[open]');
+        if (menu) { const back = menu.contains(document.activeElement); colMenuOpen = false; menu.open = false; if (back) menu.querySelector('summary').focus(); return; }
+        if (acItems.length) { closeAc(); return; }
+        if (drawerOpen()) { closeDrawer(); return; }
+      }
       if (e.altKey && /^Digit[1-9]$/.test(e.code)) {
         const p = PANELS[+e.code.slice(5) - 1]; if (!p) return;
-        e.preventDefault(); showPanel(p.id); const h = $('tx-h-' + p.id); if (h) h.focus({ preventScroll: true });
+        e.preventDefault();
+        if (p.drawer) { if (drawerOpen()) closeDrawer(); else openDrawer(true); return; }
+        showPanel(p.id); const h = $('tx-h-' + p.id); if (h) h.focus({ preventScroll: true });
       }
     });
   }
@@ -1362,7 +1587,7 @@
   let lastW = window.innerWidth, resizeT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(resizeT);
-    resizeT = setTimeout(() => { if (!ready || window.innerWidth === lastW) return; lastW = window.innerWidth; if (visible('form')) renderForm(); if (visible('scat')) renderScat(); }, 150);
+    resizeT = setTimeout(() => { if (!ready) return; placeNav(); navCurrent(); if (window.innerWidth === lastW) return; lastW = window.innerWidth; if (visible('form')) renderForm(); if (visible('scat')) renderScat(); }, 150);
   });
   window.addEventListener('hashchange', onRoute);
   onRoute();

@@ -334,29 +334,43 @@
         </section>
       </div>
 
-      <!-- Terminal: the Scout terminal (part B6). A command line with Bloomberg-style mnemonics over linked panels; every
-           number opens the moments behind it. terminal.js fills it from terminal.json (part A's metrics engine, exported by
-           tools/export_terminal.py); clips play from the local app named there. Workspaces live in this browser only. -->
+      <!-- Terminal: the Scout terminal (part B6). A search box (names, clubs, stats and plain commands) over linked panels;
+           every number opens the moments behind it in the clips drawer. terminal.js fills it from terminal.json (part A's
+           metrics engine, exported by tools/export_terminal.py); clips play from the app named there. Saved layouts live in
+           this browser only. -->
       <div class="pv tx" data-sc="terminal" hidden>
         <h1 class="sr">Terminal</h1>
         <div class="tx-top">
-          <form class="tx-cmd" id="txForm" role="search" autocomplete="off">
-            <label class="tx-prompt" for="txIn">CMD&gt;</label>
-            <div class="tx-combo">
-              <input id="txIn" type="text" role="combobox" aria-expanded="false" aria-controls="txAc" aria-autocomplete="list"
-                     spellcheck="false" autocapitalize="off" placeholder="TOURE · RANK FW npxg · CMP · SCAT · TEAM BRO · HELP">
-              <ul id="txAc" class="tx-ac" role="listbox" aria-label="Suggestions" hidden></ul>
-            </div>
-            <button type="submit" class="tx-go">&lt;GO&gt;</button>
-            <kbd class="tx-kbd" title="Cmd+K or Ctrl+K focuses the command line">&#8984;K</kbd>
-          </form>
+          <div class="tx-row">
+            <form class="tx-cmd" id="txForm" role="search" autocomplete="off">
+              <label class="sr" for="txIn">Search a player, club or stat</label>
+              <svg class="tx-sic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>
+              <div class="tx-combo">
+                <input id="txIn" type="text" role="combobox" aria-expanded="false" aria-controls="txAc" aria-autocomplete="list"
+                       spellcheck="false" autocapitalize="off" enterkeyhint="search" placeholder="Search a player, club or stat…">
+                <ul id="txAc" class="tx-ac" role="listbox" aria-label="Suggestions" hidden></ul>
+              </div>
+              <kbd class="tx-kbd" title="Cmd+K or Ctrl+K goes to the search box">&#8984;K</kbd>
+              <button type="submit" class="tx-go">Search</button>
+            </form>
+            <div class="tx-sel" id="txSel" role="group" aria-label="Selected player"></div>
+          </div>
+          <div class="tx-ex" id="txEx" role="group" aria-label="Examples"></div>
           <p class="tx-out" id="txOut" role="status" aria-live="polite"></p>
-          <div class="tx-fkeys" id="txKeys" role="toolbar" aria-label="Panels"></div>
+          <div class="tx-line">
+            <div class="tx-fkeys" id="txKeys" role="toolbar" aria-label="Panels"></div>
+            <div class="tx-meta" id="txMeta"></div>
+          </div>
           <div class="tx-help" id="txHelp" role="dialog" aria-labelledby="txHelpH" hidden></div>
         </div>
-        <div class="tx-meta" id="txMeta"></div>
-        <div class="tx-sel" id="txSel" aria-label="Selected players"></div>
+        <nav class="tx-mnav" id="txNav" aria-label="Jump to a panel"></nav>
         <div class="tx-grid" id="txGrid"></div>
+        <p class="tx-foot" id="txFoot"></p>
+        <aside class="tx-drawer" id="txDrawer" role="dialog" aria-modal="false" aria-labelledby="txDrawerH" hidden>
+          <header class="tx-dh"><h2 id="txDrawerH" tabindex="-1">Clips</h2><span class="tx-pctx" id="txDrawerCtx"></span>
+            <button type="button" class="tx-dclose" data-act="dclose" aria-label="Close clips" title="Close (Esc)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg> Close</button></header>
+          <div class="tx-db" id="txDrawerBody"></div>
+        </aside>
         <div class="tx-tip" id="txTip" role="tooltip" hidden></div>
       </div>
 
