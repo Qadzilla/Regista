@@ -252,6 +252,15 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
   number, paged through `evidence_offset`), and the sandbox reviewers' four open items are fixed. Added read-only API:
   `/api/players/{id}/shots`, `/api/players/{id}/heatmap` (league fixtures only), `/api/teams/{club_id}/shots`, `digits`/`min_attempts`/`pitch` in `/api/metrics`, `minute`
   on evidence, `offset` on the screen.
+- **The friendlier terminal (approved by Zaid 2026-10-25; branch `ux/terminal-friendly`, not merged, PR waits for his
+  go-ahead):** the sandbox's "intuitive" round ported into the live Terminal: a search box (plain words and questions,
+  mnemonics still work) read by `static/scout/terminal-words.js` (pure, tested in node with the real catalogue: every
+  metric by key, label or short label in "most <stat>", "<stat> per 90", "who has the most <stat>"…), plain panel names,
+  a clips drawer, numbers with no moments as plain text (`evidence_total` added to `/api/terminal/screen` cells and
+  scatter points: each event once, as the drawer lists it; evidence also carries `moments` beside `total`, which counts a
+  ratio's pass and its completion twice), saved layouts v3 (v2 still loads); "most"/"highest" ranks the biggest numbers
+  first even where lower is better ("most yellow cards"). Reports `docs/redesign/terminal-friendly/build.md`,
+  `safeguard.md`.
 - **Femi Toure (pl_bro_09) is clearly the star** (Zaid, 2026-10-24): the league's top scorer with 5 league goals, none a
   penalty, two more than anyone (rounds 1, 1, 6, 8, 10), and the leader in goals, non-penalty goals and npxG per 90 in
   the terminal; the demo's hook. His hidden ratings do it (league attributes version 2, `STAR_RATINGS`: finishing 99,
