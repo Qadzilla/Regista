@@ -1604,25 +1604,38 @@ class SeasonMetrics:
         if m.group == "physical":
             items = self._match_evidence(ps, key)
             page = items[offset:] if limit is None else items[offset:offset + limit]
-            return {"keys": [key], "total": len(items), "offset": offset, "items": page, "per_match": True}
+            return {"keys": [key], "total": len(items), "moments": len(items), "offset": offset, "items": page, "per_match": True}
         rows = []
         for k in keys:
             for e in ps.evidence.get(k, []):
                 rows.append((k, e))
         rows.sort(key=lambda r: (r[1][0], r[1][3] or 0.0))
         total = len(rows)
+        moments = len({self._moment_id(e) for _, e in rows})
         rows = rows[offset:] if limit is None else rows[offset:offset + limit]
-        return {"keys": list(keys), "total": total, "offset": offset, "items": [self._evidence_item(k, e) for k, e in rows],
-                "per_match": False}
+        return {"keys": list(keys), "total": total, "moments": moments, "offset": offset,
+                "items": [self._evidence_item(k, e) for k, e in rows], "per_match": False}
 
     def evidence_total(self, ps: PlayerSeason, key: str) -> int:
-        """How many items ``evidence`` lists for this number (its ``total``), without building them: the moments behind
-        an event metric, or the matches behind a physical one. The Scout terminal shows it ("play its 5 moments") and
-        draws a number with nothing behind it as plain text."""
+        """How many moments are behind this number (``evidence``'s ``moments``), without building the items: the distinct
+        events behind an event metric, or the matches behind a physical one. A ratio or a sum lists an event once per key
+        it counts toward (``total`` counts those rows: a pass and its completion are two), and a reader shows each event
+        once, so this counts each event once. The Scout terminal shows it ("play its 124 moments", the rows its clips
+        drawer plays) and draws a number with nothing behind it as plain text."""
         m = CATALOGUE[key]
         if m.group == "physical":
             return len(self._match_evidence(ps, key))
-        return sum(len(ps.evidence.get(k, [])) for k in m.evidence_keys())
+        keys = m.evidence_keys()
+        if len(keys) == 1:
+            return len(ps.evidence.get(keys[0], []))
+        return len({self._moment_id(e) for k in keys for e in ps.evidence.get(k, [])})
+
+    @staticmethod
+    def _moment_id(e: tuple) -> tuple:
+        """One event, however many keys list it: its match and event id (or its time, for an event without an id), the
+        way a reader merges a ratio's or a sum's rows (by match_id and event_id, else t as the item rounds it)."""
+        mi, _pid, eid, t, _value, _note = e
+        return (mi, eid) if eid else (mi, None, None if t is None else round(t, 2))
 
     def _evidence_item(self, key: str, e: tuple) -> Record:
         mi, pid, eid, t, value, note = e

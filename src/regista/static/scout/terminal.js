@@ -177,11 +177,12 @@
     }
     return keys.every(k => COLS.has(k) || !MK.has(k));
   }
-  // One player's every metric (the cells, each with how many moments are behind it), merged into the table of cells.
+  // One player's every metric (the cells, each with how many moments are behind it: `moments` counts each event once, as
+  // the drawer lists it, where `total` counts a ratio's pass and its completion twice), merged into the table of cells.
   const fullKey = (pid) => 'full|' + pid;
   const fullFn = (pid) => () => R.api(`/api/players/${enc(pid)}/metrics?evidence_limit=0`).then(j => {
     const cs = CELLS.get(pid) || {};
-    for (const [k, c] of Object.entries(j.metrics || {})) { const { evidence, ...cell } = c; cs[k] = { ...cell, evidence_total: evidence ? evidence.total : null }; }
+    for (const [k, c] of Object.entries(j.metrics || {})) { const { evidence, ...cell } = c; cs[k] = { ...cell, evidence_total: evidence ? (evidence.moments ?? evidence.total) : null }; }
     CELLS.set(pid, cs); addPlayers([j]); return true;
   });
   const full = (pid, panel) => want(fullKey(pid), fullFn(pid), panel);
@@ -1558,7 +1559,7 @@
     const it = W.interpret(t);
     if (it.do === 'help') { openHelp(); out('Help is open. Escape closes it.'); return; }
     if (it.do === 'rank') return cmdRank(it.rest);
-    if (it.do === 'rankKey') return cmdRank('', it.club, { m: MK.get(it.key), pos: it.pos });
+    if (it.do === 'rankKey') return cmdRank('', it.club, { m: MK.get(it.key), pos: it.pos, most: it.most });
     if (it.do === 'minutes') return rankMinutes(it.pos, it.club);
     if (it.do === 'cmp') return cmdCmp(it.rest);
     if (it.do === 'scat') return cmdScat(it.rest);
@@ -1659,12 +1660,14 @@
       m = r.m;
     }
     if (!pos && gkOnly(m)) pos = 'GK';
+    // "most yellow cards": the most first, though fewer is better; otherwise a stat ranks its better way first.
+    const low = m.higher_is_better === false && !(given && given.most);
     const g = gen;
     S.scr.pos = pos === 'ALL' ? null : pos;
     // The ranked column goes first, so the order of the rows is explained by the first number the scout reads (at 375 px
     // only one stat column fits).
     S.scr.cols = [m.key, ...S.scr.cols.filter(k => k !== m.key)].slice(0, MAX_COLS);
-    S.scr.sort = { k: m.key, dir: m.higher_is_better === false ? 1 : -1 };
+    S.scr.sort = { k: m.key, dir: low ? 1 : -1 };
     // A club filter ("best finishers at Brookfield") goes in the table's own filter box, where it shows and clears.
     S.scr.q = cl ? cl.name : ''; save();
     const finish = () => {
@@ -1677,7 +1680,7 @@
       const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
       const nr = ranks.filter(x => x != null).length, un = rows.length - nr;
       // The line first, then the scroll: on a phone the line is in the page flow and pushes the table down.
-      out(`${cap1(posText(S.scr.pos))}${cl ? ` at ${cl.name}` : ''} ranked by ${m.label}${m.higher_is_better === false ? ' (lowest first: lower is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
+      out(`${cap1(posText(S.scr.pos))}${cl ? ` at ${cl.name}` : ''} ranked by ${m.label}${low ? ' (lowest first: lower is better)' : m.higher_is_better === false ? ' (most first; fewer is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
       showPanel('scrn', true, scrollTable(m.key));
     };
     if (ensureCols([m.key, ...S.scr.cols])) finish();

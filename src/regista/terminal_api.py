@@ -142,7 +142,8 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
                  limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0, le=MAX_OFFSET)) -> dict[str, Any]:
     """Players with the chosen metric columns (default: the position's core set). Each cell: value (per 90, ratio, ...),
     the count behind it, the percentile among position peers, whether the player qualifies, and ``evidence_total`` (how
-    many moments, or for a physical number matches, ``/api/players/{id}/metrics?evidence=KEY`` lists behind it). Sorted by ``sort`` (default
+    many moments, or for a physical number matches, are behind it: the evidence's ``moments``, each event once, where a
+    ratio's ``total`` counts a pass and its completion twice). Sorted by ``sort`` (default
     the first column), best first unless ``order`` says otherwise; ``min_minutes`` defaults to the qualifying minimum.
     ``offset`` skips that many rows, so a reader can page past ``limit`` (``total`` counts every row)."""
     keys = _keys(metrics_, default=DEFAULT_COLUMNS.get(position, DEFAULT_COLUMNS[None]))
@@ -221,8 +222,9 @@ async def player_metrics(gid: str, evidence: Annotated[str | None, Query(pattern
                          evidence_offset: int = Query(0, ge=0, le=MAX_OFFSET),
                          group: Annotated[str | None, Query(pattern=r"^[a-z]{1,20}$")] = None) -> dict[str, Any]:
     """Every metric (or one ``group``) for one player: value, count, percentile, peers, and evidence (the first
-    ``evidence_limit`` items behind each number, default 10, in match order, with the total). ``evidence=KEY`` returns that
-    metric's evidence instead of the whole table: a page of up to 500 items from ``evidence_offset`` (default 0), or
+    ``evidence_limit`` items behind each number, default 10, in match order, with ``total`` and ``moments``: ``total``
+    counts the rows, one per key, so a ratio's pass and its completion are two; ``moments`` counts each event once).
+    ``evidence=KEY`` returns that metric's evidence instead of the whole table: a page of up to 500 items from ``evidence_offset`` (default 0), or
     ``evidence_limit`` of them; page on while ``offset + len(items) < total`` to read every moment.
     ``evidence_limit=0`` returns no items (the totals only), for event and physical metrics alike."""
     if evidence:

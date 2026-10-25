@@ -257,7 +257,10 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
   mnemonics still work) read by `static/scout/terminal-words.js` (pure, tested in node with the real catalogue: every
   metric by key, label or short label in "most <stat>", "<stat> per 90", "who has the most <stat>"…), plain panel names,
   a clips drawer, numbers with no moments as plain text (`evidence_total` added to `/api/terminal/screen` cells and
-  scatter points), saved layouts v3 (v2 still loads). Report `docs/redesign/terminal-friendly/build.md`.
+  scatter points: each event once, as the drawer lists it; evidence also carries `moments` beside `total`, which counts a
+  ratio's pass and its completion twice), saved layouts v3 (v2 still loads); "most"/"highest" ranks the biggest numbers
+  first even where lower is better ("most yellow cards"). Reports `docs/redesign/terminal-friendly/build.md`,
+  `safeguard.md`.
 - **Femi Toure (pl_bro_09) is clearly the star** (Zaid, 2026-10-24): the league's top scorer with 5 league goals, none a
   penalty, two more than anyone (rounds 1, 1, 6, 8, 10), and the leader in goals, non-penalty goals and npxG per 90 in
   the terminal; the demo's hook. His hidden ratings do it (league attributes version 2, `STAR_RATINGS`: finishing 99,

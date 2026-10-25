@@ -9,6 +9,8 @@
 //   help · rank {rest} · cmp {rest} · scat {rest} · team {rest} · hl {rest} · panel {head, rest} · club {club}
 //   player {p, alts} · stat {p, alts, key} · hlPlayer {p, alts} · hlFocus · rankKey {key, pos, club}
 //   minutes {pos, club} · many {keys, pos, club, p} · none
+// rankKey carries most: true when the question asks for the most or the highest (the biggest numbers first, whichever
+// way the stat is better).
 // Every stat in the catalogue is found by its key, its label or its short column label, alone or inside a question
 // ("most <stat>", "<stat> per 90", "who has the most <stat>", "top 5 <stat>", "best <stat>").
 (function (root) {
@@ -107,6 +109,7 @@
   // Words that ask for the most of something, read off one at a time ("top 5", "the most", "highest").
   const SUPER = /^(the|best|top|most|leading|greatest|highest|good|great|strongest|biggest|elite|\d+)\s+/;
   const MINUTES_W = /^(minutes|minutes played|mins|playing time|game time)$/;
+  const MOST = /\b(most|highest|biggest|largest|greatest)\b/;
 
   function create(ctx) {
     const metrics = () => ctx.metrics() || [];
@@ -203,7 +206,10 @@
       for (let m = s0.match(OPEN); m; m = s0.match(OPEN)) { if (/^(play|watch|see|i want|let me)/.test(m[1])) watch = true; if (/^(who|which)/.test(m[1])) who = true; s0 = s0.slice(m[0].length); asked = true; }
       if (who) { const v = s0.split(' ')[0]; if (VERB[v]) s0 = [VERB[v], ...s0.split(' ').slice(1).filter(w => !/^(the|most|more|best|often|goals|chances|ground|ball)$/.test(w))].join(' '); }
       if (!s0) return null;
-      const statIntent = (m, pos, cl) => ({ do: 'rankKey', key: m.key, pos: pos || null, club: cl || null });
+      // "most", "highest": the biggest numbers first, even for a stat where lower is better ("most yellow cards" lists who
+      // has the most cards). "best" and "top" keep the stat's better way ("best goals conceded" is the fewest).
+      const most = MOST.test(norm(t));
+      const statIntent = (m, pos, cl) => ({ do: 'rankKey', key: m.key, pos: pos || null, club: cl || null, ...(most ? { most: true } : {}) });
       // The whole question, then each word of "the most…" read off it, as one stat's name: every stat by its key, label or
       // short label ("most xG", "the most touches in the box", "top 5 non-penalty xG", "best save %"). Tried before
       // position and club words, which some stat names hold ("Keeper passes", "On-pitch goals for").

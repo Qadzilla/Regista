@@ -316,7 +316,7 @@ const TW = window.Regista.terminalWords;
 const W = TW.create({ metrics: () => L.cat.metrics, defaults: () => L.cat.default_columns, clubs: () => L.season.clubs,
   players: () => players, byId: (id) => players.find(p => p.id === id), focus: () => players.find(p => p.id === 'pl_bro_09') });
 const shape = (r) => ({ do: r.do, key: r.key || null, keys: r.keys || null, pos: r.pos || null, rest: r.rest || null,
-  head: r.head || null, p: r.p ? r.p.id : null, club: r.club ? r.club.club_id : null });
+  head: r.head || null, p: r.p ? r.p.id : null, club: r.club ? r.club.club_id : null, most: !!r.most });
 const out = { short: Object.fromEntries(L.cat.metrics.map(m => [m.key, TW.shortLabel(m)])), loose: {}, q: {} };
 for (const m of L.cat.metrics) out.loose[m.key] = [...new Set([m.key, m.label, TW.shortLabel(m)].map(TW.loose))];
 for (const q of JSON.parse(process.argv[3])) out.q[q] = shape(W.interpret(q));
@@ -444,7 +444,7 @@ def test_the_screen_and_scatter_say_how_many_moments_are_behind_each_number():
     toure = next(p for p in scr["players"] if p["global_id"] == "pl_bro_09")
     for k in ("goals", "assists", "distance"):
         ev = c.get("/api/players/pl_bro_09/metrics", params={"evidence": k, "evidence_limit": 0}).json()["evidence"]
-        assert toure["values"][k]["evidence_total"] == ev["total"], k
+        assert toure["values"][k]["evidence_total"] == ev["total"] == ev["moments"], k
     assert toure["values"]["goals"]["evidence_total"] == 5 and toure["values"]["assists"]["evidence_total"] == 0
     sc = c.get("/api/terminal/scatter", params={"x": "goals", "y": "assists", "min_minutes": 0}).json()
     pt = next(p for p in sc["points"] if p["global_id"] == "pl_bro_09")
@@ -459,7 +459,7 @@ def test_numbers_with_nothing_behind_them_are_plain_text(js, css):
     assert ev.index("t.classList.contains('z')") < ev.index("return openEvidence(")
     assert ".pf .tx .tx-n.z { text-decoration: none; cursor: default; }" in css and ".pf .tx .tx-n.z::before { display: none; }" in css
     # a clickable number says what it plays: "▶ 5 moments", from the API's evidence_total
-    assert "evidence_total: evidence ? evidence.total : null" in js and "click to play" in _fn(js, "tipHtml")
+    assert "evidence_total: evidence ? (evidence.moments ?? evidence.total) : null" in js and "click to play" in _fn(js, "tipHtml")
 
 
 def test_plain_panel_names_and_their_shortcuts(js):
@@ -505,3 +505,44 @@ def test_the_phone_row_and_the_wide_layout(js, css):
     # move, size and close show on hover and keyboard focus, always on touch screens
     assert ".pf .tx-panel:hover .tx-pbtns, .pf .tx-panel:focus-within .tx-pbtns { opacity: 1; }" in css
     assert "@media (hover: none) { .pf .tx-pbtns { opacity: 1; } }" in css
+
+
+def test_a_ratios_count_is_the_moments_the_drawer_plays_each_event_once():
+    # A ratio's evidence lists each event once per key (a pass, and again if completed): Toure's pass completion is 92 of
+    # 124, 216 rows. The drawer merges them into 124 rows, so "play its N moments" must say 124, not 216 (safeguard).
+    from regista import api
+
+    c = TestClient(api.app)
+    scr = c.get("/api/terminal/screen", params={"min_minutes": 0, "limit": 200, "metrics": "pass_pct,npxg_plus_xa"}).json()
+    toure = next(p for p in scr["players"] if p["global_id"] == "pl_bro_09")
+    for k in ("pass_pct", "npxg_plus_xa"):
+        items, offset = [], 0
+        while True:
+            ev = c.get("/api/players/pl_bro_09/metrics", params={"evidence": k, "evidence_offset": offset}).json()["evidence"]
+            items += ev["items"]
+            offset += len(ev["items"])
+            if not ev["items"] or offset >= ev["total"]:
+                break
+        merged = {(it["match_id"], it["event_id"] or f"t{it['t']}") for it in items}   # terminal.js mergeEvidence
+        assert toure["values"][k]["evidence_total"] == ev["moments"] == len(merged), k
+    pp = toure["values"]["pass_pct"]
+    assert pp["evidence_total"] == pp["den"] == 124
+    full = c.get("/api/players/pl_bro_09/metrics", params={"evidence_limit": 0}).json()["metrics"]["pass_pct"]["evidence"]
+    assert full["moments"] == 124 and full["total"] == 216 and full["items"] == []
+    sc = c.get("/api/terminal/scatter", params={"x": "pass_pct", "y": "goals", "min_minutes": 0}).json()
+    assert next(p for p in sc["points"] if p["global_id"] == "pl_bro_09")["x_evidence_total"] == 124
+
+
+def test_most_of_a_stat_where_lower_is_better_lists_the_most_first(league, js):
+    # "most yellow cards" asks who has the most cards; it ranked the players with none first, as "best" would (safeguard).
+    # "most", "highest" and the like list the biggest numbers first; "best", "top" and a bare stat keep the better way.
+    q = interpret(league, ["most yellow cards", "who has the most yellow cards?", "highest goals conceded", "most fouls committed per 90",
+                           "best goals conceded", "top yellow cards", "yellow cards", "most goals"])["q"]
+    for k in ("most yellow cards", "who has the most yellow cards?", "highest goals conceded", "most fouls committed per 90", "most goals"):
+        assert q[k]["do"] == "rankKey" and q[k]["most"], k
+    for k in ("best goals conceded", "top yellow cards", "yellow cards"):
+        assert q[k]["do"] == "rankKey" and not q[k]["most"], k
+    assert "{ m: MK.get(it.key), pos: it.pos, most: it.most }" in _fn(js, "run")
+    rank = _fn(js, "cmdRank")
+    assert "const low = m.higher_is_better === false && !(given && given.most);" in rank
+    assert "S.scr.sort = { k: m.key, dir: low ? 1 : -1 };" in rank and "(most first; fewer is better)" in rank
