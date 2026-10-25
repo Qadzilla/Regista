@@ -179,10 +179,13 @@
       try { localStorage.setItem(LS, JSON.stringify(store)); } catch (e) { storageOK = false; paintMeta(); }
     }, 120);
   }
+  // A click on 1, 2 or 3 loads that layout; there is no save button, since every change saves itself into the current one.
   function switchWs(i) {
+    const was = store.cur, empty = !store.ws[i];
     store.cur = i; S = store.ws[i] = clean(store.ws[i]);
     save(); paintMeta(); renderLayout(); renderAll();
-    out(`Saved layout ${i + 1}.`);
+    out(i === was ? `Layout ${i + 1} is the current one (changes save automatically).`
+      : `Switched to layout ${i + 1}${empty ? ', which was empty, so it starts from the default' : ''} (changes save automatically).`);
   }
   function resetWs() {
     S = store.ws[store.cur] = defaults();
@@ -204,8 +207,8 @@
   const noisy = (m) => m.noisy ? '<span class="tx-noisy" role="img" aria-label="small sample, read with care">≈</span>' : '';
   // Short column labels, so the table's headers fit on one or two lines; the full name, definition and source stay in the
   // tooltip on hover and focus.
-  const SHORT = { np_goals_minus_xg: 'NP goals − xG', tkl_int_padj: 'Tkl + int (adj.)', progressive_passes_received: 'Prog. passes received',
-    sot_faced: 'On target faced', npxg_plus_xa: 'NP xG + xA', xa: 'xA', sca: 'Shot-creating actions', gca: 'Goal-creating actions',
+  const SHORT = { np_goals_minus_xg: 'NP goals − xG', tkl_int_padj: 'Tkl + int (adj.)', progressive_passes_received: 'Prog. received',
+    sot_faced: 'On target faced', npxg_plus_xa: 'NP xG + xA', xa: 'xA', sca: 'Shot-creating', gca: 'Goal-creating',
     pressured_pass_pct: 'Compl. under pressure', passes_under_pressure_completed: 'Under pressure, completed', clean_sheet_pct: 'Clean sheet %',
     clean_sheets: 'Clean sheets', gk_avg_pass_length: 'Keeper pass length', peak_speed: 'Top speed', peak_speed_mean: 'Top speed (typical)' };
   function shortLabel(m) {
@@ -223,7 +226,21 @@
     const ev = p && p.evidence && p.evidence[mk];
     return ev ? plural(ev.total, ev.per_match ? 'match' : 'moment') : null;
   }
-  const playText = (p, mk) => { const n = evCount(p, mk); return n ? `play its ${n}` : 'open its moments'; };
+  // A number with no moments behind it (a 0.00, most often) is shown as plain text: nothing to play.
+  const zeroEv = (p, mk) => { const ev = p && p.evidence && p.evidence[mk]; return !!ev && !(ev.total > 0); };
+  const playText = (p, mk) => { if (zeroEv(p, mk)) return 'no moments to play'; const n = evCount(p, mk); return n ? `play its ${n}` : 'open its moments'; };
+  const zc = (p, mk) => zeroEv(p, mk) ? ' z' : '';
+  // A value with its unit as people read it: "1.64 per 90", "5 this season", "71.4%".
+  function withUnit(m, v) {
+    const s = fmt(m, v); if (s === '–') return s;
+    const u = ['m', 'km/h'].includes(m.unit) ? ` ${m.unit}` : '';
+    if (m.kind === 'per90') return `${s}${u} per 90`;
+    if (m.kind === 'padj') return `${s}${u} per 90 (possession-adjusted)`;
+    if (m.kind === 'total') return `${s} this season`;
+    return s + u;
+  }
+  // The unit mark after a stat's name in the metric tables: "/90" for per-90 numbers, "total" for season counts.
+  const unitMark = (m) => m.kind === 'per90' || m.kind === 'padj' ? '<span class="tx-dim tx-u"> /90</span>' : m.kind === 'total' ? '<span class="tx-dim tx-u"> total</span>' : '';
   function shade(m, pct) {
     if (pct == null) return '';
     const a = (0.05 + 0.4 * pct / 100).toFixed(3);
@@ -323,7 +340,7 @@
     // The players table runs down beside the two panels that follow it when they are small (the default: the player card
     // and the radar stacked on its right), on screens wide enough for that.
     const tall = on.length >= 3 && on[0].id === 'scrn' && on[0].size === 'L' && on[1].size === 'S' && on[2].size === 'S';
-    g.innerHTML = on.map((pp, i) => {
+    const secs = on.map((pp, i) => {
       const p = PANELS.find(x => x.id === pp.id), t = esc(p.title), nx = SIZE_NEXT[pp.size];
       return `<section class="tx-panel s-${pp.size}${tall && i === 0 ? ' tall' : ''}" id="tx-p-${p.id}" data-panel="${p.id}" aria-labelledby="tx-h-${p.id}">
         <header class="tx-ph"><h2 id="tx-h-${p.id}" tabindex="-1">${t}</h2>
@@ -331,18 +348,47 @@
           <span class="tx-pbtns" role="group" aria-label="Arrange ${t}">
             <button type="button" data-act="pmove" data-id="${p.id}" data-d="-1" aria-label="Move ${t} earlier" title="Move earlier"${i === 0 ? ' disabled' : ''}>${ICON.left}</button><button type="button" data-act="pmove" data-id="${p.id}" data-d="1" aria-label="Move ${t} later" title="Move later"${i === on.length - 1 ? ' disabled' : ''}>${ICON.right}</button><button type="button" data-act="psize" data-id="${p.id}" aria-label="${t}: ${SIZE_NAME[pp.size]}, make it ${SIZE_NAME[nx]}" title="Size: ${SIZE_NAME[pp.size]} (click for ${SIZE_NAME[nx]})">${ICON.size}</button><button type="button" data-act="pclose" data-id="${p.id}" aria-label="Hide ${t}" title="Hide (its button above brings it back)">${ICON.close}</button></span></header>
         <div class="tx-pb" data-body></div></section>`;
-    }).join('') || '<p class="tx-empty">Every panel is hidden. Press a panel button above to bring one back.</p>';
+    });
+    // Wide screens: the table in a left column, the card and radar in a right one; the panels after them go in the grid
+    // below, and the first of them move up under the table while they fit (fitTall). Narrower, the columns dissolve
+    // (display: contents) and every panel is a grid item again.
+    g.innerHTML = !secs.length ? '<p class="tx-empty">Every panel is hidden. Press a panel button above to bring one back.</p>'
+      : tall ? `<div class="tx-split"><div class="tx-colL">${secs[0]}</div><div class="tx-colR">${secs[1]}${secs[2]}</div></div>${secs.slice(3).join('')}`
+      : secs.join('');
     watchTall(tall ? [on[1].id, on[2].id] : null);
     paintKeys(); paintNav();
   }
-  // The tall players table is capped at the height of the two panels beside it, kept in step as they change.
-  // fitTall runs after every paint too, since a hidden tab may hold back ResizeObserver callbacks.
-  let tallRO = null, tallIds = null;
+  // The tall players table is capped at the height of the card and radar beside it. When the table is shorter than they
+  // are (18 forwards, say), the panels that come next (form, shots, touch map…) move up under it, in their order, while
+  // they fit, so no empty block is left beside the radar; when it grows (every position), they move back down. Kept in
+  // step as the panels change; it runs after the paints that change these heights too, since a hidden tab may hold
+  // back ResizeObserver callbacks.
+  let tallRO = null, tallIds = null, balancing = false, bulk = false;
   function fitTall() {
-    const sc = $('tx-p-scrn'), a = tallIds && $('tx-p-' + tallIds[0]), b = tallIds && $('tx-p-' + tallIds[1]);
-    if (!sc || !a || !b) return;
-    const gap = parseFloat(getComputedStyle($('txGrid')).rowGap) || 8;
-    sc.style.setProperty('--tx-tallh', `${Math.max(480, Math.floor(a.offsetHeight + gap + b.offsetHeight))}px`);
+    const sc = $('tx-p-scrn'), L = document.querySelector('#txGrid .tx-colL'), R = document.querySelector('#txGrid .tx-colR');
+    if (!sc || !L || !R || balancing || bulk) return;
+    balancing = true;
+    const a = document.activeElement, split = L.parentElement;
+    const widthOf = (id) => { const b = document.querySelector(`#tx-p-${id} [data-body]`); return b ? b.clientWidth : 0; };
+    const w0 = { form: widthOf('form'), scat: widthOf('scat') };
+    try {
+      const wide = getComputedStyle(split).display !== 'contents', rh = R.offsetHeight;
+      sc.style.setProperty('--tx-tallh', `${Math.max(480, Math.floor(rh))}px`);
+      const fillers = () => [...L.children].filter(el => el !== sc && el.classList.contains('tx-panel'));
+      const fits = () => L.offsetHeight <= rh + 40;
+      // Too tall (or not wide): the last panel moved up goes back down, first in line after the columns.
+      let f;
+      while ((f = fillers()).length && (!wide || !fits())) split.after(f[f.length - 1]);
+      if (wide) {
+        for (let next = split.nextElementSibling; next && next.classList.contains('tx-panel'); next = split.nextElementSibling) {
+          L.appendChild(next);
+          if (!fits()) { split.after(next); break; }
+        }
+      }
+      // Form and Scatter are drawn at their panel's width: redraw the ones that changed column.
+      for (const id of ['form', 'scat']) if (visible(id) && widthOf(id) !== w0[id]) RENDER[id]();
+    } finally { balancing = false; }
+    if (a && a !== document.body && a !== document.activeElement && document.contains(a)) a.focus({ preventScroll: true });
   }
   function watchTall(ids) {
     if (tallRO) { tallRO.disconnect(); tallRO = null; }
@@ -397,7 +443,9 @@
   }
   function renderAll() {
     renderSel();
-    for (const p of S.panels) if (p.on && RENDER[p.id]) RENDER[p.id]();
+    bulk = true;
+    try { for (const p of S.panels) if (p.on && RENDER[p.id]) RENDER[p.id](); } finally { bulk = false; }
+    fitTall();
   }
   // Repaint one panel body, keeping keyboard focus and scroll position where they were.
   function paint(id, html, ctx) {
@@ -407,7 +455,7 @@
     const scs = [...body.querySelectorAll('.tx-scroll')].map(s => [s.scrollTop, s.scrollLeft]);
     if (tipFor && body.contains(tipFor)) hideTip();
     body.innerHTML = html;
-    if (tallIds && tallIds.includes(id)) fitTall();
+    if (tallIds && (tallIds.includes(id) || id === 'scrn' || sec.parentElement.classList.contains('tx-colL'))) fitTall();
     [...body.querySelectorAll('.tx-scroll')].forEach((s, i) => { if (scs[i]) { s.scrollTop = scs[i][0]; s.scrollLeft = scs[i][1]; } });
     if (fid) {
       const el = body.querySelector(`[data-fid="${CSS.escape(fid)}"]`);
@@ -601,16 +649,18 @@
     const b = $('txClipBody'); if (!b) return;
     const head = b.querySelector('[data-r="head"]'), list = b.querySelector('[data-r="list"]');
     const ctx = $('txDrawerCtx');
-    b.querySelector('.tx-screen').hidden = !reel;
-    b.querySelector('.tx-clipctl').hidden = !reel;
+    // Nothing to play (a number with no moments, a player with no shots): no player and no controls, just the plain reason.
+    const empty = !!reel && !reel.items.length;
+    b.querySelector('.tx-screen').hidden = !reel || empty;
+    b.querySelector('.tx-clipctl').hidden = !reel || empty;
     if (!reel) {
       head.innerHTML = '<p class="tx-dim">Click any underlined number in any panel: the moments behind it play here.</p>';
       list.innerHTML = ''; if (ctx) ctx.textContent = ''; return;
     }
     const capped = reel.total > reel.shown;
     head.innerHTML = `<p class="tx-ct">${esc(reel.title)}</p><p class="tx-cs">${esc(reel.sub)}</p>
-      <p class="tx-cs">${reel.match ? `${reel.items.length} in this match` : capped ? `First ${reel.shown} of ${reel.total}${reel.unit === 'match' ? ' matches' : ''}` : `${reel.items.length} ${reel.unit === 'match' ? 'match' : 'moment'}${reel.items.length === 1 ? '' : (reel.unit === 'match' ? 'es' : 's')}`}${capped && reel.pid ? ` · <a href="${esc(reel.full)}" target="_blank" rel="noopener">all ${esc(reel.total)} on the app &#8599;</a>` : ''}</p>
-      ${reel.legend ? `<p class="tx-cs tx-dim">${esc(reel.legend)}</p>` : ''}${reel.note ? `<p class="tx-cs tx-dim">${esc(reel.note)}</p>` : ''}`;
+      ${empty ? `<p class="tx-cs tx-none">${reel.note ? 'Nothing to play.' : 'Nothing to play: there are no moments behind this number.'}</p>` : `<p class="tx-cs">${reel.match ? `${reel.items.length} in this match` : capped ? `First ${reel.shown} of ${reel.total}${reel.unit === 'match' ? ' matches' : ''}` : `${reel.items.length} ${reel.unit === 'match' ? 'match' : 'moment'}${reel.items.length === 1 ? '' : (reel.unit === 'match' ? 'es' : 's')}`}${capped && reel.pid ? ` · <a href="${esc(reel.full)}" target="_blank" rel="noopener">all ${esc(reel.total)} on the app &#8599;</a>` : ''}</p>`}
+      ${empty ? '' : reel.legend ? `<p class="tx-cs tx-dim">${esc(reel.legend)}</p>` : ''}${reel.note ? `<p class="tx-cs tx-dim">${esc(reel.note)}</p>` : ''}`;
     if (ctx) ctx.textContent = reel.items.length ? `${Math.max(0, reel.i) + 1}/${reel.items.length}` : '';
     list.innerHTML = reel.items.map((it, i) => `<li><button type="button" class="tx-clip${i === reel.i ? ' on' : ''}" data-act="clip" data-i="${i}" data-fid="clip-${i}"${i === reel.i ? ' aria-current="true"' : ''}>
         <span class="tx-cw">${esc(it.when)}${it.minute != null ? ` <b>${esc(it.minute)}'</b>` : ''}</span><span class="tx-cv">${esc(it.val)}</span><span class="tx-cn">${esc(it.note)}${it.video ? '' : ' <i>no clip</i>'}</span></button></li>`).join('');
@@ -692,7 +742,15 @@
     }).join('');
   }
   function renderScrn() {
-    const sc = S.scr, rows = screenRows(), cols = sc.cols.filter(k => MK.has(k));
+    const sc = S.scr, cols = sc.cols.filter(k => MK.has(k));
+    // Sorted by a stat whose column was removed: sort by the first column left (else by minutes), so the order is always
+    // explained by a column the scout can see and click.
+    if (MK.has(sc.sort.k) && !cols.includes(sc.sort.k)) {
+      const k = cols[0];
+      sc.sort = k ? { k, dir: MK.get(k).higher_is_better === false ? 1 : -1 } : { k: 'min', dir: -1 };
+      save();
+    }
+    const rows = screenRows();
     const sortAttr = (k) => sc.sort.k === k ? (sc.sort.dir === -1 ? 'descending' : 'ascending') : 'none';
     if (!scrAct || !rows.some(p => p.id === scrAct.pid)) scrAct = { pid: rows.some(p => p.id === S.focus) ? S.focus : (rows[0] && rows[0].id), c: 0 };
     if (scrAct.c > cols.length) scrAct.c = 0;
@@ -702,8 +760,8 @@
       const txt = sc.mode === 'pct' ? (c.percentile == null ? '–' : c.percentile) : fmt(m, c.value);
       const np = noPct(p, m, c);
       const n = evCount(p, k);
-      const lab = `${p.name}, ${m.label} ${fmt(m, c.value)}${c.percentile != null ? `, ${ord(c.percentile)} percentile` : np ? `, ${np.text}` : ''}. ${n ? `Play its ${n}` : 'Open its moments'}`;
-      return `<td class="num"><button type="button" class="tx-n${np && np.small ? ' uq' : ''}" style="${shade(m, c.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-nav data-fid="c-${esc(p.id)}-${esc(k)}" tabindex="${act ? 0 : -1}" aria-label="${esc(lab)}">${esc(txt)}</button></td>`;
+      const lab = `${p.name}, ${m.label} ${withUnit(m, c.value)}${c.percentile != null ? `, ${ord(c.percentile)} percentile` : np ? `, ${np.text}` : ''}. ${cap1(playText(p, k))}`;
+      return `<td class="num"><button type="button" class="tx-n${np && np.small ? ' uq' : ''}${zc(p, k)}" style="${shade(m, c.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-nav data-fid="c-${esc(p.id)}-${esc(k)}" tabindex="${act ? 0 : -1}" aria-label="${esc(lab)}">${esc(txt)}</button></td>`;
     };
     // A click on a header sorts (again: the other way); the sorted column is the yellow one, and the panel's header says
     // which way. Removing a column is in the Columns menu.
@@ -711,7 +769,7 @@
     const head = `<tr><th class="tx-stk" aria-sort="${sortAttr('name')}">${sortBtn('name', 'Player')}</th>
       <th aria-sort="${sortAttr('club')}">${sortBtn('club', 'Club')}</th><th>Pos</th>
       <th class="num" aria-sort="${sortAttr('min')}">${sortBtn('min', 'Mins', ' title="Minutes played"')}</th>
-      ${cols.map(k => { const m = MK.get(k); return `<th class="num" aria-sort="${sortAttr(k)}">${sortBtn(k, `${esc(shortLabel(m))}${noisy(m)}`, `${shortLabel(m).length <= 12 ? ' class="nw"' : ''} data-mk="${esc(k)}" aria-label="${esc(m.label)}${m.noisy ? ', small sample' : ''}, sort"`)}</th>`; }).join('')}</tr>`;
+      ${cols.map(k => { const m = MK.get(k); return `<th class="num" aria-sort="${sortAttr(k)}">${sortBtn(k, `${esc(shortLabel(m))}${m.kind === 'total' ? ' <span class="tx-u">(total)</span>' : ''}${noisy(m)}`, `${shortLabel(m).length <= 12 ? ' class="nw"' : ''} data-mk="${esc(k)}" aria-label="${esc(m.label)}${m.noisy ? ', small sample' : ''}, sort"`)}</th>`; }).join('')}</tr>`;
     const ranks = screenRanks(rows);
     const body = rows.map((p, r) => {
       const ci = S.compare.indexOf(p.id), act = scrAct.pid === p.id && scrAct.c === 0;
@@ -730,7 +788,7 @@
             ${cols.length ? `<ul class="tx-collist">${cols.map(k => { const m = MK.get(k); return `<li><span>${esc(m.label)}${noisy(m)}</span><button type="button" class="tx-x" data-act="rmcol" data-k="${esc(k)}" data-fid="rm-${esc(k)}" aria-label="Remove the ${esc(m.label)} column" title="Remove">&times;</button></li>`; }).join('')}</ul>` : '<p class="tx-dim">No stat columns.</p>'}
             <label class="tx-ctl tx-addcol"><span>Add</span><select data-r="addcol" data-fid="scr-add"><option value="">a stat…</option>${metricOptions(null, m => !cols.includes(m.key))}</select></label>
             <button type="button" class="tx-mini" data-act="scrdef">Default columns</button></div></details></div>
-      <p class="tx-cap">${rows.length} ${esc(sc.pos ? POSN[sc.pos] : 'players')}${sc.qual ? ', regulars only' : ''} · ranked by value (ratios need the minimum attempts) · shading = percentile vs the same position · click a row to select, a number to play its moments</p>
+      <p class="tx-cap">${rows.length} ${esc(sc.pos ? POSN[sc.pos] : 'players')}${sc.qual ? ', regulars only' : ''} · <b class="tx-capu">${sc.mode === 'pct' ? 'percentiles vs the same position' : `values per 90 minutes${cols.some(k => { const x = MK.get(k); return x.kind !== 'per90' && x.kind !== 'padj'; }) ? ' (except %, averages and totals)' : ''}`}</b><span class="tx-capx">${sc.mode === 'pct' ? '' : ' · shading = percentile vs the same position'}${ranks.some(x => x == null) ? ' · – = not ranked (too few minutes or attempts)' : ''} · click a row to select, an underlined number to play its moments</span></p>
       <div class="tx-scroll tx-tablewrap"><table class="tx-table"><thead>${head}</thead><tbody data-r="grid">${body || `<tr><td colspan="${4 + cols.length}" class="tx-dim">No players match.</td></tr>`}</tbody></table></div>`;
     const sm = MK.get(sc.sort.k), dirWord = sc.sort.dir === -1 ? (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'Z to A' : 'highest first') : (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'A to Z' : 'lowest first');
     const sortName = sm ? shortLabel(sm) : { name: 'name', club: 'club', min: 'minutes' }[sc.sort.k];
@@ -753,7 +811,8 @@
         <button type="button" class="tx-mini" data-act="run" data-keep data-cmd="shots ${esc(p.name)}">Shots</button><button type="button" class="tx-mini" data-act="run" data-keep data-cmd="form ${esc(p.name)}">Form</button>
         <button type="button" class="tx-mini" data-act="run" data-keep data-cmd="team ${esc(p.club)}">Team</button></div>
       ${p.minutes > 0 ? `<h3 class="tx-h3">Best among ${esc(POSN[p.position])}</h3>
-      <table class="tx-mt"><tbody>${strengths.map(m => mrow(p, m)).join('')}</tbody></table>` : '<p class="tx-dim">No minutes this season.</p>'}
+      <table class="tx-mt"><tbody>${strengths.map(m => mrow(p, m)).join('')}</tbody></table>
+      <p class="tx-cap">/90 = per 90 minutes played. The bar and the last number are the percentile among regular ${esc(POSN[p.position])}.</p>` : '<p class="tx-dim">No minutes this season.</p>'}
       <h3 class="tx-h3" id="txSimHead" tabindex="-1">Plays like</h3>
       ${(p.similar || []).length ? `<ol class="tx-sim">${p.similar.map(s => { const q = PID.get(s.id); return `<li><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(s.id)}" data-fid="sim-${esc(s.id)}">${esc(s.name)}</button>
         <span class="tx-dim">${esc(short(s.club_id))} ${esc(q ? q.position : '')}</span><span class="tx-simbar" aria-label="similarity ${esc(s.similarity)}"><i style="width:${Math.max(2, Math.round(s.similarity * 100))}%"></i></span><span class="num">${esc(s.similarity.toFixed(2))}</span>
@@ -764,9 +823,9 @@
   // One metric row: label (definition on hover), value button (evidence), percentile bar.
   function mrow(p, m, opts = {}) {
     const c = cellOf(p, m.key);
-    const val = c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(m.key)}" data-fid="${esc((opts.fid || 'm') + '-' + p.id + '-' + m.key)}" aria-label="${esc(`${m.label} ${fmt(m, c.value)}, ${playText(p, m.key)}`)}">${esc(fmt(m, c.value))}</button>` : '<span class="tx-dim">–</span>';
+    const val = c ? `<button type="button" class="tx-n${zc(p, m.key)}" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(m.key)}" data-fid="${esc((opts.fid || 'm') + '-' + p.id + '-' + m.key)}" aria-label="${esc(`${m.label} ${withUnit(m, c.value)}, ${playText(p, m.key)}`)}">${esc(fmt(m, c.value))}</button>` : '<span class="tx-dim">–</span>';
     const pc = c ? c.percentile : null;
-    return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(m.key)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span></th><td class="num">${val}</td>
+    return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(m.key)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span>${unitMark(m)}</th><td class="num">${val}</td>
       <td class="tx-pbar"><span class="tx-bar" style="--g:${GROUP_COL[m.group] || '#ffcd28'}"><i style="width:${pc == null ? 0 : Math.max(2, pc)}%"></i></span></td><td class="num tx-pc">${pc == null ? '–' : esc(pc)}</td></tr>`;
   }
 
@@ -781,8 +840,8 @@
     const n = keys.length;
     return keys.map((k, i) => {
       const a = (i + 0.5) * 2 * Math.PI / n, [x, y] = polar(cx, cy, R + 10, a), s = Math.sin(a);
-      const lab = shortLabel(MK.get(k)), t = lab.length > 18 ? lab.slice(0, 17) + '…' : lab;
-      return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${s > 0.25 ? 'start' : s < -0.25 ? 'end' : 'middle'}" class="tx-axl">${esc(t)}</text>`;
+      const m = MK.get(k), lab = shortLabel(m), t = lab.length > 18 ? lab.slice(0, 17) + '…' : lab;
+      return `<text x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${s > 0.25 ? 'start' : s < -0.25 ? 'end' : 'middle'}" class="tx-axl"><title>${esc(m.label)}</title>${esc(t)}</text>`;
     }).join('');
   }
   function renderRadar() {
@@ -818,10 +877,10 @@
     const outLine = outsider ? `<p class="tx-cap tx-rnote">Comparing ${players.length}; ${esc(outsider.name)} (selected) is the dashed outline, not in the table. <button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(outsider.id)}" data-fid="r-add">Add to the comparison${players.length >= 3 ? ` (replaces ${esc(players[0].name.split(' ').slice(-1)[0])})` : ''}</button></p>` : '';
     const tbl = players.length === 1 ? `<table class="tx-mt"><tbody>${keys.map(k => mrow(base, MK.get(k), { fid: 'r' })).join('')}</tbody></table>`
       : `<div class="tx-scroll tx-tablewrap"><table class="tx-mt tx-cmp"><thead><tr><th>Metric</th>${players.map((p, j) => `<th class="num" style="color:${CMP_COL[j]}">${esc(initials(p))}</th>`).join('')}</tr></thead><tbody>
-        ${keys.map(k => { const m = MK.get(k); return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(k)}">${esc(m.label)}${noisy(m)}</span></th>${players.map(p => { const c = cellOf(p, k); return `<td class="num">${c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="rc-${esc(p.id)}-${esc(k)}" aria-label="${esc(`${p.name}, ${m.label} ${fmt(m, c.value)}, ${playText(p, k)}`)}">${esc(fmt(m, c.value))}</button><span class="tx-pc"> ${c.percentile == null ? '–' : esc(c.percentile)}</span>` : '<span class="tx-dim">–</span>'}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`;
+        ${keys.map(k => { const m = MK.get(k); return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(k)}">${esc(m.label)}${noisy(m)}</span>${unitMark(m)}</th>${players.map(p => { const c = cellOf(p, k); return `<td class="num">${c ? `<button type="button" class="tx-n${zc(p, k)}" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="rc-${esc(p.id)}-${esc(k)}" aria-label="${esc(`${p.name}, ${m.label} ${withUnit(m, c.value)}, ${playText(p, k)}`)}">${esc(fmt(m, c.value))}</button><span class="tx-pc"> ${c.percentile == null ? '–' : esc(c.percentile)}</span>` : '<span class="tx-dim">–</span>'}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`;
     const html = `<div class="tx-ctls"><div class="tx-seg" role="group" aria-label="Metrics"><button type="button" data-act="rtpl" data-v="pos" aria-pressed="${S.radar.tpl === 'pos'}">${esc(POS1[base.position])} stats</button><button type="button" data-act="rtpl" data-v="all" aria-pressed="${S.radar.tpl === 'all'}">All-round</button></div></div>
       <div class="tx-legs">${legend}</div>${outLine}${svg}
-      <p class="tx-cap">Percentile vs regular ${esc(players.length > 1 ? 'players in each one’s own position' : POSN[base.position])}${players.length > 1 ? '' : '; blue-grey wedges are style markers (ranked, not judged)'}. Values play their moments.</p>${tbl}`;
+      <p class="tx-cap">/90 = per 90 minutes. Percentile vs regular ${esc(players.length > 1 ? 'players in each one’s own position' : POSN[base.position])}${players.length > 1 ? '' : '; blue-grey wedges are style markers (ranked, not judged)'}. Values play their moments.</p>${tbl}`;
     paint('radar', html, players.length > 1 ? esc(`Comparing ${players.length}${outsider ? ` + ${outsider.name.split(' ').slice(-1)[0]}` : ''}`) : esc(`vs ${POSN[base.position]}`));
   }
 
@@ -839,7 +898,7 @@
   const OUTC = { goal: 'Goal', saved: 'Saved', blocked: 'Blocked', off_target: 'Off target' };
   function numBtn(p, k, fid) {
     const m = MK.get(k), c = cellOf(p, k); if (!m) return '';
-    return `<span class="tx-stat"><span class="tx-ml" data-mk="${esc(k)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span>${c ? `<button type="button" class="tx-n" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="${esc(fid + k)}" aria-label="${esc(`${m.label} ${fmt(m, c.value)}, ${playText(p, k)}`)}">${esc(fmt(m, c.value))}</button>${c.total != null && m.kind !== 'total' && m.kind !== 'ratio' ? `<span class="tx-dim">${esc(c.total)} in total</span>` : ''}` : '<span class="tx-dim">–</span>'}</span>`;
+    return `<span class="tx-stat"><span class="tx-ml" data-mk="${esc(k)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span>${c ? `<button type="button" class="tx-n${zc(p, k)}" style="${shade(m, c.percentile)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="${esc(fid + k)}" aria-label="${esc(`${m.label} ${withUnit(m, c.value)}, ${playText(p, k)}`)}">${esc(fmt(m, c.value))}</button>${c.total != null && m.kind !== 'total' && m.kind !== 'ratio' ? `<span class="tx-dim">${esc(c.total)} in total</span>` : ''}` : '<span class="tx-dim">–</span>'}</span>`;
   }
   function renderShot() {
     const p = PID.get(S.focus), shots = p.shots || [];
@@ -929,7 +988,7 @@
     const cons = fm.consistency || {};
     const ctab = Object.keys(cons).filter(c => MK.has(c)).map(c => { const cm = MK.get(c), x = cons[c], tr = x.last3_minus_season;
       return `<tr${c === k ? ' class="on"' : ''}><th scope="row"><button type="button" class="tx-lk" data-act="formk" data-k="${esc(c)}" data-mk="${esc(c)}" data-fid="fk-${esc(c)}">${esc(cm.label)}${noisy(cm)}</button></th>
-        <td class="num"><button type="button" class="tx-n" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(c)}" data-fid="fm-${esc(c)}" aria-label="${esc(`${cm.label} mean ${x.mean}, ${playText(p, c)}`)}">${esc(fmt(cm, x.mean))}</button></td><td class="num">${esc(x.sd)}</td><td class="num">${x.cv == null ? '–' : esc(x.cv)}</td>
+        <td class="num"><button type="button" class="tx-n${zc(p, c)}" data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(c)}" data-fid="fm-${esc(c)}" aria-label="${esc(`${cm.label} mean ${x.mean}, ${playText(p, c)}`)}">${esc(fmt(cm, x.mean))}</button></td><td class="num">${esc(x.sd)}</td><td class="num">${x.cv == null ? '–' : esc(x.cv)}</td>
         <td class="num ${tr > 0 ? 'up' : tr < 0 ? 'dn' : ''}">${tr == null ? '–' : (tr > 0 ? '+' : '') + esc(tr)}</td></tr>`; }).join('');
     const html = `<div class="tx-ctls"><label class="tx-ctl"><span class="sr">Metric</span><select data-r="formk" data-fid="form-k">${metricOptions(k)}</select></label>
         <span class="tx-ml" data-mk="${esc(k)}" data-pid="${esc(p.id)}" tabindex="0">${esc(m.label)}${noisy(m)} <span class="tx-dim">ⓘ</span></span></div>${svg}
@@ -975,8 +1034,8 @@
     const order = pts.map((o, i) => [o, i]).sort(([a], [b]) => ((a.p.id === S.focus || S.compare.includes(a.p.id)) - (b.p.id === S.focus || S.compare.includes(b.p.id))));
     svg += order.map(([o, i]) => layer(o, i)).join('') + '</svg>';
     const read = cur ? `<p class="tx-read"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(cur.p.id)}" data-fid="scat-sel">${esc(cur.p.name)}</button> <span class="tx-dim">${esc(cur.p.short_name)} ${esc(cur.p.position)}</span>
-        <span class="tx-ml" data-mk="${esc(x)}">${esc(mx.label)}</span><button type="button" class="tx-n" style="${shade(mx, cur.a.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(x)}" data-fid="scat-x">${esc(fmt(mx, cur.a.value))}</button>
-        <span class="tx-ml" data-mk="${esc(y)}">${esc(my.label)}</span><button type="button" class="tx-n" style="${shade(my, cur.b.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(y)}" data-fid="scat-y">${esc(fmt(my, cur.b.value))}</button></p>`
+        <span class="tx-ml" data-mk="${esc(x)}">${esc(mx.label)}</span><button type="button" class="tx-n${zc(cur.p, x)}" style="${shade(mx, cur.a.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(x)}" data-fid="scat-x">${esc(fmt(mx, cur.a.value))}</button>
+        <span class="tx-ml" data-mk="${esc(y)}">${esc(my.label)}</span><button type="button" class="tx-n${zc(cur.p, y)}" style="${shade(my, cur.b.percentile)}" data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(y)}" data-fid="scat-y">${esc(fmt(my, cur.b.value))}</button></p>`
       : '<p class="tx-read tx-dim">The selected player is not on this chart (position, or not a regular). Arrow keys in the chart pick a player.</p>';
     const html = `<div class="tx-ctls"><label class="tx-ctl"><span>X</span><select data-r="scx" data-fid="scat-xs">${metricOptions(x)}</select></label>
         <label class="tx-ctl"><span>Y</span><select data-r="scy" data-fid="scat-ys">${metricOptions(y)}</select></label>
@@ -1069,7 +1128,7 @@
       const p = PID.get(el.dataset.pid), c = p && cellOf(p, mk); if (!c) return '';
       const np = noPct(p, m, c);
       const n = evCount(p, mk);
-      return `<p class="tt-h">${esc(m.label)}${m.noisy ? ' <span class="tt-w">≈ small sample</span>' : ''}</p><p class="tt-p"><b>${esc(p.name)}</b> ${esc(fmt(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : ''} · ${c.percentile == null ? esc(np ? np.text : 'no percentile') : `${esc(ord(c.percentile))} percentile vs ${esc(POSN[p.position])}`}</p>${n ? `<p class="tt-play">&#9654; ${esc(n)} · Enter plays them</p>` : ''}<p class="tt-s">The column header has the definition</p>`;
+      return `<p class="tt-h">${esc(m.label)}${m.noisy ? ' <span class="tt-w">≈ small sample</span>' : ''}</p><p class="tt-p"><b>${esc(p.name)}</b> ${esc(withUnit(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : ''} · ${c.percentile == null ? esc(np ? np.text : 'no percentile') : `${esc(ord(c.percentile))} percentile vs ${esc(POSN[p.position])}`}</p>${zeroEv(p, mk) ? '<p class="tt-s">No moments behind this number</p>' : n ? `<p class="tt-play">&#9654; ${esc(n)} · Enter plays them</p>` : ''}<p class="tt-s">The column header has the definition</p>`;
     }
     const src = (m.sources || []).map(s => (D.sources[s] || {}).title || s).join('; ');
     const judge = m.higher_is_better === null ? 'Style marker: ranked, not judged' : m.higher_is_better ? 'Higher is better' : 'Lower is better';
@@ -1078,12 +1137,13 @@
     if (mk && m.noisy) h += `<p class="tt-w">≈ Small sample, read with care: split-half r ${esc(m.reliability_r)} (below ${esc(D.season.noise_r)}); one season cannot yet separate players in the same role.</p>`;
     if (mk && m.min_attempts) h += `<p class="tt-s">Percentile needs at least ${esc(m.min_attempts)}: ${esc(m.min_attempts_rule)}</p>`;
     const p = el.dataset.pid && PID.get(el.dataset.pid), c = p && mk ? cellOf(p, mk) : null;
-    if (c) h += `<p class="tt-p"><b>${esc(p.name)}</b> ${esc(fmt(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : c.total != null && m.kind !== 'total' ? ` (${esc(c.total)} in total)` : ''} · ${c.percentile == null ? esc((noPct(p, m, c) || { text: 'no percentile' }).text) : `${esc(ord(c.percentile))} percentile among regular ${esc(POSN[p.position])}`}</p>`;
+    if (c) h += `<p class="tt-p"><b>${esc(p.name)}</b> ${esc(withUnit(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : c.total != null && m.kind !== 'total' ? ` (${esc(c.total)} in total)` : ''} · ${c.percentile == null ? esc((noPct(p, m, c) || { text: 'no percentile' }).text) : `${esc(ord(c.percentile))} percentile among regular ${esc(POSN[p.position])}`}</p>`;
     const tv = tk && el.dataset.cid ? TEAMS.get(el.dataset.cid) : null;
     if (tv && tv.values[tk]) h += `<p class="tt-p">Rank ${esc(tv.values[tk].rank)} of ${esc(tv.values[tk].of)} · league average ${esc(fmt(m, tv.values[tk].league_mean))}</p>`;
     // A clickable number says what it opens.
     if (el.classList.contains('tx-n')) {
       let n = null;
+      if (c && zeroEv(p, mk)) { h += '<p class="tt-s">No moments behind this number</p>'; return h; }
       if (c) n = evCount(p, mk);
       else if (tv && tv.values[tk]) { const r = teamReel(el.dataset.cid, tk); n = plural(r.items.length, r.unit === 'match' ? 'match' : r.items.some(it => it.video) ? 'moment' : 'item'); }
       if (n) h += `<p class="tt-play">&#9654; ${esc(n)} · click to play</p>`;
@@ -1120,7 +1180,18 @@
   }
 
   // ------------------------------------------------------------------ the command line: parsing
-  function resolvePlayer(q, strict) {
+  // Synthetic names repeat (seven Toures, five Ustinovs), so a bare surname picks the namesake the scout most likely means:
+  // the selected player themselves, or one they play like (their "Plays like" list), then, when comparing, one in the same position, then one
+  // in the players table as it stands, then the most minutes. The other namesakes are offered beside the answer.
+  function namesakeOrder(hits, ctx = {}) {
+    const cp = ctx.p || PID.get(S.focus), sim = new Set(((cp && cp.similar) || []).map(s => s.id));
+    let table = null;
+    const inTable = (p) => { if (!table) table = new Set(screenRows().map(x => x.id)); return table.has(p.id); };
+    const key = (p) => [!ctx.pos && cp && p.id === cp.id ? 0 : 1, sim.has(p.id) ? 0 : 1, ctx.pos && cp && p.position === cp.position ? 0 : 1, inTable(p) ? 0 : 1];
+    const byKey = (a, b) => { for (let i = 0; i < a.k.length; i++) if (a.k[i] !== b.k[i]) return a.k[i] - b.k[i]; return 0; };
+    return hits.map(p => ({ p, k: key(p) })).sort((a, b) => byKey(a, b) || b.p.minutes - a.p.minutes || a.p.name.localeCompare(b.p.name)).map(o => o.p);
+  }
+  function resolvePlayer(q, strict, ctx) {
     const n = norm(q); if (!n) return { none: true };
     if (PID.has(q.trim())) return { p: PID.get(q.trim()), alts: [] };
     const tiers = [(p) => norm(p.name) === n, (p) => surname(p) === n || norm(p.name).split(' ').slice(-1)[0] === n, (p) => norm(p.name).split(' ')[0] === n];
@@ -1128,23 +1199,26 @@
     for (const t of tiers) {
       const hit = D.players.filter(t);
       if (hit.length === 1) return { p: hit[0], alts: [] };
-      // Synthetic names repeat (seven Toures): the regular, most minutes, opens; the namesakes are offered beside it.
-      if (hit.length > 1) { hit.sort((a, b) => b.minutes - a.minutes || a.name.localeCompare(b.name)); return { p: hit[0], alts: hit.slice(1) }; }
+      if (hit.length > 1) { const o = namesakeOrder(hit, ctx); return { p: o[0], alts: o.slice(1) }; }
     }
     return { none: true };
   }
+  // "Toure and Ustinov", "Toure vs Ustinov", "Toure with Ustinov", "Femi Toure, Amari Ustinov": each name after the first
+  // is read in the light of the first (a namesake who plays like them, or in the same position, wins).
+  const JOIN_RE = /^(v|vs|vs\.|versus|and|with|&|against)$/i;
   function resolvePlayers(text) {
-    const parts = text.includes(',') ? text.split(',').map(s => s.trim()).filter(Boolean) : null;
-    if (parts) return parts.map(s => ({ q: s, ...resolvePlayer(s) }));
-    const toks = text.split(/\s+/).filter(t => t && !/^(v|vs|and|&)$/i.test(t)), outp = [];
+    const outp = [], ctxOf = () => ({ p: outp.length && outp[0].p ? outp[0].p : PID.get(S.focus), pos: outp.length > 0 });
+    const parts = text.includes(',') ? text.split(',').map(s => s.trim().replace(/^(and|with|vs|v|versus|&)\s+/i, '')).filter(Boolean) : null;
+    if (parts) { for (const s of parts) outp.push({ q: s, ...resolvePlayer(s, false, ctxOf()) }); return outp; }
+    const toks = text.split(/\s+/).filter(t => t && !JOIN_RE.test(t));
     let i = 0;
     while (i < toks.length) {
       let done = false;
       for (let j = toks.length; j > i; j--) {
-        const r = resolvePlayer(toks.slice(i, j).join(' '), true);
+        const r = resolvePlayer(toks.slice(i, j).join(' '), true, ctxOf());
         if (r.p) { outp.push({ q: toks.slice(i, j).join(' '), p: r.p, alts: r.alts }); i = j; done = true; break; }
       }
-      if (!done) { const r = resolvePlayer(toks[i]); outp.push({ q: toks[i], ...r }); i++; }
+      if (!done) { const r = resolvePlayer(toks[i], false, ctxOf()); outp.push({ q: toks[i], ...r }); i++; }
     }
     return outp;
   }
@@ -1188,6 +1262,9 @@
     const t = String(text || '').trim().replace(/\s*<GO>$/i, '').replace(/[?!.]+$/, '').trim(); if (!t) return;
     if (store.hist[store.hist.length - 1] !== t) { store.hist.push(t); if (store.hist.length > 50) store.hist.shift(); save(); }
     histAt = -1;
+    dispatch(t);
+  }
+  function dispatch(t) {
     const ph = parseHead(t), head = ph.head, rest = ph.rest.replace(/<GO>\s*$/i, '').trim();
     if (head === 'HELP') { openHelp(); out('Help is open. Escape closes it.'); return; }
     if (head === 'RANK') return cmdRank(rest);
@@ -1220,7 +1297,78 @@
     if (c) return team(c);
     const mm = resolveMetric(t);
     if (mm.m) return cmdRank(mm.m.key);
-    out(`Nothing found for "${t}". Try a surname, a club, a stat such as "goals", or "rank forwards non-penalty xG". Help lists everything.`, 'err');
+    const nat = natural(t);
+    if (nat) return nat();
+    out(`Nothing found for "${t}". Try a surname, a club, a stat such as "goals", "best finishers", or "Toure vs Ustinov". Help lists everything.`, 'err');
+  }
+  // Plain questions, as a scout types them into a search box: "who are the best finishers?", "top scorers", "strikers",
+  // "best dribblers in midfield", "Toure shots", "Toure goals", "Toure vs Ustinov". Each becomes the command it means.
+  const SYN = [
+    [/^(finishers|finishing|finisher)$/, 'np_goals', 'FW'],
+    [/^(scorers|goalscorers|goal scorers|scorer|goalscorer|scoring|goals)$/, 'goals', null],
+    [/^(dribblers|dribbler|dribbling|dribbles)$/, 'take_ons_won', null],
+    [/^(creators|creator|chance creators|playmakers|playmaker|creating|creativity|chance creation)$/, 'sca', null],
+    [/^(assisters|assist makers|providers|assists|assisting)$/, 'assists', null],
+    [/^(shooters|shooting|shot takers)$/, 'shots', null],
+    [/^(passers|passer|passing)$/, 'progressive_passes', null],
+    [/^(carriers|ball carriers|carrying)$/, 'progressive_carries', null],
+    [/^(tacklers|tackler|tackling|ball winners|ball winning|defending)$/, 'tkl_int_padj', null],
+    [/^(headers|heading|in the air|aerial|air)$/, 'aerial_duels_won', null],
+    [/^(pressers|pressing)$/, 'pressures', null],
+    [/^(runners|running|work rate|workhorses|engines)$/, 'distance', null],
+    [/^(sprinters|fastest|quickest|pace|speed|fastest players|quickest players)$/, 'peak_speed', null],
+    [/^(shot stoppers|shot-stoppers|stoppers|saving|saves)$/, 'save_pct', 'GK'],
+  ];
+  const PANEL_W = { shots: 'SHOT', shot: 'SHOT', 'shot map': 'SHOT', form: 'FORM', 'touch map': 'HEAT', 'heat map': 'HEAT', heatmap: 'HEAT', touchmap: 'HEAT',
+    radar: 'RDR', profile: 'PLYR', card: 'PLYR', player: 'PLYR', similar: 'SIM', 'similar players': 'SIM', 'plays like': 'SIM', lookalikes: 'SIM', team: 'TEAM', club: 'TEAM' };
+  const synStat = (s) => { for (const [re, k, pos] of SYN) if (re.test(s) && MK.has(k)) return { k, pos }; return null; };
+  function natural(t) {
+    let s = norm(t).replace(/[?!.]+$/, '').replace(/['’]s\b/g, '');
+    s = s.replace(/^(who\s+(are|is|were|was)|which\s+players?\s+(are|is|have|has)|show\s+me|show|find\s+me|find|list|give\s+me|get\s+me|get)\s+/, '');
+    s = s.replace(/^the\s+/, '').replace(/^((best|top|most|leading|greatest|highest|good|great|strongest|biggest|elite)\s+)+/, '').replace(/^\d+\s+/, '');
+    s = s.replace(/\s+(in the league|in the regista league|this season|in the season|right now)$/, '').trim();
+    if (!s) return null;
+    // A position word anywhere ("forwards", "strikers", "in midfield"), with what is left read as a stat.
+    const toks = s.split(' ');
+    let pos = null;
+    const MIDWORDS = { midfield: 'MF', defence: 'DF', defense: 'DF', attack: 'FW', goal: null };
+    const rest = toks.filter(w => {
+      const p = posOf(w) || (MIDWORDS[w] !== undefined && MIDWORDS[w] ? MIDWORDS[w] : null);
+      if (p && !pos) { pos = p; return false; }
+      return true;
+    }).filter(w => !/^(at|for|by|on|in|of|the|with)$/.test(w)).join(' ');
+    const posWord = (p) => p === 'ALL' || !p ? 'all' : POSN[p];
+    if (pos && !rest) {
+      const k = (D.default_columns[pos === 'ALL' ? 'all' : pos] || D.default_columns.all).find(x => MK.has(x));
+      return () => cmdRank(`${posWord(pos)} ${k}`);
+    }
+    const st = synStat(rest);
+    if (st) return () => cmdRank(`${posWord(pos || st.pos)} ${st.k}`);
+    if (pos) { const m = resolveMetric(rest); if (m.m) return () => cmdRank(`${posWord(pos)} ${m.m.key}`); }
+    // "<player> <panel or stat>" and "<panel or stat> <player>": "Toure shots", "Toure form", "Toure goals", "goals Toure".
+    const w = norm(t).replace(/[?!.]+$/, '').replace(/['’]s\b/g, '').split(' ').filter(x => !/^(of|for|by)$/.test(x));
+    const asPanelOrStat = (q) => PANEL_W[q] ? { panel: PANEL_W[q] } : synStat(q) ? { k: synStat(q).k } : (() => { const m = resolveMetric(q); return m.m ? { k: m.m.key } : null; })();
+    for (let j = w.length - 1; j >= 1; j--) {
+      for (const [pq, xq] of [[w.slice(0, j), w.slice(j)], [w.slice(w.length - j), w.slice(0, w.length - j)]]) {
+        const pr = resolvePlayer(pq.join(' '), true); if (!pr.p) continue;
+        const x = asPanelOrStat(xq.join(' ')); if (!x) continue;
+        const p = pr.p;
+        if (x.panel === 'TEAM') return () => dispatch(`team ${p.club}`);
+        if (x.panel) return () => dispatch(`${COMMANDS[x.panel] ? COMMANDS[x.panel].word : 'player'} ${p.name}`);
+        return () => {
+          select(p.id, true); showPanel('plyr', false);
+          const m = MK.get(x.k), c = cellOf(p, x.k);
+          if (zeroEv(p, x.k)) { out(`${p.name}: ${m.label} ${c ? withUnit(m, c.value) : '–'}, so there are no moments to play.`); return; }
+          openEvidence(p.id, x.k);
+        };
+      }
+    }
+    // "Toure vs Ustinov", "Femi Toure and Amari Ustinov", "Toure with Ustinov": a comparison without the word "compare".
+    if (/\s(v|vs|vs\.|versus|and|with|&|against)\s|,/.test(` ${norm(t)} `)) {
+      const rs = resolvePlayers(norm(t));
+      if (rs.length >= 2 && rs.every(r => r.p)) return () => cmdCmp(norm(t));
+    }
+    return null;
   }
   function cmdRank(rest) {
     const toks = rest.split(/\s+/).filter(Boolean);
@@ -1255,7 +1403,7 @@
     const rows = screenRows(), ranks = screenRanks(rows), tops = rows.filter((_, i) => ranks[i] === 1), c = tops[0] && cellOf(tops[0], m.key);
     const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
     const nr = ranks.filter(x => x != null).length, un = rows.length - nr;
-    out(`${cap1(posText(S.scr.pos))} ranked by ${m.label}${m.higher_is_better === false ? ' (lowest first: lower is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${fmt(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
+    out(`${cap1(posText(S.scr.pos))} ranked by ${m.label}${m.higher_is_better === false ? ' (lowest first: lower is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
   }
   function cmdCmp(rest) {
     const rs = resolvePlayers(rest);
@@ -1290,12 +1438,16 @@
   }
 
   // ------------------------------------------------------------------ the search box: autocomplete and history
-  function playerSugs(q, k, run) {
+  function playerSugs(q, k, run, ctx) {
     const n = norm(q);
     const score = (p) => { const nm = norm(p.name), sn = surname(p); if (!n) return 0; if (sn.startsWith(n)) return 0; if (nm.startsWith(n)) return 1; if (nm.split(' ').some(w => w.startsWith(n))) return 2; if (n.length >= 3 && nm.includes(n)) return 3; return 9; };
     let ps;
     if (!n) { const f = PID.get(S.focus); ps = [f, ...(f.similar || []).map(s => PID.get(s.id)).filter(Boolean)]; }
-    else ps = D.players.filter(p => score(p) < 9).sort((a, b) => score(a) - score(b) || b.minutes - a.minutes);
+    else {
+      // Namesakes in the order a typed name would pick them (the selected player, who they play like, the table…).
+      const hit = D.players.filter(p => score(p) < 9), at = new Map(namesakeOrder(hit, ctx).map((p, i) => [p.id, i]));
+      ps = hit.sort((a, b) => score(a) - score(b) || at.get(a.id) - at.get(b.id));
+    }
     return ps.slice(0, 7).map(p => ({ kind: 'Player', text: p.name, detail: `${p.short_name} · ${p.position} · #${p.kit_number}`, insert: p.name, k, run }));
   }
   const groupLabel = (m) => (D.groups.find(g => g.key === m.group) || {}).label || '';
@@ -1329,7 +1481,8 @@
     else if (head === 'CMP') {
       // Players already named before the last "," / "and" / "vs" are not suggested again (Compare with… names the selected one).
       const more = /,|\band\b|\bvs?\b/i.test(ph.rest), m = ph.rest.match(/^(.*)(,|\band\b|\bvs?\b)/i), named = m ? norm(m[1]) : '';
-      s = trailing((q, k) => playerSugs(q, k, more).filter(x => !named || !named.includes(norm(x.text))));
+      const first = named ? resolvePlayers(m[1]).find(r => r.p) : null, ctx = first ? { p: first.p, pos: true } : undefined;
+      s = trailing((q, k) => playerSugs(q, k, more, ctx).filter(x => !named || !named.includes(norm(x.text))));
     }
     else if (head === 'TEAM') { const n = norm(args.join(' ')); s = D.clubs.filter(c => !n || norm(c.short_name).startsWith(n) || norm(c.name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).map(c => ({ kind: 'Club', text: c.name, detail: c.short_name, insert: c.name, k: args.length, run: true })); }
     else if (head === 'RANK') {
@@ -1374,6 +1527,7 @@
       <div class="tx-hbody"><p>Type in the search box and press Enter. Click any example to run it.</p><table class="tx-mt tx-htable"><tbody>
         <tr><th scope="row"><code>a name</code></th><td>Opens the player. ${runBtn(f.name.split(' ').slice(-1)[0])}</td></tr>
         <tr><th scope="row"><code>a club</code> or <code>a stat</code></th><td>A club opens how it plays; a stat ranks every player on it. ${runBtn('goals')}</td></tr>
+        <tr><th scope="row"><code>a question</code></th><td>Plain words work too: best finishers, top scorers, best dribblers, strikers, a player with a stat or a panel, or two players with "vs". ${runBtn('top scorers')} ${runBtn(`${f.name.split(' ').slice(-1)[0]} shots`)} ${runBtn(`${f.name.split(' ').slice(-1)[0]} vs ${(f.similar && f.similar[0] ? f.similar[0].name : f.name).split(' ').slice(-1)[0]}`)}</td></tr>
         ${Object.entries(COMMANDS).filter(([c]) => c !== 'HELP').map(([c, x]) => `<tr><th scope="row"><code>${esc(x.word)}</code> <span class="tx-dim">${esc(x.args)}</span></th><td>${esc(x.help)} ${runBtn(ex(c, x))}</td></tr>`).join('')}
       </tbody></table>
       <p class="tx-dim">Short forms still work: ${Object.entries(COMMANDS).map(([c, x]) => `<code>${esc(c)}</code>`).join(' ')} (for example <code>RANK FW npxg</code>).</p>
@@ -1424,7 +1578,13 @@
   function act(t, e) {
     const a = t.dataset.act;
     if (a === 'sel') { select(t.dataset.pid); return; }
-    if (a === 'ev') { if (t.dataset.sel && t.dataset.pid !== S.focus) { S.focus = t.dataset.pid; S.club = PID.get(S.focus).club_id; save(); renderAll(); } openEvidence(t.dataset.pid, t.dataset.mk); return; }
+    if (a === 'ev') {
+      if (t.dataset.sel && t.dataset.pid !== S.focus) { S.focus = t.dataset.pid; S.club = PID.get(S.focus).club_id; save(); renderAll(); }
+      const p = PID.get(t.dataset.pid), m = MK.get(t.dataset.mk);
+      // Nothing behind a zero: say so on the status line instead of opening an empty drawer.
+      if (p && m && zeroEv(p, m.key)) { const c = cellOf(p, m.key); out(`${p.name}: ${m.label} ${c ? withUnit(m, c.value) : '–'}, so there are no moments to play.`); return; }
+      openEvidence(t.dataset.pid, t.dataset.mk); return;
+    }
     if (a === 'fev') { const k = S.form.k && MK.has(S.form.k) ? S.form.k : (D.default_columns[PID.get(S.focus).position] || D.default_columns.all)[0]; openEvidence(S.focus, k, t.dataset.mid); return; }
     if (a === 'tev') { openReel(teamReel(t.dataset.cid, t.dataset.tk)); return; }
     if (a === 'shot') { shotReel(PID.get(S.focus), +t.dataset.i); return; }
@@ -1433,7 +1593,9 @@
     if (a === 'sort') { const k = t.dataset.k; S.scr.sort = S.scr.sort.k === k ? { k, dir: -S.scr.sort.dir } : { k, dir: k === 'name' || k === 'club' ? 1 : (MK.get(k) && MK.get(k).higher_is_better === false ? 1 : -1) }; save(); renderScrn(); return; }
     if (a === 'rmcol') {
       const i = S.scr.cols.indexOf(t.dataset.k);
+      const wasSort = S.scr.sort.k === t.dataset.k;
       colMenuOpen = true; S.scr.cols = S.scr.cols.filter(k => k !== t.dataset.k); save(); renderScrn();
+      if (wasSort) { const sk = S.scr.sort.k, sm = MK.get(sk); out(`Removed ${MK.get(t.dataset.k).label}; the table is now sorted by ${sm ? sm.label : 'minutes'}.`); }
       const xs = document.querySelectorAll('#tx-p-scrn [data-act="rmcol"]'), next = xs[Math.min(i, xs.length - 1)] || document.querySelector('#tx-p-scrn [data-r="addcol"]');
       if (next) next.focus({ preventScroll: true });
       return;
@@ -1467,6 +1629,8 @@
       const b = document.querySelector(`[data-act="pmove"][data-id="${pp.id}"][data-d="${d}"]`), o = document.querySelector(`[data-act="pmove"][data-id="${pp.id}"][data-d="${-d}"]`);
       (b && !b.disabled ? b : o).focus(); return;
     }
+    // Phones: saved layouts and the small-sample note fold into "Layouts & notes".
+    if (a === 'more') { const o = t.getAttribute('aria-expanded') !== 'true'; t.setAttribute('aria-expanded', String(o)); t.closest('.tx-line').classList.toggle('open', o); return; }
     if (a === 'ws') { switchWs(+t.dataset.i); return; }
     if (a === 'reset') { resetWs(); return; }
     if (a === 'help') { openHelp(t); return; }

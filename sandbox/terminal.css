@@ -17,7 +17,7 @@
 
 /* the top: the search with the selected player beside it, examples, the status line, and one line of panel buttons,
    the small-sample note and the saved layouts. Sticky on wide screens. */
-#scout .tx-top { position: sticky; top: 52px; z-index: 6; background: var(--bg); padding: 4px 0 6px; display: grid; gap: 6px;
+#scout .tx-top { position: sticky; top: 52px; z-index: 6; background: var(--bg); padding: 4px 0 6px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px;
   border-bottom: 1px solid var(--tx-line); }
 #scout .tx-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; }
 #scout .tx-cmd { flex: 1 1 420px; max-width: 760px; display: flex; align-items: center; gap: 6px; background: var(--tx-bg); border: 1px solid #3a4256; border-radius: 8px; padding: 3px 4px 3px 10px; }
@@ -55,6 +55,7 @@
 #scout .tx .tx-fkey[data-id="clips"][data-on="true"] { border-color: var(--tx-amber); color: var(--tx-amber); }
 #scout .tx .tx-fkey:hover { border-color: var(--tx-amber); }
 #scout .tx .tx-fkey.help { color: #4cc9f0; }
+#scout .tx-more { display: none; }
 #scout .tx-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; font-size: 12px; color: var(--tx-dim); }
 #scout .tx-about { position: relative; }
 #scout .tx-about summary { cursor: pointer; color: #cfd4de; list-style: none; }
@@ -105,12 +106,19 @@
 #scout .tx-panel.s-M { grid-column: span 6; }
 #scout .tx-panel.s-L { grid-column: span 8; }
 #scout .tx-panel.s-XL { grid-column: span 12; }
-/* The players table beside the two small panels after it (the player card and the radar): it spans their two rows, at
-   most as tall as both (--tx-tallh, measured by terminal.js), scrolling inside it; with fewer rows it ends where they do,
-   so a short list (18 forwards) leaves no empty box beside the radar. The cap keeps its 100-odd rows from making those
-   rows taller. */
+/* Wide screens: the players table in a left column (two thirds), the player card and radar it drives in a right one. The
+   table is at most as tall as the card and radar (--tx-tallh, measured by terminal.js), scrolling inside it; when it is
+   shorter, terminal.js moves the next panels (form, shots…) up under it, two to a row, so no empty block is left beside
+   the radar. Narrower, the columns dissolve and every panel is a grid item again. */
+#scout .tx-split, #scout .tx-colL, #scout .tx-colR { display: contents; }
 @media (min-width: 1101px) {
-  #scout .tx-panel.tall { grid-row: span 2; align-self: start; max-height: var(--tx-tallh, 1200px); display: flex; flex-direction: column; }
+  #scout .tx-split { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; align-items: start; }
+  #scout .tx-colL { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; min-width: 0; }
+  #scout .tx-colL > .tx-panel { grid-column: span 1; }
+  #scout .tx-colL > .tx-panel.tall, #scout .tx-colL > .tx-panel.s-M, #scout .tx-colL > .tx-panel.s-L, #scout .tx-colL > .tx-panel.s-XL { grid-column: 1 / -1; }
+  #scout .tx-colR { display: grid; gap: 8px; align-content: start; min-width: 0; }
+  #scout .tx-colR > .tx-panel { grid-column: auto; }
+  #scout .tx-panel.tall { max-height: var(--tx-tallh, 1200px); display: flex; flex-direction: column; }
   #scout .tx-panel.tall > .tx-pb { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   #scout #tx-p-scrn.tall .tx-tablewrap { flex: 0 1 auto; min-height: 0; max-height: none; }
 }
@@ -155,6 +163,7 @@
 #scout .tx-chk { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--tx-dim); }
 #scout .tx-chk input { accent-color: var(--tx-amber); }
 #scout .tx-cap { margin: 0; font-size: 11.5px; color: var(--tx-dim); }
+#scout .tx-cap .tx-capu { color: #cfd4de; font-weight: 600; }
 #scout .tx-h3 { margin: 4px 0 0; font-size: 12.5px; font-weight: 700; color: var(--tx-amber); }
 #scout .tx-h3:focus { outline: none; }
 
@@ -166,6 +175,11 @@
 #scout .tx .tx-n:hover, #scout .tx .tx-n:focus-visible { box-shadow: inset 0 0 0 1px var(--tx-amber); text-decoration-color: var(--tx-amber); text-decoration-thickness: 2px; }
 #scout .tx .tx-n:hover::before, #scout .tx .tx-n:focus-visible::before { opacity: 1; }
 #scout .tx .tx-n.uq { color: var(--tx-dim); font-style: italic; }
+/* no moments behind it: plain text, no underline, no play mark */
+#scout .tx .tx-n.z { text-decoration: none; cursor: default; }
+#scout .tx .tx-n.z::before { display: none; }
+#scout .tx .tx-n.z:hover { box-shadow: none; }
+#scout .tx-none { color: #ffcf8a; }
 #scout .tx .tx-ml { cursor: help; text-decoration: underline dotted #4a5266; text-underline-offset: 3px; }
 #scout .tx .tx-pn { color: var(--text); text-align: left; font-weight: 600; }
 #scout .tx .tx-pn:hover { color: var(--tx-amber); }
@@ -362,6 +376,20 @@ body:has(#scout .tx:not([hidden])) .side { z-index: 5; }
   #scout .tx .tx-go { padding: 6px 10px; }
   #scout .tx .tx-fkey:not(.help) { display: none; }        /* the sticky row of panels below does their job on a phone */
   #scout .tx-line { justify-content: flex-start; }
+  /* the first screen reaches the table: saved layouts and the note fold into a button, the selection and the examples
+     keep to one row that scrolls sideways, and the table's caption keeps only what its numbers are */
+  #scout .tx .tx-more { display: inline-block; padding: 3px 10px; border: 1px solid var(--tx-line); border-radius: 999px; font-size: 12.5px; color: var(--text); background: var(--tx-panel); }
+  #scout .tx .tx-more::after { content: " \25BE"; color: var(--tx-dim); }
+  #scout .tx .tx-more[aria-expanded="true"] { border-color: var(--tx-amber); }
+  #scout .tx-line:not(.open) .tx-meta { display: none; }
+  #scout .tx-line.open .tx-meta { flex-basis: 100%; }
+  #scout .tx-sel { flex: 1 1 100%; min-width: 0; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
+  #scout .tx-sel::-webkit-scrollbar, #scout .tx-ex::-webkit-scrollbar { display: none; }
+  #scout .tx-sel > * { flex: 0 0 auto; }
+  #scout .tx-ex { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 -16px; padding: 0 16px; }
+  #scout .tx .tx-exb { flex: 0 0 auto; white-space: nowrap; }
+  #scout .tx-capx { display: none; }
+  #scout #tx-p-scrn .tx-ctl input { width: 112px; }
   #scout .tx-aboutp { left: 0; right: auto; }
   #scout .tx-mnav { display: flex; gap: 6px; position: sticky; top: 52px; z-index: 5; margin: 0 -16px; padding: 6px 16px; overflow-x: auto; scrollbar-width: none;
     background: var(--bg); border-bottom: 1px solid var(--tx-line); }
