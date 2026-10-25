@@ -106,18 +106,22 @@
 #scout .tx-panel.s-M { grid-column: span 6; }
 #scout .tx-panel.s-L { grid-column: span 8; }
 #scout .tx-panel.s-XL { grid-column: span 12; }
-/* Wide screens: the players table in a left column (two thirds), the player card and radar it drives in a right one. The
-   table is at most as tall as the card and radar (--tx-tallh, measured by terminal.js), scrolling inside it; when it is
-   shorter, terminal.js moves the next panels (form, shots…) up under it, two to a row, so no empty block is left beside
-   the radar. Narrower, the columns dissolve and every panel is a grid item again. */
+/* Wide screens: the players table top left (two thirds), the player card and radar it drives in a right column beside it,
+   and under the table a two-column slot (.tx-colL) that the next panels (form, shots…) move into when that leaves less
+   empty space (terminal.js fitTall tries each count and keeps the one with the least). The DOM order is table, card,
+   radar, then the rest, so Tab reads them in that order. The table is at most as tall as the card and radar
+   (--tx-tallh), scrolling inside it. Below the columns, each row of panels is widened to fill all 12 columns
+   (fillRows). Narrower, the columns dissolve and every panel is a grid item again. */
 #scout .tx-split, #scout .tx-colL, #scout .tx-colR { display: contents; }
 @media (min-width: 1101px) {
-  #scout .tx-split { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 8px; align-items: start; }
-  #scout .tx-colL { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; min-width: 0; }
-  #scout .tx-colL > .tx-panel { grid-column: span 1; }
-  #scout .tx-colL > .tx-panel.tall, #scout .tx-colL > .tx-panel.s-M, #scout .tx-colL > .tx-panel.s-L, #scout .tx-colL > .tx-panel.s-XL { grid-column: 1 / -1; }
-  #scout .tx-colR { display: grid; gap: 8px; align-content: start; min-width: 0; }
+  #scout .tx-split { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 8px; align-items: start; }
+  #scout .tx-split > .tx-panel { grid-column: 1; grid-row: 1; }
+  #scout .tx-colR { grid-column: 2; grid-row: 1 / span 2; display: grid; gap: 8px; align-content: start; min-width: 0; }
   #scout .tx-colR > .tx-panel { grid-column: auto; }
+  #scout .tx-colL { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; align-items: start; min-width: 0; }
+  #scout .tx-colL:empty { display: none; }
+  #scout .tx-colL > .tx-panel { grid-column: span 1; }
+  #scout .tx-colL > .tx-panel.s-M, #scout .tx-colL > .tx-panel.s-L, #scout .tx-colL > .tx-panel.s-XL { grid-column: 1 / -1; }
   #scout .tx-panel.tall { max-height: var(--tx-tallh, 1200px); display: flex; flex-direction: column; }
   #scout .tx-panel.tall > .tx-pb { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
   #scout #tx-p-scrn.tall .tx-tablewrap { flex: 0 1 auto; min-height: 0; max-height: none; }
@@ -206,6 +210,7 @@
 #scout .tx-table .tx-stk { position: sticky; left: 0; z-index: 1; background: var(--tx-panel); min-width: 150px; }
 #scout .tx-table thead .tx-stk { z-index: 3; background: var(--tx-head); }
 #scout .tx-table tbody th { font-weight: 600; }
+#scout .tx-table .tx-sub { display: none; }
 #scout .tx-rk { display: inline-block; width: 22px; color: var(--tx-dim); font-size: 11px; text-align: right; margin-right: 6px; font-variant-numeric: tabular-nums; }
 #scout .tx-table tbody tr[data-row] { cursor: pointer; }
 #scout .tx-table tbody tr:hover td, #scout .tx-table tbody tr:hover th { background-color: #151a25; }
@@ -408,6 +413,14 @@ body:has(#scout .tx:not([hidden])) .side { z-index: 5; }
   /* clips: a bottom sheet */
   #scout .tx-drawer { top: auto; left: 0; width: 100vw; max-height: 78vh; border-left: 0; border-top: 1px solid #3a4256; border-radius: 12px 12px 0 0; box-shadow: 0 -16px 40px rgba(0,0,0,.6); }
   #scout .tx-dh { border-radius: 12px 12px 0 0; }
+  /* the players table: club, position and role move to a small line under the name (the Club and Pos columns hide), so
+     the stat the scout ranked by shows whole beside Mins on the first screen */
+  #scout .tx-table .tx-stk { min-width: 132px; max-width: 150px; }
+  #scout .tx-table tbody .tx-stk { white-space: normal; padding-left: 30px; padding-top: 3px; padding-bottom: 3px; }
+  #scout .tx-table tbody .tx-stk .tx-rk { position: absolute; left: 0; top: 4px; }
+  #scout .tx-table .tx-hc { display: none; }
+  #scout .tx-table .tx-pn { white-space: normal; line-height: 1.2; }
+  #scout .tx-table .tx-sub { display: block; font-size: 11px; font-weight: 500; color: var(--tx-dim); line-height: 1.2; }
   /* panel buttons are always visible on touch screens; give them room */
   #scout .tx .tx-pbtns button { width: 30px; height: 30px; }
 }

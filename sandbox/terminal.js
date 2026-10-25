@@ -47,6 +47,7 @@
     CMP: { word: 'compare', args: '<player> and <player> [and <player>]', help: 'Two or three players on the radar and side by side.', ex: 'compare Femi Toure and Amari Ustinov' },
     SCAT: { word: 'plot', args: '<stat> against <stat> [<position>]', help: 'One stat against another, a dot per player.', ex: 'plot non-penalty xG against xA forwards' },
     SIM: { word: 'similar to', args: '<player>', help: 'The five players most like them, on their position\'s stats.', ex: 'similar to Femi Toure' },
+    HL: { word: 'highlights', args: '<player>', help: 'One reel of their goals, shots, chances made, skills and defending.', ex: 'highlights Femi Toure' },
     SHOT: { word: 'shots', args: '<player>', help: 'Every shot, sized by xG; each plays its clip.', ex: 'shots Femi Toure' },
     FORM: { word: 'form', args: '<player>', help: 'Match by match, any stat.', ex: 'form Femi Toure' },
     HEAT: { word: 'touch map', args: '<player>', help: 'Where the player has the ball.', ex: 'touch map Femi Toure' },
@@ -55,14 +56,14 @@
     HELP: { word: 'help', args: '', help: 'Commands, keys and what the numbers mean.', ex: 'help' },
   };
   const ALIAS = { COMPARE: 'CMP', PLOT: 'SCAT', SCATTER: 'SCAT', SIMILAR: 'SIM', SHOTS: 'SHOT', RADAR: 'RDR', CLUB: 'TEAM', PLAYER: 'PLYR', '?': 'HELP',
-    HEATMAP: 'HEAT', TOUCHMAP: 'HEAT' };
+    HEATMAP: 'HEAT', TOUCHMAP: 'HEAT', HIGHLIGHTS: 'HL', HIGHLIGHT: 'HL', CLIPS: 'HL', MOMENTS: 'HL', VIDEOS: 'HL', REEL: 'HL' };
   // Multi-word heads ("who plays like Toure?", "similar to Toure", "touch map Toure") come first.
-  const HEAD_RE = /^(who\s+plays\s+like|plays\s+like|similar\s+to|players?\s+like|touch\s+map|heat\s+map|shot\s+map)(?=\s|$)/i;
+  const HEAD_RE = /^(who\s+plays\s+like|plays\s+like|similar\s+to|players?\s+like|touch\s+map|heat\s+map|shot\s+map|best\s+moments|highlight\s+reel)(?=\s|$)/i;
   function parseHead(t) {
     const m = t.match(HEAD_RE);
     if (m) {
       const w = norm(m[1]), after = t.slice(m[1].length);
-      return { head: /^(who|plays|similar|player)/.test(w) ? 'SIM' : w.startsWith('shot') ? 'SHOT' : 'HEAT', rest: after.replace(/^\s+/, ''), started: /^\s/.test(after), word: m[1] };
+      return { head: /^(who|plays|similar|player)/.test(w) ? 'SIM' : w.startsWith('shot') ? 'SHOT' : /^(best|highlight)/.test(w) ? 'HL' : 'HEAT', rest: after.replace(/^\s+/, ''), started: /^\s/.test(after), word: m[1] };
     }
     const w = t.split(/\s+/)[0], up = w.toUpperCase(), after = t.slice(w.length);
     return { head: ALIAS[up] || up, rest: after.replace(/^\s+/, ''), started: /^\s/.test(after), word: w };
@@ -349,43 +350,78 @@
             <button type="button" data-act="pmove" data-id="${p.id}" data-d="-1" aria-label="Move ${t} earlier" title="Move earlier"${i === 0 ? ' disabled' : ''}>${ICON.left}</button><button type="button" data-act="pmove" data-id="${p.id}" data-d="1" aria-label="Move ${t} later" title="Move later"${i === on.length - 1 ? ' disabled' : ''}>${ICON.right}</button><button type="button" data-act="psize" data-id="${p.id}" aria-label="${t}: ${SIZE_NAME[pp.size]}, make it ${SIZE_NAME[nx]}" title="Size: ${SIZE_NAME[pp.size]} (click for ${SIZE_NAME[nx]})">${ICON.size}</button><button type="button" data-act="pclose" data-id="${p.id}" aria-label="Hide ${t}" title="Hide (its button above brings it back)">${ICON.close}</button></span></header>
         <div class="tx-pb" data-body></div></section>`;
     });
-    // Wide screens: the table in a left column, the card and radar in a right one; the panels after them go in the grid
-    // below, and the first of them move up under the table while they fit (fitTall). Narrower, the columns dissolve
-    // (display: contents) and every panel is a grid item again.
+    // Wide screens: the table top left, the card and radar in a right column beside it, and a slot under the table that the
+  // next panels may move into (fitTall); the panels after them go in the grid below, each row filled (fillRows).
+  // Narrower, the columns dissolve (display: contents) and every panel is a grid item again.
     g.innerHTML = !secs.length ? '<p class="tx-empty">Every panel is hidden. Press a panel button above to bring one back.</p>'
-      : tall ? `<div class="tx-split"><div class="tx-colL">${secs[0]}</div><div class="tx-colR">${secs[1]}${secs[2]}</div></div>${secs.slice(3).join('')}`
+      : tall ? `<div class="tx-split">${secs[0]}<div class="tx-colR">${secs[1]}${secs[2]}</div><div class="tx-colL"></div></div>${secs.slice(3).join('')}`
       : secs.join('');
     watchTall(tall ? [on[1].id, on[2].id] : null);
     paintKeys(); paintNav();
   }
-  // The tall players table is capped at the height of the card and radar beside it. When the table is shorter than they
-  // are (18 forwards, say), the panels that come next (form, shots, touch map…) move up under it, in their order, while
-  // they fit, so no empty block is left beside the radar; when it grows (every position), they move back down. Kept in
-  // step as the panels change; it runs after the paints that change these heights too, since a hidden tab may hold
-  // back ResizeObserver callbacks.
+  // The tall players table is capped at the height of the card and radar beside it. The panels that come next (form,
+  // shots, touch map…) may move up into the slot under the table, two to a row, in their order. fitTall tries every count
+  // (none, the first, the first two…) and keeps the one that leaves the least empty space on the page, counting the space
+  // beside the radar, the half row a single panel leaves in the slot, and the rows below; so a short table (18 forwards,
+  // the goalkeepers) pulls panels up and a long one (every position) leaves them below. Kept in step as the panels
+  // change; it runs after the paints that change these heights too, since a hidden tab may hold back ResizeObserver
+  // callbacks.
   let tallRO = null, tallIds = null, balancing = false, bulk = false;
+  const WIDE_MQ = '(min-width: 1101px)', PHONE_MQ = '(max-width: 720px)';
+  // Below the columns, every row of panels fills the 12 columns: a panel's size (small, medium, large, full width) is how
+  // much of a row it asks for, and what a row leaves over is shared among its panels, so no block is left empty at the
+  // end of a row. Phones stack the panels at full width (CSS), so nothing is set there.
+  function fillRows() {
+    const g = $('txGrid'); if (!g) return;
+    const panels = [...g.querySelectorAll('.tx-panel')];
+    for (const el of panels) el.style.gridColumn = '';
+    if (matchMedia(PHONE_MQ).matches) return;
+    const wide = matchMedia(WIDE_MQ).matches;
+    const BASE = wide ? { S: 4, M: 6, L: 8, XL: 12 } : { S: 6, M: 6, L: 12, XL: 12 };
+    // Wide, only the grid's own children (the split's panels are laid out by its columns); narrower, every panel.
+    const items = wide ? panels.filter(el => el.parentElement === g) : panels;
+    let row = [], used = 0;
+    const flush = () => {
+      const left = 12 - used, add = row.length ? Math.floor(left / row.length) : 0;
+      let rem = left - add * row.length;
+      for (const r of row) { const n = r.span + add + (rem > 0 ? 1 : 0); rem--; r.el.style.gridColumn = `span ${n}`; }
+      row = []; used = 0;
+    };
+    for (const el of items) {
+      const span = BASE[(el.className.match(/\bs-(S|M|L|XL)\b/) || [])[1] || 'S'];
+      if (used + span > 12) flush();
+      row.push({ el, span }); used += span;
+    }
+    flush();
+  }
   function fitTall() {
     const sc = $('tx-p-scrn'), L = document.querySelector('#txGrid .tx-colL'), R = document.querySelector('#txGrid .tx-colR');
-    if (!sc || !L || !R || balancing || bulk) return;
+    if (!sc || !L || !R) { if (!balancing && !bulk) fillRows(); return; }
+    if (balancing || bulk) return;
     balancing = true;
-    const a = document.activeElement, split = L.parentElement;
+    const a = document.activeElement, split = L.parentElement, g = $('txGrid');
     const widthOf = (id) => { const b = document.querySelector(`#tx-p-${id} [data-body]`); return b ? b.clientWidth : 0; };
     const w0 = { form: widthOf('form'), scat: widthOf('scat') };
     try {
-      const wide = getComputedStyle(split).display !== 'contents', rh = R.offsetHeight;
-      sc.style.setProperty('--tx-tallh', `${Math.max(480, Math.floor(rh))}px`);
-      const fillers = () => [...L.children].filter(el => el !== sc && el.classList.contains('tx-panel'));
-      const fits = () => L.offsetHeight <= rh + 40;
-      // Too tall (or not wide): the last panel moved up goes back down, first in line after the columns.
-      let f;
-      while ((f = fillers()).length && (!wide || !fits())) split.after(f[f.length - 1]);
+      const wide = getComputedStyle(split).display !== 'contents';
+      sc.style.setProperty('--tx-tallh', `${Math.max(480, Math.floor(R.offsetHeight))}px`);
+      // Everything back below the columns, in order; then, wide, try each count of panels in the slot.
+      for (const f of [...L.children].reverse()) split.after(f);
       if (wide) {
-        for (let next = split.nextElementSibling; next && next.classList.contains('tx-panel'); next = split.nextElementSibling) {
-          L.appendChild(next);
-          if (!fits()) { split.after(next); break; }
+        const after = [];
+        for (let n = split.nextElementSibling; n && n.classList.contains('tx-panel') && after.length < 6; n = n.nextElementSibling) after.push(n);
+        // Empty space: the grid's area less the panels' areas (the gaps between panels are the same for every count).
+        const empty = () => { fillRows(); const gr = g.getBoundingClientRect(); let s = gr.width * gr.height; for (const el of g.querySelectorAll('.tx-panel')) s -= el.offsetWidth * el.offsetHeight; return s; };
+        let best = 0, bestE = empty();
+        for (let k = 1; k <= after.length; k++) {
+          L.appendChild(after[k - 1]);
+          const e = empty();
+          if (e < bestE - 2000) { best = k; bestE = e; }      // strictly better by more than a sliver; else keep fewer moved up
         }
+        for (let k = after.length; k > best; k--) split.after(after[k - 1]);
       }
-      // Form and Scatter are drawn at their panel's width: redraw the ones that changed column.
+      fillRows();
+      // Form and Scatter are drawn at their panel's width: redraw the ones that changed width.
       for (const id of ['form', 'scat']) if (visible(id) && widthOf(id) !== w0[id]) RENDER[id]();
     } finally { balancing = false; }
     if (a && a !== document.body && a !== document.activeElement && document.contains(a)) a.focus({ preventScroll: true });
@@ -393,7 +429,7 @@
   function watchTall(ids) {
     if (tallRO) { tallRO.disconnect(); tallRO = null; }
     tallIds = ids;
-    if (!ids) return;
+    if (!ids) { fillRows(); return; }
     if (typeof ResizeObserver === 'function') { tallRO = new ResizeObserver(fitTall); [ids[0], ids[1]].forEach(id => { const el = $('tx-p-' + id); if (el) tallRO.observe(el); }); }
     fitTall();
   }
@@ -622,6 +658,43 @@
     const by = tr.bottom - pt <= room ? pt : tr.top;
     window.scrollTo({ top: Math.max(0, by + window.scrollY - bar - 8), behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   }
+  // A player's highlights: one reel of the moments behind their goals, assists, saves, shots (every one, from the shot
+  // list), chances made, skills and defending, each moment once (a goal is not also a shot, an assist not also a key pass),
+  // in that order of importance and match by match within each. The export lists the first 10 moments of each stat.
+  const HL_KINDS = [['goals', 'Goal', 'goals'], ['assists', 'Assist', 'assists'], ['penalties_saved', 'Penalty saved', 'penalties saved'],
+    ['saves', 'Save', 'saves'], ['shots', 'Shot', 'other shots'], ['key_passes', 'Chance made', 'chances made'], ['nutmegs', 'Nutmeg', 'nutmegs'],
+    ['skill_moves', 'Skill move', 'skill moves'], ['take_ons_won', 'Take-on won', 'take-ons won'], ['tackles_won', 'Tackle won', 'tackles won'],
+    ['interceptions', 'Interception', 'interceptions'], ['blocks', 'Block', 'blocks']];
+  const OUTCOME = { saved: 'saved', blocked: 'blocked', off_target: 'off target', goal: 'goal' };
+  function highlightsReel(p) {
+    const seen = new Set(), items = [], counts = [];
+    const keyOf = (mo) => mo.clip_id || mo.video_url || `${mo.match_id}|${mo.t}`;
+    for (const [mk, word, many] of HL_KINDS) {
+      let got = [];
+      if (mk === 'shots') {
+        got = (p.shots || []).filter(sh => sh.outcome !== 'goal').map(sh => ({ mo: sh, val: `xG ${Number(sh.xg).toFixed(2)}`, note: `Shot, ${OUTCOME[sh.outcome] || String(sh.outcome).replace(/_/g, ' ')}${sh.penalty ? ' (penalty)' : ''}` }));
+      } else {
+        const ev = p.evidence && p.evidence[mk];
+        if (!ev || ev.per_match || ev.keys) continue;
+        got = ev.items.map(it => ({ mo: p.moments[it.m] || {}, val: '', note: word }));
+      }
+      got = got.filter(x => x.mo && x.mo.video_url && !seen.has(keyOf(x.mo)));
+      got.sort((x, y) => (x.mo.round - y.mo.round) || (x.mo.minute - y.mo.minute));
+      for (const x of got) { seen.add(keyOf(x.mo)); items.push({ when: `R${x.mo.round} v ${short(x.mo.opponent)}`, minute: x.mo.minute, val: x.val || word, note: x.val ? x.note : '', video: x.mo.video_url, match_id: x.mo.match_id }); }
+      if (got.length) counts.push(got.length === 1 ? `1 ${mk === 'shots' ? 'other shot' : word.toLowerCase()}` : `${got.length} ${many}`);
+    }
+    return { title: `${p.name} · Highlights`, sub: counts.length ? cap1(listText(counts)) : 'No moments yet', kind: 'highlights', counts,
+      total: items.length, shown: items.length, items, i: -1, pid: p.id, mk: null, match: null, full: '',
+      note: items.length ? '' : `${p.name} has no goals, shots, chances made, skills or defensive moments with a clip this season.`,
+      legend: items.length ? 'Goals first, then the rest by importance, match by match.' : '' };
+  }
+  function playHighlights(p, alts) {
+    select(p.id, true);
+    const r = highlightsReel(p);
+    openReel(r);
+    out('', '', r.items.length ? esc(`Playing ${p.name}'s highlights: ${listText(r.counts)} (${plural(r.items.length, 'moment')}).`) + altsHtml(alts, 'HL')
+      : esc(`${p.name} has no highlights to play yet.`) + altsHtml(alts, 'HL'));
+  }
   function openEvidence(pid, mk, match) { if (PID.has(pid) && MK.has(mk)) openReel(evidenceReel(pid, mk, match)); }
 
   // ------------------------------------------------------------------ Clips: the drawer (its video element is built once)
@@ -767,15 +840,15 @@
     // which way. Removing a column is in the Columns menu.
     const sortBtn = (k, label, extra = '') => `<button type="button" data-act="sort" data-k="${esc(k)}" data-fid="h-${esc(k)}"${extra}>${label}</button>`;
     const head = `<tr><th class="tx-stk" aria-sort="${sortAttr('name')}">${sortBtn('name', 'Player')}</th>
-      <th aria-sort="${sortAttr('club')}">${sortBtn('club', 'Club')}</th><th>Pos</th>
+      <th class="tx-hc" aria-sort="${sortAttr('club')}">${sortBtn('club', 'Club')}</th><th class="tx-hc">Pos</th>
       <th class="num" aria-sort="${sortAttr('min')}">${sortBtn('min', 'Mins', ' title="Minutes played"')}</th>
       ${cols.map(k => { const m = MK.get(k); return `<th class="num" aria-sort="${sortAttr(k)}">${sortBtn(k, `${esc(shortLabel(m))}${m.kind === 'total' ? ' <span class="tx-u">(total)</span>' : ''}${noisy(m)}`, `${shortLabel(m).length <= 12 ? ' class="nw"' : ''} data-mk="${esc(k)}" aria-label="${esc(m.label)}${m.noisy ? ', small sample' : ''}, sort"`)}</th>`; }).join('')}</tr>`;
     const ranks = screenRanks(rows);
     const body = rows.map((p, r) => {
       const ci = S.compare.indexOf(p.id), act = scrAct.pid === p.id && scrAct.c === 0;
       return `<tr class="${p.id === S.focus ? 'on' : ''}${ci >= 0 ? ' cmp' : ''}" data-row="${esc(p.id)}"${ci >= 0 ? ` style="--c:${CMP_COL[ci]}"` : ''}>
-        <th class="tx-stk" scope="row"><span class="tx-rk">${ranks[r] == null ? '–' : ranks[r]}</span><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-nav data-fid="n-${esc(p.id)}" tabindex="${act ? 0 : -1}"${p.id === S.focus ? ' aria-current="true"' : ''}>${esc(p.name)}</button></th>
-        <td>${esc(p.short_name)}</td><td>${esc(p.position)} <span class="tx-dim">${esc(p.role)}</span></td><td class="num">${esc(Math.round(p.minutes))}</td>
+        <th class="tx-stk" scope="row"><span class="tx-rk">${ranks[r] == null ? '–' : ranks[r]}</span><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-nav data-fid="n-${esc(p.id)}" tabindex="${act ? 0 : -1}"${p.id === S.focus ? ' aria-current="true"' : ''}>${esc(p.name)}</button><span class="tx-sub">${esc(p.short_name)} · ${esc(p.position)} ${esc(p.role)}</span></th>
+        <td class="tx-hc">${esc(p.short_name)}</td><td class="tx-hc">${esc(p.position)} <span class="tx-dim">${esc(p.role)}</span></td><td class="num">${esc(Math.round(p.minutes))}</td>
         ${cols.map((k, i) => cell(p, k, i)).join('')}</tr>`;
     }).join('');
     const html = `<div class="tx-ctls">
@@ -808,7 +881,7 @@
           <p class="tx-prof">${profileIds.has(p.id) ? `<a href="#scout/player/${encodeURIComponent(p.id)}">Open profile &rarr;</a>` : `<a href="${esc(`${APP}/players/${encodeURIComponent(p.id)}`)}" target="_blank" rel="noopener">Open profile on the live app &#8599;</a>`}</p></div></div>
       <dl class="tx-bio">${bio.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join('')}</dl>
       <div class="tx-acts"><button type="button" class="tx-mini" data-act="cmpwith" data-fid="card-cmp"${S.compare.length >= 3 && S.compare.includes(p.id) ? ' disabled' : ''}>Compare with…</button>
-        <button type="button" class="tx-mini" data-act="run" data-keep data-cmd="shots ${esc(p.name)}">Shots</button><button type="button" class="tx-mini" data-act="run" data-keep data-cmd="form ${esc(p.name)}">Form</button>
+        <button type="button" class="tx-mini" data-act="run" data-keep data-cmd="highlights ${esc(p.name)}" title="Goals, shots, chances made, skills and defending in one reel">Highlights</button><button type="button" class="tx-mini" data-act="run" data-keep data-cmd="shots ${esc(p.name)}">Shots</button><button type="button" class="tx-mini" data-act="run" data-keep data-cmd="form ${esc(p.name)}">Form</button>
         <button type="button" class="tx-mini" data-act="run" data-keep data-cmd="team ${esc(p.club)}">Team</button></div>
       ${p.minutes > 0 ? `<h3 class="tx-h3">Best among ${esc(POSN[p.position])}</h3>
       <table class="tx-mt"><tbody>${strengths.map(m => mrow(p, m)).join('')}</tbody></table>
@@ -1275,6 +1348,7 @@
       if (!c || !c.club_id) { out(`No club called "${rest}". Clubs: ${D.clubs.map(x => x.name).join(', ')}.`, 'err'); return; }
       S.club = c.club_id; save(); reveal('team', renderTeam); out(`${c.name}: how they play, ranked across the league's six clubs.`); return;
     }
+    if (head === 'HL') { const r = onePlayer(rest); if (r) playHighlights(r.p, r.alts); return; }
     const PANEL_CMD = { SIM: 'plyr', SHOT: 'shot', FORM: 'form', HEAT: 'heat', RDR: 'radar', PLYR: 'plyr' };
     if (PANEL_CMD[head]) {
       const r = onePlayer(rest); if (!r) return;
@@ -1299,7 +1373,7 @@
     if (mm.m) return cmdRank(mm.m.key);
     const nat = natural(t);
     if (nat) return nat();
-    out(`Nothing found for "${t}". Try a surname, a club, a stat such as "goals", "best finishers", or "Toure vs Ustinov". Help lists everything.`, 'err');
+    out(`Nothing found for "${t}". Try a surname, a club, a stat such as "goals", "best finishers", "Toure highlights" or "Toure vs Ustinov". Help lists everything.`, 'err');
   }
   // Plain questions, as a scout types them into a search box: "who are the best finishers?", "top scorers", "strikers",
   // "best dribblers in midfield", "Toure shots", "Toure goals", "Toure vs Ustinov". Each becomes the command it means.
@@ -1322,37 +1396,57 @@
   const PANEL_W = { shots: 'SHOT', shot: 'SHOT', 'shot map': 'SHOT', form: 'FORM', 'touch map': 'HEAT', 'heat map': 'HEAT', heatmap: 'HEAT', touchmap: 'HEAT',
     radar: 'RDR', profile: 'PLYR', card: 'PLYR', player: 'PLYR', similar: 'SIM', 'similar players': 'SIM', 'plays like': 'SIM', lookalikes: 'SIM', team: 'TEAM', club: 'TEAM' };
   const synStat = (s) => { for (const [re, k, pos] of SYN) if (re.test(s) && MK.has(k)) return { k, pos }; return null; };
+  // Words that ask to watch a player: "Toure highlights", "Toure clips", "best moments Toure".
+  const HL_W = new Set(['highlights', 'highlight', 'highlight reel', 'clips', 'clip', 'moments', 'best moments', 'top moments', 'videos', 'video', 'reel', 'best bits']);
+  // "who scores the most", "who assists the most": the verb names the stat.
+  const VERB = { scores: 'goals', score: 'goals', scored: 'goals', assists: 'assists', assisted: 'assists', creates: 'creators', create: 'creators',
+    shoots: 'shooters', dribbles: 'dribblers', tackles: 'tacklers', passes: 'passers', runs: 'runners', covers: 'runners', presses: 'pressers',
+    saves: 'saves', carries: 'carriers', heads: 'headers', wins: null };
+  // A club named strictly (its short name, its name, or the first word of its name), so "in midfield" is never a club.
+  const clubStrict = (q) => { const n = norm(q); return n ? D.clubs.find(c => norm(c.short_name) === n || norm(c.name) === n || norm(c.name).split(' ')[0] === n) || null : null; };
   function natural(t) {
-    let s = norm(t).replace(/[?!.]+$/, '').replace(/['’]s\b/g, '');
-    s = s.replace(/^(who\s+(are|is|were|was)|which\s+players?\s+(are|is|have|has)|show\s+me|show|find\s+me|find|list|give\s+me|get\s+me|get)\s+/, '');
-    s = s.replace(/^the\s+/, '').replace(/^((best|top|most|leading|greatest|highest|good|great|strongest|biggest|elite)\s+)+/, '').replace(/^\d+\s+/, '');
+    let s0 = norm(t).replace(/[?!.]+$/, '').replace(/\b(who|what|that|it|he|she)['’]s\b/g, '$1 is').replace(/['’]s\b/g, '').replace(/['’]/g, '');
+    // "per 90" is how every rate here is shown already
+    s0 = s0.replace(/\s*(\/\s*90|per 90( minutes)?|per ninety|p90|per game|per match|a game|a match)(?=\s|$)/g, '').replace(/\s+/g, ' ').trim();
+    // The opening words of a question or a request, as many as there are ("who has", "show me", "can you show me").
+    const OPEN = /^(can\s+you|could\s+you|please|i\s+want\s+to\s+see|let\s+me\s+see|who\s+(are|is|were|was|has|have|had|got|gets)|which\s+players?\s+(are|is|have|has)|which\s+players?|who|show\s+me|show|find\s+me|find|list|give\s+me|get\s+me|get|open|pull\s+up|look\s+up|search\s+for|search|go\s+to|take\s+me\s+to|play|watch|see)\s+/;
+    let watch = false, who = false;
+    for (let m = s0.match(OPEN); m; m = s0.match(OPEN)) { if (/^(play|watch|see|i want|let me)/.test(m[1])) watch = true; if (/^(who|which)/.test(m[1])) who = true; s0 = s0.slice(m[0].length); }
+    if (who) { const v = s0.split(' ')[0]; if (VERB[v]) s0 = [VERB[v], ...s0.split(' ').slice(1).filter(w => !/^(the|most|more|best|often|goals|chances|ground|ball)$/.test(w))].join(' '); }
+    if (!s0) return null;
+    // "at Brookfield", "for Calder", "from Dunmore": a club filter on the ranking (or "Brookfield best finishers").
+    let cl = null;
+    const cm = s0.match(/\s(?:at|for|from|in)\s+(.+)$/);
+    if (cm && clubStrict(cm[1])) { cl = clubStrict(cm[1]); s0 = s0.slice(0, cm.index).trim(); }
+    else { const w0 = s0.split(' '); if (w0.length > 1 && clubStrict(w0[0]) && !resolvePlayer(w0[0], true).p) { cl = clubStrict(w0[0]); s0 = w0.slice(1).join(' '); } }
+    let s = s0.replace(/^the\s+/, '').replace(/^((best|top|most|leading|greatest|highest|good|great|strongest|biggest|elite)\s+)+/, '').replace(/^\d+\s+/, '');
     s = s.replace(/\s+(in the league|in the regista league|this season|in the season|right now)$/, '').trim();
-    if (!s) return null;
-    // A position word anywhere ("forwards", "strikers", "in midfield"), with what is left read as a stat.
-    const toks = s.split(' ');
-    let pos = null;
-    const MIDWORDS = { midfield: 'MF', defence: 'DF', defense: 'DF', attack: 'FW', goal: null };
-    const rest = toks.filter(w => {
-      const p = posOf(w) || (MIDWORDS[w] !== undefined && MIDWORDS[w] ? MIDWORDS[w] : null);
-      if (p && !pos) { pos = p; return false; }
-      return true;
-    }).filter(w => !/^(at|for|by|on|in|of|the|with)$/.test(w)).join(' ');
-    const posWord = (p) => p === 'ALL' || !p ? 'all' : POSN[p];
-    if (pos && !rest) {
-      const k = (D.default_columns[pos === 'ALL' ? 'all' : pos] || D.default_columns.all).find(x => MK.has(x));
-      return () => cmdRank(`${posWord(pos)} ${k}`);
+    const rank = (q) => () => cmdRank(q, cl);
+    if (s) {
+      // A position word anywhere ("forwards", "strikers", "in midfield"), with what is left read as a stat.
+      const toks = s.split(' ');
+      let pos = null;
+      const MIDWORDS = { midfield: 'MF', defence: 'DF', defense: 'DF', attack: 'FW', goal: null };
+      const rest = toks.filter(w => {
+        const p = posOf(w) || (MIDWORDS[w] !== undefined && MIDWORDS[w] ? MIDWORDS[w] : null);
+        if (p && !pos) { pos = p; return false; }
+        return true;
+      }).filter(w => !/^(at|for|by|on|in|of|the|with)$/.test(w)).join(' ');
+      const posWord = (p) => p === 'ALL' || !p ? 'all' : POSN[p];
+      if (pos && !rest) return rank(`${posWord(pos)} ${(D.default_columns[pos === 'ALL' ? 'all' : pos] || D.default_columns.all).find(x => MK.has(x))}`);
+      const st = synStat(rest);
+      if (st) return rank(`${posWord(pos || st.pos)} ${st.k}`);
+      if (pos || cl) { const m = resolveMetric(rest); if (m.m) return rank(`${posWord(pos)} ${m.m.key}`); }
     }
-    const st = synStat(rest);
-    if (st) return () => cmdRank(`${posWord(pos || st.pos)} ${st.k}`);
-    if (pos) { const m = resolveMetric(rest); if (m.m) return () => cmdRank(`${posWord(pos)} ${m.m.key}`); }
-    // "<player> <panel or stat>" and "<panel or stat> <player>": "Toure shots", "Toure form", "Toure goals", "goals Toure".
-    const w = norm(t).replace(/[?!.]+$/, '').replace(/['’]s\b/g, '').split(' ').filter(x => !/^(of|for|by)$/.test(x));
-    const asPanelOrStat = (q) => PANEL_W[q] ? { panel: PANEL_W[q] } : synStat(q) ? { k: synStat(q).k } : (() => { const m = resolveMetric(q); return m.m ? { k: m.m.key } : null; })();
+    // "<player> <panel, stat or highlights>" and the other way round: "Toure shots", "Toure goals", "Toure highlights".
+    const w = s0.split(' ').filter(x => !/^(of|for|by|me|the|all)$/.test(x));
+    const asPanelOrStat = (q) => HL_W.has(q) ? { hl: true } : PANEL_W[q] ? { panel: PANEL_W[q] } : synStat(q) ? { k: synStat(q).k } : (() => { const m = resolveMetric(q); return m.m ? { k: m.m.key } : null; })();
     for (let j = w.length - 1; j >= 1; j--) {
       for (const [pq, xq] of [[w.slice(0, j), w.slice(j)], [w.slice(w.length - j), w.slice(0, w.length - j)]]) {
         const pr = resolvePlayer(pq.join(' '), true); if (!pr.p) continue;
         const x = asPanelOrStat(xq.join(' ')); if (!x) continue;
         const p = pr.p;
+        if (x.hl) return () => playHighlights(p, pr.alts);
         if (x.panel === 'TEAM') return () => dispatch(`team ${p.club}`);
         if (x.panel) return () => dispatch(`${COMMANDS[x.panel] ? COMMANDS[x.panel].word : 'player'} ${p.name}`);
         return () => {
@@ -1364,13 +1458,20 @@
       }
     }
     // "Toure vs Ustinov", "Femi Toure and Amari Ustinov", "Toure with Ustinov": a comparison without the word "compare".
-    if (/\s(v|vs|vs\.|versus|and|with|&|against)\s|,/.test(` ${norm(t)} `)) {
-      const rs = resolvePlayers(norm(t));
-      if (rs.length >= 2 && rs.every(r => r.p)) return () => cmdCmp(norm(t));
+    if (/\s(v|vs|vs\.|versus|and|with|&|against)\s|,/.test(` ${s0} `)) {
+      const rs = resolvePlayers(s0);
+      if (rs.length >= 2 && rs.every(r => r.p)) return () => cmdCmp(s0);
+    }
+    // What is left after "show me", "open", "watch": a bare highlights word, a player or a club.
+    if (HL_W.has(s0)) return () => playHighlights(PID.get(S.focus));
+    if (s0 !== norm(t)) {
+      const pr = resolvePlayer(s0);
+      if (pr.p) return watch ? () => playHighlights(pr.p, pr.alts) : () => dispatch(s0);
+      if (resolveClub(s0)) return () => dispatch(`team ${s0}`);
     }
     return null;
   }
-  function cmdRank(rest) {
+  function cmdRank(rest, cl) {
     const toks = rest.split(/\s+/).filter(Boolean);
     let pos = null;
     if (toks.length && posOf(toks[0])) pos = posOf(toks.shift());
@@ -1388,7 +1489,8 @@
     // only one stat column fits).
     S.scr.cols = [m.key, ...S.scr.cols.filter(k => k !== m.key)];
     S.scr.sort = { k: m.key, dir: m.higher_is_better === false ? 1 : -1 };
-    S.scr.q = ''; scrAct = null; save();
+    // A club filter ("best finishers at Brookfield") goes in the table's own filter box, where it shows and clears.
+    S.scr.q = cl ? cl.name : ''; scrAct = null; save();
     if (!visible('scrn')) showPanel('scrn', false);
     renderScrn();
     const tw = document.querySelector('#tx-p-scrn .tx-tablewrap');
@@ -1403,7 +1505,7 @@
     const rows = screenRows(), ranks = screenRanks(rows), tops = rows.filter((_, i) => ranks[i] === 1), c = tops[0] && cellOf(tops[0], m.key);
     const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
     const nr = ranks.filter(x => x != null).length, un = rows.length - nr;
-    out(`${cap1(posText(S.scr.pos))} ranked by ${m.label}${m.higher_is_better === false ? ' (lowest first: lower is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
+    out(`${cap1(posText(S.scr.pos))}${cl ? ` at ${cl.name}` : ''} ranked by ${m.label}${m.higher_is_better === false ? ' (lowest first: lower is better)' : ''}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
   }
   function cmdCmp(rest) {
     const rs = resolvePlayers(rest);
@@ -1477,7 +1579,7 @@
         s.push(...D.clubs.filter(c => norm(c.short_name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).map(c => ({ kind: 'Club', text: c.name, detail: 'how they play', insert: `team ${c.name}`, k: 1, run: true })));
         s.push(...metricSugs(cur, 1, true, `rank ${POSN[PID.get(S.focus).position]} `).slice(0, 3).map(x => ({ ...x, detail: `rank ${POSN[PID.get(S.focus).position]}` })));
       } else s = playerSugs(words.join(' '), toks.length, true);
-    } else if (['SIM', 'SHOT', 'FORM', 'HEAT', 'RDR', 'PLYR'].includes(head)) s = playerSugs(args.join(' '), args.length, true);
+    } else if (['SIM', 'HL', 'SHOT', 'FORM', 'HEAT', 'RDR', 'PLYR'].includes(head)) s = playerSugs(args.join(' '), args.length, true);
     else if (head === 'CMP') {
       // Players already named before the last "," / "and" / "vs" are not suggested again (Compare with… names the selected one).
       const more = /,|\band\b|\bvs?\b/i.test(ph.rest), m = ph.rest.match(/^(.*)(,|\band\b|\bvs?\b)/i), named = m ? norm(m[1]) : '';
@@ -1527,7 +1629,7 @@
       <div class="tx-hbody"><p>Type in the search box and press Enter. Click any example to run it.</p><table class="tx-mt tx-htable"><tbody>
         <tr><th scope="row"><code>a name</code></th><td>Opens the player. ${runBtn(f.name.split(' ').slice(-1)[0])}</td></tr>
         <tr><th scope="row"><code>a club</code> or <code>a stat</code></th><td>A club opens how it plays; a stat ranks every player on it. ${runBtn('goals')}</td></tr>
-        <tr><th scope="row"><code>a question</code></th><td>Plain words work too: best finishers, top scorers, best dribblers, strikers, a player with a stat or a panel, or two players with "vs". ${runBtn('top scorers')} ${runBtn(`${f.name.split(' ').slice(-1)[0]} shots`)} ${runBtn(`${f.name.split(' ').slice(-1)[0]} vs ${(f.similar && f.similar[0] ? f.similar[0].name : f.name).split(' ').slice(-1)[0]}`)}</td></tr>
+        <tr><th scope="row"><code>a question</code></th><td>Plain words work too: best finishers, who has the most assists, best finishers at a club, a player with a stat, a panel or "highlights", or two players with "vs". ${runBtn('who has the most assists?')} ${runBtn(`${f.name.split(' ').slice(-1)[0]} highlights`)} ${runBtn(`${f.name.split(' ').slice(-1)[0]} vs ${(f.similar && f.similar[0] ? f.similar[0].name : f.name).split(' ').slice(-1)[0]}`)}</td></tr>
         ${Object.entries(COMMANDS).filter(([c]) => c !== 'HELP').map(([c, x]) => `<tr><th scope="row"><code>${esc(x.word)}</code> <span class="tx-dim">${esc(x.args)}</span></th><td>${esc(x.help)} ${runBtn(ex(c, x))}</td></tr>`).join('')}
       </tbody></table>
       <p class="tx-dim">Short forms still work: ${Object.entries(COMMANDS).map(([c, x]) => `<code>${esc(c)}</code>`).join(' ')} (for example <code>RANK FW npxg</code>).</p>
