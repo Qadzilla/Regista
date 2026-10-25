@@ -2221,68 +2221,68 @@
  ],
  "fixtures": [
   {
-   "match_id": "cm_ewo_01_mrw_oxr",
+   "match_id": "cm_ewo_01_wth_skb",
    "round": 1,
-   "date": "2026-09-06",
-   "home": "cl_marrowby",
-   "away": "cl_oxenridge",
+   "date": "2026-08-16",
+   "home": "cl_wetherholme",
+   "away": "cl_skelbrook",
    "seed": 20270101,
    "uploader": {
     "type": "team",
-    "club_id": "cl_oxenridge"
+    "club_id": "cl_skelbrook"
    },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_ewo_03_mrw_wth",
-   "round": 3,
-   "date": "2026-10-18",
+   "match_id": "cm_ewo_01_mrw_oxr",
+   "round": 1,
+   "date": "2026-08-16",
    "home": "cl_marrowby",
-   "away": "cl_wetherholme",
+   "away": "cl_oxenridge",
    "seed": 20270102,
+   "uploader": {
+    "type": "team",
+    "club_id": "cl_oxenridge"
+   },
+   "camera": "drone"
+  },
+  {
+   "match_id": "cm_ewo_02_wth_hlm",
+   "round": 2,
+   "date": "2026-09-13",
+   "home": "cl_wetherholme",
+   "away": "cl_holmeley",
+   "seed": 20270103,
    "uploader": {
     "type": "team",
     "club_id": "cl_wetherholme"
    },
-   "camera": "drone"
-  },
-  {
-   "match_id": "cm_ewo_05_hlm_skb",
-   "round": 5,
-   "date": "2026-11-29",
-   "home": "cl_holmeley",
-   "away": "cl_skelbrook",
-   "seed": 20270103,
-   "uploader": {
-    "type": "team",
-    "club_id": "cl_holmeley"
-   },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_ewo_05_oxr_wth",
-   "round": 5,
-   "date": "2026-11-29",
-   "home": "cl_oxenridge",
-   "away": "cl_wetherholme",
+   "match_id": "cm_ewo_02_mrw_skb",
+   "round": 2,
+   "date": "2026-09-13",
+   "home": "cl_marrowby",
+   "away": "cl_skelbrook",
    "seed": 20270104,
    "uploader": {
     "type": "player",
-    "global_id": "pl_oxr_03",
-    "club_id": "cl_oxenridge"
+    "global_id": "pl_mrw_03",
+    "club_id": "cl_marrowby"
    },
    "camera": "drone"
   },
   {
-   "match_id": "cm_ewo_10_skb_hlm",
-   "round": 10,
-   "date": "2027-03-14",
-   "home": "cl_skelbrook",
-   "away": "cl_holmeley",
+   "match_id": "cm_ewo_03_mrw_wth",
+   "round": 3,
+   "date": "2026-10-11",
+   "home": "cl_marrowby",
+   "away": "cl_wetherholme",
    "seed": 20270105,
    "uploader": {
     "type": "team",
-    "club_id": "cl_skelbrook"
+    "club_id": "cl_marrowby"
    },
    "camera": "phone"
   }

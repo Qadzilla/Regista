@@ -204,13 +204,13 @@ def test_every_cell_carries_its_pool_and_sample(cm):
 
 def test_evidence_opens_catalogue_matches(cm):
     gid = "pl_sot_09"
-    ev = cm.evidence("co_esp_am_men", gid, "np_goals")
+    ev = cm.evidence("co_esp_am_men", gid, "shots")
     assert ev["total"] >= 1
     for item in ev["items"]:
         assert item["match_id"].startswith("cm_eam_") and item["link"].startswith("/?match=cm_eam_")
         if item.get("clip_id"):
             assert item["video_url"].startswith(f"/api/matches/{item['match_id']}/clips/")
-    assert cm.cell("co_esp_am_men", gid, "np_goals")["evidence_total"] == ev["moments"]
+    assert cm.cell("co_esp_am_men", gid, "shots")["evidence_total"] == ev["moments"]
 
 
 # ---------------------------------------------------------------------------- careers
@@ -276,7 +276,7 @@ def test_team_style_per_competition_with_its_level_rank(cm, england):
     for key in TEAM_CATALOGUE:
         assert {k: got["values"][key][k] for k in base["values"][key]} == base["values"][key]
         assert got["values"][key]["level_of"] >= base["values"][key]["of"]
-    ghana = cm.team_style("co_gha_u17", "cl_cocoa_hill")
+    ghana = cm.team_style("co_gha_u17", "cl_rainforest")
     assert ghana["sample"]["small"] is True and ghana["matches"] == 1 and ghana["competition_id"] == "co_gha_u17"
     assert ghana["values"]["possession_pct"]["level_of"] == ghana["values"]["possession_pct"]["of"]
 

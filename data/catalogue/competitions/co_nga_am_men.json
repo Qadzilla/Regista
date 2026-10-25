@@ -1787,57 +1787,57 @@
  ],
  "fixtures": [
   {
-   "match_id": "cm_nam_02_irk_ads",
-   "round": 2,
-   "date": "2026-11-21",
-   "home": "cl_iroko_lions",
-   "away": "cl_adire_stars",
+   "match_id": "cm_nam_01_ads_pgr",
+   "round": 1,
+   "date": "2026-09-05",
+   "home": "cl_adire_stars",
+   "away": "cl_palmgrove",
    "seed": 20270901,
    "uploader": {
     "type": "team",
-    "club_id": "cl_adire_stars"
+    "club_id": "cl_palmgrove"
    },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_nam_03_ads_rbw",
-   "round": 3,
-   "date": "2027-01-02",
-   "home": "cl_adire_stars",
+   "match_id": "cm_nam_01_irk_rbw",
+   "round": 1,
+   "date": "2026-09-05",
+   "home": "cl_iroko_lions",
    "away": "cl_riverbank",
    "seed": 20270902,
    "uploader": {
     "type": "player",
-    "global_id": "pl_ads_11",
-    "club_id": "cl_adire_stars"
+    "global_id": "pl_irk_11",
+    "club_id": "cl_iroko_lions"
    },
    "camera": "drone"
   },
   {
-   "match_id": "cm_nam_04_rbw_irk",
-   "round": 4,
-   "date": "2027-02-13",
-   "home": "cl_riverbank",
-   "away": "cl_iroko_lions",
+   "match_id": "cm_nam_02_irk_ads",
+   "round": 2,
+   "date": "2026-10-24",
+   "home": "cl_iroko_lions",
+   "away": "cl_adire_stars",
    "seed": 20270903,
    "uploader": {
     "type": "player",
-    "global_id": "pl_rbw_05",
-    "club_id": "cl_riverbank"
+    "global_id": "pl_irk_05",
+    "club_id": "cl_iroko_lions"
    },
    "camera": "phone"
   },
   {
-   "match_id": "cm_nam_05_rbw_pgr",
-   "round": 5,
-   "date": "2027-03-27",
-   "home": "cl_riverbank",
-   "away": "cl_palmgrove",
+   "match_id": "cm_nam_02_pgr_rbw",
+   "round": 2,
+   "date": "2026-10-24",
+   "home": "cl_palmgrove",
+   "away": "cl_riverbank",
    "seed": 20270904,
    "uploader": {
     "type": "player",
-    "global_id": "pl_pgr_08",
-    "club_id": "cl_palmgrove"
+    "global_id": "pl_rbw_08",
+    "club_id": "cl_riverbank"
    },
    "camera": "phone"
   }

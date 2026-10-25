@@ -1814,28 +1814,28 @@
    "camera": "phone"
   },
   {
-   "match_id": "cm_bu20_05_glc_uma",
-   "round": 5,
-   "date": "2026-10-31",
-   "home": "cl_lagoa_clara",
-   "away": "cl_morro_azul",
+   "match_id": "cm_bu20_04_uma_epa",
+   "round": 4,
+   "date": "2026-10-10",
+   "home": "cl_morro_azul",
+   "away": "cl_pedra_alta",
    "seed": 20270803,
    "uploader": {
     "type": "team",
-    "club_id": "cl_morro_azul"
+    "club_id": "cl_pedra_alta"
    },
    "camera": "drone"
   },
   {
-   "match_id": "cm_bu20_06_glc_epa",
-   "round": 6,
-   "date": "2026-11-21",
+   "match_id": "cm_bu20_04_glc_arn",
+   "round": 4,
+   "date": "2026-10-10",
    "home": "cl_lagoa_clara",
-   "away": "cl_pedra_alta",
+   "away": "cl_ribeirao_novo",
    "seed": 20270804,
    "uploader": {
     "type": "team",
-    "club_id": "cl_pedra_alta"
+    "club_id": "cl_ribeirao_novo"
    },
    "camera": "tripod"
   }

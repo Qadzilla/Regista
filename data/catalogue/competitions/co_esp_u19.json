@@ -2234,37 +2234,37 @@
    "camera": "tripod"
   },
   {
-   "match_id": "cm_eu19_05_vdc_sot",
-   "round": 5,
-   "date": "2026-11-28",
-   "home": "cl_valdecarro",
-   "away": "cl_sotoalto",
+   "match_id": "cm_eu19_01_pnr_nvc",
+   "round": 1,
+   "date": "2026-09-05",
+   "home": "cl_penaroble",
+   "away": "cl_navalcastro",
    "seed": 20270602,
-   "uploader": {
-    "type": "team",
-    "club_id": "cl_sotoalto"
-   },
-   "camera": "drone"
-  },
-  {
-   "match_id": "cm_eu19_06_nvc_pnr",
-   "round": 6,
-   "date": "2026-12-19",
-   "home": "cl_navalcastro",
-   "away": "cl_penaroble",
-   "seed": 20270603,
    "uploader": {
     "type": "team",
     "club_id": "cl_navalcastro"
    },
+   "camera": "drone"
+  },
+  {
+   "match_id": "cm_eu19_02_pnr_sot",
+   "round": 2,
+   "date": "2026-09-26",
+   "home": "cl_penaroble",
+   "away": "cl_sotoalto",
+   "seed": 20270603,
+   "uploader": {
+    "type": "team",
+    "club_id": "cl_penaroble"
+   },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_eu19_07_vdc_pij",
-   "round": 7,
-   "date": "2027-01-09",
+   "match_id": "cm_eu19_03_vdc_nvc",
+   "round": 3,
+   "date": "2026-10-17",
    "home": "cl_valdecarro",
-   "away": "cl_pinarejo",
+   "away": "cl_navalcastro",
    "seed": 20270604,
    "uploader": {
     "type": "player",
@@ -2274,15 +2274,15 @@
    "camera": "tripod"
   },
   {
-   "match_id": "cm_eu19_10_pij_nvc",
-   "round": 10,
-   "date": "2027-03-13",
-   "home": "cl_pinarejo",
-   "away": "cl_navalcastro",
+   "match_id": "cm_eu19_03_pnr_pij",
+   "round": 3,
+   "date": "2026-10-17",
+   "home": "cl_penaroble",
+   "away": "cl_pinarejo",
    "seed": 20270605,
    "uploader": {
     "type": "team",
-    "club_id": "cl_pinarejo"
+    "club_id": "cl_penaroble"
    },
    "camera": "tripod"
   }

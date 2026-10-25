@@ -3,8 +3,9 @@
 
 New endpoints
 -------------
-GET /api/catalogue                         the catalogue: competitions with their labels and upload counts, the levels and
-                                           their pools, the careers, totals (reads the committed files; builds nothing)
+GET /api/catalogue                         the catalogue as of its date (as_of: every uploaded match is dated on or before
+                                           it): competitions with their labels and upload counts, the levels and their
+                                           pools, the careers, totals (reads the committed files; builds nothing)
 GET /api/competitions                      competitions; filters country, tier (alias level), age_group, gender
 GET /api/competitions/{competition_id}     one competition: clubs with squads (public bio), uploaded matches with uploader
                                            and camera, results (England: the league table; elsewhere uploaded matches
@@ -50,7 +51,7 @@ from regista.catalogue import store
 from regista.catalogue.metrics import (ALL_WARNING, BOARD_TOP, GENDER_ORDER, POOL_RULE, RANK_RULE, RELIABILITY_NOTE,
                                        SYNTHETIC_NOTE, CatalogueMetrics, load_catalogue_metrics)
 from regista.catalogue.profiles import ENGLAND_BASIS
-from regista.catalogue.taxonomy import ENGLAND_ID, levels_public
+from regista.catalogue.taxonomy import AS_OF, ENGLAND_ID, levels_public
 from regista.catalogue.tools import comp_labels, competition_summary, entries_matching
 from regista.season.metrics import CATALOGUE, DEFAULT_COLUMNS, TEAM_CATALOGUE
 
@@ -81,6 +82,8 @@ AGE = Annotated[int | None, Query(ge=14, le=50)]
 CAMERA = Annotated[str | None, Query(pattern="^(tripod|phone|drone|broadcast)$")]
 UPLOADER_TYPE = Annotated[str | None, Query(pattern="^(team|player)$")]
 
+AS_OF_NOTE = ("The catalogue holds footage of matches already played: every uploaded match is dated on or before as_of. "
+              "Each competition's season continues after it; its later rounds have no footage yet.")
 CAMERA_NOTE = ("Camera type is a label of the upload: Regista renders every match with the same broadcast-style view, and "
                "the vision layer is measured only on that render. Nothing here processes phone or drone footage differently.")
 MIXED_WARNING = ALL_WARNING   # rows from different levels: the same caution as scope all
@@ -368,7 +371,7 @@ async def get_catalogue() -> Record:
         idx = store.load_index(index)
         comps = [(e, store.competition(e["competition_id"], index)) for e in store.entries(index)]
         gids = {p["global_id"] for _e, c in comps for club in c["clubs"] for p in club.get("squad", [])}
-        return {"catalogue": idx["catalogue"], "season": idx["season"],
+        return {"catalogue": idx["catalogue"], "season": idx["season"], "as_of": AS_OF, "as_of_note": AS_OF_NOTE,
                 "competitions": [_summary(e, c) for e, c in comps], "levels": levels_public(),
                 "careers": [{k: car.get(k) for k in ("global_id", "name", "competitions", "clubs", "story")}
                             | {"api_url": f"/api/catalogue/players/{car['global_id']}"} for car in idx.get("careers", [])],

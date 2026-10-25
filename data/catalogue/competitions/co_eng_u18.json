@@ -1800,41 +1800,41 @@
    "camera": "tripod"
   },
   {
-   "match_id": "cm_eu18_03_skw_plb",
-   "round": 3,
-   "date": "2026-11-21",
-   "home": "cl_stokewell",
-   "away": "cl_pellbury",
+   "match_id": "cm_eu18_01_plb_nht",
+   "round": 1,
+   "date": "2026-08-29",
+   "home": "cl_pellbury",
+   "away": "cl_netherhatch",
    "seed": 20270202,
    "uploader": {
     "type": "team",
-    "club_id": "cl_stokewell"
+    "club_id": "cl_pellbury"
    },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_eu18_04_nht_plb",
-   "round": 4,
-   "date": "2027-01-02",
-   "home": "cl_netherhatch",
-   "away": "cl_pellbury",
+   "match_id": "cm_eu18_02_plb_crm",
+   "round": 2,
+   "date": "2026-10-10",
+   "home": "cl_pellbury",
+   "away": "cl_cradlemoor",
    "seed": 20270203,
    "uploader": {
     "type": "team",
-    "club_id": "cl_pellbury"
+    "club_id": "cl_cradlemoor"
    },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_eu18_06_plb_skw",
-   "round": 6,
-   "date": "2027-03-27",
-   "home": "cl_pellbury",
-   "away": "cl_stokewell",
+   "match_id": "cm_eu18_02_skw_nht",
+   "round": 2,
+   "date": "2026-10-10",
+   "home": "cl_stokewell",
+   "away": "cl_netherhatch",
    "seed": 20270204,
    "uploader": {
     "type": "team",
-    "club_id": "cl_pellbury"
+    "club_id": "cl_stokewell"
    },
    "camera": "phone"
   }

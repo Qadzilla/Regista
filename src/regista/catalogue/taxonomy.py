@@ -24,6 +24,9 @@ AGE_GROUPS: list[tuple[str, str]] = [("senior", "Senior"), ("college", "College"
 GENDERS: list[tuple[str, str]] = [("men", "Men"), ("women", "Women")]
 FORMAT = "11-a-side"
 SEASON = "2026/27"
+# The catalogue is a library of uploaded footage, so it holds matches already played: every uploaded match is dated on
+# or before this day (``regista.catalogue.define`` draws uploads only from rounds played by then). Served as ``as_of``.
+AS_OF = "2026-10-24"
 
 
 @dataclass(frozen=True)
@@ -118,7 +121,9 @@ class Competition:
     teams: int
     uploads: int
     k: int                          # 1..13: the competition's seed index (comp_seed = 202700 + k); 0 for England
-    window: tuple[str, str] = ("2026-08-15", "2027-05-15")   # the country's calendar inside 2026/27 (dates of rounds)
+    # the competition's season inside 2026/27: its rounds are spread over it in whole weeks, and only the rounds played
+    # by AS_OF can have been uploaded (a competition that started in August or September contributes its opening rounds)
+    window: tuple[str, str] = ("2026-08-15", "2027-05-15")
     nationalities: tuple[tuple[str, int], ...] = ()
 
     @property
@@ -158,7 +163,7 @@ BIRTH_CUTOFFS: dict[str, tuple[str, str]] = {
 COMPETITIONS: list[Competition] = [
     Competition(ENGLAND_ID, "rl", "Regista League", "England", "Northern England", "semi_pro", "senior", "men", 6, 30, 0),
     Competition("co_eng_sp_women", "ewo", "Pennine Women's League", "England", "Yorkshire", "semi_pro", "senior", "women",
-                5, 5, 1, ("2026-09-06", "2027-05-02"), (("England", 80), ("Scotland", 7), ("Wales", 7), ("Ireland", 6))),
+                5, 5, 1, ("2026-08-16", "2027-05-02"), (("England", 80), ("Scotland", 7), ("Wales", 7), ("Ireland", 6))),
     Competition("co_eng_u18", "eu18", "Shires Academy League U18", "England", "West Midlands", "academy", "U18", "men",
                 4, 4, 2, ("2026-08-29", "2027-04-24"), (("England", 86), ("Ireland", 5), ("Scotland", 5), ("Wales", 4))),
     Competition("co_usa_col_men", "ucm", "Atlantic Collegiate Soccer Conference", "USA", "New England", "college", "college",
@@ -173,18 +178,18 @@ COMPETITIONS: list[Competition] = [
     Competition("co_esp_u19", "eu19", "Liga Juvenil Levante Interior", "Spain", "Valencian Community", "academy", "U19", "men",
                 5, 5, 6, ("2026-09-05", "2027-04-24"), (("Spain", 92), ("Morocco", 5), ("Brazil", 3))),
     Competition("co_ger_sp_men", "gsp", "Weserland-Liga", "Germany", "Lower Saxony", "semi_pro", "senior", "men",
-                6, 8, 7, ("2026-08-08", "2027-05-22"),
+                6, 8, 7, ("2026-08-08", "2027-04-10"),
                 (("Germany", 86), ("Ghana", 3), ("Nigeria", 3), ("Japan", 3), ("Brazil", 3), ("Spain", 2))),
     Competition("co_bra_u20", "bu20", "Campeonato Serrano Sub-20", "Brazil", "Minas Gerais", "academy", "U20", "men",
                 4, 4, 8, ("2026-08-08", "2026-11-28"), (("Brazil", 100),)),
     Competition("co_nga_am_men", "nam", "Ogun Riverside Amateur League", "Nigeria", "Ogun State", "amateur", "senior", "men",
-                4, 4, 9, ("2026-10-10", "2027-05-15"), (("Nigeria", 94), ("Ghana", 6))),
+                4, 4, 9, ("2026-09-05", "2027-05-15"), (("Nigeria", 94), ("Ghana", 6))),
     Competition("co_gha_u17", "gu17", "Ashanti Colts Academy League U17", "Ghana", "Ashanti", "academy", "U17", "men",
-                4, 3, 10, ("2026-09-19", "2027-05-01"), (("Ghana", 94), ("Nigeria", 6))),
+                4, 3, 10, ("2026-09-05", "2027-05-01"), (("Ghana", 94), ("Nigeria", 6))),
     Competition("co_jpn_uni_men", "jum", "Minato Bay University League", "Japan", "Kanagawa", "college", "college", "men",
                 4, 4, 11, ("2026-08-29", "2026-11-21"), (("Japan", 100),)),
     Competition("co_mex_am_men", "mam", "Liga Amateur del Valle Alto", "Mexico", "Jalisco", "amateur", "senior", "men",
-                4, 4, 12, ("2026-08-15", "2027-05-22"), (("Mexico", 94), ("USA", 4), ("Spain", 2))),
+                4, 4, 12, ("2026-08-15", "2026-12-12"), (("Mexico", 94), ("USA", 4), ("Spain", 2))),
     Competition("co_mar_u19", "mu19", "Ligue Juniors Atlas Centre U19", "Morocco", "Fès-Meknès", "academy", "U19", "men",
                 4, 3, 13, ("2026-09-12", "2027-05-08"), (("Morocco", 97), ("Spain", 3))),
 ]

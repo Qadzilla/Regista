@@ -1787,11 +1787,11 @@
  ],
  "fixtures": [
   {
-   "match_id": "cm_mam_03_ale_dbh",
-   "round": 3,
-   "date": "2026-12-05",
+   "match_id": "cm_mam_01_ale_aga",
+   "round": 1,
+   "date": "2026-08-15",
    "home": "cl_los_encinos",
-   "away": "cl_barranca_honda",
+   "away": "cl_agave_azul",
    "seed": 20271201,
    "uploader": {
     "type": "player",
@@ -1801,42 +1801,42 @@
    "camera": "phone"
   },
   {
-   "match_id": "cm_mam_03_aga_utr",
-   "round": 3,
-   "date": "2026-12-05",
-   "home": "cl_agave_azul",
-   "away": "cl_tierra_roja",
+   "match_id": "cm_mam_02_utr_ale",
+   "round": 2,
+   "date": "2026-09-05",
+   "home": "cl_tierra_roja",
+   "away": "cl_los_encinos",
    "seed": 20271202,
    "uploader": {
     "type": "team",
-    "club_id": "cl_tierra_roja"
+    "club_id": "cl_los_encinos"
    },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_mam_05_dbh_aga",
-   "round": 5,
-   "date": "2027-03-27",
-   "home": "cl_barranca_honda",
-   "away": "cl_agave_azul",
+   "match_id": "cm_mam_03_ale_dbh",
+   "round": 3,
+   "date": "2026-09-26",
+   "home": "cl_los_encinos",
+   "away": "cl_barranca_honda",
    "seed": 20271203,
    "uploader": {
     "type": "player",
-    "global_id": "pl_aga_01",
-    "club_id": "cl_agave_azul"
+    "global_id": "pl_dbh_01",
+    "club_id": "cl_barranca_honda"
    },
    "camera": "tripod"
   },
   {
-   "match_id": "cm_mam_06_dbh_ale",
-   "round": 6,
-   "date": "2027-05-22",
+   "match_id": "cm_mam_04_dbh_utr",
+   "round": 4,
+   "date": "2026-10-17",
    "home": "cl_barranca_honda",
-   "away": "cl_los_encinos",
+   "away": "cl_tierra_roja",
    "seed": 20271204,
    "uploader": {
     "type": "team",
-    "club_id": "cl_los_encinos"
+    "club_id": "cl_tierra_roja"
    },
    "camera": "drone"
   }

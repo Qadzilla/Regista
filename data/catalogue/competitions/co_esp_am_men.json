@@ -2221,71 +2221,71 @@
  ],
  "fixtures": [
   {
+   "match_id": "cm_eam_01_fta_bnc",
+   "round": 1,
+   "date": "2026-09-12",
+   "home": "cl_fuentealba",
+   "away": "cl_benialcor",
+   "seed": 20270501,
+   "uploader": {
+    "type": "player",
+    "global_id": "pl_fta_04",
+    "club_id": "cl_fuentealba"
+   },
+   "camera": "phone"
+  },
+  {
+   "match_id": "cm_eam_02_fta_tvl",
+   "round": 2,
+   "date": "2026-10-03",
+   "home": "cl_fuentealba",
+   "away": "cl_torrevalle",
+   "seed": 20270502,
+   "uploader": {
+    "type": "player",
+    "global_id": "pl_fta_03",
+    "club_id": "cl_fuentealba"
+   },
+   "camera": "phone"
+  },
+  {
+   "match_id": "cm_eam_02_rsc_bnc",
+   "round": 2,
+   "date": "2026-10-03",
+   "home": "cl_riuseca",
+   "away": "cl_benialcor",
+   "seed": 20270503,
+   "uploader": {
+    "type": "team",
+    "club_id": "cl_benialcor"
+   },
+   "camera": "phone"
+  },
+  {
    "match_id": "cm_eam_03_tvl_ams",
    "round": 3,
    "date": "2026-10-24",
    "home": "cl_torrevalle",
    "away": "cl_montesol",
-   "seed": 20270501,
-   "uploader": {
-    "type": "player",
-    "global_id": "pl_tvl_04",
-    "club_id": "cl_torrevalle"
-   },
-   "camera": "phone"
-  },
-  {
-   "match_id": "cm_eam_04_rsc_tvl",
-   "round": 4,
-   "date": "2026-11-14",
-   "home": "cl_riuseca",
-   "away": "cl_torrevalle",
-   "seed": 20270502,
-   "uploader": {
-    "type": "player",
-    "global_id": "pl_rsc_03",
-    "club_id": "cl_riuseca"
-   },
-   "camera": "phone"
-  },
-  {
-   "match_id": "cm_eam_05_ams_fta",
-   "round": 5,
-   "date": "2026-12-05",
-   "home": "cl_montesol",
-   "away": "cl_fuentealba",
-   "seed": 20270503,
-   "uploader": {
-    "type": "team",
-    "club_id": "cl_fuentealba"
-   },
-   "camera": "phone"
-  },
-  {
-   "match_id": "cm_eam_06_bnc_fta",
-   "round": 6,
-   "date": "2026-12-26",
-   "home": "cl_benialcor",
-   "away": "cl_fuentealba",
    "seed": 20270504,
    "uploader": {
     "type": "player",
-    "global_id": "pl_fta_10",
-    "club_id": "cl_fuentealba"
+    "global_id": "pl_ams_10",
+    "club_id": "cl_montesol"
    },
    "camera": "phone"
   },
   {
-   "match_id": "cm_eam_10_fta_ams",
-   "round": 10,
-   "date": "2027-03-20",
-   "home": "cl_fuentealba",
-   "away": "cl_montesol",
+   "match_id": "cm_eam_03_rsc_fta",
+   "round": 3,
+   "date": "2026-10-24",
+   "home": "cl_riuseca",
+   "away": "cl_fuentealba",
    "seed": 20270505,
    "uploader": {
     "type": "player",
-    "global_id": "pl_fta_05",
-    "club_id": "cl_fuentealba"
+    "global_id": "pl_rsc_05",
+    "club_id": "cl_riuseca"
    },
    "camera": "tripod"
   }

@@ -17,7 +17,7 @@ import pytest
 from regista.catalogue import define as D
 from regista.catalogue import store
 from regista.catalogue.clubs import RESERVED_SHORT_NAMES
-from regista.catalogue.taxonomy import BY_ID, CAMERAS, COMPETITIONS, ENGLAND_ID, LEVELS, TIERS
+from regista.catalogue.taxonomy import AS_OF, BY_ID, CAMERAS, COMPETITIONS, ENGLAND_ID, LEVELS, TIERS
 from regista.season.league import (ATTRIBUTE_KEYS, GK_RATINGS, RATINGS, ROLE_OF_KIT, STAR, STAR_RATINGS, STANDOUTS, age_on,
                                    load_league)
 
@@ -239,11 +239,14 @@ def test_each_career_story_fits_its_fixtures_and_registration(comps, careers):
         (src, dst), (src_club, dst_club) = car["competitions"], car["clubs"]
         story = car["story"]
         dst_fx = sorted((f for f in comps[dst]["fixtures"] if dst_club in (f["home"], f["away"])), key=lambda f: f["date"])
-        src_end = BY_ID[src].window[1]
-        if "outside the college season" in story:
-            assert all(f["date"] > src_end or f["date"] < BY_ID[src].window[0] for f in dst_fx), (gid, story)
-        if "after the college season" in story:   # Olivia King: her home club's opening match, then after the season
-            assert dst_fx[0]["round"] == 1 and all(f["date"] > src_end for f in dst_fx[1:]), (gid, story)
+        rule = next(when for s, d, _r, _n, st, when in D.CAREERS if (s, d) == (src, dst) and st == story)
+        if "college season" in story:   # a student at home in August: every match before the college season opens
+            assert "before" in story and "August" in story and rule == D.BEFORE_SEASON, (gid, story)
+            assert dst_fx and all(f["date"] < BY_ID[src].window[0] and f["date"][5:7] == "08" for f in dst_fx), (gid, dst_fx)
+        if "opening match" in story:    # Olivia King: her home club's opening match only
+            assert [f["round"] for f in dst_fx] == [1], (gid, dst_fx)
+        if rule == D.BEFORE_SEASON:
+            assert "college season" in story
         if BY_ID[src].country == "Spain":
             assert BY_ID[src].region == BY_ID[dst].region and BY_ID[src].region in story
             assert "affiliated" in story and "territorial federation" in story
@@ -287,11 +290,32 @@ def test_sparse_uploads_cover_every_club_with_uploader_and_camera(comps):
                 assert any(p["global_id"] == up["global_id"] and p["starter"] for p in squads[up["club_id"]])
             else:
                 assert up["type"] == "team" and set(up) == {"type", "club_id"}
-            assert "2026-08-01" <= f["date"] <= "2027-05-31"
+            assert "2026-08-01" <= f["date"] <= AS_OF   # footage of matches already played
+            assert BY_ID[cid].window[0] <= f["date"] <= BY_ID[cid].window[1]
         assert len({f["match_id"] for f in fx}) == len(fx)
         # a club plays at most once on a date
         busy = Counter((d, c) for f in fx for d, c in ((f["date"], f["home"]), (f["date"], f["away"])))
         assert max(busy.values()) == 1
+
+
+def test_the_catalogue_is_dated_and_holds_only_matches_already_played(league, index, comps):
+    """Review B round 3 S-A: a footage catalogue cannot hold a match not yet played. One as-of date (taxonomy.AS_OF) is
+    in the index; every uploaded match, England's included, is dated on or before it, on its round's date (a career
+    player's clash moves a destination match by a day at most); the whole round robin is still each competition's
+    season (its later rounds simply have no footage yet)."""
+    import datetime as dt
+
+    assert AS_OF == "2026-10-24" and index["as_of"] == AS_OF
+    assert max(f["date"] for f in league["fixtures"]) <= AS_OF
+    for cid, comp in comps.items():
+        c = BY_ID[cid]
+        dates = D.round_dates(c, len(D.round_robin(c.teams)))
+        assert dates[-1].isoformat() <= c.window[1]
+        for f in comp["fixtures"]:
+            assert f["date"] <= AS_OF, (cid, f["match_id"], f["date"])
+            drift = abs((dt.date.fromisoformat(f["date"]) - dates[f["round"] - 1]).days)
+            assert drift <= 1, (cid, f["match_id"])
+        assert c.window[1] > AS_OF, cid   # every season is still running on the as-of date
 
 
 def test_the_england_overlay_labels_all_thirty_league_fixtures(league, index):

@@ -2694,7 +2694,7 @@
   {
    "match_id": "cm_gsp_02_hsb_ehr",
    "round": 2,
-   "date": "2026-09-05",
+   "date": "2026-08-29",
    "home": "cl_haselbrock",
    "away": "cl_erlenhorst",
    "seed": 20270704,
@@ -2705,12 +2705,25 @@
    "camera": "drone"
   },
   {
-   "match_id": "cm_gsp_04_lmr_hbg",
-   "round": 4,
-   "date": "2026-10-31",
+   "match_id": "cm_gsp_02_lmr_vor",
+   "round": 2,
+   "date": "2026-08-29",
    "home": "cl_lindenmoor",
-   "away": "cl_hollenburg",
+   "away": "cl_vorstadt",
    "seed": 20270705,
+   "uploader": {
+    "type": "team",
+    "club_id": "cl_vorstadt"
+   },
+   "camera": "phone"
+  },
+  {
+   "match_id": "cm_gsp_03_hbg_ehr",
+   "round": 3,
+   "date": "2026-09-19",
+   "home": "cl_hollenburg",
+   "away": "cl_erlenhorst",
+   "seed": 20270706,
    "uploader": {
     "type": "team",
     "club_id": "cl_hollenburg"
@@ -2718,43 +2731,30 @@
    "camera": "phone"
   },
   {
-   "match_id": "cm_gsp_05_hsb_lmr",
-   "round": 5,
-   "date": "2026-11-28",
+   "match_id": "cm_gsp_03_hsb_vor",
+   "round": 3,
+   "date": "2026-09-19",
    "home": "cl_haselbrock",
-   "away": "cl_lindenmoor",
-   "seed": 20270706,
-   "uploader": {
-    "type": "team",
-    "club_id": "cl_haselbrock"
-   },
-   "camera": "phone"
-  },
-  {
-   "match_id": "cm_gsp_06_ehr_lmr",
-   "round": 6,
-   "date": "2026-12-26",
-   "home": "cl_erlenhorst",
-   "away": "cl_lindenmoor",
+   "away": "cl_vorstadt",
    "seed": 20270707,
    "uploader": {
     "type": "player",
-    "global_id": "pl_lmr_11",
-    "club_id": "cl_lindenmoor"
+    "global_id": "pl_vor_11",
+    "club_id": "cl_vorstadt"
    },
    "camera": "broadcast"
   },
   {
-   "match_id": "cm_gsp_07_hbg_mvs",
-   "round": 7,
-   "date": "2027-01-23",
-   "home": "cl_hollenburg",
-   "away": "cl_moevenstedt",
+   "match_id": "cm_gsp_04_lmr_hbg",
+   "round": 4,
+   "date": "2026-10-10",
+   "home": "cl_lindenmoor",
+   "away": "cl_hollenburg",
    "seed": 20270708,
    "uploader": {
     "type": "player",
-    "global_id": "pl_hbg_05",
-    "club_id": "cl_hollenburg"
+    "global_id": "pl_lmr_05",
+    "club_id": "cl_lindenmoor"
    },
    "camera": "tripod"
   }

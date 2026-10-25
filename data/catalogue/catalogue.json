@@ -1,6 +1,7 @@
 {
  "catalogue": "Regista catalogue",
  "season": "2026/27",
+ "as_of": "2026-10-24",
  "seed": 2027,
  "version": 1,
  "generator": {
@@ -658,7 +659,7 @@
     "cl_mesa_alta",
     "cl_oxenridge"
    ],
-   "story": "an English student-athlete at a US college who is also registered with her home club in Yorkshire and plays for it when she is in England: its opening match in September and after the college season"
+   "story": "an English student-athlete at a US college who is also registered with her home club in Yorkshire: she played its opening match in August, before she flew out for the college season"
   },
   {
    "global_id": "pl_sms_04",
@@ -671,7 +672,7 @@
     "cl_saltmarsh",
     "cl_moevenstedt"
    ],
-   "story": "a German student-athlete who plays for a semi-pro side at home outside the college season"
+   "story": "a German student-athlete who played for a semi-pro side at home in August, before the college season"
   },
   {
    "global_id": "pl_kbc_11",
@@ -684,7 +685,7 @@
     "cl_kestrel_bay",
     "cl_agave_azul"
    ],
-   "story": "a Mexican student-athlete who plays for an amateur side at home outside the college season"
+   "story": "a Mexican student-athlete who played for an amateur side at home in August, before the college season"
   }
  ]
 }

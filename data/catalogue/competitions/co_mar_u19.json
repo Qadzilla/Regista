@@ -1787,38 +1787,38 @@
  ],
  "fixtures": [
   {
+   "match_id": "cm_mu19_01_ioz_cjv",
+   "round": 1,
+   "date": "2026-09-12",
+   "home": "cl_oued_zitoun",
+   "away": "cl_jnane_vert",
+   "seed": 20271301,
+   "uploader": {
+    "type": "team",
+    "club_id": "cl_jnane_vert"
+   },
+   "camera": "tripod"
+  },
+  {
    "match_id": "cm_mu19_01_ncj_naj",
    "round": 1,
    "date": "2026-09-12",
    "home": "cl_nour_cedres",
    "away": "cl_najm_atlas",
-   "seed": 20271301,
-   "uploader": {
-    "type": "team",
-    "club_id": "cl_najm_atlas"
-   },
-   "camera": "tripod"
-  },
-  {
-   "match_id": "cm_mu19_05_ioz_ncj",
-   "round": 5,
-   "date": "2027-02-27",
-   "home": "cl_oued_zitoun",
-   "away": "cl_nour_cedres",
    "seed": 20271302,
    "uploader": {
     "type": "player",
-    "global_id": "pl_ioz_03",
-    "club_id": "cl_oued_zitoun"
+    "global_id": "pl_ncj_03",
+    "club_id": "cl_nour_cedres"
    },
    "camera": "drone"
   },
   {
-   "match_id": "cm_mu19_06_ncj_cjv",
-   "round": 6,
-   "date": "2027-04-10",
+   "match_id": "cm_mu19_02_ncj_ioz",
+   "round": 2,
+   "date": "2026-10-24",
    "home": "cl_nour_cedres",
-   "away": "cl_jnane_vert",
+   "away": "cl_oued_zitoun",
    "seed": 20271303,
    "uploader": {
     "type": "team",

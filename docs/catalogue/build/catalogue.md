@@ -26,26 +26,28 @@ with the pins) and `python -m regista.catalogue competitions`.
 | Competition (invented name, id) | Country | Region (label) | Tier / age / gender | Teams | People | Uploads | Dates of the uploads | Cameras | Uploaders team/player |
 |---|---|---|---|---|---|---|---|---|---|
 | Regista League (`co_eng_sp_men`, existing) | England | Northern England | semi_pro / senior / men | 6 | 108 | 30 (full) | 2026-08-15 to 2026-10-17 | broadcast 8, drone 5, phone 2, tripod 15 | 19/11 |
-| Pennine Women's League (`co_eng_sp_women`) | England | Yorkshire | semi_pro / senior / women | 5 | 90 | 5 | 2026-09-06 to 2027-03-14 | drone 2, phone 1, tripod 2 | 4/1 |
-| Shires Academy League U18 (`co_eng_u18`) | England | West Midlands | academy / U18 / men | 4 | 72 | 4 | 2026-08-29 to 2027-03-27 | phone 1, tripod 3 | 4/0 |
+| Pennine Women's League (`co_eng_sp_women`) | England | Yorkshire | semi_pro / senior / women | 5 | 90 | 5 | 2026-08-16 to 2026-10-11 | drone 2, phone 1, tripod 2 | 4/1 |
+| Shires Academy League U18 (`co_eng_u18`) | England | West Midlands | academy / U18 / men | 4 | 72 | 4 | 2026-08-29 to 2026-10-10 | phone 1, tripod 3 | 4/0 |
 | Atlantic Collegiate Soccer Conference (`co_usa_col_men`) | USA | New England | college / college / men | 6 | 108 | 6 | 2026-08-29 to 2026-10-17 | broadcast 2, drone 2, tripod 2 | 5/1 |
 | Pacific Coast Collegiate Conference (`co_usa_col_women`) | USA | California | college / college / women | 5 | 90 | 5 | 2026-08-22 to 2026-10-17 | broadcast 2, drone 2, tripod 1 | 4/1 |
-| Regional Preferente Levante Interior (`co_esp_am_men`) | Spain | Valencian Community | amateur / senior / men | 5 | 90 | 5 | 2026-10-24 to 2027-03-20 | phone 4, tripod 1 | 1/4 |
-| Liga Juvenil Levante Interior (`co_esp_u19`) | Spain | Valencian Community | academy / U19 / men | 5 | 90 | 5 | 2026-09-05 to 2027-03-13 | drone 1, tripod 4 | 4/1 |
-| Weserland-Liga (`co_ger_sp_men`) | Germany | Lower Saxony | semi_pro / senior / men | 6 | 108 | 8 | 2026-08-08 to 2027-01-23 | broadcast 3, drone 1, phone 2, tripod 2 | 5/3 |
-| Campeonato Serrano Sub-20 (`co_bra_u20`) | Brazil | Minas Gerais | academy / U20 / men | 4 | 72 | 4 | 2026-08-08 to 2026-11-21 | drone 2, phone 1, tripod 1 | 3/1 |
-| Ogun Riverside Amateur League (`co_nga_am_men`) | Nigeria | Ogun State | amateur / senior / men | 4 | 72 | 4 | 2026-11-21 to 2027-03-27 | drone 1, phone 2, tripod 1 | 1/3 |
-| Ashanti Colts Academy League U17 (`co_gha_u17`) | Ghana | Ashanti | academy / U17 / men | 4 | 72 | 3 | 2026-10-31 to 2027-04-17 | tripod 3 | 2/1 |
+| Regional Preferente Levante Interior (`co_esp_am_men`) | Spain | Valencian Community | amateur / senior / men | 5 | 90 | 5 | 2026-09-12 to 2026-10-24 | phone 4, tripod 1 | 1/4 |
+| Liga Juvenil Levante Interior (`co_esp_u19`) | Spain | Valencian Community | academy / U19 / men | 5 | 90 | 5 | 2026-09-05 to 2026-10-17 | drone 1, tripod 4 | 4/1 |
+| Weserland-Liga (`co_ger_sp_men`) | Germany | Lower Saxony | semi_pro / senior / men | 6 | 108 | 8 | 2026-08-08 to 2026-10-10 | broadcast 3, drone 1, phone 2, tripod 2 | 5/3 |
+| Campeonato Serrano Sub-20 (`co_bra_u20`) | Brazil | Minas Gerais | academy / U20 / men | 4 | 72 | 4 | 2026-08-08 to 2026-10-10 | drone 2, phone 1, tripod 1 | 3/1 |
+| Ogun Riverside Amateur League (`co_nga_am_men`) | Nigeria | Ogun State | amateur / senior / men | 4 | 72 | 4 | 2026-09-05 to 2026-10-24 | drone 1, phone 2, tripod 1 | 1/3 |
+| Ashanti Colts Academy League U17 (`co_gha_u17`) | Ghana | Ashanti | academy / U17 / men | 4 | 72 | 3 | 2026-09-05 to 2026-10-17 | tripod 3 | 2/1 |
 | Minato Bay University League (`co_jpn_uni_men`) | Japan | Kanagawa | college / college / men | 4 | 72 | 4 | 2026-08-29 to 2026-10-24 | broadcast 3, tripod 1 | 3/1 |
-| Liga Amateur del Valle Alto (`co_mex_am_men`) | Mexico | Jalisco | amateur / senior / men | 4 | 72 | 4 | 2026-12-05 to 2027-05-22 | drone 1, phone 1, tripod 2 | 2/2 |
-| Ligue Juniors Atlas Centre U19 (`co_mar_u19`) | Morocco | Fès-Meknès | academy / U19 / men | 4 | 72 | 3 | 2026-09-12 to 2027-04-10 | drone 2, tripod 1 | 2/1 |
+| Liga Amateur del Valle Alto (`co_mex_am_men`) | Mexico | Jalisco | amateur / senior / men | 4 | 72 | 4 | 2026-08-15 to 2026-10-17 | drone 1, phone 1, tripod 2 | 2/2 |
+| Ligue Juniors Atlas Centre U19 (`co_mar_u19`) | Morocco | Fès-Meknès | academy / U19 / men | 4 | 72 | 3 | 2026-09-12 to 2026-10-24 | drone 2, tripod 1 | 2/1 |
 
 Totals: 14 competitions, 10 countries, 66 clubs, 1,183 people (108 + 1,075), 90 matches (30 + 60). The "People" column
 counts each competition's squads, so a career player appears in both of his competitions.
 
 Every club appears in at least one uploaded match. Uploads were drawn from each competition's double round robin; with
-an odd number of clubs, each round has a bye. Rounds are spread in whole weeks across each country's calendar window
-(US college in the autumn, for example). Camera weights and team-upload rates by tier are design.md §2.5's. Camera type
+an odd number of clubs, each round has a bye. Rounds are spread in whole weeks across each competition's season window
+(US college in the autumn, for example). The catalogue is dated 2026-10-24 (`taxonomy.AS_OF`, served as `as_of`): a
+library of footage holds only matches already played, so uploads are drawn only from rounds played by then, and every
+competition that started in August or September contributes its opening rounds (fixes-3.md, review B round 3 S-A). Camera weights and team-upload rates by tier are design.md §2.5's. Camera type
 is a label only: every match is rendered the same way, and each manifest's subtitle says so.
 
 ## Levels: what the scales produced
@@ -85,8 +87,8 @@ matches) and never plays two matches on one date.
 |---|---|---|---|---|
 | Sergio Cruz (`pl_sot_09`) | UD Sotoalto Juvenil, Spain U19 | CF Torrevalle, Spain amateur | ST | academy striker stepping up to a senior amateur side |
 | Alberto Navarro (`pl_nvc_08`) | CF Navalcastro Juvenil, Spain U19 | CD Riuseca, Spain amateur | CM | the same |
-| Olivia King (`pl_msa_07`) | Mesa Alta College, USA college women | Oxenridge Women, England semi-pro women | W | English student-athlete playing for a home club outside the college season |
-| Finn Schmidt (`pl_sms_04`) | Saltmarsh State, USA college men | VfL Mövenstedt, Germany semi-pro | CB | German student-athlete, the same pattern |
+| Olivia King (`pl_msa_07`) | Mesa Alta College, USA college women | Oxenridge Women, England semi-pro women | W | English student-athlete who played her home club's opening match in August, before the college season |
+| Finn Schmidt (`pl_sms_04`) | Saltmarsh State, USA college men | VfL Mövenstedt, Germany semi-pro | CB | German student-athlete who played for a home side in August, before the college season |
 | Edson Jimenez (`pl_kbc_11`) | Kestrel Bay College, USA college men | Club Agave Azul, Mexico amateur | W | Mexican student-athlete, the same pattern |
 
 The England semi-pro men competition takes no career player, because its squads are frozen.

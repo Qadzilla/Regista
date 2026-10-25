@@ -1787,12 +1787,25 @@
  ],
  "fixtures": [
   {
-   "match_id": "cm_gu17_02_cch_ktr",
-   "round": 2,
-   "date": "2026-10-31",
-   "home": "cl_cocoa_hill",
-   "away": "cl_kente_royals",
+   "match_id": "cm_gu17_01_ktr_rfe",
+   "round": 1,
+   "date": "2026-09-05",
+   "home": "cl_kente_royals",
+   "away": "cl_rainforest",
    "seed": 20271001,
+   "uploader": {
+    "type": "team",
+    "club_id": "cl_kente_royals"
+   },
+   "camera": "tripod"
+  },
+  {
+   "match_id": "cm_gu17_01_cch_adk",
+   "round": 1,
+   "date": "2026-09-05",
+   "home": "cl_cocoa_hill",
+   "away": "cl_adinkra_stars",
+   "seed": 20271002,
    "uploader": {
     "type": "team",
     "club_id": "cl_cocoa_hill"
@@ -1800,23 +1813,10 @@
    "camera": "tripod"
   },
   {
-   "match_id": "cm_gu17_05_adk_rfe",
-   "round": 5,
-   "date": "2027-03-06",
-   "home": "cl_adinkra_stars",
-   "away": "cl_rainforest",
-   "seed": 20271002,
-   "uploader": {
-    "type": "team",
-    "club_id": "cl_adinkra_stars"
-   },
-   "camera": "tripod"
-  },
-  {
-   "match_id": "cm_gu17_06_adk_ktr",
-   "round": 6,
-   "date": "2027-04-17",
-   "home": "cl_adinkra_stars",
+   "match_id": "cm_gu17_02_cch_ktr",
+   "round": 2,
+   "date": "2026-10-17",
+   "home": "cl_cocoa_hill",
    "away": "cl_kente_royals",
    "seed": 20271003,
    "uploader": {

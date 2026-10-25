@@ -36,7 +36,7 @@ from typing import Any
 
 from regista.catalogue import clubs as club_data
 from regista.catalogue.names import pools
-from regista.catalogue.taxonomy import (BIRTH_CUTOFFS, BY_ID, CAMERA_WEIGHTS, COMPETITIONS, ENGLAND_ID, SEASON,
+from regista.catalogue.taxonomy import (AS_OF, BIRTH_CUTOFFS, BY_ID, CAMERA_WEIGHTS, COMPETITIONS, ENGLAND_ID, SEASON,
                                         TEAM_UPLOAD_P, Competition, Level, levels_public)
 from regista.detmath import Random
 from regista.season import league as L
@@ -57,21 +57,28 @@ COMPETITIONS_DIR = "data/catalogue/competitions"
 # primaries at least 156 apart, keepers at least 150 from every primary and 125 from each other).
 PRIMARY_MIN, GK_PRIMARY_MIN, GK_GK_MIN = 150.0, 150.0, 120.0
 
-# The five careers (design.md §2.4): (source, destination, roles, the person's nationality or None, story)
-CAREERS: list[tuple[str, str, tuple[str, ...], str | None, str]] = [
+# The five careers (design.md §2.4): (source, destination, roles, the person's nationality or None, story, when the
+# person can play in the destination). ``BEFORE_SEASON``: only before the source competition's season starts (a student
+# at home in the summer), so every uploaded destination match of their club is dated before the source's window opens.
+# ``ANY``: any matchday (the two Spanish juveniles play both on weekends of the same autumn). The catalogue is dated
+# ``taxonomy.AS_OF``, so no story speaks of matches after it.
+ANY, BEFORE_SEASON = "any", "before_season"
+CAREERS: list[tuple[str, str, tuple[str, ...], str | None, str, str]] = [
     ("co_esp_u19", "co_esp_am_men", ("ST",), None,
      "a juvenil striker who, while still eligible for the juvenil, also plays for the senior amateur club his academy "
-     "side is affiliated with, in the same territorial federation (Valencian Community)"),
+     "side is affiliated with, in the same territorial federation (Valencian Community)", ANY),
     ("co_esp_u19", "co_esp_am_men", ("CM",), None,
      "a juvenil midfielder who, while still eligible for the juvenil, also plays for the senior amateur club his academy "
-     "side is affiliated with, in the same territorial federation (Valencian Community)"),
+     "side is affiliated with, in the same territorial federation (Valencian Community)", ANY),
     ("co_usa_col_women", "co_eng_sp_women", ("W",), "England",
-     "an English student-athlete at a US college who is also registered with her home club in Yorkshire and plays for it "
-     "when she is in England: its opening match in September and after the college season"),
+     "an English student-athlete at a US college who is also registered with her home club in Yorkshire: she played its "
+     "opening match in August, before she flew out for the college season", BEFORE_SEASON),
     ("co_usa_col_men", "co_ger_sp_men", ("CB",), "Germany",
-     "a German student-athlete who plays for a semi-pro side at home outside the college season"),
+     "a German student-athlete who played for a semi-pro side at home in August, before the college season",
+     BEFORE_SEASON),
     ("co_usa_col_men", "co_mex_am_men", ("ST", "W"), "Mexico",
-     "a Mexican student-athlete who plays for an amateur side at home outside the college season"),
+     "a Mexican student-athlete who played for an amateur side at home in August, before the college season",
+     BEFORE_SEASON),
 ]
 
 
@@ -264,14 +271,36 @@ def round_dates(c: Competition, rounds: int) -> list[dt.date]:
     return [start + dt.timedelta(days=7 * weeks * i) for i in range(rounds)]
 
 
-def _coverage(c: Competition, clubs: list[Record]) -> list[Record]:
-    """The uploaded matches: chosen at random from the double round robin, every club in at least one (coverage stream)."""
+def latest_dates(c: Competition, clubs: list[Record], careers: list[Record]) -> dict[str, str]:
+    """{club_id: the last date a match of that club can be uploaded}: ``AS_OF`` for every club, and for the destination
+    club of a ``BEFORE_SEASON`` career the day before the source competition's season starts."""
+    out = {cl["club_id"]: AS_OF for cl in clubs}
+    rule = {(src, dst): when for src, dst, _r, _n, _s, when in CAREERS}
+    for car in careers:
+        src_id, dst_id = car["competitions"]
+        if dst_id == c.competition_id and rule.get((src_id, dst_id)) == BEFORE_SEASON:
+            opens = dt.date.fromisoformat(BY_ID[src_id].window[0])
+            out[car["clubs"][1]] = min(out[car["clubs"][1]], (opens - dt.timedelta(days=1)).isoformat())
+    return out
+
+
+def _coverage(c: Competition, clubs: list[Record], latest: dict[str, str] | None = None) -> list[Record]:
+    """The uploaded matches: chosen at random from the double round robin's fixtures already played by ``AS_OF`` (and, for
+    a club in ``latest``, by its own last date), every club in at least one (coverage stream). The whole round robin is
+    shuffled first, then the unplayed fixtures are dropped, so the draw does not depend on the date."""
     rng = Random(comp_seed(c) * 1000 + 7)
     rounds = round_robin(len(clubs))
     dates = round_dates(c, len(rounds))
+    latest = latest or {}
     all_fx = [(r, k, h, a) for r, pairs in enumerate(rounds, start=1) for k, (h, a) in enumerate(pairs)]
     order = list(all_fx)
     rng.shuffle(order)
+
+    def played(fx: tuple[int, int, int, int]) -> bool:
+        day = dates[fx[0] - 1].isoformat()
+        return day <= AS_OF and all(day <= latest.get(clubs[i]["club_id"], AS_OF) for i in (fx[2], fx[3]))
+
+    order = [fx for fx in order if played(fx)]
     chosen: list[tuple[int, int, int, int]] = []
     covered: set[int] = set()
     for fx in order:  # first, fixtures that bring a club not yet seen
@@ -285,8 +314,9 @@ def _coverage(c: Competition, clubs: list[Record]) -> list[Record]:
             break
         if fx not in chosen:
             chosen.append(fx)
-    if len(chosen) != c.uploads:  # pragma: no cover - the table's counts allow full coverage
-        raise RuntimeError(f"{c.competition_id}: {len(chosen)} uploads, want {c.uploads}")
+    if len(chosen) != c.uploads or len(covered) != len(clubs):
+        raise RuntimeError(f"{c.competition_id}: {len(chosen)} uploads covering {len(covered)} clubs by {AS_OF}, "
+                           f"want {c.uploads} covering {len(clubs)}")
     out = []
     for n, (r, _k, h, a) in enumerate(sorted(chosen), start=1):
         home, away = clubs[h], clubs[a]
@@ -339,7 +369,7 @@ def _careers(comps: dict[str, Record], standouts: dict[str, set[str]], used: set
     rng = Random(CATALOGUE_SEED * 1000 + 13)
     taken: set[str] = set()
     out = []
-    for src_id, dst_id, roles, nationality, story in CAREERS:
+    for src_id, dst_id, roles, nationality, story, _when in CAREERS:
         src, dst = comps[src_id], comps[dst_id]
         cands = [(cl, p) for cl in src["clubs"] for p in cl["squad"]
                  if p["starter"] and p["role"] in roles and p["global_id"] not in taken
@@ -363,15 +393,19 @@ def _careers(comps: dict[str, Record], standouts: dict[str, set[str]], used: set
 
 def _career_dates(comps: dict[str, Record], careers: list[Record]) -> None:
     """A career person never plays two matches on one date: a destination match on a source match's date moves to the
-    next day (a club plays once a round and rounds are a week or more apart, so no club is double-booked)."""
+    next day, or to the day before when the next day is after ``AS_OF`` (a club plays once a round and rounds are a week
+    or more apart, so no club is double-booked)."""
     for car in careers:
         src_id, dst_id = car["competitions"]
         src_club, dst_club = car["clubs"]
         busy = {fx["date"] for fx in comps[src_id]["fixtures"] if src_club in (fx["home"], fx["away"])}
         for fx in comps[dst_id]["fixtures"]:
             if dst_club in (fx["home"], fx["away"]):
-                while fx["date"] in busy:
-                    fx["date"] = (dt.date.fromisoformat(fx["date"]) + dt.timedelta(days=1)).isoformat()
+                day = dt.date.fromisoformat(fx["date"])
+                step = dt.timedelta(days=1 if (day + dt.timedelta(days=1)).isoformat() <= AS_OF else -1)
+                while day.isoformat() in busy:
+                    day += step
+                fx["date"] = day.isoformat()
                 busy.add(fx["date"])
 
 
@@ -404,7 +438,7 @@ def new_catalogue(league: Record) -> tuple[Record, dict[str, Record]]:
         if c.competition_id == ENGLAND_ID:
             continue
         comp = comps[c.competition_id]
-        comp["fixtures"] = _coverage(c, comp["clubs"])
+        comp["fixtures"] = _coverage(c, comp["clubs"], latest_dates(c, comp["clubs"], careers))
         _uploads(c, comp["clubs"], comp["fixtures"])
     _career_dates(comps, careers)
     entries = []
@@ -415,7 +449,7 @@ def new_catalogue(league: Record) -> tuple[Record, dict[str, Record]]:
         else:
             e.update(source="catalogue", path=f"{COMPETITIONS_DIR}/{c.competition_id}.json", coverage="sparse")
         entries.append(e)
-    index = {"catalogue": CATALOGUE_NAME, "season": SEASON, "seed": CATALOGUE_SEED, "version": CATALOGUE_VERSION,
+    index = {"catalogue": CATALOGUE_NAME, "season": SEASON, "as_of": AS_OF, "seed": CATALOGUE_SEED, "version": CATALOGUE_VERSION,
              "generator": {"name": GENERATOR_NAME, "version": LEAGUE_GENERATOR_VERSION}, "note": NOTE,
              "levels": levels_public(), "competitions": entries, "careers": careers}
     return index, comps

@@ -91,6 +91,11 @@ def test_the_catalogue_lists_14_competitions_with_totals_levels_and_careers(clie
     pools = {(p["tier"], p["age_group"], p["gender"]): p["competitions"] for p in d["levels"]["pools"]}
     assert pools[("semi_pro", "senior", "men")] == [ENGLAND_ID, GER]
     assert "label" in d["camera_note"].lower() and d["synthetic"] is True and "warm" in d
+    # review B round 3 S-A: the catalogue is dated, and holds only matches played by then
+    assert d["as_of"] == "2026-10-24" and d["as_of_note"]
+    assert all(c["dates"][1] <= d["as_of"] for c in d["competitions"])
+    listed = ok(client, "/api/catalogue/matches", limit=200)
+    assert listed["total"] == 90 and max(m["date"] for m in listed["matches"]) <= d["as_of"]
 
 
 @pytest.mark.parametrize("params, want", [
@@ -206,8 +211,9 @@ def test_a_competitions_players_default_to_the_level_pool(client):
 def test_small_and_too_small_pools_say_so(client):
     d = ok(client, f"/api/competitions/{MAR}/players", scope="competition", min_minutes=0, limit=200)
     cells = list(_cells(d))
-    assert cells and all(c["percentile"] is None for c in cells)
-    assert all(c["pool"]["reason"] for c in cells if c["pool"]["size"] < 5)
+    under = [c for c in cells if c["pool"]["size"] < 5]
+    assert under and all(c["percentile"] is None and c["pool"]["reason"] for c in under)    # three uploads: tiny pools
+    assert all(c["pool"]["small"] for c in cells) and all(c["pool"]["reason"] is None for c in cells if c not in under)
     level = ok(client, f"/api/competitions/{MAR}/players", position="DF", limit=200)
     assert any(c["percentile"] is not None for c in _cells(level))      # pooled with Spain U19
     assert all(c["pool"]["small"] == (c["pool"]["size"] < 15) for c in _cells(level))
