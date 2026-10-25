@@ -98,8 +98,28 @@
   // A value a panel needs: returned once loaded; until then it starts the request and repaints the panel when it lands.
   function want(key, fn, panel) {
     const c = fetchOnce(key, fn);
-    if (c.st === 'wait' && panel) c.p.then(() => repaintSoon(panel), () => repaintSoon(panel));
+    if (c.st === 'wait' && panel) {
+      (c.panels || (c.panels = new Set())).add(panel);
+      c.p.then(() => repaintSoon(panel), () => repaintSoon(panel));
+    }
     return c;
+  }
+  // One frame later (or 100 ms, where a hidden page gets no frames): a repaint asked for before this has been drawn.
+  const nextFrame = () => new Promise((res) => { let done = false; const f = () => { if (!done) { done = true; res(); } }; requestAnimationFrame(f); setTimeout(f, 100); });
+  // Wait until every shown panel has its data and has been drawn with it (at most `ms`). A command calls this before it
+  // scrolls: on a phone the panels are stacked, and one above the subject that is still "Loading…" grows by hundreds of
+  // pixels when its data lands, pushing the subject below the fold after the scroll.
+  async function panelsSettled(ms = 6000) {
+    const end = Date.now() + ms;
+    for (;;) {
+      await nextFrame(); await nextFrame();         // repaints already asked for land; they may start more requests
+      const w = [...C.values()].filter(c => c.st === 'wait' && c.panels && [...c.panels].some(visible));
+      const cols = colsPending.size > 0 && visible('scrn');
+      if (!w.length && !cols) return;
+      const left = end - Date.now();
+      if (left <= 0) return;
+      await Promise.race([Promise.all(w.map(c => c.p.catch(() => {}))), new Promise(r => setTimeout(r, cols ? Math.min(left, 120) : left))]);
+    }
   }
   const pending = new Set();
   let raf = 0;
@@ -1297,6 +1317,7 @@
       // What the panel draws loads first, so the output line and the panel are final before it is brought into view.
       const extra = head === 'SHOT' ? shotsOf(p.id) : head === 'FORM' ? formOf(p.id, [...(CAT.default_columns[p.position] || CAT.default_columns.all), S.form.k || ''].filter(Boolean)) : head === 'HEAT' ? heatOf(p.id) : null;
       await Promise.all([selectReady(p.id), extra ? settle(extra) : null]);
+      await panelsSettled();
       let line;
       if (head === 'SIM') { const sm = similar(p.id).v; line = `SIM ${p.name}: ${((sm && sm.similar) || []).map(s => `${s.name} ${Number(s.similarity).toFixed(2)}`).join(', ') || 'none'}.`; }
       else if (head === 'SHOT') { const sh = (shotsOf(p.id).v || {}).shots || []; const g = sh.filter(s => s.outcome === 'goal').length; line = `SHOT ${p.name}: ${sh.length} shots, ${g} goal${g === 1 ? '' : 's'}. Each shot plays its clip.`; }
@@ -1314,6 +1335,7 @@
       const p = r.p;
       out(`${p.name}: loading…`);
       await selectReady(p.id);
+      await panelsSettled();
       out('', '', esc(`${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number}`) + altsHtml(r.alts, ''));
       // Bring the card and the player's numbers into view, not just the card's top strip.
       showPanel('plyr', true, '.tx-best');
@@ -1324,10 +1346,11 @@
     if (mm.m) return cmdRank(mm.m.key);
     out(`Not a player, club or command: "${t}". Try TOURE, RANK FW npxg, TEAM BRO or HELP.`, 'err');
   }
-  function team(c, line) {
+  async function team(c, line) {
     S.club = c.club_id; save();
-    out(line);
     if (!visible('team')) showPanel('team', false); else renderTeam();
+    await panelsSettled();
+    out(line);
     showPanel('team', true);
   }
   function cmdRank(rest) {
@@ -1391,6 +1414,7 @@
     await Promise.all(ids.map(id => settle(full(id))));
     S.compare = ids; S.focus = ids[0]; S.club = PID.get(ids[0]).club_id; save();
     renderAll();
+    await panelsSettled();
     const amb = rs.filter(r => r.alts && r.alts.length);
     out('', '', esc(`CMP ${ids.map(id => PID.get(id).name).join(' · ')}: radar and table vs each player's position peers.`)
       + (amb.length ? ` <span class="tx-dim">"${esc(amb[0].q)}" could also be:</span> ${amb[0].alts.slice(0, 5).map(p => runBtn(`CMP ${ids.map(id => id === amb[0].p.id ? p.name : PID.get(id).name).join(', ')}`, `${p.name} ${p.short_name}`)).join(' ')}` : ''));
@@ -1409,9 +1433,10 @@
     S.scat.x = mx.key; S.scat.y = my.key; if (pos !== undefined) S.scat.pos = pos; scatCur = null; save();
     out(`SCAT · ${mx.label} × ${my.label}: loading…`);
     await settle(scatOf(mx.key, my.key, S.scat.pos));
+    if (!visible('scat')) showPanel('scat', false); else renderScat();
+    await panelsSettled();
     const pts = scatPoints() || [];
     out(`SCAT · ${mx.label} × ${my.label}${S.scat.pos ? ' · ' + POSN[S.scat.pos] : ''}: ${pts.length} players.`);
-    if (!visible('scat')) showPanel('scat', false); else renderScat();
     showPanel('scat', true);
   }
 

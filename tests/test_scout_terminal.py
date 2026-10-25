@@ -234,6 +234,21 @@ def test_fix_4_commands_bring_their_subject_into_view_after_the_output_line(js):
     assert "class=\"tx-mt tx-best\"" in js
 
 
+def test_fix_4_commands_wait_for_every_shown_panel_before_they_scroll(js):
+    # On a phone the panels are stacked: one above the subject still "Loading…" grows when its data lands and would push
+    # the subject below the fold after the scroll (review A, round 2: HEAT or SHOT as the first command for a player).
+    settled = _fn(js, "panelsSettled")
+    assert "c.panels" in settled and "visible" in settled and "colsPending" in settled and "nextFrame()" in settled
+    assert "(c.panels || (c.panels = new Set())).add(panel)" in _fn(js, "want")
+    run = _fn(js, "run")
+    for show in ("showPanel(PANEL_CMD[head], true", "showPanel('plyr', true, '.tx-best')"):
+        i = run.index(show)
+        assert run.rfind("await panelsSettled();", 0, i) > run.rfind("await selectReady(p.id)", 0, i)
+    for name, show in (("cmdCmp", "showPanel('radar')"), ("cmdScat", "showPanel('scat', true)"), ("team", "showPanel('team', true)")):
+        body = _fn(js, name)
+        assert body.index("await panelsSettled();") < body.index(show), name
+
+
 def test_only_the_terminal_binds_cmd_k(js):
     assert "(e.metaKey || e.ctrlKey) && !e.altKey && String(e.key).toLowerCase() === 'k'" in js
     others = [p for p in STATIC.rglob("*.js") if p.name != "terminal.js" and re.search(r"metaKey|ctrlKey", p.read_text())]
