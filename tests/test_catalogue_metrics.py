@@ -418,7 +418,8 @@ def test_band_and_order_checks_read_level_aggregates():
     assert o["amateur_pass_pct"]["verdict"] == "pass" and o["youth_distance"]["verdict"] is None
     agg["amateur/senior/men"]["pass_pct"] = 85.0
     assert {x["id"]: x for x in order_checks(agg)}["amateur_pass_pct"]["verdict"] == "fail"
-    assert len(BANDS) == 1 and all(o["sources"] for o in ORDERS)
+    assert len(BANDS) == 1 and all(bool(o["sources"]) != (o.get("basis") == "assumed") for o in ORDERS)
+    assert all(o["covers"]["sources"] and o["covers"]["span"] for o in ORDERS if o.get("basis") == "assumed")
     # with per-season values a small margin inside the noise is not separated
     per = {"amateur/senior/men": [{"pass_pct": v} for v in (83.0, 85.0, 87.0)],
            "semi_pro/senior/men": [{"pass_pct": v} for v in (83.5, 84.0, 84.5)]}
@@ -542,3 +543,49 @@ def test_the_image_smoke_test_checks_the_level_reliability(tmp_path):
     fake.write_text(INDEX.read_text())
     [bad] = catalogue_reliability_checks(fake)   # no reliability.json beside it, no competition files: reported, not raised
     assert not bad["ok"]
+
+
+def test_youth_orders_claim_only_the_span_their_sources_cover():
+    """Review B round 2 #3: [S8] covers U13-U18 and [S5, S6] U13-U17, so only the U17 to U18 distance step is sourced; the
+    steps beyond are assumed orders worded "no published band", the youth speed steps hold by construction, and an
+    assumed order never makes a metric's kind "order"."""
+    from regista.catalogue import realism as rea
+
+    by = {o["id"]: o for o in ORDERS}
+    assert by["youth_distance"]["levels"] == ["academy/U17/men", "academy/U18/men"] and by["youth_distance"]["sources"]
+    ext, speed = by["youth_distance_extension"], by["youth_peak_speed_mean"]
+    assert ext["basis"] == speed["basis"] == "assumed" and not ext["sources"] and not speed["sources"]
+    assert speed["construction"] and "construction" not in ext
+    for o in ORDERS:   # a sourced order never names a youth level its sources do not cover
+        if o.get("basis") != "assumed" and o["metric"] in ("distance", "peak_speed_mean"):
+            assert not {"academy/U19/men", "academy/U20/men"} & set(o["levels"])
+    data = rea.load(INDEX.with_name(rea.FILE_NAME))
+    for cid in ("co_eng_u18", "co_esp_u19", "co_bra_u20", "co_gha_u17"):
+        for key in ("distance", "peak_speed_mean"):
+            r = realism(key, cid, data)
+            assert "U19 < U20 < senior: the source reports" not in r["note"]
+            for o in r["assumed_orders"]:
+                assert o["basis"] == "assumed" and o["verdict"] and o["values"]
+            if r["assumed_orders"]:
+                assert "Assumed order, no published band" in r["note"]
+            if key == "peak_speed_mean" and r["assumed_orders"]:
+                assert "By construction" in r["note"] and r["assumed_orders"][0]["by_construction"]
+            assert all(o["basis"] == "sourced" for o in r["orders"])
+            notes = r["note"].split("Assumed order")[0]
+            assert "U19" not in notes and "U20" not in notes      # nothing sourced is said about U19, U20 or beyond
+    assert realism("peak_speed_mean", "co_esp_u19", data)["kind"] == "none"
+    assert realism("distance", "co_esp_u19", data)["kind"] == "none"
+    assert realism("distance", "co_eng_u18", data)["kind"] == "order"
+    assert rea.level_kinds("academy/U19/men")["orders"] == [] and rea.level_kinds("academy/U19/men")["assumed_orders"]
+
+
+def test_the_committed_realism_verdicts_match_their_own_aggregates():
+    """``recheck`` re-runs every check on the committed file's stored aggregates: the committed verdicts are what the
+    checks say about them (so a wording or span change is re-stamped, never hand-edited)."""
+    import json
+
+    from regista.catalogue import realism as rea
+
+    data = json.loads(INDEX.with_name(rea.FILE_NAME).read_text())
+    again = rea.recheck(data)
+    assert again["bands"] == data["bands"] and again["orders"] == data["orders"]

@@ -47,8 +47,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
 from regista.catalogue import store
-from regista.catalogue.metrics import (ALL_WARNING, POOL_RULE, RANK_RULE, RELIABILITY_NOTE, SYNTHETIC_NOTE,
-                                       CatalogueMetrics, load_catalogue_metrics)
+from regista.catalogue.metrics import (ALL_WARNING, BOARD_TOP, GENDER_ORDER, POOL_RULE, RANK_RULE, RELIABILITY_NOTE,
+                                       SYNTHETIC_NOTE, CatalogueMetrics, load_catalogue_metrics)
 from regista.catalogue.profiles import ENGLAND_BASIS
 from regista.catalogue.taxonomy import ENGLAND_ID, levels_public
 from regista.catalogue.tools import comp_labels, competition_summary, entries_matching
@@ -435,9 +435,15 @@ async def get_competition(competition_id: str) -> Record:
 
 
 def _boards(cm: CatalogueMetrics, rows: list, genders: list[str] | None) -> list[Record] | None:
+    """Each gender board's size and ``offset``: where it starts in the list (rows are grouped by board), so a reader can
+    page straight to it."""
     if not genders:
         return None
-    return [{"gender": g, "rows": sum(1 for c, _ps in rows if cm.labels[c]["gender"] == g)} for g in genders]
+    out = []
+    for g in genders:
+        idx = [i for i, (c, _x) in enumerate(rows) if cm.labels[c]["gender"] == g]
+        out.append({"gender": g, "rows": len(idx), "offset": idx[0] if idx else None})
+    return out
 
 
 def _screen(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metrics_raw, position, role, club, q,
@@ -448,12 +454,18 @@ def _screen(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, me
     cids, rows = _rows(cm, w, default_all=default_all, position=position, role=role, club=club, q=q,
                        min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot, camera=camera, career=career)
     rows, mode, genders, _ranked = cm.order_rows(rows, sort_key, scope, order, rank_by)
+
+    def row_of(cid: str, ps) -> Record:
+        return {**_card(cm, cid, ps), "board": cm.labels[cid]["gender"],
+                "values": {k: cm.cell(cid, ps.info["global_id"], k, scope) for k in keys}}
+
+    boards = _boards(cm, rows, genders)
+    for b in boards or []:
+        b["top"] = [row_of(*r) for r in rows[b["offset"]:b["offset"] + min(BOARD_TOP, b["rows"], limit)]]
     return {"columns": [_describe(cm, k, cids, scope) for k in keys], "scope": scope, "sort": sort_key, "order": order,
-            "rank_by": mode, "rank_rule": RANK_RULE, "boards": _boards(cm, rows, genders),
+            "rank_by": mode, "rank_rule": RANK_RULE, "boards": boards,
             "total": len(rows), "offset": offset, "limit": limit,
-            "players": [{**_card(cm, cid, ps), "board": cm.labels[cid]["gender"],
-                         "values": {k: cm.cell(cid, ps.info["global_id"], k, scope) for k in keys}}
-                        for cid, ps in rows[offset:offset + limit]],
+            "players": [row_of(cid, ps) for cid, ps in rows[offset:offset + limit]],
             "competitions": cids, "pools": _pools_of(cm, cids, scope), "pool_rule": POOL_RULE,
             "reliability_note": RELIABILITY_NOTE, "warning": _warning(cm, cids, scope), "filters": w.public(),
             "camera_note": CAMERA_NOTE if camera else None, "synthetic": True, "note": SYNTHETIC_NOTE}
@@ -498,8 +510,9 @@ async def catalogue_players(w: WhereDep, scope: ScopeDep,
     and sample. Percentiles in ``scope`` (level by default). ``min_minutes`` defaults to each row's own competition's
     qualifying minutes; ``camera`` keeps players with an appearance in a match filmed on that camera type; ``career=true``
     only players in two competitions. Rows from more than one level are sorted by each row's percentile within its own
-    pool (``rank_by=value`` sorts by the raw value), and men and women are on separate boards (``RANK_RULE``). Paged by
-    ``offset`` and ``limit`` (``total`` counts every row)."""
+    pool (``rank_by=value`` sorts by the raw value), and men and women are on separate boards (``RANK_RULE``; ``boards``
+    gives each board's size, offset and top rows). ``order`` is the raw direction in both modes. Paged by ``offset`` and
+    ``limit`` (``total`` counts every row)."""
 
     def run() -> Record:
         return _screen(catalogue_metrics(), w, scope or "level", default_all=True, metrics_raw=metrics_, position=position,
@@ -610,9 +623,8 @@ def _rank(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metr
                   if cm.metrics[cid].qualified(ps, m) or (m.kind == "total" and ps.values.get(key) is not None)]
     ranked_ids = {(cid, ps.info["global_id"]) for cid, ps in ranked}
     rest = [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) not in ranked_ids]
-    out, prev, place, board, n_in_board = [], None, 0, None, 0
-    for i, (cid, ps) in enumerate(ranked, start=1):
-        gid = ps.info["global_id"]
+    places, prev, place, board, n_in_board = [], None, 0, None, 0
+    for cid, ps in ranked:
         g = cm.labels[cid]["gender"]
         if g != board:   # each gender's board ranks from 1
             board, n_in_board, prev = g, 0, None
@@ -621,14 +633,22 @@ def _rank(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metr
         tie = (cm.percentile(cid, ps, key, scope), v) if mode == "pool" else v
         if tie != prev:
             place, prev = n_in_board, tie
-        if i <= offset:
-            continue
-        if len(out) >= limit:
-            break
-        out.append({"rank": place, "board": g, **_card(cm, cid, ps), **cm.cell(cid, gid, key, scope),
-                    "evidence_count": sum(len(ps.evidence.get(k, [])) for k in m.evidence_keys())})
-    boards = None if not genders else [{"gender": g, "ranked": sum(1 for c, _ps in ranked if cm.labels[c]["gender"] == g)}
-                                       for g in genders]
+        places.append(place)
+
+    def row_of(i: int) -> Record:
+        cid, ps = ranked[i]
+        return {"rank": places[i], "board": cm.labels[cid]["gender"], **_card(cm, cid, ps),
+                **cm.cell(cid, ps.info["global_id"], key, scope),
+                "evidence_count": sum(len(ps.evidence.get(k, [])) for k in m.evidence_keys())}
+
+    out = [row_of(i) for i in range(offset, min(offset + limit, len(ranked)))]
+    boards = None
+    if genders:   # each board's size, where it starts among the ranked rows (page there with offset), and its top rows
+        boards = []
+        for g in genders:
+            idx = [i for i, (c, _ps) in enumerate(ranked) if cm.labels[c]["gender"] == g]
+            boards.append({"gender": g, "ranked": len(idx), "offset": idx[0] if idx else None,
+                           "top": [row_of(i) for i in idx[:min(BOARD_TOP, limit)]]})
     return {"metric": _describe(cm, key, cids, scope), "scope": scope, "rank_by": mode, "rank_rule": RANK_RULE,
             "boards": boards, "players": out, "ranked": len(ranked), "offset": offset, "limit": limit,
             "unranked": [{**_card(cm, cid, ps), "board": cm.labels[cid]["gender"], **cm.cell(cid, ps.info["global_id"], key, scope)}
@@ -645,11 +665,13 @@ async def catalogue_rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], w: 
                          rank_by: RANK_BY = None,
                          limit: int = Query(25, ge=1, le=200), offset: int = Query(0, ge=0, le=MAX_OFFSET)) -> Record:
     """One metric's leaderboard across the filtered catalogue. Rows from more than one level are ranked by each row's
-    percentile within its own pool (best first unless ``order``; ties by pool size, minutes, then value), never by raw
-    values from different levels; within one level by value. ``rank_by`` forces either. Men and women are never ranked
-    together: a selection holding both gives one board per gender (``boards``; each row's ``board``; ranks restart at
-    1). Rows without a percentile (pool rank) or without their competition's minimum attempts (value rank) are listed
-    after, unranked."""
+    percentile within its own pool (best first; ties by pool size, minutes, then value), never by raw values from
+    different levels; within one level by value. ``rank_by`` forces either. ``order`` is the raw direction in both modes
+    ("desc": the largest numbers first, even where lower is better). Men and women are never ranked together: a
+    selection holding both gives one board per gender (each row's ``board``; ranks restart at 1; ``boards`` gives each
+    board's size, its ``offset`` among the ranked rows and its ``top`` rows, so the second board is on every page). Rows
+    without a percentile (pool rank) or without their competition's minimum attempts (value rank) are listed after,
+    unranked."""
 
     def run() -> Record:
         return _rank(catalogue_metrics(), w, scope or "level", default_all=True, metric=metric, position=position,
@@ -788,10 +810,16 @@ def season_payload(competition_id: str, stats: list[Record]) -> Record:
 
 
 def players_payload(w: Where, scope: str, *, position, club, q, min_minutes, sort, limit, offset,
-                    stats: list[Record]) -> Record:
+                    stats: list[Record], rank_by: str | None = None) -> Record:
     """``/api/players`` with catalogue filters: profile cards from each selected competition's ``Season``, each headline
-    percentile replaced by the scope's (with its pool), sorted together; paged by ``offset``. England's cards come from
-    the app's own season (fixtures, confirmed claims, Player-view uploads), so they are today's cards (``basis``)."""
+    percentile replaced by the scope's (with its pool); paged by ``offset``. England's cards come from the app's own
+    season (fixtures, confirmed claims, Player-view uploads), so they are today's cards (``basis``).
+
+    Ranked as ``RANK_RULE`` says, like ``/api/catalogue/players``: cards from more than one level sorted by a per-90 stat
+    or a ratio are ranked by each card's percentile in ``scope`` (highest first, then pools that are not small, then more
+    minutes, then the value; cards without a percentile follow, by value), never by raw rates from different levels;
+    within one level, and for ``minutes`` or ``name``, by value; ``rank_by`` forces either. Men and women are never
+    ranked together: a selection holding both has one board per gender (``boards``: each board's size and offset)."""
     from regista.season.profiles import _sort_key, card
 
     cm = catalogue_metrics()
@@ -816,32 +844,57 @@ def players_payload(w: Where, scope: str, *, position, club, q, min_minutes, sor
         found.sort(key=lambda r: (_sort_key(r[1], sort), r[0]))
     except ValueError as exc:
         raise HTTPException(422, str(exc))
+    rateable = sort not in ("name", "minutes")
+    if rank_by:
+        mode = rank_by if rateable else "value"
+    else:
+        mode = "pool" if rateable and len({cm.level[cid] for cid, _p in found}) > 1 else "value"
+    if mode == "pool":
+        pct = {(cid, p["global_id"]): cp.sort_percentile(cid, p["global_id"], sort, scope) for cid, p in found}
+        have = [r for r in found if pct[(r[0], r[1]["global_id"])][0] is not None]
+        none = [r for r in found if pct[(r[0], r[1]["global_id"])][0] is None]
+        have.sort(key=lambda r: (-pct[(r[0], r[1]["global_id"])][0], pct[(r[0], r[1]["global_id"])][1], -r[1]["minutes"],
+                                 _sort_key(r[1], sort), r[0]))
+        found = have + none
+    genders = [g for g in GENDER_ORDER if any(cm.labels[cid]["gender"] == g for cid, _p in found)]
+    boards = None
+    if len(genders) > 1:
+        found.sort(key=lambda r: GENDER_ORDER.index(cm.labels[r[0]]["gender"]))   # stable: each board keeps its order
+        boards = _boards(cm, found, genders)
     rows = []
     for cid, p in found[offset:offset + limit]:
         c = card(p)
         for stat, h in c["headline"].items():
             sc = cp.stat_cell(cid, p["global_id"], stat, scope)
             h["percentile"], h["pool"] = sc["percentile"], sc["pool"]
-        rows.append({**c, **cm.labels_of(cid), "career": len(cm.people.get(p["global_id"], [])) > 1,
+        rows.append({**c, **cm.labels_of(cid), "board": cm.labels[cid]["gender"],
+                     "career": len(cm.people.get(p["global_id"], [])) > 1,
                      "profile_url": f"/players/{p['global_id']}" if cid == ENGLAND_ID else None,
                      "api_url": f"/api/catalogue/players/{p['global_id']}"})
     return {"players": rows, "total": len(found), "offset": offset, "sort": sort, "stats": stats, "scope": scope,
-            "competitions": cids, "filters": w.public(), "pool_rule": POOL_RULE, "warning": _warning(cm, cids, scope),
+            "rank_by": mode, "rank_rule": RANK_RULE, "boards": boards, "competitions": cids, "filters": w.public(), "pool_rule": POOL_RULE, "warning": _warning(cm, cids, scope),
             "basis": ENGLAND_BASIS if ENGLAND_ID in cids else None, "synthetic": True, "note": SYNTHETIC_NOTE}
+
+
+TERMINAL_RANK_KEYS = ("rank_by", "rank_rule", "boards")   # added in catalogue mode only: how the rows were ranked
 
 
 def screen_payload(w: Where, scope: str, **kw: Any) -> Record:
     """``/api/terminal/screen`` with catalogue parameters: today's keys (``columns``, ``sort``, ``total``, ``offset``,
-    ``players``, ``season``), every cell with its pool and sample."""
+    ``players``, ``season``), every cell with its pool and sample, plus how the rows were ranked (``rank_by``,
+    ``rank_rule``, ``boards``: ``RANK_RULE``; across levels by percentile, genders on separate boards)."""
     cm = catalogue_metrics()
     out = _screen(cm, w, scope, default_all=False, camera=None, career=None, **kw)
-    return {k: out[k] for k in ("columns", "sort", "total", "offset", "players")} | {"season": _meta(cm, out["competitions"], scope)}
+    return ({k: out[k] for k in ("columns", "sort", "total", "offset", "players", *TERMINAL_RANK_KEYS)}
+            | {"season": _meta(cm, out["competitions"], scope)})
 
 
 def rank_payload(w: Where, scope: str, **kw: Any) -> Record:
+    """``/api/terminal/rank`` with catalogue parameters: today's keys plus ``rank_by``, ``rank_rule`` and ``boards``."""
     cm = catalogue_metrics()
     out = _rank(cm, w, scope, default_all=False, camera=None, career=None, offset=0, **kw)
-    return {k: out[k] for k in ("metric", "players", "ranked", "unranked")} | {"season": _meta(cm, out["competitions"], scope)}
+    return ({k: out[k] for k in ("metric", "players", "ranked", "unranked", *TERMINAL_RANK_KEYS)}
+            | {"season": _meta(cm, out["competitions"], scope)})
 
 
 def scatter_payload(w: Where, scope: str, x: str, y: str, **kw: Any) -> Record:

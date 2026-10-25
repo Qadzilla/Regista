@@ -237,7 +237,9 @@ def search_catalogue_players(tier: str | None = None, age_group: str | None = No
     one gender; levels differ, so read each percentile against its pool). min_minutes: empty for each competition's
     qualifying minutes. Rows from more than one level are ranked by each row's percentile within its own pool, not by raw
     values from different levels, and men and women come on separate boards (each row's board); rank_by "value" ranks
-    by the raw value instead. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small,
+    by the raw value instead. order is the raw direction (desc: the largest numbers first). When the selection holds men
+    and women, players holds each board's top rows (up to limit each) and boards gives each board's total; pass gender to
+    read one board further. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small,
     reason)."""
     from regista.catalogue.tools import search_players
 

@@ -30,7 +30,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, StringConstraints
 
-from regista.catalogue_api import COMPETITION, ScopeDep, WhereDep, catalogue_mode
+from regista.catalogue_api import COMPETITION, RANK_BY, ScopeDep, WhereDep, catalogue_mode
 from regista.season.profiles import HEADLINE, PERCENTILE_RULE, RATIOS, STATS, Season, card, load_season
 
 router = APIRouter()
@@ -138,7 +138,8 @@ async def list_players(w: WhereDep, scope: ScopeDep,
                        min_minutes: float = Query(0.0, ge=0.0, le=10000.0),
                        sort: Annotated[str, Query(pattern=r"^[a-z0-9_]{1,40}$")] = "minutes",
                        limit: int = Query(50, ge=1, le=200),
-                       offset: int | None = Query(None, ge=0, le=100000)) -> dict[str, Any]:
+                       offset: int | None = Query(None, ge=0, le=100000),
+                       rank_by: RANK_BY = None) -> dict[str, Any]:
     """Profile cards, filtered and sorted (highest first; ``sort=name`` is alphabetical).
 
     Without ``offset`` the response is what it always was (``total`` is the number of cards returned). With ``offset``
@@ -148,13 +149,18 @@ async def list_players(w: WhereDep, scope: ScopeDep,
     Catalogue filters (``competition``, ``country``, ``tier`` or ``level``, ``age_group``, ``gender``) or ``scope``
     (``pool``: level, competition or all) answer from the catalogue: cards from each selected competition (England
     semi-pro men unless a filter picks others), each headline percentile in ``scope`` (level by default) with its pool;
-    ``total`` then always counts every card the filters keep and ``offset`` pages past ``limit``."""
-    if catalogue_mode(w, scope):
+    ``total`` then always counts every card the filters keep and ``offset`` pages past ``limit``. There, cards from more
+    than one level sorted by a per-90 stat or a ratio are ranked by each card's percentile within its own pool, not by
+    raw rates from different levels (``rank_by=value``: by the raw value), and men and women are on separate boards
+    (each card's ``board``; ``boards`` gives each board's size and offset); the response says ``rank_by`` and
+    ``rank_rule``."""
+    if catalogue_mode(w, scope) or rank_by is not None:
         from regista.catalogue_api import players_payload
 
         return await run_in_threadpool(lambda: players_payload(w, scope or "level", position=position, club=club, q=q,
                                                                min_minutes=min_minutes, sort=sort, limit=limit,
-                                                               offset=offset or 0, stats=stat_catalogue()))
+                                                               offset=offset or 0, stats=stat_catalogue(),
+                                                               rank_by=rank_by))
     s = await run_in_threadpool(season)
     try:
         rows = s.players(position=position, club=club, q=q, min_minutes=min_minutes, sort=sort,

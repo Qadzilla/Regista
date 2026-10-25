@@ -68,6 +68,16 @@ examples below are real responses on the committed catalogue, trimmed (`…` mar
   is by value, as before. `rank_by=pool|value` forces either; the response says `rank_by` and `rank_rule`. Men and women
   are never ranked together: a list holding both has one board per gender (`boards`, each row's `board`; ranks
   restart at 1 on each board).
+- **Review round 2.** `order` (asc, desc) is the raw direction in both modes: `desc` lists the largest numbers first even
+  where lower is better ("most fouls"), so in pool mode a lower-is-better metric's `desc` lists the lowest (oriented)
+  percentiles first; without `order`, best first. `/api/players` in catalogue mode follows the same rule (a per-90 stat
+  or ratio across levels ranks by each card's percentile in `scope`; `minutes` and `name` by value; gender boards) and
+  says `rank_by`, `rank_rule` and `boards`. The terminal endpoints in catalogue mode add `rank_by`, `rank_rule` and
+  `boards` to today's keys and accept `rank_by` (which, like a catalogue filter, switches them to catalogue mode). Each
+  board in `boards` gives its size, its `offset` in the list (page straight to it) and, on `/api/catalogue/rank`,
+  `/api/catalogue/players` and the terminal endpoints, its `top` rows (up to 5), so the women's board is on every page.
+  The MCP tool `search_catalogue_players` returns each board's top `limit` rows when a selection holds men and women,
+  with `boards` (`gender`, `total`, `shown`) and a `hint` to pass `gender`.
 
 **Never served.**
 - Hidden ratings (`attributes`, every rating key) and level scales (`skill_offset`, `stamina_offset`, `speed_mult`,
@@ -277,7 +287,8 @@ GET /api/catalogue/rank?metric=np_goals&gender=men&position=FW&limit=3
  "unranked": […], "competitions": [… 12 men's competitions], "pool_rule": "…", …}
 ```
 
-Without `gender` the same request gives `"boards": [{"gender": "men", "ranked": 108}, {"gender": "women", "ranked": 20}]`:
+Without `gender` the same request gives `"boards": [{"gender": "men", "ranked": 108, "offset": 0, "top": […]},
+{"gender": "women", "ranked": 20, "offset": 108, "top": […]}]`:
 the men's board first, then the women's, which starts again at rank 1 (Hannah Mitchell, Pennine Women's League).
 `rank_by=value` gives the old raw-value order on each board.
 
@@ -330,10 +341,10 @@ Every response keeps today's top-level keys. Each adds the fields described here
 | Endpoint | New parameters | What they do |
 |---|---|---|
 | `GET /api/season` | `competition` | That competition with the same keys. `table` is its uploaded matches' results; `table_note` says so. `rounds` lists matchdays with uploads, each match with uploader and camera. `percentiles` gains `scope` and `min_pool`. `competition` holds the labels. For England: today's response plus `competition` and `table_note: null`. |
-| `GET /api/players` | `competition`, `country`, `tier`/`level`, `age_group`, `gender`, `scope`/`pool`, `offset` | Cards from each selected competition. Each headline percentile is in `scope` (level by default) with its `pool`. Cards gain competition labels, `career` and `api_url`. `total` counts every row. England's cards come from the app's own season (fixtures, confirmed claims, Player-view uploads), so they are today's cards; `basis` says so. |
+| `GET /api/players` | `competition`, `country`, `tier`/`level`, `age_group`, `gender`, `scope`/`pool`, `offset`, `rank_by` | Cards from each selected competition. Each headline percentile is in `scope` (level by default) with its `pool`. Cards gain competition labels, `board`, `career` and `api_url`. Ranked across levels by percentile, gender boards (`rank_by`, `rank_rule`, `boards`). `total` counts every row. England's cards come from the app's own season (fixtures, confirmed claims, Player-view uploads), so they are today's cards; `basis` says so. |
 | `GET /api/players/{id}` | `include=career` | Adds `career` (the career block). |
 | `GET /api/metrics` | `competition`, `scope` | Each metric described in that competition: ratio minimums, the reliability table it reads, its realism check. Plus the catalogue `season` block. The xT grid outside England is England's. |
-| `GET /api/terminal/screen`, `/rank`, `/scatter` | the five competition filters, `scope`/`pool` | Same keys. Cells and points carry `pool` and `sample` (scatter: `x_pool`, `y_pool`). `season` becomes the catalogue block: scope, competitions with their minimums and samples, the pool rule, the warning, and the competition's thresholds when there is one competition. |
+| `GET /api/terminal/screen`, `/rank`, `/scatter` | the five competition filters, `scope`/`pool`; `rank_by` (screen, rank) | Same keys; screen and rank add `rank_by`, `rank_rule` and `boards`. Cells and points carry `pool` and `sample` (scatter: `x_pool`, `y_pool`). `season` becomes the catalogue block: scope, competitions with their minimums and samples, the pool rule, the warning, and the competition's thresholds when there is one competition. |
 | `GET /api/players/{id}/metrics`, `/form`, `/similar`, `/shots`, `/heatmap` | `competition`, `scope` | That catalogue row (default: the player's row with the most minutes), with pools in `scope`. `similar` with level or all scope uses the cross-level standardisation from engine.md. |
 | `GET /api/teams` | the five competition filters | The selected competitions' clubs, each with `level_rank`, `level_of` and `level_mean`. |
 | `GET /api/teams/{club_id}/style`, `/shots` | `competition` | A catalogue club in that competition (a 404 if it has no upload there). |

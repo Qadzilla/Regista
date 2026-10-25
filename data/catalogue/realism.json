@@ -230,6 +230,9 @@
  ],
  "orders": [
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "amateur_sprint_distance",
    "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90)",
    "levels": [
@@ -258,6 +261,9 @@
    "verdict": "pass"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "amateur_pass_pct",
    "label": "amateurs complete fewer passes than semi-pros",
    "levels": [
@@ -286,8 +292,17 @@
    "verdict": "fail"
   },
   {
+   "basis": "assumed",
+   "by_construction": true,
+   "covers": {
+    "sources": [
+     "S5",
+     "S6"
+    ],
+    "span": "U13-U17"
+   },
    "id": "youth_peak_speed_mean",
-   "label": "peak match speed rises with age: U17 < U18 < U19 < U20 < senior",
+   "label": "peak match speed keeps rising from U17 to senior: U17 < U18 < U19 < U20 < senior",
    "levels": [
     "academy/U17/men",
     "academy/U18/men",
@@ -296,10 +311,7 @@
     "semi_pro/senior/men"
    ],
    "metric": "peak_speed_mean",
-   "sources": [
-    "S5",
-    "S6"
-   ],
+   "sources": [],
    "steps": [
     {
      "higher": "academy/U18/men",
@@ -345,14 +357,14 @@
    "verdict": "not separated"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "youth_distance",
-   "label": "match running distance per 90 rises with age: U17 < U18 < U19 < U20 < senior",
+   "label": "match running distance per 90 rises with age through U13-U18 (the catalogue's step: U17 < U18)",
    "levels": [
     "academy/U17/men",
-    "academy/U18/men",
-    "academy/U19/men",
-    "academy/U20/men",
-    "semi_pro/senior/men"
+    "academy/U18/men"
    ],
    "metric": "distance",
    "sources": [
@@ -366,7 +378,35 @@
      "se": 37.411,
      "separated": true,
      "verdict": "pass"
-    },
+    }
+   ],
+   "unit": "m per 90",
+   "values": [
+    9855.372,
+    10034.202
+   ],
+   "verdict": "pass"
+  },
+  {
+   "basis": "assumed",
+   "by_construction": false,
+   "covers": {
+    "sources": [
+     "S8"
+    ],
+    "span": "U13-U18"
+   },
+   "id": "youth_distance_extension",
+   "label": "match running distance per 90 keeps rising from U18 to senior: U18 < U19 < U20 < senior",
+   "levels": [
+    "academy/U18/men",
+    "academy/U19/men",
+    "academy/U20/men",
+    "semi_pro/senior/men"
+   ],
+   "metric": "distance",
+   "sources": [],
+   "steps": [
     {
      "higher": "academy/U19/men",
      "lower": "academy/U18/men",
@@ -394,7 +434,6 @@
    ],
    "unit": "m per 90",
    "values": [
-    9855.372,
     10034.202,
     10040.364,
     10122.406,
@@ -403,6 +442,9 @@
    "verdict": "not separated"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "women_pass_pct_semi_pro",
    "label": "women complete fewer passes than men (semi-pro)",
    "levels": [
@@ -431,6 +473,9 @@
    "verdict": "pass"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "women_pass_pct_college",
    "label": "women complete fewer passes than men (college)",
    "levels": [
@@ -459,6 +504,9 @@
    "verdict": "pass"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "women_ball_losses_semi_pro",
    "label": "women lose the ball more often than men (semi-pro)",
    "levels": [
@@ -487,6 +535,9 @@
    "verdict": "not separated"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "women_ball_losses_college",
    "label": "women lose the ball more often than men (college)",
    "levels": [
@@ -515,6 +566,9 @@
    "verdict": "pass"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "women_hi_distance_semi_pro",
    "label": "women cover less distance at 20 km/h or more than men (semi-pro; men's FIFA zones for both)",
    "levels": [
@@ -544,6 +598,9 @@
    "verdict": "pass"
   },
   {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
    "id": "women_hi_distance_college",
    "label": "women cover less distance at 20 km/h or more than men (college; men's FIFA zones for both)",
    "levels": [

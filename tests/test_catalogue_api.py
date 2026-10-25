@@ -286,7 +286,8 @@ def test_england_in_competition_scope_is_todays_screen_and_cards(client):
     """The optional parameters reach the same numbers the existing endpoints serve when the pool is England's own."""
     today = ok(client, "/api/terminal/screen", limit=200)
     cat = ok(client, "/api/terminal/screen", competition=ENGLAND_ID, scope="competition", limit=200)
-    assert set(cat) == set(today) and cat["total"] == today["total"]
+    assert set(cat) == set(today) | {"rank_by", "rank_rule", "boards"} and cat["total"] == today["total"]
+    assert cat["rank_by"] == "value" and cat["boards"] is None      # one level, one gender: today's order
     want = {r["global_id"]: r["values"] for r in today["players"]}
     for row in cat["players"]:
         for k, cell in row["values"].items():
@@ -356,10 +357,11 @@ def test_players_total_counts_every_card_when_paged(client):
 def test_existing_endpoints_answer_other_competitions_in_todays_shapes(client):
     base_screen = ok(client, "/api/terminal/screen")
     s = ok(client, "/api/terminal/screen", country="Germany")
-    assert set(s) == set(base_screen) and all(r["competition_id"] == GER for r in s["players"])
+    added = {"rank_by", "rank_rule", "boards"}                     # catalogue mode only: how the rows were ranked
+    assert set(s) == set(base_screen) | added and all(r["competition_id"] == GER for r in s["players"])
     assert s["season"]["scope"] == "level" and s["season"]["competition_id"] == GER
     r = ok(client, "/api/terminal/rank", metric="npxg", tier="college", gender="men")
-    assert set(r) == set(ok(client, "/api/terminal/rank", metric="npxg")) and r["season"]["warning"] is None
+    assert set(r) == set(ok(client, "/api/terminal/rank", metric="npxg")) | added and r["season"]["warning"] is None
     sc = ok(client, "/api/terminal/scatter", x="npxg", y="xa", gender="women")
     assert set(sc) == set(ok(client, "/api/terminal/scatter", x="npxg", y="xa"))
     assert sc["points"] and all("x_pool" in p and p["gender"] == "women" for p in sc["points"])
@@ -513,7 +515,7 @@ def test_the_catalogue_mcp_tools_are_listed_and_answer(client):
     assert eng["players"][0]["global_id"] == STAR and eng["warning"] is None
     assert sp["rank_by"] == "pool" and all(p["board"] == "men" for p in sp["players"])
     both = mcp_server.search_catalogue_players(position="FW", sort="np_goals", limit=50)
-    assert both["boards"] == ["men", "women"] and both["players"][0]["global_id"] == STAR
+    assert [b["gender"] for b in both["boards"]] == ["men", "women"] and both["players"][0]["global_id"] == STAR
     raw = mcp_server.search_catalogue_players(gender="men", position="FW", sort="npxg", limit=5, rank_by="value")
     assert raw["rank_by"] == "value" and "error" in mcp_server.search_catalogue_players(sort="npxg", rank_by="luck")
     assert "error" in mcp_server.search_catalogue_players(sort="charisma")
@@ -522,3 +524,109 @@ def test_the_catalogue_mcp_tools_are_listed_and_answer(client):
     assert gp["global_id"] == CRUZ and len(gp["rows"]) == 2 and not _hidden(gp)
     assert "candidates" in mcp_server.get_catalogue_player("nobody at all")
     assert not _hidden(sp) and not _hidden(lc)
+
+
+# ---------------------------------------------------------------------------- review round 2: order, boards, /api/players
+
+def _oriented(rows, key="fouls"):
+    return [r["values"][key]["percentile"] for r in rows if r["values"][key]["percentile"] is not None]
+
+
+def test_order_is_the_raw_direction_in_both_rank_modes(client, cm):
+    """Review A round 2 #1: "most fouls" (order=desc) lists the largest numbers first in value mode and in pool mode, so
+    a lower-is-better metric's desc puts the lowest (oriented) percentiles first across levels; no order: best first."""
+    from regista.season.metrics import CATALOGUE
+
+    assert CATALOGUE["fouls"].higher_is_better is False and CATALOGUE["fouls"].kind == "per90"
+    base = {"metric": "fouls", "position": "MF", "country": "England", "gender": "men", "limit": 200}   # two levels
+    desc = ok(client, "/api/catalogue/rank", **base, order="desc")
+    asc = ok(client, "/api/catalogue/rank", **base, order="asc")
+    best = ok(client, "/api/catalogue/rank", **base)
+    assert desc["rank_by"] == asc["rank_by"] == best["rank_by"] == "pool"
+    assert {p["competition_id"] for p in desc["players"]} == {ENGLAND_ID, "co_eng_u18"}
+    pd, pa, pb = ([p["percentile"] for p in d["players"]] for d in (desc, asc, best))
+    assert pd == sorted(pd) and pa == sorted(pa, reverse=True) and pb == sorted(pb, reverse=True)
+    assert pd[0] < pd[-1]
+    # the top of "most fouls" commits more fouls than the top of "fewest fouls", within each pool
+    for cid in (ENGLAND_ID, "co_eng_u18"):
+        d = [p["value"] for p in desc["players"] if p["competition_id"] == cid]
+        a = [p["value"] for p in asc["players"] if p["competition_id"] == cid]
+        assert d == sorted(d, reverse=True) and a == sorted(a)
+    # one level (value mode): the same direction
+    one = ok(client, "/api/catalogue/rank", metric="fouls", position="MF", competition=GER, order="desc", limit=200)
+    vals = [p["value"] for p in one["players"]]
+    assert one["rank_by"] == "value" and vals == sorted(vals, reverse=True)
+    # the terminal's screen and the cross-country screen agree
+    for path in ("/api/terminal/screen", "/api/catalogue/players"):
+        scr = ok(client, path, metrics="fouls", sort="fouls", order="desc", position="MF", country="England",
+                 gender="men", limit=200)
+        assert scr["rank_by"] == "pool" and _oriented(scr["players"]) == sorted(_oriented(scr["players"]))
+        best_first = ok(client, path, metrics="fouls", sort="fouls", position="MF", country="England", gender="men",
+                        limit=200)
+        assert _oriented(best_first["players"]) == sorted(_oriented(best_first["players"]), reverse=True)
+
+
+def test_catalogue_cards_rank_within_pools_on_gender_boards(client):
+    """Review A round 2 #2: /api/players in catalogue mode ranks a per-90 sort across levels by each card's percentile in
+    its pool, keeps men and women on separate boards, and says how it ranked."""
+    d = ok(client, "/api/players", country="England", sort="goals", limit=200, offset=0)
+    assert d["rank_by"] == "pool" and d["rank_rule"] and [b["gender"] for b in d["boards"]] == ["men", "women"]
+    boards = [p["board"] for p in d["players"]]
+    assert boards == sorted(boards, key=["men", "women"].index)       # men's board, then women's: never mixed
+    men, women = d["boards"]
+    assert men["offset"] == 0 and women["offset"] == men["rows"] and men["rows"] + women["rows"] == d["total"]
+    assert all(p["board"] == "women" for p in d["players"][women["offset"]:])
+    for g in ("men", "women"):
+        pct = [p["headline"]["goals"]["percentile"] for p in d["players"] if p["board"] == g]
+        ranked = [x for x in pct if x is not None]
+        assert ranked == sorted(ranked, reverse=True) and pct[:len(ranked)] == ranked   # unranked cards follow
+    fw = ok(client, "/api/players", tier="semi_pro", position="FW", sort="goals", limit=200)
+    first = [p for p in fw["players"] if p["board"] == "men"]
+    assert first and fw["players"][:len(first)] == first and fw["rank_by"] == "pool"   # semi-pro men and women
+    assert {p["competition_id"] for p in first} == {ENGLAND_ID, GER} and first[0]["global_id"] == STAR
+    men_only = ok(client, "/api/players", tier="semi_pro", gender="men", position="FW", sort="goals", limit=200)
+    assert men_only["rank_by"] == "value" and men_only["boards"] is None                # one level: by value
+    raw = ok(client, "/api/players", country="England", gender="men", sort="goals", rank_by="value", limit=200)
+    per90 = [p["headline"]["goals"]["per90"] for p in raw["players"]]
+    assert raw["rank_by"] == "value" and per90 == sorted(per90, reverse=True)
+    acc = ok(client, "/api/players", country="England", gender="men", sort="pass_accuracy", limit=200)
+    assert acc["rank_by"] == "pool"                                    # a ratio ranks by its percentile too
+    plain = ok(client, "/api/players", limit=5)                        # no catalogue parameter: today's response
+    assert "rank_by" not in plain and "boards" not in plain
+
+
+def test_terminal_catalogue_payloads_say_how_they_ranked(client):
+    r = ok(client, "/api/terminal/rank", metric="np_goals", position="FW", country="England")
+    assert r["rank_by"] == "pool" and r["rank_rule"] and [b["gender"] for b in r["boards"]] == ["men", "women"]
+    assert r["boards"][1]["top"] and all(p["board"] == "women" for p in r["boards"][1]["top"])
+    v = ok(client, "/api/terminal/rank", metric="npxg", tier="academy", gender="men", rank_by="value", limit=200)
+    vals = [p["value"] for p in v["players"]]
+    assert v["rank_by"] == "value" and vals == sorted(vals, reverse=True)
+    s = ok(client, "/api/terminal/screen", metrics="npxg", tier="academy", gender="men", rank_by="value", limit=200)
+    vals = [p["values"]["npxg"]["value"] for p in s["players"] if p["values"]["npxg"]["value"] is not None]
+    assert s["rank_by"] == "value" and vals == sorted(vals, reverse=True)
+    assert "rank_by" not in ok(client, "/api/terminal/rank", metric="npxg")    # today's response keeps its keys
+
+
+def test_a_mixed_gender_rank_shows_the_womens_board_on_its_first_page(client):
+    """Review B round 2 #4: the women's board is reachable from the first page and from the MCP tool."""
+    from regista import mcp_server
+
+    r = ok(client, "/api/catalogue/rank", metric="np_goals", position="FW")
+    men, women = r["boards"]
+    assert (men["gender"], women["gender"]) == ("men", "women") and women["ranked"] > 0
+    assert women["offset"] == men["ranked"] and men["offset"] == 0
+    assert women["top"] and all(p["board"] == "women" and p["rank"] >= 1 for p in women["top"])
+    assert women["top"][0]["rank"] == 1 and men["top"][0]["global_id"] == r["players"][0]["global_id"]
+    there = ok(client, "/api/catalogue/rank", metric="np_goals", position="FW", offset=women["offset"], limit=5)
+    assert [p["global_id"] for p in there["players"]] == [p["global_id"] for p in women["top"]]
+    scr = ok(client, "/api/catalogue/players", metrics="np_goals", sort="np_goals", position="FW", limit=10)
+    assert scr["boards"][1]["gender"] == "women" and scr["boards"][1]["top"]
+    assert all(p["board"] == "women" for p in scr["boards"][1]["top"])
+    tool = mcp_server.search_catalogue_players(position="FW", sort="np_goals", limit=10)
+    assert any(p["board"] == "women" for p in tool["players"]) and tool["hint"]
+    assert [(b["gender"], b["shown"]) for b in tool["boards"]] == [("men", 10), ("women", 10)]
+    assert sum(b["total"] for b in tool["boards"]) == tool["total"]
+    only = mcp_server.search_catalogue_players(position="FW", sort="np_goals", gender="women", limit=10)
+    assert only["boards"] is None and only["hint"] is None
+    assert [p["global_id"] for p in only["players"]] == [p["global_id"] for p in tool["players"] if p["board"] == "women"]

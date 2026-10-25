@@ -7,8 +7,12 @@ kind of check its numbers get:
 - ``band``: a published band read for this level: pass or fail. One exists below senior level: the mean peak match speed
   of U17 outfielders [S5].
 - ``order``: a direction a source reports between levels (that amateurs complete fewer passes than semi-pros, that
-  women's high-intensity distance is lower than men's, that youth speed rises with age), checked on pooled measurement
-  seasons: pass, fail, or not separated (the margin is inside season-to-season noise).
+  women's high-intensity distance is lower than men's, that youth running distance rises from U17 to U18), checked on
+  pooled measurement seasons: pass, fail, or not separated (the margin is inside season-to-season noise). Only the span
+  a source covers is sourced: the youth sources stop at U17 [S5, S6] and U18 [S8], so the steps beyond them (U18 to
+  senior; for peak speed, U17 to senior) are **assumed orders** (``basis: "assumed"``), worded "no published band",
+  measured the same way and never counted as a check. The youth peak-speed steps hold **by construction**: the youth
+  speed scales are interpolated between U17 and senior (``taxonomy.LEVELS``), so they test the build, not football.
 - ``reference``: a band from a higher level shown beside the number, with no verdict (an upper reference): Premier League
   bands for senior semi-pro and college men, elite women's figures for women's physical output.
 - ``none``: no published band. The number is shown; nothing is claimed.
@@ -68,11 +72,21 @@ ORDERS: list[Record] = [
     {"id": "amateur_pass_pct", "metric": "pass_pct", "path": ("pass_pct",),
      "levels": ["amateur/senior/men", SEMI_PRO_MEN], "sources": ["S10"],
      "label": "amateurs complete fewer passes than semi-pros", "unit": "%"},
+    # [S5, S6] cover U13-U17: no catalogue step is inside their span, so the whole youth speed order is assumed, and the
+    # youth speed scales are interpolated between U17 and senior (taxonomy.LEVELS): it holds by construction.
     {"id": "youth_peak_speed_mean", "metric": "peak_speed_mean", "path": ("peak_speed_mean",), "levels": YOUTH_ORDER,
-     "sources": ["S5", "S6"], "label": "peak match speed rises with age: U17 < U18 < U19 < U20 < senior",
-     "unit": "km/h"},
-    {"id": "youth_distance", "metric": "distance", "path": ("outfield_per90", "distance"), "levels": YOUTH_ORDER,
-     "sources": ["S8"], "label": "match running distance per 90 rises with age: U17 < U18 < U19 < U20 < senior",
+     "basis": "assumed", "sources": [], "covers": {"sources": ["S5", "S6"], "span": "U13-U17"},
+     "construction": "the youth speed scales are interpolated between U17 [S6] and senior (the level scales), so the "
+                     "order follows from the build's own assumption and tests the build, not football",
+     "label": "peak match speed keeps rising from U17 to senior: U17 < U18 < U19 < U20 < senior", "unit": "km/h"},
+    # [S8] covers U13-U18: the U17 to U18 step is sourced, the rest of the way to senior is assumed.
+    {"id": "youth_distance", "metric": "distance", "path": ("outfield_per90", "distance"),
+     "levels": YOUTH_ORDER[:2], "sources": ["S8"],
+     "label": "match running distance per 90 rises with age through U13-U18 (the catalogue's step: U17 < U18)",
+     "unit": "m per 90"},
+    {"id": "youth_distance_extension", "metric": "distance", "path": ("outfield_per90", "distance"),
+     "levels": YOUTH_ORDER[1:], "basis": "assumed", "sources": [], "covers": {"sources": ["S8"], "span": "U13-U18"},
+     "label": "match running distance per 90 keeps rising from U18 to senior: U18 < U19 < U20 < senior",
      "unit": "m per 90"},
     {"id": "women_pass_pct_semi_pro", "metric": "pass_pct", "path": ("pass_pct",),
      "levels": ["semi_pro/senior/women", SEMI_PRO_MEN], "sources": ["S1"],
@@ -182,9 +196,22 @@ def _band_note(b: Record, check: Record | None) -> str:
     return out + f": fails, {check['outside_by']:.2f} {b['unit']} {side} the band."
 
 
+def assumed(o: Record) -> bool:
+    """An order no source covers (``basis: "assumed"``): measured, never counted as a check."""
+    return o.get("basis") == "assumed"
+
+
 def _order_note(o: Record, check: Record | None) -> str:
-    src = ", ".join(o["sources"])
-    head = f"Order check [{src}]: the source reports that {o['label']}."
+    if assumed(o):
+        cov = o.get("covers") or {}
+        srcs = cov.get("sources", [])
+        span = (f" ({', '.join('[' + x + ']' for x in srcs)} {'covers' if len(srcs) == 1 else 'cover'} {cov['span']} "
+                "only)" if cov.get("span") else "")
+        head = f"Assumed order, no published band{span}: the build assumes that {o['label']}."
+        if o.get("construction"):
+            head += f" By construction: {o['construction']}."
+    else:
+        head = f"Order check [{', '.join(o['sources'])}]: the source reports that {o['label']}."
     if not check or check.get("verdict") is None:
         return head + " Not measured on this catalogue."
     vals = ", ".join(f"{lv} {_fmt(v, o['unit'])}" for lv, v in zip(o["levels"], check["values"]))
@@ -192,7 +219,7 @@ def _order_note(o: Record, check: Record | None) -> str:
     worst = [st for st in steps if st["verdict"] != "pass"]
     out = f"{head} Measured (lowest expected first): {vals}"
     if check["verdict"] == "pass":
-        return out + ": as reported, every step beyond season-to-season noise."
+        return out + (": as assumed" if assumed(o) else ": as reported") + ", every step beyond season-to-season noise."
     parts = []
 
     def noise(st: Record) -> str:
@@ -223,8 +250,10 @@ def level_kinds(level: str, competition_id: str | None = None) -> Record:
         note = "No published band for this level's event rates. " + SCALE_NOTE
     if level == "academy/U17/men":
         physical = "band"
-    orders = [o["id"] for o in ORDERS if level in o["levels"]]
-    return {"level": level, "events": events, "physical": physical, "orders": orders, "note": note}
+    orders = [o["id"] for o in ORDERS if level in o["levels"] and not assumed(o)]
+    extra = [o["id"] for o in ORDERS if level in o["levels"] and assumed(o)]
+    return {"level": level, "events": events, "physical": physical, "orders": orders, "assumed_orders": extra,
+            "note": note}
 
 
 def realism(key: str, competition_id: str, checks: Record | None = None) -> Record:
@@ -239,11 +268,14 @@ def realism(key: str, competition_id: str, checks: Record | None = None) -> Reco
     level = BY_ID[competition_id].level_key
     pl = league_realism(key)
     bands = [b for b in BANDS if b["level"] == level and b["metric"] == key]
-    orders = [o for o in ORDERS if o["metric"] == key and level in o["levels"]]
+    every_order = [o for o in ORDERS if o["metric"] == key and level in o["levels"]]
+    orders = [o for o in every_order if not assumed(o)]          # sourced: a check
+    guesses = [o for o in every_order if assumed(o)]             # assumed: shown, measured, never a check
     refs = list(REFERENCES.get(level, {}).get(key, []))
     pl_bands = pl["bands"] if level in PL_LEVELS and pl.get("checked") else []
     tuned = competition_id == ENGLAND_ID and bool(pl_bands)
     order_notes = [_order_note(o, order_v.get(o["id"])) for o in orders]
+    guess_notes = [_order_note(o, order_v.get(o["id"])) for o in guesses]
     verdict = None
     if bands:
         kind, note = "band", _band_note(bands[0], band_v.get(bands[0]["id"]))
@@ -264,6 +296,8 @@ def realism(key: str, competition_id: str, checks: Record | None = None) -> Reco
         kind, note = "none", "No published band at this level: the number is shown, nothing is claimed. " + SCALE_NOTE
     if orders and kind != "order":
         note += " Also: " + " ".join(order_notes)
+    if guess_notes:
+        note += " " + " ".join(guess_notes)
     zone_note = WOMEN_ZONE_NOTE if level in WOMEN_LEVELS and key in ZONE_KEYS else None
     if zone_note:
         note += " " + zone_note
@@ -276,11 +310,13 @@ def realism(key: str, competition_id: str, checks: Record | None = None) -> Reco
     def order_out(o: Record) -> Record:
         v = order_v.get(o["id"]) or {}
         return {**{k: o[k] for k in ("id", "levels", "sources", "label", "unit")},
+                "basis": o.get("basis", "sourced"), "covers": o.get("covers"), "by_construction": bool(o.get("construction")),
                 "values": v.get("values"), "steps": v.get("steps"), "verdict": v.get("verdict")}
 
     return {"level": level, "kind": kind, "tuned": tuned, "verdict": verdict,
             "premier_league_bands": pl_bands, "references": refs,
             "band": band_out(bands[0]) if bands else None, "orders": [order_out(o) for o in orders],
+            "assumed_orders": [order_out(o) for o in guesses],
             "zone_note": zone_note, "verdicts_from": FILE_NAME if not checks.get("stale") else checks["stale"],
             "note": note}
 
@@ -341,9 +377,20 @@ def order_checks(aggregates: dict[str, Record], per_season: dict[str, list[Recor
                               "se": None if se is None else round(se, 3), "separated": separated, "verdict": verdict})
         vs = [st["verdict"] for st in steps]
         verdict = None if not measured else "fail" if "fail" in vs else "not separated" if "not separated" in vs else "pass"
-        out.append({**{k: o[k] for k in ("id", "metric", "levels", "sources", "label", "unit")}, "values": values,
-                    "steps": steps, "verdict": verdict})
+        out.append({**{k: o[k] for k in ("id", "metric", "levels", "sources", "label", "unit")},
+                    "basis": o.get("basis", "sourced"), "covers": o.get("covers"),
+                    "by_construction": bool(o.get("construction")), "values": values, "steps": steps,
+                    "verdict": verdict})
     return out
+
+
+def recheck(data: Record) -> Record:
+    """The committed verdicts file with its band and order checks re-run on its own stored aggregates (``levels``,
+    ``per_season``): for a change in the checks' wording or spans, with no season regenerated (``python -m
+    regista.catalogue recheck-realism``). The measurement, its fingerprint and its method are kept."""
+    return {**data, "sources": SOURCES, "not_checked": NOT_CHECKED,
+            "bands": band_checks(data["levels"], data.get("per_season")),
+            "orders": order_checks(data["levels"], data.get("per_season"))}
 
 
 def compute(league: Record, comps: list[Record], repeats: int, results: list[Record]) -> Record:

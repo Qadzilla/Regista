@@ -122,6 +122,33 @@ class CatalogueProfiles:
                                             "position": pos, "size": size, "small": size < SMALL_POOL, "min_size": need,
                                             "competitions": self.scope_competitions(cid, scope), "reason": reason}}
 
+    def ratio_pool(self, cid: str, ratio: str, position: str, scope: str = "level") -> list[float]:
+        """Sorted values of one profile ratio (pass_accuracy, ...) among the qualified rows of a position in the scope that
+        have one (an attempt at least)."""
+        key = (tuple(self.scope_competitions(cid, scope)), "ratio:" + ratio, position)
+        hit = self._pools.get(key)
+        if hit is None:
+            hit = sorted(rank_value(p["ratios"][ratio]) for c in key[0] for p in self.seasons[c].profiles.values()
+                         if p["position"] == position and self._qualified(c, p) and p["ratios"].get(ratio) is not None)
+            with self._lock:
+                self._pools[key] = hit
+        return hit
+
+    def sort_percentile(self, cid: str, gid: str, sort: str, scope: str = "level") -> tuple[float | None, bool]:
+        """(the row's percentile in ``scope`` for a per-90 stat or a ratio, whether its pool is small): what a card list
+        that mixes levels ranks by (``regista.catalogue.metrics.RANK_RULE``). None without a percentile."""
+        s = self.seasons[cid]
+        p = s.profiles[gid]
+        if sort in p["per90"]:
+            c = self.stat_cell(cid, gid, sort, scope)
+            return c["percentile"], c["pool"]["small"]
+        pool = self.ratio_pool(cid, sort, p["position"], scope)
+        need = s._min_pool if scope == "competition" else MIN_POOL
+        v = p["ratios"].get(sort)
+        if v is None or not self._qualified(cid, p) or len(pool) < need:
+            return None, len(pool) < SMALL_POOL
+        return round(fbref_percentile(pool, rank_value(v))), len(pool) < SMALL_POOL
+
     def competitions_of(self, gid: str) -> list[str]:
         return [cid for cid in self.order if gid in self.seasons[cid].profiles]
 

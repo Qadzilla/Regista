@@ -36,7 +36,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
-from regista.catalogue_api import COMPETITION, ScopeDep, WhereDep, catalogue_mode
+from regista.catalogue_api import COMPETITION, RANK_BY, ScopeDep, WhereDep, catalogue_mode
 from regista.season.metrics import (CATALOGUE, DEFAULT_COLUMNS, PITCH_L, PITCH_W, SYNTHETIC_NOTE, TEAM_CATALOGUE,
                                     SeasonMetrics, catalogue, load_metrics)
 from regista.season.profiles import GRID_X, GRID_Y, TOUCH_MAP_EVENTS
@@ -171,7 +171,7 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
                  age_min: AGE = None, age_max: AGE = None, foot: FOOT = None, q: NAME_Q = None,
                  sort: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None, order: Literal["asc", "desc"] | None = None,
                  limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0, le=MAX_OFFSET),
-                 *, w: WhereDep, scope: ScopeDep) -> dict[str, Any]:
+                 rank_by: RANK_BY = None, *, w: WhereDep, scope: ScopeDep) -> dict[str, Any]:
     """Players with the chosen metric columns (default: the position's core set). Each cell: value (per 90, ratio, ...),
     the count behind it, the percentile among position peers, whether the player qualifies, and ``evidence_total`` (how
     many moments, or for a physical number matches, are behind it: the evidence's ``moments``, each event once, where a
@@ -180,15 +180,19 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
     ``offset`` skips that many rows, so a reader can page past ``limit`` (``total`` counts every row).
 
     Catalogue parameters (``competition``, ``country``, ``tier`` or ``level``, ``age_group``, ``gender``, ``scope`` or
-    ``pool``) answer from the catalogue in the same shape: England semi-pro men unless a filter picks others, each cell
-    with its ``pool`` and ``sample``, percentiles in ``scope`` (level by default), and the catalogue's ``season`` block."""
-    if catalogue_mode(w, scope):
+    ``pool``, ``rank_by``) answer from the catalogue in the same shape plus three keys: England semi-pro men unless a
+    filter picks others, each cell with its ``pool`` and ``sample``, percentiles in ``scope`` (level by default), the
+    catalogue's ``season`` block, and how the rows were ranked (``rank_by``, ``rank_rule``, ``boards``). There, rows from
+    more than one level are ranked by each row's percentile within its own pool, not by value (``rank_by=value`` ranks by
+    the raw value), and men and women are on separate boards (each row's ``board``; ranks restart on each). ``order`` is
+    the raw direction in both modes ("desc": the largest numbers first, even where lower is better)."""
+    if catalogue_mode(w, scope) or rank_by is not None:
         from regista.catalogue_api import screen_payload
 
         return await run_in_threadpool(lambda: screen_payload(
             w, scope or "level", metrics_raw=metrics_, position=position, role=role, club=club, q=q,
             min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot, sort=sort, order=order, limit=limit,
-            offset=offset))
+            offset=offset, rank_by=rank_by))
     keys = _keys(metrics_, default=DEFAULT_COLUMNS.get(position, DEFAULT_COLUMNS[None]))
     sort_key = _key(sort) if sort else keys[0]
 
@@ -207,15 +211,19 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
 async def rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], position: POSITION = None, role: ROLE = None,
                club: CLUB = None, min_minutes: MIN_MINUTES = None, age_min: AGE = None, age_max: AGE = None,
                foot: FOOT = None, order: Literal["asc", "desc"] | None = None,
-               limit: int = Query(25, ge=1, le=200), *, w: WhereDep, scope: ScopeDep) -> dict[str, Any]:
-    """One metric's leaderboard. Ratios rank only players with the minimum attempts (the rest are listed after, unranked).
-    Catalogue parameters answer from the catalogue (as ``/api/terminal/screen``), every row with its own pool."""
-    if catalogue_mode(w, scope):
+               limit: int = Query(25, ge=1, le=200), rank_by: RANK_BY = None,
+               *, w: WhereDep, scope: ScopeDep) -> dict[str, Any]:
+    """One metric's leaderboard, best first unless ``order``. Ratios rank only players with the minimum attempts (the rest
+    are listed after, unranked). Catalogue parameters (and ``rank_by``) answer from the catalogue as
+    ``/api/terminal/screen`` does: every row with its own pool; across levels ranked by percentile within each row's
+    pool (``rank_by=value``: by the raw value), one board per gender, ranks restarting on each; the response adds
+    ``rank_by``, ``rank_rule`` and ``boards`` (each board's size, offset among the ranked rows and top rows)."""
+    if catalogue_mode(w, scope) or rank_by is not None:
         from regista.catalogue_api import rank_payload
 
         return await run_in_threadpool(lambda: rank_payload(
             w, scope or "level", metric=metric, position=position, role=role, club=club, min_minutes=min_minutes,
-            age_min=age_min, age_max=age_max, foot=foot, order=order, limit=limit))
+            age_min=age_min, age_max=age_max, foot=foot, order=order, limit=limit, rank_by=rank_by))
     key = _key(metric)
 
     def run() -> dict[str, Any]:

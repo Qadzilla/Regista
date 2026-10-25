@@ -1,4 +1,4 @@
-"""python -m regista.catalogue {define|build|check|competitions|reliability|levels|player}
+"""python -m regista.catalogue {define|build|check|competitions|reliability|recheck-realism|levels|player}
 
   define [--check]          write data/catalogue/ from the definition (or only check the committed files equal it)
   build [--workers N]       regenerate every catalogue match into REGISTA_CATALOGUE_ROOT (default data/catalogue/matches)
@@ -8,6 +8,8 @@
                             measure every level on full regenerated seasons and write data/catalogue/reliability.json
                             and the realism verdicts beside it, data/catalogue/realism.json (a few minutes on ten
                             cores); --aggregates also writes the bare level aggregates
+  recheck-realism [--path P] re-run the realism band and order checks on the committed file's own stored aggregates
+                            (no season regenerated): after a change to the checks' wording or spans
   levels [--scope S]        the percentile pools: per level (or competition, or all) and position, how many players
                             qualify on minutes, and which pools are small
   player ID [--scope S]     one player across the catalogue: career, then the position's default metrics per competition
@@ -117,6 +119,20 @@ def _reliability(repeats: int, workers: int | None, out: str | None, aggregates:
     return 0
 
 
+def _recheck_realism(path: str | None) -> int:
+    import json
+
+    from regista.catalogue import realism as rea
+
+    p = Path(path) if path else rea.default_path()
+    data = rea.recheck(json.loads(p.read_text()))
+    p.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n")
+    print(f"rechecked {p}")
+    for c in data["bands"] + data["orders"]:
+        print(f"  {c['id']:28s} {c.get('basis', 'band'):8s} {c['verdict']}")
+    return 0
+
+
 def _levels(scope: str) -> int:
     from regista.catalogue.metrics import load_catalogue_metrics
 
@@ -170,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
     r.add_argument("--out", default=None)
     r.add_argument("--aggregates", default=None)
     r.add_argument("--realism", default=None)
+    rr = sub.add_parser("recheck-realism")
+    rr.add_argument("--path", default=None)
     lv = sub.add_parser("levels")
     lv.add_argument("--scope", default="level", choices=("level", "competition", "all"))
     pl = sub.add_parser("player")
@@ -180,6 +198,8 @@ def main(argv: list[str] | None = None) -> int:
         from regista.catalogue.measure import DEFAULT_REPEATS
 
         return _reliability(args.repeats or DEFAULT_REPEATS, args.workers, args.out, args.aggregates, args.realism)
+    if args.cmd == "recheck-realism":
+        return _recheck_realism(args.path)
     if args.cmd == "levels":
         return _levels(args.scope)
     if args.cmd == "player":

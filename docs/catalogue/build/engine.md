@@ -291,8 +291,8 @@ The kinds are design.md §10's:
 | College men | `reference`: Premier League bands, no verdict | plus NCAA Division I distance per match [S4], reference | women vs men (college) |
 | College women, semi-pro women | `none`, apart from order checks | `reference`: elite women's distance [S2, S11] and sprint speed [S3] | pass completion lower, ball losses higher, distance at 20 km/h or more lower than men [S1, S2] |
 | Amateur men | `none`, apart from order checks | `none`, apart from order checks | sprint distance below semi-pro [S9]; pass completion below semi-pro [S10] |
-| U20, U19, U18 | `none` | `none`, apart from order checks | peak speed and distance rise U17 < U18 < U19 < U20 < senior [S5, S6, S8] |
-| U17 | `none` | **`band`**: outfielders' mean peak match speed 24.9-28.7 km/h [S5] | as above |
+| U20, U19, U18 | `none` | `none`, apart from order checks | U18: distance rises U17 < U18 [S8, which covers U13-U18]. Beyond the sources' spans, **assumed orders, no published band** (measured, never a check): distance U18 < U19 < U20 < senior; peak speed U17 < U18 < U19 < U20 < senior, which holds **by construction** (the youth speed scales are interpolated between U17 and senior; [S5, S6] cover U13-U17 only) |
+| U17 | `none` | **`band`**: outfielders' mean peak match speed 24.9-28.7 km/h [S5] | distance U17 < U18 [S8]; the assumed peak-speed order as above |
 
 Premier League bands never stand below senior semi-pro and college men (tested). The second-half drop in women's
 high-intensity running [S1] is not checked, because the engine's metrics do not split halves (`NOT_CHECKED`).
@@ -309,16 +309,19 @@ The same 1,524 measurement matches give level aggregates (`measure.level_aggrega
 with the same fingerprint, checked by a quick test, the U17 band re-measured by the slow test, shipped in the image and
 checked by its smoke test) and served with every metric's `realism`: the value or values, the margin, and the verdict.
 An order step now also needs its margin to be at least two standard errors of the season-to-season spread (six
-measurement seasons per level); a smaller margin is **not separated**, never a pass. **Two checks fail and three are
-not separated.** As the design says, they are reported here with their numbers and nothing was retuned.
+measurement seasons per level); a smaller margin is **not separated**, never a pass. **Two checks fail and one is not
+separated** (review round 2 split the youth orders: only the U17 to U18 distance step is inside a source's span; the
+rest are assumed orders, worded "no published band", re-checked on the committed aggregates by `python -m
+regista.catalogue recheck-realism` with no season regenerated). As the design says, they are reported here with their numbers and nothing was retuned.
 
 | Check | Values (lowest level first) | Verdict |
 |---|---|---|
 | U17 band: mean peak match speed 24.9-28.7 km/h [S5] | **29.68** | **fail** (0.98 km/h above the top of the band) |
 | Amateurs complete fewer passes than semi-pros [S10] | amateur **81.38%**, semi-pro men **80.53%** | **fail** (amateurs 0.85 points higher) |
 | Amateurs sprint less than semi-pros [S9] | 209 m, 233 m per 90 | pass |
-| Peak speed rises U17 < U18 < U19 < U20 < senior [S5, S6] | 29.68, 30.26, 30.57, 30.63, 31.46 km/h | **not separated** (U19 to U20 by 0.06, noise +/- 0.09) |
-| Distance per 90 rises with age [S8] | 9,855, 10,034, 10,040, 10,122, 10,365 m | **not separated** (U18 to U19 by 6 m, noise +/- 60) |
+| Distance per 90 rises U17 < U18 [S8, U13-U18] | 9,855, 10,034 m | pass |
+| *Assumed, no published band:* distance U18 < U19 < U20 < senior (beyond [S8]'s span) | 10,034, 10,040, 10,122, 10,365 m | not separated (U18 to U19 by 6 m, noise +/- 60); not a check |
+| *Assumed, no published band, by construction:* peak speed U17 < U18 < U19 < U20 < senior ([S5, S6] cover U13-U17 only; the youth speed scales are interpolated between U17 and senior) | 29.68, 30.26, 30.57, 30.63, 31.46 km/h | not separated (U19 to U20 by 0.06, noise +/- 0.09); tests the build, not football |
 | Women complete fewer passes, semi-pro [S1] | 79.68%, 80.53% | pass (0.85 points) |
 | Women complete fewer passes, college [S1] | 79.18%, 81.04% | pass |
 | Women lose the ball more, semi-pro [S1] | men 12.68, women 12.73 per 90 | **not separated** (by 0.05, noise +/- 0.24) |
