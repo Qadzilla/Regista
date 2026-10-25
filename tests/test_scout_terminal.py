@@ -355,7 +355,10 @@ QUESTION_FORMS = ["{}", "most {}", "the most {}", "who has the most {}", "who ha
 PLACED_FORMS = [("forwards with the most {}", "FW", None), ("forwards most {}", "FW", None), ("most {} for forwards", "FW", None),
                 ("midfielders with the fewest {}", "MF", None), ("most {} among defenders", "DF", None),
                 ("most {} at Brookfield", None, "cl_brookfield"), ("Brookfield most {}", None, "cl_brookfield"),
-                ("most {} for forwards at Brookfield", "FW", "cl_brookfield"), ("forwards with the most {} at Brookfield", "FW", "cl_brookfield")]
+                ("most {} for forwards at Brookfield", "FW", "cl_brookfield"), ("forwards with the most {} at Brookfield", "FW", "cl_brookfield"),
+                # review round 2: "which <position> have the most <stat>"
+                ("which forwards have the most {}", "FW", None), ("which midfielder has the fewest {}", "MF", None),
+                ("what keepers have the most {}", "GK", None), ("which defenders have the most {} at Brookfield", "DF", "cl_brookfield")]
 
 
 def test_every_stat_answers_by_key_label_and_short_label_in_plain_questions(league):
@@ -402,6 +405,31 @@ def test_every_stat_answers_with_a_position_or_a_club_before_or_after_it(league)
     bad = [f"{q} -> {got[q]}" for q in queries
            if (got[q]["do"], got[q]["key"], got[q]["pos"], got[q]["club"]) != ("rankKey", *want[q])]
     assert not bad, f"{len(bad)} of {len(queries)} questions missed, e.g. " + "; ".join(bad[:8])
+
+
+def test_which_position_questions_and_their_verbs(league):
+    # Review round 2: "which forwards have the most goals" answered Nothing found, as did "which strikers score the most";
+    # "who wins the most tackles" did too. The position is kept, and a verb after it names the stat as after "who".
+    cases = {
+        "which forwards have the most goals": ("goals", "FW", None), "which forward has the most goals": ("goals", "FW", None),
+        "what forwards have the most goals": ("goals", "FW", None), "which keepers have the best save %": ("save_pct", "GK", None),
+        "which forwards score the most": ("goals", "FW", None), "which strikers score the most": ("goals", "FW", None),
+        "which keepers concede the fewest": ("goals_conceded", "GK", None),
+        "which defenders win the most tackles": ("tackles_won", "DF", None), "who wins the most tackles": ("tackles_won", None, None),
+        "which players win the most tackles": ("tackles_won", None, None), "who wins the most aerial duels": ("aerial_duels_won", None, None),
+        "which forwards win the most fouls": ("fouls_won", "FW", None), "what players have the most goals": ("goals", None, None),
+        "which forwards have the most goals at Brookfield": ("goals", "FW", "cl_brookfield"),
+    }
+    got = interpret(league, list(cases) + ["which forwards have the fewest goals", "which forwards are the best", "which forwards", "what is xG"])["q"]
+    bad = {q: got[q] for q, w in cases.items() if (got[q]["do"], got[q]["key"], got[q]["pos"], got[q]["club"]) != ("rankKey", *w)}
+    assert not bad, bad
+    assert got["which forwards score the most"]["most"]
+    assert got["which forwards have the fewest goals"]["fewest"] and got["which forwards have the fewest goals"]["pos"] == "FW"
+    # a position with nothing but "the best" (or nothing) left ranks that position on its first column
+    assert got["which forwards are the best"]["do"] == "rankKey" and got["which forwards are the best"]["pos"] == "FW"
+    assert got["which forwards"]["do"] == "rankKey" and got["which forwards"]["pos"] == "FW"
+    # "what" without a position is not read as one
+    assert got["what is xG"]["pos"] is None
 
 
 def test_every_stats_names_are_its_own(league):

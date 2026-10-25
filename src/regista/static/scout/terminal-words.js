@@ -15,7 +15,7 @@
 // Every stat in the catalogue is found by its key, its label or its short column label, alone or inside a question
 // ("most <stat>", "<stat> per 90", "who has the most <stat>", "top 5 <stat>", "best <stat>", "fewest <stat>"), with a
 // position or a club before or after ("forwards with the most <stat>", "most <stat> for forwards", "most <stat> at
-// Brookfield", "most <stat> in the league").
+// Brookfield", "most <stat> in the league", "which forwards have the most <stat>", "which strikers score the most").
 (function (root) {
   'use strict';
   const R = root.Regista = root.Regista || {};
@@ -108,6 +108,11 @@
     fouls: 'fouls', wins: null };
   // The opening words of a question or a request, as many as there are ("who has", "show me", "can you show me").
   const OPEN = /^(can\s+you|could\s+you|please|i\s+want\s+to\s+see|let\s+me\s+see|who\s+(are|is|were|was|has|have|had|got|gets)|which\s+players?\s+(are|is|have|has)|which\s+players?|who|show\s+me|show|find\s+me|find|list|give\s+me|get\s+me|get|open|pull\s+up|look\s+up|search\s+for|search|go\s+to|take\s+me\s+to|play|watch|see)\s+/;
+  // "which forwards have", "what defenders", "which keeper has": a position asked about. The position is kept and the
+  // verb after it ("which forwards score the most") is read as in "who scores the most".
+  const POS_OPEN = /^(?:which|what)\s+(\S+)(?:\s+(?:are|is|were|was|have|has|had|got|get|gets)(?=\s|$))?(?:\s+|$)/;
+  // "who wins the most tackles", "which defenders win the most aerial duels": the stat that is won ("Tackles won").
+  const WIN_W = /^(wins?|won|winning)$/;
   // "per 90" is how every rate here is shown already
   const PER90 = /\s*(\/\s*90|per 90( minutes)?|per ninety|p90|per game|per match|a game|a match)(?=\s|$)/g;
   // Words that ask for one end of a ranking, read off one at a time ("top 5", "the most", "highest", "the fewest").
@@ -217,9 +222,32 @@
       // "in the league", "this season": the whole league is what the table shows already.
       const sl = s0.replace(LEAGUE_W, '').trim();
       if (sl !== s0 && sl) { asked = true; s0 = sl; }
-      let watch = false, who = false;
-      for (let m = s0.match(OPEN); m; m = s0.match(OPEN)) { if (/^(play|watch|see|i want|let me)/.test(m[1])) watch = true; if (/^(who|which)/.test(m[1])) who = true; s0 = s0.slice(m[0].length); asked = true; }
-      if (who) { const v = s0.split(' ')[0]; if (VERB[v]) s0 = [VERB[v], ...s0.split(' ').slice(1).filter(w => !/^(the|most|more|best|often|goals|chances|ground|ball|least|less|fewest|fewer|times)$/.test(w))].join(' '); }
+      let watch = false, who = false, posw = null;
+      for (;;) {
+        const m = s0.match(OPEN);
+        if (m) { if (/^(play|watch|see|i want|let me)/.test(m[1])) watch = true; if (/^(who|which)/.test(m[1])) who = true; s0 = s0.slice(m[0].length); asked = true; continue; }
+        const pm = !posw && s0.match(POS_OPEN);
+        if (pm && posWord(pm[1])) { posw = pm[1]; who = true; s0 = s0.slice(pm[0].length); asked = true; continue; }
+        break;
+      }
+      if (who) {
+        const ws = s0.split(' '), v = ws[0];
+        if (VERB[v]) s0 = [VERB[v], ...ws.slice(1).filter(w => !/^(the|most|more|best|often|goals|chances|ground|ball|least|less|fewest|fewer|times)$/.test(w))].join(' ');
+        else if (WIN_W.test(v) && ws.length > 1) {
+          // "wins the most tackles": "the most tackles won" when that is a stat's name, else "the most tackles"
+          let core = ws.slice(1).join(' ');
+          for (let sm = core.match(SUPER); sm; sm = core.match(SUPER)) core = core.slice(sm[0].length);
+          s0 = ws.slice(1).join(' ') + (core && exactMetric(core + ' won') ? ' won' : '');
+        }
+      }
+      // The position asked about goes back in front of the rest ("forwards the most goals", "defenders the most tackles at
+      // Brookfield"), or after it when only "the best", "the most" is left ("the best forwards"). "which players" is everyone.
+      if (posw && posWord(posw) !== 'ALL') {
+        let core = s0;
+        for (let sm = core.match(SUPER); sm; sm = core.match(SUPER)) core = core.slice(sm[0].length);
+        core = core.replace(/^(the|best|top|most|leading|greatest|highest|fewest|least|lowest|worst)$/, '');
+        s0 = core ? `${posw} ${s0}` : `${s0} ${posw}`.trim();
+      }
       if (!s0) return null;
       // "most", "highest": the biggest numbers first, even for a stat where lower is better ("most yellow cards" lists who
       // has the most cards); "fewest", "least", "lowest": the smallest first ("fewest goals conceded"); "worst": the
