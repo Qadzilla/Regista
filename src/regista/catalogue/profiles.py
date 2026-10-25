@@ -42,6 +42,7 @@ class CatalogueProfiles:
         self.england_uploads = next((e.get("uploads", {}) for e in index["competitions"]
                                      if e["competition_id"] == ENGLAND_ID), {})
         self.exact_minutes: dict[tuple[str, str], float] = {}   # (competition, player) -> unrounded minutes (use_minutes)
+        self.thresholds: dict[str, Record] = {}   # competition -> the metrics engine's ratio minimums (use_thresholds)
         self._pools: dict[tuple, list[float]] = {}
         self._lock = threading.Lock()
 
@@ -54,6 +55,31 @@ class CatalogueProfiles:
             if minutes != self.exact_minutes:
                 self.exact_minutes = dict(minutes)
                 self._pools.clear()
+
+    def use_thresholds(self, thresholds: dict[str, Record]) -> None:
+        """Each competition's ratio minimums (the metrics engine's ``SeasonMetrics.thresholds``), so a profile ratio's
+        pooled percentile needs the attempts the terminal's ratio metric needs (``min_attempts``)."""
+        with self._lock:
+            if thresholds != self.thresholds:
+                self.thresholds = {c: dict(t) for c, t in thresholds.items()}
+                self._pools.clear()
+
+    def min_attempts(self, cid: str, ratio: str) -> int:
+        """The attempts a row of ``cid`` needs for a percentile on a profile ratio: its terminal metric's minimum in that
+        competition (pass accuracy: 10 passes; take-on success, shot accuracy and aerial win: FBref's per-squad-game rule
+        scaled to the competition's minutes), or 1 without the metrics engine's thresholds."""
+        from regista.season.metrics import CATALOGUE
+        from regista.season.profiles import METRIC_OF
+
+        m = CATALOGUE.get(METRIC_OF.get(ratio, ratio))
+        t = (self.thresholds.get(cid) or {}).get(m.min_den) if m is not None and m.min_den else None
+        return max(1, int(t["min"])) if t else 1
+
+    def _has_attempts(self, cid: str, p: Record, ratio: str) -> bool:
+        from regista.season.profiles import RATIOS
+
+        den = RATIOS[ratio][2]
+        return p["ratios"].get(ratio) is not None and p["counts"].get(den, 0) >= self.min_attempts(cid, ratio)
 
     def use_england(self, season: Season) -> None:
         """Serve England semi-pro men from ``season`` (the app's: fixtures, claims and uploads). Pools are rebuilt when it
@@ -81,6 +107,7 @@ class CatalogueProfiles:
         raise ValueError(f"unknown scope {scope!r}")
 
     def _qualified(self, cid: str, p: Record) -> bool:
+        """The card has its competition's qualifying minutes."""
         return bool(p["appearances"]) and self._minutes(cid, p) >= self.seasons[cid].min_minutes
 
     def stat_pool(self, cid: str, stat: str, position: str, scope: str = "level") -> list[float]:
@@ -124,12 +151,12 @@ class CatalogueProfiles:
 
     def ratio_pool(self, cid: str, ratio: str, position: str, scope: str = "level") -> list[float]:
         """Sorted values of one profile ratio (pass_accuracy, ...) among the qualified rows of a position in the scope that
-        have one (an attempt at least)."""
+        have their competition's minimum attempts (``min_attempts``)."""
         key = (tuple(self.scope_competitions(cid, scope)), "ratio:" + ratio, position)
         hit = self._pools.get(key)
         if hit is None:
             hit = sorted(rank_value(p["ratios"][ratio]) for c in key[0] for p in self.seasons[c].profiles.values()
-                         if p["position"] == position and self._qualified(c, p) and p["ratios"].get(ratio) is not None)
+                         if p["position"] == position and self._qualified(c, p) and self._has_attempts(c, p, ratio))
             with self._lock:
                 self._pools[key] = hit
         return hit
@@ -145,7 +172,7 @@ class CatalogueProfiles:
         pool = self.ratio_pool(cid, sort, p["position"], scope)
         need = s._min_pool if scope == "competition" else MIN_POOL
         v = p["ratios"].get(sort)
-        if v is None or not self._qualified(cid, p) or len(pool) < need:
+        if v is None or not self._qualified(cid, p) or not self._has_attempts(cid, p, sort) or len(pool) < need:
             return None, len(pool) < SMALL_POOL
         return round(fbref_percentile(pool, rank_value(v))), len(pool) < SMALL_POOL
 

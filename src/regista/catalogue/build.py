@@ -12,6 +12,7 @@ calls it must guard its entry point with ``if __name__ == "__main__":``. England
 from __future__ import annotations
 
 import json
+import logging
 import os
 import shutil
 import threading
@@ -24,6 +25,7 @@ from regista.season.league import club_by_id
 
 Record = dict[str, Any]
 _lock = threading.Lock()
+log = logging.getLogger(__name__)
 LABEL_KEYS = ("competition_id", "country", "region", "tier", "age_group", "gender")
 
 
@@ -58,7 +60,9 @@ def materialise_match(comp: Record, fixture: Record, root: Path | str) -> Path:
     """One catalogue match's folder, generated now if missing or stale."""
     root = Path(root)
     if not _labels_current(comp, fixture, root):
-        shutil.rmtree(root / fixture["match_id"], ignore_errors=True)
+        with season_build.match_lock(fixture["match_id"]):   # never under a thread that is building this folder
+            if not _labels_current(comp, fixture, root):
+                shutil.rmtree(root / fixture["match_id"], ignore_errors=True)
     return season_build.materialise(comp, fixture, root, manifest_extra=manifest_extra(comp, fixture), title_fn=title)
 
 
@@ -93,5 +97,6 @@ def build_catalogue(comps: list[Record] | None = None, root: Path | str | None =
                 with ProcessPoolExecutor(max_workers=n, mp_context=multiprocessing.get_context("spawn")) as pool:
                     list(pool.map(_one, [(c, f, str(root)) for c, f in jobs]))
             except Exception:  # noqa: BLE001 - no worker processes here (an interactive or piped __main__): built below
-                pass
+                log.warning("catalogue build: the process pool failed, building %d matches here, one by one", len(jobs),
+                            exc_info=True)
         return [materialise_match(c, f, root) for c in comps for f in c["fixtures"]]

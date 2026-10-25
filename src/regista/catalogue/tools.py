@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from regista.catalogue import store
-from regista.catalogue.metrics import (ALL_WARNING, GENDER_ORDER, POOL_RULE, RANK_BY, RANK_RULE, SYNTHETIC_NOTE,
+from regista.catalogue.metrics import (ALL_WARNING, BOARD_TOP, POOL_RULE, RANK_BY, RANK_RULE, SYNTHETIC_NOTE,
                                        CatalogueMetrics)
 from regista.catalogue.taxonomy import AGE_GROUPS, GENDERS, TIERS, levels_public
 from regista.season.metrics import CATALOGUE, DEFAULT_COLUMNS
@@ -89,13 +89,15 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
                    position=None, sort: str = "minutes", order: str = "desc", scope: str = "level", limit: int = 10,
                    min_minutes: float | None = None, rank_by: str | None = None) -> Record:
     """Player-competition rows across the catalogue, filtered and ranked by any terminal metric (or minutes); each with the
-    sorted metric's value, its percentile in ``scope`` and the pool it came from. A metric across levels ranks by
-    percentile within each row's pool, genders on separate boards (``CatalogueMetrics.order_rows``); ``rank_by`` value
-    ranks by the raw value. ``order`` is the raw direction ("desc": the largest numbers first).
+    sorted metric's value, its percentile in ``scope`` and the pool it came from. Ranked as ``RANK_RULE`` says
+    (``CatalogueMetrics.order_rows``): across levels within one position by percentile within each row's pool, one board
+    per gender; across levels and positions, and for minutes, by value within each level, one board per level;
+    ``rank_by`` forces a mode. ``order`` "desc" lists the largest numbers first in value mode, and in pool mode the rows
+    highest in their own pool (largest relative to the pool, not the largest numbers).
 
-    A selection holding men and women returns each board's top ``limit`` rows (``players`` holds the men's board, then
-    the women's; each row's ``board``), and ``boards`` gives each board's total and how many rows are shown, so the
-    second board is never out of reach; ``hint`` says to pass ``gender`` for one board."""
+    A list with boards returns each board's top rows (up to ``limit`` each on two boards, up to ``BOARD_TOP`` each on
+    more; each row's ``board``), and ``boards`` gives each board's key, label, size, offset and top rows, so no board is
+    out of reach; ``hint`` says how to read one board further."""
     err = filter_errors(tier=tier, age_group=age_group, gender=gender, position=position, scope=scope)
     if err:
         return {"error": err}
@@ -111,36 +113,40 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
     rows = cm.select(tier=tier, age_group=age_group, gender=gender, country=country, competition=competition,
                      position=position, min_minutes=min_minutes)
     mode = None
-    if sort == "minutes":
+    if sort == "minutes":   # a total: by value, within each level (RANK_RULE)
         rows.sort(key=lambda r: ((-1 if order == "desc" else 1) * r[1].minutes, r[1].info["name"], r[0]))
+        by = cm.board_by([cm.where_of(r) for r in rows], "value")
+        rows = cm.group_boards(rows, by, cm.where_of)
     else:
-        rows, mode, _genders, _ranked = cm.order_rows(rows, sort, scope, order, rank_by)
-    genders = [g for g in GENDER_ORDER if any(cm.labels[c]["gender"] == g for c, _ps in rows)]
-    if len(genders) > 1:   # one board per gender, each with its own top rows
-        by_board = {g: [r for r in rows if cm.labels[r[0]]["gender"] == g] for g in genders}
-        shown = [r for g in genders for r in by_board[g][:limit]]
-        boards = [{"gender": g, "total": len(by_board[g]), "shown": min(limit, len(by_board[g]))} for g in genders]
-        hint = ("Men and women are ranked on separate boards; players holds each board's top rows. Pass gender=men or "
-                "gender=women to read one board further.")
-    else:
-        shown, boards, hint = rows[:limit], None, None
-    out = []
-    for cid, ps in shown:
+        rows, mode, by, _ranked = cm.order_rows(rows, sort, scope, order, rank_by)
+
+    def row_of(cid: str, ps: Any) -> Record:
         gid = ps.info["global_id"]
         row = {"global_id": gid, "name": ps.info["name"], **cm.labels_of(cid), "club": ps.info["club"],
                "position": ps.info["position"], "role": ps.info.get("role"), "age": ps.info.get("age"),
                "minutes": round(ps.minutes, 1), "appearances": ps.appearances,
                "qualified": ps.minutes >= cm.metrics[cid].min_minutes, "career": len(cm.people.get(gid, [])) > 1,
-               "board": cm.labels[cid]["gender"]}
+               "board": cm.board_key(by, cid, ps.info["position"])}
         if sort != "minutes":
             c = cm.cell(cid, gid, sort, scope)
             row["stat"] = {"key": sort, "label": CATALOGUE[sort].label, "value": c["value"], "percentile": c["percentile"],
                            "noisy": c["noisy"], "pool": {k: c["pool"][k] for k in ("scope", "tier", "age_group", "gender",
                                                                                    "position", "size", "small", "reason")}}
-        out.append(row)
+        return row
+
+    boards = cm.boards(by, rows, cm.where_of, lambda i: row_of(*rows[i]), limit)
+    if boards:   # each board's top rows: up to limit each on two boards, up to BOARD_TOP each on more
+        per_board = limit if len(boards) <= 2 else min(limit, BOARD_TOP)
+        shown = [r for b in boards for r in rows[b["offset"]:b["offset"] + min(b["size"], per_board)]]
+        hint = (f"The list is split into {len(boards)} boards ({boards[0]['by'].replace('_', ' and ')}): percentiles "
+                "are compared only within one position, raw numbers only within one level. players holds each board's "
+                "top rows; pass position, gender or competition to read one board further.")
+    else:
+        shown, hint = rows[:limit], None
+    out = [row_of(cid, ps) for cid, ps in shown]
     levels = {cm.level[cid] for cid, _ps in rows}
-    return {"players": out, "total": len(rows), "sort": sort, "order": order, "scope": scope, "rank_by": mode,
-            "rank_rule": RANK_RULE if mode else None, "boards": boards, "hint": hint,
+    return {"players": out, "total": len(rows), "sort": sort, "order": order, "scope": scope, "rank_by": mode or "value",
+            "rank_rule": RANK_RULE, "boards": boards, "hint": hint,
             "warning": ALL_WARNING if scope == "all" or len(levels) > 1 else None, "pool_rule": POOL_RULE,
             "note": SYNTHETIC_NOTE}
 

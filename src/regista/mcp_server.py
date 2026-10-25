@@ -235,11 +235,13 @@ def search_catalogue_players(tier: str | None = None, age_group: str | None = No
     metric key (npxg, np_goals, xa, sca, take_ons_won, progressive_passes, tackles_won, interceptions, pass_pct, ...).
     scope: level (default: peers of the same tier, age group, gender and position), competition, or all (every level of
     one gender; levels differ, so read each percentile against its pool). min_minutes: empty for each competition's
-    qualifying minutes. Rows from more than one level are ranked by each row's percentile within its own pool, not by raw
-    values from different levels, and men and women come on separate boards (each row's board); rank_by "value" ranks
-    by the raw value instead. order is the raw direction (desc: the largest numbers first). When the selection holds men
-    and women, players holds each board's top rows (up to limit each) and boards gives each board's total; pass gender to
-    read one board further. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small,
+    qualifying minutes. Percentiles are compared only within one position and raw numbers only within one level: rows
+    from more than one level that hold one position are ranked by each row's percentile within its own pool, one board
+    per gender; rows from more than one level and more than one position (no position given) by value within each
+    level, one board per level; rank_by "pool" or "value" forces a mode. order desc lists the largest numbers first in
+    value mode, and in pool mode the rows highest in their own pool (largest relative to the pool, not the largest
+    numbers). When the list has boards, players holds each board's top rows and boards gives each board's key, label,
+    size and offset; pass position, gender or competition to read one board further. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small,
     reason)."""
     from regista.catalogue.tools import search_players
 

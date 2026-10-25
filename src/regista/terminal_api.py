@@ -182,10 +182,13 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
     Catalogue parameters (``competition``, ``country``, ``tier`` or ``level``, ``age_group``, ``gender``, ``scope`` or
     ``pool``, ``rank_by``) answer from the catalogue in the same shape plus three keys: England semi-pro men unless a
     filter picks others, each cell with its ``pool`` and ``sample``, percentiles in ``scope`` (level by default), the
-    catalogue's ``season`` block, and how the rows were ranked (``rank_by``, ``rank_rule``, ``boards``). There, rows from
-    more than one level are ranked by each row's percentile within its own pool, not by value (``rank_by=value`` ranks by
-    the raw value), and men and women are on separate boards (each row's ``board``; ranks restart on each). ``order`` is
-    the raw direction in both modes ("desc": the largest numbers first, even where lower is better)."""
+    catalogue's ``season`` block, and how the rows were ranked (``rank_by``, ``rank_rule``, ``boards``). There,
+    percentiles are compared only within one position and raw numbers only within one level (``RANK_RULE``): rows from
+    more than one level that hold one position are ranked by each row's percentile within its own pool, one board per
+    gender; rows from more than one level and more than one position by value within each level, one board per level;
+    ``rank_by`` forces a mode (each row's ``board``). ``order`` "desc" lists the largest numbers first in value mode, and
+    in pool mode the rows highest in their own pool in the raw direction (largest relative to the pool, not the largest
+    numbers)."""
     if catalogue_mode(w, scope) or rank_by is not None:
         from regista.catalogue_api import screen_payload
 
@@ -215,9 +218,10 @@ async def rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], position: POS
                *, w: WhereDep, scope: ScopeDep) -> dict[str, Any]:
     """One metric's leaderboard, best first unless ``order``. Ratios rank only players with the minimum attempts (the rest
     are listed after, unranked). Catalogue parameters (and ``rank_by``) answer from the catalogue as
-    ``/api/terminal/screen`` does: every row with its own pool; across levels ranked by percentile within each row's
-    pool (``rank_by=value``: by the raw value), one board per gender, ranks restarting on each; the response adds
-    ``rank_by``, ``rank_rule`` and ``boards`` (each board's size, offset among the ranked rows and top rows)."""
+    ``/api/terminal/screen`` does: every row with its own pool, ranked as ``RANK_RULE`` says (across levels within one
+    position by percentile, one board per gender; across levels and positions by value within each level, one board per
+    level), ranks restarting on each board; the response adds ``rank_by``, ``rank_rule`` and ``boards`` (each board's
+    key, label, size, offset among the ranked rows and top rows)."""
     if catalogue_mode(w, scope) or rank_by is not None:
         from regista.catalogue_api import rank_payload
 

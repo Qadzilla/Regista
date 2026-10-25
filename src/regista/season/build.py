@@ -43,6 +43,13 @@ GENERATED_BY = BUILT_BY[:4]
 _SRC = Path(__file__).resolve().parents[2]   # the directory holding the regista package
 
 
+def match_lock(match_id: str) -> threading.Lock:
+    """The one lock under which a match folder is built or replaced in this process (``materialise`` takes it; so does
+    the catalogue when it removes a folder with stale labels)."""
+    with _locks_guard:
+        return _locks.setdefault(match_id, threading.Lock())
+
+
 @functools.lru_cache(maxsize=None)
 def code_fingerprint(modules: tuple[str, ...] = BUILT_BY) -> str:
     """sha256 (16 hex) of the named source files, in order. Read once per process: the code does not change under a
@@ -89,9 +96,7 @@ def materialise(league: Record, fixture: Record, root: Path | str, *, manifest_e
     dest = root / fixture["match_id"]
     if is_current(league, fixture, root):
         return dest
-    with _locks_guard:
-        lock = _locks.setdefault(fixture["match_id"], threading.Lock())
-    with lock:
+    with match_lock(fixture["match_id"]):
         if is_current(league, fixture, root):
             return dest
         root.mkdir(parents=True, exist_ok=True)
@@ -173,9 +178,7 @@ def ensure_tracks(league: Record, fixture: Record, root: Path | str, *, manifest
     dest = materialise(league, fixture, root, manifest_extra=manifest_extra, title_fn=title_fn)
     if (dest / "tracks.jsonl").exists():
         return dest
-    with _locks_guard:
-        lock = _locks.setdefault(fixture["match_id"], threading.Lock())
-    with lock:
+    with match_lock(fixture["match_id"]):
         if not (dest / "tracks.jsonl").exists():
             result = generate(**generate_kwargs(league, fixture))
             tmp = dest / ".tracks.jsonl.tmp"

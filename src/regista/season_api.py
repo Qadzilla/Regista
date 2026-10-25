@@ -149,10 +149,11 @@ async def list_players(w: WhereDep, scope: ScopeDep,
     Catalogue filters (``competition``, ``country``, ``tier`` or ``level``, ``age_group``, ``gender``) or ``scope``
     (``pool``: level, competition or all) answer from the catalogue: cards from each selected competition (England
     semi-pro men unless a filter picks others), each headline percentile in ``scope`` (level by default) with its pool;
-    ``total`` then always counts every card the filters keep and ``offset`` pages past ``limit``. There, cards from more
-    than one level sorted by a per-90 stat or a ratio are ranked by each card's percentile within its own pool, not by
-    raw rates from different levels (``rank_by=value``: by the raw value), and men and women are on separate boards
-    (each card's ``board``; ``boards`` gives each board's size and offset); the response says ``rank_by`` and
+    ``total`` then always counts every card the filters keep and ``offset`` pages past ``limit``. There, cards are ranked
+    as ``RANK_RULE`` says: from more than one level and one position, by each card's percentile within its own pool (a
+    ratio needs its competition's minimum attempts), one board per gender; from more than one level and more than one
+    position, by value within each level, one board per level; ``rank_by`` forces a mode (each card's ``board``;
+    ``boards`` gives each board's key, label, size, offset and top cards); the response says ``rank_by`` and
     ``rank_rule``."""
     if catalogue_mode(w, scope) or rank_by is not None:
         from regista.catalogue_api import players_payload

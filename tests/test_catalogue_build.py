@@ -164,3 +164,48 @@ def test_the_image_check_passes_on_the_built_catalogue_and_names_a_match_that_di
     [bad] = catalogue_checks(INDEX, tmp_path)
     assert not bad["ok"] and bad["differs"][fx["match_id"]] != "missing"
     assert sum(v == "missing" for v in bad["differs"].values()) == 59
+
+
+def test_a_stale_folder_is_removed_under_the_match_lock_and_a_failed_pool_is_logged(comps, built, tmp_path, monkeypatch,
+                                                                                  caplog):
+    """Review A round 3 nits: materialise_match removes a folder with stale labels only while holding the lock its build
+    takes (so it never deletes a folder another thread is writing), and build_catalogue logs a process pool that fails
+    before it builds the matches here, one by one."""
+    import concurrent.futures
+    import logging
+
+    from regista.catalogue import build as cbuild
+    from regista.season import build as season_build
+
+    comp, fx = _fx(comps, "co_gha_u17")
+    shutil.copytree(built / fx["match_id"], tmp_path / fx["match_id"])
+    other = copy.deepcopy(fx)
+    other["camera"] = "drone" if fx["camera"] != "drone" else "phone"
+    held = []
+    real_rmtree = cbuild.shutil.rmtree
+
+    def rmtree(path, *a, **kw):
+        held.append(season_build.match_lock(fx["match_id"]).locked())
+        return real_rmtree(path, *a, **kw)
+
+    monkeypatch.setattr(cbuild.shutil, "rmtree", rmtree)
+    materialise_match(comp, other, tmp_path)
+    assert held and held[0] is True
+    monkeypatch.setattr(cbuild.shutil, "rmtree", real_rmtree)
+
+    class Broken:
+        def __init__(self, *a, **kw):
+            raise OSError("no worker processes here")
+
+    monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", Broken)
+    one = copy.deepcopy(comp)
+    one["fixtures"] = [copy.deepcopy(f) for f in comp["fixtures"][:2]]
+    for f in one["fixtures"]:
+        f["camera"] = next(c for c in ("tripod", "phone", "drone", "broadcast")
+                           if c not in (f["camera"], other["camera"]))   # stale labels: both need a rebuild
+        if not (tmp_path / f["match_id"]).exists():
+            shutil.copytree(built / f["match_id"], tmp_path / f["match_id"])
+    with caplog.at_level(logging.WARNING, logger="regista.catalogue.build"):
+        paths = build_catalogue([one], tmp_path, workers=2)
+    assert len(paths) == 2 and "process pool failed" in caplog.text
+    assert all(json.loads((p / "manifest.json").read_text())["camera"] == f["camera"] for p, f in zip(paths, one["fixtures"]))
