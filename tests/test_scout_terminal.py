@@ -319,7 +319,7 @@ const shape = (r) => ({ do: r.do, key: r.key || null, keys: r.keys || null, pos:
   head: r.head || null, p: r.p ? r.p.id : null, club: r.club ? r.club.club_id : null, most: !!r.most, fewest: !!r.fewest, worst: !!r.worst });
 const out = { short: Object.fromEntries(L.cat.metrics.map(m => [m.key, TW.shortLabel(m)])), loose: {}, q: {} };
 for (const m of L.cat.metrics) out.loose[m.key] = [...new Set([m.key, m.label, TW.shortLabel(m)].map(TW.loose))];
-for (const q of JSON.parse(process.argv[3])) out.q[q] = shape(W.interpret(q));
+for (const q of JSON.parse(fs.readFileSync(0, 'utf8'))) out.q[q] = shape(W.interpret(q));  // the questions come on stdin
 console.log(JSON.stringify(out));
 """
 
@@ -341,7 +341,8 @@ def interpret(league: Path, queries: list[str]) -> dict:
     node = shutil.which("node")
     if not node:
         pytest.skip("node is not installed")
-    res = subprocess.run([node, "-e", WORDS_HARNESS, str(SCOUT / "terminal-words.js"), str(league), json.dumps(queries)],
+    # The questions go on stdin: thousands of them overflow Linux's 128 KB limit on one command-line argument (CI).
+    res = subprocess.run([node, "-e", WORDS_HARNESS, str(SCOUT / "terminal-words.js"), str(league)], input=json.dumps(queries),
                          capture_output=True, text=True, timeout=60)
     assert res.returncode == 0, res.stderr
     return json.loads(res.stdout)
