@@ -119,7 +119,7 @@ part B). Three pieces:
 | `GET /api/terminal/screen` | players with chosen metric columns; filters position, role, club, minutes, age, foot, name; sort by any metric |
 | `GET /api/terminal/rank` | one metric's leaderboard (rank, value, percentile, how many events back it) |
 | `GET /api/terminal/scatter` | two metrics per player, plus the pool's medians |
-| `GET /api/players/{id}/metrics`, `/form`, `/similar`, `/shots` | every metric for one player with percentiles and evidence (paged with `evidence_offset`, so every moment can be read); per-match values and consistency; the most similar players in the same position; every shot with its location and clip |
+| `GET /api/players/{id}/metrics`, `/form`, `/similar`, `/shots`, `/heatmap` | every metric for one player with percentiles and evidence (paged with `evidence_offset`, so every moment can be read); per-match values and consistency; the most similar players in the same position; every shot with its location and clip; the touch grid from league fixtures only |
 | `GET /api/teams`, `/api/teams/{club_id}/style`, `/api/teams/{club_id}/shots` | every club's style metrics; one club's with ranks; every shot by or against the club |
 
 `python3 -m regista.season.metrics --rank KEY | --player ID` prints the same from the command line;

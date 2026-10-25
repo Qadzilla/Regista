@@ -34,6 +34,7 @@ ACCESS = {
     "GET /api/players/{gid}/form": "public",
     "GET /api/players/{gid}/similar": "public",
     "GET /api/players/{gid}/shots": "public",
+    "GET /api/players/{gid}/heatmap": "public",
     "GET /api/teams": "public",
     "GET /api/teams/{club_id}/style": "public",
     "GET /api/teams/{club_id}/shots": "public",

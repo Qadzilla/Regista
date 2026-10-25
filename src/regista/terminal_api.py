@@ -14,6 +14,8 @@ GET /api/players/{global_id}/metrics    every metric for one player with percent
                                         rest, so every moment can be read); evidence_limit=N caps either, 0 gives none
 GET /api/players/{global_id}/shots      every shot the player took (penalties too): where, xG, outcome, body part, minute,
                                         clip (the shot map)
+GET /api/players/{global_id}/heatmap    the player's on-ball actions per pitch cell in league fixtures only (claimed and
+                                        uploaded matches stay on the profile's own grid), attacking left to right
 GET /api/players/{global_id}/form       per-match values of chosen metrics, and consistency
 GET /api/players/{global_id}/similar    the most similar players in the same position (cosine on standardised per-90s)
 GET /api/teams                          every club's style metrics
@@ -120,8 +122,9 @@ def _filters(sm: SeasonMetrics, position, role, club, min_minutes, age_min, age_
 PITCH = {"length": PITCH_L, "width": PITCH_W,
          "frame": "attacking left to right: x runs along the length toward the opponent's goal at x = length",
          "heatmap_grid": [GRID_X, GRID_Y], "heatmap_events": list(TOUCH_MAP_EVENTS),
-         "heatmap_rule": "on-ball actions per cell (the touch-map events), rows y (0 to width), columns x (0 to length), "
-                         "attacking left to right: the profile page's grid (GET /api/players/{id} grid)"}
+         "heatmap_rule": "on-ball actions per cell (the touch-map events) in Regista League fixtures only, like every "
+                         "terminal number; rows y (0 to width), columns x (0 to length), attacking left to right "
+                         "(GET /api/players/{id}/heatmap; the profile page's grid also counts claimed and uploaded matches)"}
 
 
 @router.get("/api/metrics")
@@ -256,6 +259,25 @@ async def player_form(gid: str, metrics_: Annotated[str | None, Query(alias="met
                 "consistency_rule": "Regista: coefficient of variation (sd / mean) of per-match values over matches with "
                                     "at least 15 minutes; lower is steadier. Thirty-minute matches make it noisy.",
                 "synthetic": True, "note": SYNTHETIC_NOTE}
+
+    return await run_in_threadpool(run)
+
+
+@router.get("/api/players/{gid}/heatmap")
+async def player_heatmap(gid: str) -> dict[str, Any]:
+    """The player's touch grid from league fixtures only: the same events and cells as the profile page's grid, without
+    the confirmed claims and Player-view uploads that the profile adds, so it sits beside the league-only metrics."""
+
+    def run() -> dict[str, Any]:
+        from regista.season_api import season
+
+        sm = metrics()
+        ps = _player(sm, gid)
+        grid = season().league_grids.get(gid)
+        if grid is None:
+            raise HTTPException(404, f"no player {gid!r} has played in the league")
+        return {**sm.card(ps), "grid": grid, "total": sum(map(sum, grid)), "scope": "Regista League fixtures (synthetic)",
+                "pitch": PITCH, "synthetic": True, "note": SYNTHETIC_NOTE}
 
     return await run_in_threadpool(run)
 

@@ -145,6 +145,32 @@ def test_reset_this_demo_resets_the_terminal_in_the_same_tab(js):
     assert "demo.reset();" in scout and "the Terminal workspaces" in scout
 
 
+def test_reset_this_demo_in_another_tab_resets_an_open_terminal(js):
+    # Regista.store.reset() removes the key, so the other tab gets a storage event: readStore() must then start from the
+    # defaults (and drop a pending save), not keep the old workspaces and history in memory and write them back on the
+    # next click (review A, round 1).
+    rs = _fn(js, "readStore")
+    nothing = rs[rs.index("} else {"):]
+    assert "clearTimeout(saveT)" in nothing and "store = { cur: 0, ws: [null, null, null], hist: [] }" in nothing
+    assert nothing.index("store = {") < nothing.index("clean(store.ws[store.cur])")
+    watch = js[js.index("R.store.watch("):js.index("const resetBtn")]
+    assert "readStore()" in watch and "histAt = -1" in watch and "R.store.remove(STORE_KEY)" in watch
+
+
+def test_cmp_without_a_player_says_how_to_use_it(js):
+    # `CMP vs` or `CMP ,` resolves no players: the usage line, never a crash reading .q of nothing (review A, round 1)
+    cmp = _fn(js, "cmdCmp")
+    assert cmp.index("if (!rs.length)") < cmp.index("const bad") and "CMP needs two or three players: CMP <player>" in cmp
+    assert "rest ? `No player called" not in cmp
+
+
+def test_the_heat_map_reads_the_league_only_grid(js):
+    # every terminal number is league fixtures only; the profile's grid also counts claimed and uploaded matches
+    assert "/heatmap`" in js and "heatOf(p.id, 'heat')" in _fn(js, "renderHeat")
+    assert "R.api(`/api/players/${enc(pid)}`)" not in js
+    assert "on-ball actions in league matches this season" in _fn(js, "renderHeat")
+
+
 def test_the_terminal_only_reads(js):
     assert "method:" not in js and "'POST'" not in js and "'PUT'" not in js and "'DELETE'" not in js
     assert "fetch(" not in js            # every request goes through Regista.api, a GET without a key

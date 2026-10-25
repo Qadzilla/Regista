@@ -99,6 +99,7 @@ class Season:
     claimed: list[Record] = field(default_factory=list)  # the claimed matches that were counted, for the API and the trace
     uploads: list[Record] = field(default_factory=list)  # Player-view uploads: {match_id, match_dir, players, claims}
     uploaded: list[Record] = field(default_factory=list)  # the uploaded matches that were counted
+    league_grids: dict[str, list[list[int]]] = field(default_factory=dict)  # touch grids from league fixtures only
     min_minutes: float = 0.0   # the percentile pool's qualifying minutes (the Scout terminal's rule: a third of a club's minutes)
     reliability: Record = field(default_factory=lambda: {"metrics": {}})   # regista.season.reliability (load_season)
     _club_minutes: dict[str, float] = field(default_factory=dict)
@@ -143,6 +144,9 @@ class Season:
             _add_match(acc, d, stream, local_to_global, round_no=fx["round"], date=fx["date"],
                        entry=lambda p: {"club_id": team_club[p["team_id"]], "opponent": opp[p["team_id"]], "source": "league"},
                        counts=lambda p, played=set(played_seconds(stream)): p["player_id"] in played)
+        # The touch grids before any claimed or uploaded match joins them: the Scout terminal's heat map, which sits
+        # beside league-only metrics, reads these (the profile's own grid counts every match on the profile).
+        self.league_grids = {gid: [row[:] for row in a["grid"]] for gid, a in acc.items()}
         for e in self.extra:
             self._add_claimed(acc, e)
         for e in self.uploads:

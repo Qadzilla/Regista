@@ -6,7 +6,7 @@
 //
 // LIVE, from the API (regista.terminal_api and the season API), read only: the metric catalogue (/api/metrics), the
 // screener's columns (/api/terminal/screen), one player's every metric (/api/players/{id}/metrics), the evidence behind a
-// number (?evidence=KEY&evidence_offset=N), form, similar players, shots, the touch grid (/api/players/{id}), the scatter,
+// number (?evidence=KEY&evidence_offset=N), form, similar players, shots, the league-only touch grid (/heatmap), the scatter,
 // team style and team shots, the league (/api/season). The terminal writes nothing to the server.
 // PER VISITOR, in this browser only: three workspaces (panels, players, columns, axes) and the command history, through
 // Regista.store (shared/regista.js), never storage directly; Reset puts a workspace back to its defaults.
@@ -82,7 +82,7 @@
   const COLS = new Set(), colsPending = new Set();
   let colsErr = null;
   const C = new Map();               // request cache: key -> { st: wait | ok | err, v, e, p }
-  let store = { cur: 0, ws: [null, null, null], hist: [] }, S = null, storageOK = true;
+  let store = { cur: 0, ws: [null, null, null], hist: [] }, S = null, storageOK = true, saveT = 0;
   let reel = null, histAt = -1, histDraft = '', acItems = [], acAt = -1, scatCur = null, scrAct = null, tipFor = null;
 
   function fetchOnce(key, fn) {
@@ -165,7 +165,8 @@
   const full = (pid, panel) => want(fullKey(pid), fullFn(pid), panel);
   const similar = (pid, panel) => want('sim|' + pid, () => R.api(`/api/players/${enc(pid)}/similar`), panel);
   const shotsOf = (pid, panel) => want('shots|' + pid, () => R.api(`/api/players/${enc(pid)}/shots`), panel);
-  const profileOf = (pid, panel) => want('prof|' + pid, () => R.api(`/api/players/${enc(pid)}`), panel);
+  // The heat map's grid counts league fixtures only, like every other terminal number (the profile's grid adds uploads).
+  const heatOf = (pid, panel) => want('heat|' + pid, () => R.api(`/api/players/${enc(pid)}/heatmap`), panel);
   function formOf(pid, keys, panel) {
     const ks = [...new Set(keys)].filter(k => MK.has(k)).slice(0, COLS_PER_CALL);
     return want('form|' + pid + '|' + ks.join(','), () => R.api(`/api/players/${enc(pid)}/form?metrics=${ks.map(enc).join(',')}`), panel);
@@ -274,10 +275,14 @@
       store.cur = [0, 1, 2].includes(s.cur) ? s.cur : 0;
       store.ws = [0, 1, 2].map(i => s.ws[i] || null);
       store.hist = Array.isArray(s.hist) ? s.hist.filter(h => typeof h === 'string').map(h => h.slice(0, 200)).slice(-50) : [];
+    } else {
+      // Nothing saved (first visit, or "Reset this demo" in this tab or another): start from the defaults, never from
+      // the workspaces and history still held in memory, and drop a pending save, which would write them back.
+      clearTimeout(saveT);
+      store = { cur: 0, ws: [null, null, null], hist: [] };
     }
     S = store.ws[store.cur] = clean(store.ws[store.cur]);
   }
-  let saveT = 0;
   function save() {
     clearTimeout(saveT);
     saveT = setTimeout(() => { if (!R.store.set(STORE_KEY, store) && storageOK) { storageOK = false; paintMeta(); } }, 120);
@@ -946,7 +951,7 @@
     if (visible('shot')) renderShot();
   }
   function renderHeat() {
-    const p = PID.get(S.focus), fc = full(p.id, 'heat'), pc = profileOf(p.id, 'heat');
+    const p = PID.get(S.focus), fc = full(p.id, 'heat'), pc = heatOf(p.id, 'heat');
     if (fc.st !== 'ok' || pc.st !== 'ok') { paint('heat', waitHtml(fc.st !== 'ok' ? fc : pc, `${p.name}'s touches`), esc(p.short_name)); return; }
     const hm = Array.isArray(pc.v.grid) ? pc.v.grid : [];
     const [cols, rows] = (CAT.pitch && CAT.pitch.heatmap_grid) || [12, 8], cw = 105 / cols, ch = 68 / rows;
@@ -958,7 +963,7 @@
     const evs = ((CAT.pitch && CAT.pitch.heatmap_events) || []).map(e => EVN[e] || words(e).toLowerCase());
     const html = `<div class="tx-stats">${['touches', 'touches_in_box', 'progressive_passes_received'].map(k => numBtn(p, k, 'ht-')).join('')}</div>
       <svg viewBox="-1.5 -1.5 108 71" class="tx-svg tx-pitchsvg" role="img" aria-label="Heat map: ${total} on-ball actions, attacking left to right"><rect x="0" y="0" width="105" height="68" class="tx-turf"/>${cells}${fullPitch()}<path d="M44,70 L61,70" class="tx-dir"/></svg>
-      <p class="tx-cap">${esc(total)} on-ball actions this season (${esc(listText(evs))}), so more than the Touches count, which is touch records only. Attacking left to right, ${esc(cols)} by ${esc(rows)} cells. The map has no clip per cell; the numbers above open their moments.</p>`;
+      <p class="tx-cap">${esc(total)} on-ball actions in league matches this season (${esc(listText(evs))}), so more than the Touches count, which is touch records only. Attacking left to right, ${esc(cols)} by ${esc(rows)} cells. The map has no clip per cell; the numbers above open their moments.</p>`;
     paint('heat', html, esc(p.short_name));
   }
 
@@ -1290,7 +1295,7 @@
       const p = r.p;
       out(`${head} ${p.name}: loading…`);
       // What the panel draws loads first, so the output line and the panel are final before it is brought into view.
-      const extra = head === 'SHOT' ? shotsOf(p.id) : head === 'FORM' ? formOf(p.id, [...(CAT.default_columns[p.position] || CAT.default_columns.all), S.form.k || ''].filter(Boolean)) : head === 'HEAT' ? profileOf(p.id) : null;
+      const extra = head === 'SHOT' ? shotsOf(p.id) : head === 'FORM' ? formOf(p.id, [...(CAT.default_columns[p.position] || CAT.default_columns.all), S.form.k || ''].filter(Boolean)) : head === 'HEAT' ? heatOf(p.id) : null;
       await Promise.all([selectReady(p.id), extra ? settle(extra) : null]);
       let line;
       if (head === 'SIM') { const sm = similar(p.id).v; line = `SIM ${p.name}: ${((sm && sm.similar) || []).map(s => `${s.name} ${Number(s.similarity).toFixed(2)}`).join(', ') || 'none'}.`; }
@@ -1376,8 +1381,9 @@
   }
   async function cmdCmp(rest) {
     const rs = resolvePlayers(rest);
+    if (!rs.length) { out('CMP needs two or three players: CMP <player> <player> [<player>].', 'err'); return; }
     const bad = rs.find(r => !r.p);
-    if (bad || !rs.length) { out(rest ? `No player called "${bad.q}".` : 'CMP needs two or three players: CMP <player> <player> [<player>].', 'err'); return; }
+    if (bad) { out(`No player called "${bad.q}".`, 'err'); return; }
     const ids = [...new Set(rs.map(r => r.p.id))].slice(0, 3);
     if (ids.length === 1 && ids[0] !== S.focus) ids.unshift(S.focus);
     if (ids.length < 2) { out('CMP needs two or three different players.', 'err'); return; }
@@ -1710,9 +1716,13 @@
     resizeT = setTimeout(() => { if (!ready || window.innerWidth === lastW) return; lastW = window.innerWidth; if (visible('form')) renderForm(); if (visible('scat')) renderScat(); }, 150);
   });
   // Another tab of this browser changed the workspaces (or Reset this demo cleared them): read them again.
+  // When the key is gone (Reset this demo removes it), readStore() starts again from the defaults and forgets the history.
   R.store.watch((k) => {
     if (!ready || (k !== null && k !== STORE_KEY)) return;
-    readStore(); paintMeta(); if (onTerminal()) { renderLayout(); renderAll(); }
+    if (k === null) R.store.remove(STORE_KEY);   // storage cleared everywhere: forget the in-memory copy too
+    readStore();
+    if (!R.store.get(STORE_KEY, null)) { histAt = -1; histDraft = ''; reel = null; scatCur = null; scrAct = null; stopVideo(''); }
+    paintMeta(); if (onTerminal()) { renderLayout(); renderAll(); }
   });
   // "Reset this demo" in Settings, in this tab: Regista.demo.reset() has just cleared the store (scout.js's listener runs
   // first), but the storage event only reaches other tabs. Forget the workspaces and the history held in memory too, and

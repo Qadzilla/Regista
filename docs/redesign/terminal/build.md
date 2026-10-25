@@ -89,6 +89,7 @@ was sent to the live app or Azure. Every check below ran offline on this machine
 
 | Change | Why |
 |---|---|
+| `GET /api/players/{id}/heatmap` | HEAT: the league-only touch grid (the profile's grid also counts claimed and uploaded matches, so it would mix a non-league friendly into league-only numbers) |
 | `GET /api/players/{id}/shots` | SHOT: every shot (penalties too) with attacking-frame location and end point, xG, outcome, body part, penalty, football minute, round, opponent, clip |
 | `GET /api/teams/{club_id}/shots?side=for\|against` | TEAM reels: every shot by or against the club, with who took it and its clip |
 | `evidence_offset` on `/api/players/{id}/metrics?evidence=KEY`, `offset` in its answer | complete evidence (decision 1) |

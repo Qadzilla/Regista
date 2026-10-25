@@ -495,6 +495,8 @@ def test_api_shapes(client):
     ("/api/players/pl_bro_09/metrics?group=nogroup", 422),
     ("/api/players/pl_bro_09/form?metrics=bogus", 422),
     ("/api/players/pl_bro_09/similar?n=0", 422),
+    ("/api/players/pl_nobody_99/heatmap", 404),
+    ("/api/players/not-an-id/heatmap", 400),
     ("/api/teams/cl_nowhere/style", 404),
     ("/api/teams/NOT/style", 400),
 ])
@@ -520,6 +522,7 @@ def test_ratings_never_appear_in_terminal_json(client):
         "metrics": client.get(f"/api/players/{STAR}/metrics", params={"evidence_limit": 2}).json(),
         "form": client.get(f"/api/players/{STAR}/form").json(),
         "similar": client.get(f"/api/players/{STAR}/similar").json(),
+        "heatmap": client.get(f"/api/players/{STAR}/heatmap").json(),
         "teams": client.get("/api/teams").json(),
         "style": client.get("/api/teams/cl_brookfield/style").json(),
     }
@@ -542,6 +545,39 @@ def test_the_catalogue_carries_digits_minimum_attempts_and_the_pitch(client):
     assert all(isinstance(m["digits"], int) for m in cat["team_metrics"])
     assert cat["pitch"]["length"] == 105.0 and cat["pitch"]["width"] == 68.0 and cat["pitch"]["heatmap_grid"] == [12, 8]
     assert "touch" in cat["pitch"]["heatmap_events"] and "attacking left to right" in cat["pitch"]["frame"]
+
+
+def test_the_heat_map_counts_league_fixtures_only(client, small, monkeypatch, tmp_path):
+    """The terminal's heat map sits beside league-only metrics, so a finished Player-view upload (or a confirmed claim)
+    adds touches to the profile's grid but never to GET /api/players/{id}/heatmap."""
+    import shutil
+
+    from regista import player_api
+    from regista.season import profiles
+
+    league, root, _ = small
+    before = client.get(f"/api/players/{STAR}/heatmap").json()
+    prof = client.get(f"/api/players/{STAR}").json()
+    assert before["total"] == sum(map(sum, before["grid"])) > 0 and len(before["grid"]) == 8 and len(before["grid"][0]) == 12
+    assert before["grid"] == prof["grid"] and "League fixtures only" in before["pitch"]["heatmap_rule"]
+    assert "fixtures" in before["scope"] and before["synthetic"] and not _hidden_keys(before)
+
+    # a fake upload: one of the star's league fixtures copied as a non-league match, the star its uploader
+    fx = next(f for f in league["fixtures"] if "cl_brookfield" in (f["home"], f["away"]))
+    d = shutil.copytree(root / fx["match_id"], tmp_path / "pv_fake")
+    header = next(iter_jsonl(d / "events.jsonl"))
+    pid = next(p["player_id"] for p in header["players"] if p.get("global_player_id") == STAR)
+    row = {"match_id": d.name, "match_dir": str(d), "player_id": pid, "global_id": STAR, "upload_id": "up_fake"}
+    monkeypatch.setattr(player_api, "uploaded_matches", lambda force=False: [row])
+    profiles.invalidate()
+    try:
+        after_prof = client.get(f"/api/players/{STAR}").json()
+        assert after_prof["appearances"] == prof["appearances"] + 1
+        assert sum(map(sum, after_prof["grid"])) > before["total"]          # the profile counts the upload
+        after = client.get(f"/api/players/{STAR}/heatmap").json()
+        assert after["grid"] == before["grid"] and after["total"] == before["total"]   # the terminal does not
+    finally:
+        profiles.invalidate()
 
 
 def test_evidence_pages_until_every_moment_is_read(client):

@@ -46,6 +46,7 @@ table. Every response says the data is synthetic.
 | `GET /api/terminal/rank?metric=` | a leaderboard (ties share a rank). Players without enough attempts are listed separately, unranked |
 | `GET /api/terminal/scatter?x=&y=` | two metrics per player, plus the pool's medians |
 | `GET /api/players/{id}/metrics` | every metric (or one `group`), each with its value, count, percentile, peers, and the first `evidence_limit` (default 10) events with their total. `evidence=KEY` returns one metric's evidence in pages of up to 500 events from `evidence_offset`; page on while `offset + len(items) < total` to read every moment. Each event has its football `minute` |
+| `GET /api/players/{id}/heatmap` | the player's on-ball actions per pitch cell (12 by 8, attacking left to right) in league fixtures only, like every terminal number; the profile's own grid also counts claimed and uploaded matches (the terminal's heat map) |
 | `GET /api/players/{id}/shots` | every shot the player took, penalties included: attacking-frame location and end point, xG, outcome, body part, penalty, minute, round, opponent, clip (the terminal's shot map) |
 | `GET /api/players/{id}/form?metrics=` | per-match values, then mean, sd, coefficient of variation, and the last 3 matches against the season value |
 | `GET /api/players/{id}/similar?n=` | the most similar players in the same position |

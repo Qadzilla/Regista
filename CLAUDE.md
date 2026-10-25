@@ -250,7 +250,7 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
   yet merged or deployed; report `docs/redesign/terminal/build.md`). It reads the real API only (no export file) and
   writes nothing; workspaces live in `Regista.store`. Port decisions (Zaid): evidence is complete (every moment behind a
   number, paged through `evidence_offset`), and the sandbox reviewers' four open items are fixed. Added read-only API:
-  `/api/players/{id}/shots`, `/api/teams/{club_id}/shots`, `digits`/`min_attempts`/`pitch` in `/api/metrics`, `minute`
+  `/api/players/{id}/shots`, `/api/players/{id}/heatmap` (league fixtures only), `/api/teams/{club_id}/shots`, `digits`/`min_attempts`/`pitch` in `/api/metrics`, `minute`
   on evidence, `offset` on the screen.
 - **Femi Toure (pl_bro_09) is clearly the star** (Zaid, 2026-10-24): the league's top scorer with 5 league goals, none a
   penalty, two more than anyone (rounds 1, 1, 6, 8, 10), and the leader in goals, non-penalty goals and npxG per 90 in
