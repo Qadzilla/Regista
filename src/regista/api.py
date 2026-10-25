@@ -1533,9 +1533,11 @@ from regista.player_api import router as _player_router  # noqa: E402
 from regista.season_api import router as _season_router  # noqa: E402
 from regista.studio_api import router as _studio_router  # noqa: E402
 from regista.terminal_api import router as _terminal_router  # noqa: E402
+from regista.catalogue_api import router as _catalogue_router  # noqa: E402
 
 app.include_router(_season_router)
 app.include_router(_terminal_router)
+app.include_router(_catalogue_router)
 app.include_router(_claims_router)
 app.include_router(_player_router)
 app.include_router(_studio_router)

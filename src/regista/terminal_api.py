@@ -36,6 +36,7 @@ from typing import Annotated, Any, Literal
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.concurrency import run_in_threadpool
 
+from regista.catalogue_api import COMPETITION, ScopeDep, WhereDep, catalogue_mode
 from regista.season.metrics import (CATALOGUE, DEFAULT_COLUMNS, PITCH_L, PITCH_W, SYNTHETIC_NOTE, TEAM_CATALOGUE,
                                     SeasonMetrics, catalogue, load_metrics)
 from regista.season.profiles import GRID_X, GRID_Y, TOUCH_MAP_EVENTS
@@ -55,6 +56,11 @@ FOOT = Annotated[str | None, Query(pattern="^(right|left|both)$")]
 NAME_Q = Annotated[str | None, Query(max_length=80)]
 MIN_MINUTES = Annotated[float | None, Query(ge=0.0, le=10000.0)]
 AGE = Annotated[int | None, Query(ge=14, le=50)]
+FORM_RULE = ("Regista: coefficient of variation (sd / mean) of per-match values over matches with at least 15 minutes; "
+             "lower is steadier. Thirty-minute matches make it noisy.")
+SIMILAR_RULE = ("Cosine similarity of z-scored per-90 values (FBref's summary template for outfielders, a keeper template "
+                "for keepers) among qualified players in the same position; FBref ranks by smallest percentile "
+                "differences, Regista by cosine on z-scores")
 
 
 def metrics() -> SeasonMetrics:
@@ -94,8 +100,15 @@ def _player(sm: SeasonMetrics, gid: str):
         raise HTTPException(400, "bad player id")
     ps = sm.player(gid)
     if ps is None:
-        raise HTTPException(404, f"no player {gid!r} has played in the league")
+        from regista.catalogue_api import player_hint
+
+        raise HTTPException(404, f"no player {gid!r} has played in the league{player_hint(gid)}")
     return ps
+
+
+def _row_mode(competition: str | None, scope: str | None) -> bool:
+    """A player endpoint answers from the catalogue when ``competition`` or ``scope`` is given."""
+    return bool(competition) or scope is not None
 
 
 def _season_meta(sm: SeasonMetrics) -> dict[str, Any]:
@@ -128,7 +141,25 @@ PITCH = {"length": PITCH_L, "width": PITCH_W,
 
 
 @router.get("/api/metrics")
-async def get_metrics() -> dict[str, Any]:
+async def get_metrics(competition: COMPETITION = None, *, scope: ScopeDep) -> dict[str, Any]:
+    """The metrics catalogue and the Regista League's season. ``competition=`` (and ``scope``) describe each metric in that
+    catalogue competition (its ratio minimums, the reliability table its numbers read, its realism check) with the
+    catalogue's ``season`` block; outside England the xT grid is England's (a fixed reference grid)."""
+    if _row_mode(competition, scope):
+        from regista.catalogue.taxonomy import ENGLAND_ID
+        from regista.catalogue_api import _known_competition, _meta, catalogue_metrics
+
+        cid = competition or ENGLAND_ID
+        _known_competition(cid, status=422)
+        sc = scope or "level"
+
+        def run() -> dict[str, Any]:
+            cm = catalogue_metrics()
+            sm = cm.metrics[cid]
+            return {**catalogue(), "metrics": [cm.describe(k, cid, sc) for k in CATALOGUE], "season": _meta(cm, [cid], sc),
+                    "xt": sm.xt.public() if sm.xt else None, "pitch": PITCH}
+
+        return await run_in_threadpool(run)
     sm = await run_in_threadpool(metrics)
     return {**catalogue(), "metrics": [sm.describe(k) for k in CATALOGUE], "season": _season_meta(sm),
             "xt": sm.xt.public() if sm.xt else None, "pitch": PITCH}
@@ -139,13 +170,25 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
                  position: POSITION = None, role: ROLE = None, club: CLUB = None, min_minutes: MIN_MINUTES = None,
                  age_min: AGE = None, age_max: AGE = None, foot: FOOT = None, q: NAME_Q = None,
                  sort: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None, order: Literal["asc", "desc"] | None = None,
-                 limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0, le=MAX_OFFSET)) -> dict[str, Any]:
+                 limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0, le=MAX_OFFSET),
+                 *, w: WhereDep, scope: ScopeDep) -> dict[str, Any]:
     """Players with the chosen metric columns (default: the position's core set). Each cell: value (per 90, ratio, ...),
     the count behind it, the percentile among position peers, whether the player qualifies, and ``evidence_total`` (how
     many moments, or for a physical number matches, are behind it: the evidence's ``moments``, each event once, where a
     ratio's ``total`` counts a pass and its completion twice). Sorted by ``sort`` (default
     the first column), best first unless ``order`` says otherwise; ``min_minutes`` defaults to the qualifying minimum.
-    ``offset`` skips that many rows, so a reader can page past ``limit`` (``total`` counts every row)."""
+    ``offset`` skips that many rows, so a reader can page past ``limit`` (``total`` counts every row).
+
+    Catalogue parameters (``competition``, ``country``, ``tier`` or ``level``, ``age_group``, ``gender``, ``scope`` or
+    ``pool``) answer from the catalogue in the same shape: England semi-pro men unless a filter picks others, each cell
+    with its ``pool`` and ``sample``, percentiles in ``scope`` (level by default), and the catalogue's ``season`` block."""
+    if catalogue_mode(w, scope):
+        from regista.catalogue_api import screen_payload
+
+        return await run_in_threadpool(lambda: screen_payload(
+            w, scope or "level", metrics_raw=metrics_, position=position, role=role, club=club, q=q,
+            min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot, sort=sort, order=order, limit=limit,
+            offset=offset))
     keys = _keys(metrics_, default=DEFAULT_COLUMNS.get(position, DEFAULT_COLUMNS[None]))
     sort_key = _key(sort) if sort else keys[0]
 
@@ -164,8 +207,15 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
 async def rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], position: POSITION = None, role: ROLE = None,
                club: CLUB = None, min_minutes: MIN_MINUTES = None, age_min: AGE = None, age_max: AGE = None,
                foot: FOOT = None, order: Literal["asc", "desc"] | None = None,
-               limit: int = Query(25, ge=1, le=200)) -> dict[str, Any]:
-    """One metric's leaderboard. Ratios rank only players with the minimum attempts (the rest are listed after, unranked)."""
+               limit: int = Query(25, ge=1, le=200), *, w: WhereDep, scope: ScopeDep) -> dict[str, Any]:
+    """One metric's leaderboard. Ratios rank only players with the minimum attempts (the rest are listed after, unranked).
+    Catalogue parameters answer from the catalogue (as ``/api/terminal/screen``), every row with its own pool."""
+    if catalogue_mode(w, scope):
+        from regista.catalogue_api import rank_payload
+
+        return await run_in_threadpool(lambda: rank_payload(
+            w, scope or "level", metric=metric, position=position, role=role, club=club, min_minutes=min_minutes,
+            age_min=age_min, age_max=age_max, foot=foot, order=order, limit=limit))
     key = _key(metric)
 
     def run() -> dict[str, Any]:
@@ -191,9 +241,17 @@ async def rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], position: POS
 @router.get("/api/terminal/scatter")
 async def scatter(x: Annotated[str, Query(pattern=KEY_PATTERN)], y: Annotated[str, Query(pattern=KEY_PATTERN)],
                   position: POSITION = None, role: ROLE = None, club: CLUB = None, min_minutes: MIN_MINUTES = None,
-                  age_min: AGE = None, age_max: AGE = None, foot: FOOT = None) -> dict[str, Any]:
+                  age_min: AGE = None, age_max: AGE = None, foot: FOOT = None, *, w: WhereDep,
+                  scope: ScopeDep) -> dict[str, Any]:
     """Two metrics for every player who passes the filters and has both values (with how many moments are behind each,
-    ``x_evidence_total`` and ``y_evidence_total``); the pool's medians draw the quadrants."""
+    ``x_evidence_total`` and ``y_evidence_total``); the pool's medians draw the quadrants. Catalogue parameters answer
+    from the catalogue (as ``/api/terminal/screen``), each point with ``x_pool`` and ``y_pool``."""
+    if catalogue_mode(w, scope):
+        from regista.catalogue_api import scatter_payload
+
+        return await run_in_threadpool(lambda: scatter_payload(
+            w, scope or "level", x, y, position=position, role=role, club=club, min_minutes=min_minutes,
+            age_min=age_min, age_max=age_max, foot=foot))
     kx, ky = _key(x), _key(y)
 
     def run() -> dict[str, Any]:
@@ -220,17 +278,28 @@ async def scatter(x: Annotated[str, Query(pattern=KEY_PATTERN)], y: Annotated[st
 async def player_metrics(gid: str, evidence: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None,
                          evidence_limit: int | None = Query(None, ge=0, le=MAX_EVIDENCE),
                          evidence_offset: int = Query(0, ge=0, le=MAX_OFFSET),
-                         group: Annotated[str | None, Query(pattern=r"^[a-z]{1,20}$")] = None) -> dict[str, Any]:
+                         group: Annotated[str | None, Query(pattern=r"^[a-z]{1,20}$")] = None,
+                         competition: COMPETITION = None, *, scope: ScopeDep) -> dict[str, Any]:
     """Every metric (or one ``group``) for one player: value, count, percentile, peers, and evidence (the first
     ``evidence_limit`` items behind each number, default 10, in match order, with ``total`` and ``moments``: ``total``
     counts the rows, one per key, so a ratio's pass and its completion are two; ``moments`` counts each event once).
     ``evidence=KEY`` returns that metric's evidence instead of the whole table: a page of up to 500 items from ``evidence_offset`` (default 0), or
     ``evidence_limit`` of them; page on while ``offset + len(items) < total`` to read every moment.
-    ``evidence_limit=0`` returns no items (the totals only), for event and physical metrics alike."""
+    ``evidence_limit=0`` returns no items (the totals only), for event and physical metrics alike.
+
+    ``competition=`` (any catalogue competition the player played in) or ``scope`` answer from the catalogue: that row
+    (default: the player's row with the most minutes), each cell with its ``pool`` and ``sample``, percentiles in
+    ``scope`` (level by default)."""
     if evidence:
         _key(evidence)
     elif evidence_offset:
         raise HTTPException(422, "evidence_offset pages one metric's evidence: give evidence=KEY too")
+    if _row_mode(competition, scope):
+        from regista.catalogue_api import player_metrics_payload
+
+        return await run_in_threadpool(lambda: player_metrics_payload(
+            gid, competition, scope or "level", evidence=evidence, evidence_limit=evidence_limit,
+            evidence_offset=evidence_offset, group=group, table_evidence=TABLE_EVIDENCE))
 
     def run() -> dict[str, Any]:
         sm = metrics()
@@ -252,27 +321,36 @@ async def player_metrics(gid: str, evidence: Annotated[str | None, Query(pattern
 
 
 @router.get("/api/players/{gid}/form")
-async def player_form(gid: str, metrics_: Annotated[str | None, Query(alias="metrics", pattern=KEYS_PATTERN)] = None) -> dict[str, Any]:
+async def player_form(gid: str, metrics_: Annotated[str | None, Query(alias="metrics", pattern=KEYS_PATTERN)] = None,
+                      competition: COMPETITION = None, *, scope: ScopeDep) -> dict[str, Any]:
     """Per-match values (per 90 of that match, the match ratio, or the match's top speed) and consistency: the mean, standard
     deviation and coefficient of variation over matches with 15+ minutes (Regista's measure; no provider publishes one),
-    and the last three matches against the season value."""
+    and the last three matches against the season value. ``competition=`` reads that catalogue row instead."""
+    if _row_mode(competition, scope):
+        from regista.catalogue_api import player_form_payload
+
+        return await run_in_threadpool(lambda: player_form_payload(gid, competition, scope or "level", metrics_, FORM_RULE))
 
     def run() -> dict[str, Any]:
         sm = metrics()
         ps = _player(sm, gid)
         keys = _keys(metrics_, default=DEFAULT_COLUMNS.get(ps.info["position"], DEFAULT_COLUMNS[None]))
         return {**sm.card(ps), **sm.form(ps, keys), "catalogue": {k: sm.describe(k) for k in keys},
-                "consistency_rule": "Regista: coefficient of variation (sd / mean) of per-match values over matches with "
-                                    "at least 15 minutes; lower is steadier. Thirty-minute matches make it noisy.",
+                "consistency_rule": FORM_RULE,
                 "synthetic": True, "note": SYNTHETIC_NOTE}
 
     return await run_in_threadpool(run)
 
 
 @router.get("/api/players/{gid}/heatmap")
-async def player_heatmap(gid: str) -> dict[str, Any]:
+async def player_heatmap(gid: str, competition: COMPETITION = None, *, scope: ScopeDep) -> dict[str, Any]:
     """The player's touch grid from league fixtures only: the same events and cells as the profile page's grid, without
-    the confirmed claims and Player-view uploads that the profile adds, so it sits beside the league-only metrics."""
+    the confirmed claims and Player-view uploads that the profile adds, so it sits beside the league-only metrics.
+    ``competition=`` gives that catalogue competition's uploaded matches instead."""
+    if _row_mode(competition, scope):
+        from regista.catalogue_api import player_heatmap_payload
+
+        return await run_in_threadpool(lambda: player_heatmap_payload(gid, competition, PITCH))
 
     def run() -> dict[str, Any]:
         from regista.season_api import season
@@ -289,10 +367,15 @@ async def player_heatmap(gid: str) -> dict[str, Any]:
 
 
 @router.get("/api/players/{gid}/shots")
-async def player_shots(gid: str) -> dict[str, Any]:
+async def player_shots(gid: str, competition: COMPETITION = None, *, scope: ScopeDep) -> dict[str, Any]:
     """Every shot the player took in the league, penalties included (the Shots metric follows FBref and leaves penalty
     kicks out; the map shows them, marked): attacking-frame location (x toward the opponent's goal), end point, xG,
-    outcome, body part, penalty, football minute, round, opponent and the clip it sits in."""
+    outcome, body part, penalty, football minute, round, opponent and the clip it sits in. ``competition=`` gives that
+    catalogue competition's shots instead."""
+    if _row_mode(competition, scope):
+        from regista.catalogue_api import player_shots_payload
+
+        return await run_in_threadpool(lambda: player_shots_payload(gid, competition, PITCH))
 
     def run() -> dict[str, Any]:
         sm = metrics()
@@ -306,21 +389,36 @@ async def player_shots(gid: str) -> dict[str, Any]:
 
 
 @router.get("/api/players/{gid}/similar")
-async def player_similar(gid: str, n: int = Query(5, ge=1, le=20)) -> dict[str, Any]:
+async def player_similar(gid: str, n: int = Query(5, ge=1, le=20), competition: COMPETITION = None,
+                         *, scope: ScopeDep) -> dict[str, Any]:
+    """The most similar players in the same position. ``competition=`` or ``scope`` answer from the catalogue: candidates
+    in the competition, the level (default) or every level of the gender (each standardised on its own level)."""
+    if _row_mode(competition, scope):
+        from regista.catalogue_api import player_similar_payload
+
+        rule = SIMILAR_RULE + ("; scope level standardises on the level's pool, scope all on each row's own level's pool"
+                               if (scope or "level") != "competition" else "")
+        return await run_in_threadpool(lambda: player_similar_payload(gid, competition, scope or "level", n, rule))
+
     def run() -> dict[str, Any]:
         sm = metrics()
         ps = _player(sm, gid)
         return {**sm.card(ps), **sm.similar(gid, n),
-                "rule": "Cosine similarity of z-scored per-90 values (FBref's summary template for outfielders, a keeper "
-                        "template for keepers) among qualified players in the same position; FBref ranks by smallest "
-                        "percentile differences, Regista by cosine on z-scores",
+                "rule": SIMILAR_RULE,
                 "sources": ["FB-SR"], "synthetic": True, "note": SYNTHETIC_NOTE}
 
     return await run_in_threadpool(run)
 
 
 @router.get("/api/teams")
-async def teams() -> dict[str, Any]:
+async def teams(w: WhereDep) -> dict[str, Any]:
+    """Every club's style metrics. Catalogue filters list the selected competitions' clubs instead, each with its rank in
+    its competition and among every club of its level."""
+    if w.given():
+        from regista.catalogue_api import teams_payload
+
+        return await run_in_threadpool(teams_payload, w)
+
     def run() -> dict[str, Any]:
         sm = metrics()
         return {"metrics": [m.public() for m in TEAM_CATALOGUE.values()],
@@ -331,16 +429,23 @@ async def teams() -> dict[str, Any]:
 
 
 @router.get("/api/teams/{club_id}/shots")
-async def team_shots(club_id: str, side: Literal["for", "against"] = "for") -> dict[str, Any]:
+async def team_shots(club_id: str, side: Literal["for", "against"] = "for", competition: COMPETITION = None) -> dict[str, Any]:
     """Every shot by the club (``side=for``) or by its opponents in its matches (``side=against``), penalties included,
-    each with who took it, its xG, outcome, minute and clip: the shots behind the team's xG, goals and shots numbers."""
+    each with who took it, its xG, outcome, minute and clip: the shots behind the team's xG, goals and shots numbers.
+    ``competition=`` reads a catalogue club in that competition."""
+    if competition:
+        from regista.catalogue_api import team_shots_payload
+
+        return await run_in_threadpool(team_shots_payload, club_id, competition, side, PITCH)
     if not re.match(CLUB_PATTERN, club_id):
         raise HTTPException(400, "bad club id")
 
     def run() -> dict[str, Any]:
         sm = metrics()
         if club_id not in sm.teams:
-            raise HTTPException(404, f"no club {club_id!r} in the league")
+            from regista.catalogue_api import club_hint
+
+            raise HTTPException(404, f"no club {club_id!r} in the league{club_hint(club_id)}")
         shots = sm.team_shots(club_id, side)
         return {"club_id": club_id, "club": sm.clubs[club_id]["name"], "side": side, "shots": shots, "total": len(shots),
                 "xg": round(sum(s["xg"] or 0.0 for s in shots), 3), "goals": sum(1 for s in shots if s["outcome"] == "goal"),
@@ -350,14 +455,22 @@ async def team_shots(club_id: str, side: Literal["for", "against"] = "for") -> d
 
 
 @router.get("/api/teams/{club_id}/style")
-async def team_style(club_id: str) -> dict[str, Any]:
+async def team_style(club_id: str, competition: COMPETITION = None) -> dict[str, Any]:
+    """One club's style with its ranks. ``competition=`` reads a catalogue club in that competition, ranked in its
+    competition and among every club of its level (``level_rank``)."""
+    if competition:
+        from regista.catalogue_api import team_style_payload
+
+        return await run_in_threadpool(team_style_payload, club_id, competition)
     if not re.match(CLUB_PATTERN, club_id):
         raise HTTPException(400, "bad club id")
 
     def run() -> dict[str, Any]:
         sm = metrics()
         if club_id not in sm.teams:
-            raise HTTPException(404, f"no club {club_id!r} in the league")
+            from regista.catalogue_api import club_hint
+
+            raise HTTPException(404, f"no club {club_id!r} in the league{club_hint(club_id)}")
         return {**sm.team_style(club_id), "metrics": [m.public() for m in TEAM_CATALOGUE.values()], "synthetic": True,
                 "note": SYNTHETIC_NOTE}
 

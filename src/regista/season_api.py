@@ -30,6 +30,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel, StringConstraints
 
+from regista.catalogue_api import COMPETITION, ScopeDep, WhereDep, catalogue_mode
 from regista.season.profiles import HEADLINE, PERCENTILE_RULE, RATIOS, STATS, Season, card, load_season
 
 router = APIRouter()
@@ -61,9 +62,11 @@ def warm_season() -> None:
         try:
             season()
             WARM["state"] = "ready"
+            from regista.catalogue_api import warm_catalogue
             from regista.terminal_api import warm_metrics
 
             warm_metrics()  # the Scout terminal's metrics, after the profiles
+            warm_catalogue()  # then the catalogue's 13 other competitions (REGISTA_CATALOGUE_WARM)
         except Exception as exc:  # noqa: BLE001 - reported by /api/season, never fatal to the app
             WARM.update(state="failed", error=f"{type(exc).__name__}: {exc}")
 
@@ -71,7 +74,9 @@ def warm_season() -> None:
 def _profile(gid: str) -> dict[str, Any]:
     p = season().player(gid)
     if p is None or not p["appearances"]:
-        raise HTTPException(404, f"no player {gid!r} in the league")
+        from regista.catalogue_api import player_hint
+
+        raise HTTPException(404, f"no player {gid!r} in the league{player_hint(gid)}")
     return p
 
 
@@ -93,7 +98,19 @@ def player_page(gid: str) -> str:
 
 
 @router.get("/api/season")
-async def get_season() -> dict[str, Any]:
+async def get_season(competition: COMPETITION = None) -> dict[str, Any]:
+    """The Regista League (England semi-pro men). ``competition=co_…`` describes another catalogue competition with the
+    same keys (a sparse competition's ``table`` is its uploaded matches' results, said by ``table_note``)."""
+    if competition:
+        from regista.catalogue.taxonomy import ENGLAND_ID
+        from regista.catalogue_api import season_payload
+
+        if competition != ENGLAND_ID:
+            return await run_in_threadpool(season_payload, competition, stat_catalogue())
+        base = await get_season()
+        from regista.catalogue_api import _comp_labels, _known_competition
+
+        return {**base, "table_note": None, "competition": _comp_labels(_known_competition(competition))}
     s = await run_in_threadpool(season)
     from regista.season.league import bio, club_by_id
 
@@ -114,25 +131,40 @@ async def get_season() -> dict[str, Any]:
 
 
 @router.get("/api/players")
-async def list_players(position: Annotated[str | None, Query(pattern="^(GK|DF|MF|FW)$")] = None,
+async def list_players(w: WhereDep, scope: ScopeDep,
+                       position: Annotated[str | None, Query(pattern="^(GK|DF|MF|FW)$")] = None,
                        club: Annotated[str | None, Query(max_length=40)] = None,
                        q: Annotated[str | None, Query(max_length=80)] = None,
                        min_minutes: float = Query(0.0, ge=0.0, le=10000.0),
                        sort: Annotated[str, Query(pattern=r"^[a-z0-9_]{1,40}$")] = "minutes",
-                       limit: int = Query(50, ge=1, le=200)) -> dict[str, Any]:
-    """Profile cards, filtered and sorted (highest first; ``sort=name`` is alphabetical)."""
+                       limit: int = Query(50, ge=1, le=200),
+                       offset: int = Query(0, ge=0, le=100000)) -> dict[str, Any]:
+    """Profile cards, filtered and sorted (highest first; ``sort=name`` is alphabetical).
+
+    Catalogue filters (``competition``, ``country``, ``tier`` or ``level``, ``age_group``, ``gender``) or ``scope``
+    (``pool``: level, competition or all) answer from the catalogue: cards from each selected competition (England
+    semi-pro men unless a filter picks others), each headline percentile in ``scope`` (level by default) with its pool;
+    ``total`` then counts every row and ``offset`` pages past ``limit``."""
+    if catalogue_mode(w, scope):
+        from regista.catalogue_api import players_payload
+
+        return await run_in_threadpool(lambda: players_payload(w, scope or "level", position=position, club=club, q=q,
+                                                               min_minutes=min_minutes, sort=sort, limit=limit,
+                                                               offset=offset, stats=stat_catalogue()))
     s = await run_in_threadpool(season)
     try:
-        rows = s.players(position=position, club=club, q=q, min_minutes=min_minutes, sort=sort, limit=limit)
+        rows = s.players(position=position, club=club, q=q, min_minutes=min_minutes, sort=sort, limit=offset + limit)
     except ValueError as exc:
         raise HTTPException(422, str(exc))
+    rows = rows[offset:]
     return {"players": rows, "total": len(rows), "sort": sort, "stats": stat_catalogue()}
 
 
 @router.get("/api/players/{gid}")
-async def get_player(gid: str) -> dict[str, Any]:
+async def get_player(gid: str, include: Annotated[str | None, Query(pattern="^career$")] = None) -> dict[str, Any]:
     """The profile, plus ``summary: {text, sentences: [{text, sources}], sources, model}`` from the Profile agent: the
-    stored one (data/season/summaries.json) while the numbers it was written from still hold, else the rules summary."""
+    stored one (data/season/summaries.json) while the numbers it was written from still hold, else the rules summary.
+    ``include=career`` adds ``career`` (every catalogue competition the player is in; GET /api/players/{id}/career)."""
     from regista.season.summaries import summary_for
 
     _check_gid(gid)
@@ -140,8 +172,14 @@ async def get_player(gid: str) -> dict[str, Any]:
     def build() -> dict[str, Any]:
         p = _profile(gid)
         s = season()
-        return {**p, "card": card(p), "headline_keys": HEADLINE, "summary": summary_for(s, p), "sample": s.sample(),
-                "noisy": s.noisy(), "synthetic": True}
+        out = {**p, "card": card(p), "headline_keys": HEADLINE, "summary": summary_for(s, p), "sample": s.sample(),
+               "noisy": s.noisy(), "synthetic": True}
+        if include == "career":
+            from regista.catalogue_api import career_block, catalogue_metrics
+
+            cm = catalogue_metrics()
+            out["career"] = career_block(cm, gid) if gid in cm.people else None
+        return out
 
     return await run_in_threadpool(build)
 

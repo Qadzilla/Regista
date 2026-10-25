@@ -321,6 +321,12 @@ src/regista/catalogue/metrics.py  the engine over the catalogue: one SeasonMetri
                              competition; measure.py + reliability.py: split-half reliability per level on full regenerated seasons
                              (data/catalogue/reliability.json); realism.py: per level which checks exist (band, order, reference,
                              none). Report: docs/catalogue/build/engine.md
+src/regista/catalogue_api.py the catalogue's API (feature/catalogue, not merged): /api/catalogue, /api/competitions[/{id}[/players]],
+                             /api/catalogue/{players[/{id}],rank,compare,matches,pools}, /api/players/{id}/career; optional
+                             competition/country/tier(level)/age_group/gender/scope(pool) on /api/season, /api/players and the
+                             terminal endpoints (without them every response is main's: tests/test_catalogue_backcompat.py);
+                             catalogue/tools.py: the MCP tools list_competitions, search_catalogue_players, get_catalogue_player.
+                             Report with every endpoint and an example: docs/catalogue/build/api.md
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow

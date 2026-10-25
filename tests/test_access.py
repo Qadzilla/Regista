@@ -38,6 +38,18 @@ ACCESS = {
     "GET /api/teams": "public",
     "GET /api/teams/{club_id}/style": "public",
     "GET /api/teams/{club_id}/shots": "public",
+    # The catalogue (open, reads only: synthetic competitions and players, never a hidden rating or a level scale)
+    "GET /api/catalogue": "public",
+    "GET /api/competitions": "public",
+    "GET /api/competitions/{competition_id}": "public",
+    "GET /api/competitions/{competition_id}/players": "public",
+    "GET /api/catalogue/players": "public",
+    "GET /api/catalogue/players/{gid}": "public",
+    "GET /api/catalogue/rank": "public",
+    "GET /api/catalogue/compare": "public",
+    "GET /api/catalogue/matches": "public",
+    "GET /api/catalogue/pools": "public",
+    "GET /api/players/{gid}/career": "public",
     # The Player view (reads open: synthetic players, records without paths or keys; writes admin-only)
     "GET /me": "public",
     "GET /api/player/uploads": "public",

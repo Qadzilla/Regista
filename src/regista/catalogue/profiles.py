@@ -17,8 +17,9 @@ from pathlib import Path
 from typing import Any
 
 from regista.catalogue import store
-from regista.catalogue.metrics import FLOOR, MIN_POOL
-from regista.catalogue.taxonomy import ENGLAND_ID
+from regista.catalogue.metrics import FLOOR, MIN_POOL, SMALL_POOL
+from regista.catalogue.taxonomy import BY_ID, ENGLAND_ID
+from regista.season.metrics import fbref_percentile, rank_value
 from regista.season.profiles import Season
 
 Record = dict[str, Any]
@@ -35,6 +36,75 @@ class CatalogueProfiles:
         self.coverage = {e["competition_id"]: e.get("coverage") for e in index["competitions"]}
         self.england_uploads = next((e.get("uploads", {}) for e in index["competitions"]
                                      if e["competition_id"] == ENGLAND_ID), {})
+        self.exact_minutes: dict[tuple[str, str], float] = {}   # (competition, player) -> unrounded minutes (use_minutes)
+        self._pools: dict[tuple, list[float]] = {}
+        self._lock = threading.Lock()
+
+    # ------------------------------------------------------------------ a profile stat's percentile in a scope
+    def use_minutes(self, minutes: dict[tuple[str, str], float]) -> None:
+        """The unrounded minutes of every player-competition row (the metrics engine's ``PlayerSeason.minutes``, the same
+        playing time the profiles count, unrounded). Rates are ranked on them, as ``Season`` ranks its own; without them
+        the profile's minutes (rounded to 0.1) are used."""
+        with self._lock:
+            if minutes != self.exact_minutes:
+                self.exact_minutes = dict(minutes)
+                self._pools.clear()
+
+    def _minutes(self, cid: str, p: Record) -> float:
+        return self.exact_minutes.get((cid, p["global_id"]), p["minutes"])
+
+    def scope_competitions(self, cid: str, scope: str) -> list[str]:
+        """The competitions a row of ``cid`` is compared with: itself, its level (tier, age group, gender), or every level
+        of its gender (``regista.catalogue.metrics.CatalogueMetrics.scope_competitions``' rule)."""
+        if scope == "competition":
+            return [cid]
+        if scope == "level":
+            return [c for c in self.order if BY_ID[c].level_key == BY_ID[cid].level_key]
+        if scope == "all":
+            return [c for c in self.order if BY_ID[c].gender == BY_ID[cid].gender]
+        raise ValueError(f"unknown scope {scope!r}")
+
+    def _qualified(self, cid: str, p: Record) -> bool:
+        return bool(p["appearances"]) and self._minutes(cid, p) >= self.seasons[cid].min_minutes
+
+    def stat_pool(self, cid: str, stat: str, position: str, scope: str = "level") -> list[float]:
+        """Sorted per-90 rank values of one profile stat among the qualified rows of a position in the scope (each row
+        qualifies under its own competition's minutes)."""
+        key = (tuple(self.scope_competitions(cid, scope)), stat, position)
+        hit = self._pools.get(key)
+        if hit is None:
+            vals = []
+            for c in key[0]:
+                for p in self.seasons[c].profiles.values():
+                    if p["position"] == position and self._qualified(c, p):
+                        vals.append(rank_value(p["counts"][stat] * 90.0 / self._minutes(c, p)))
+            hit = sorted(vals)
+            with self._lock:
+                self._pools[key] = hit
+        return hit
+
+    def stat_cell(self, cid: str, gid: str, stat: str, scope: str = "level") -> Record:
+        """A profile stat's percentile in ``scope`` with the pool it came from. Competition scope is the competition's own
+        ``Season`` percentile (England: exactly the existing profile's); level and all pool across competitions, need
+        ``MIN_POOL`` peers and flag pools under ``SMALL_POOL``."""
+        s = self.seasons[cid]
+        p = s.profiles[gid]
+        pos = p["position"]
+        size = len(self.stat_pool(cid, stat, pos, scope))
+        need = s._min_pool if scope == "competition" else MIN_POOL
+        if scope == "competition":
+            pct = p["percentiles"].get(stat)
+        elif self._qualified(cid, p) and size >= need:
+            pct = round(fbref_percentile(self.stat_pool(cid, stat, pos, scope),
+                                         rank_value(p["counts"][stat] * 90.0 / self._minutes(cid, p))))
+        else:
+            pct = None
+        reason = None if size >= need else f"fewer than {need} qualified peers"
+        lab = BY_ID[cid]
+        return {"percentile": pct, "pool": {"scope": scope, "tier": lab.tier if scope != "all" else None,
+                                            "age_group": lab.age_group if scope != "all" else None, "gender": lab.gender,
+                                            "position": pos, "size": size, "small": size < SMALL_POOL, "min_size": need,
+                                            "competitions": self.scope_competitions(cid, scope), "reason": reason}}
 
     def competitions_of(self, gid: str) -> list[str]:
         return [cid for cid in self.order if gid in self.seasons[cid].profiles]

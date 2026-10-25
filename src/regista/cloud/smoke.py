@@ -58,7 +58,8 @@ async def checks() -> list[dict]:
     # Placeholder endpoints switch the namespaces on; the handshake never contacts them.
     cfg = CloudConfig(cosmos_endpoint="https://smoke.documents.azure.com:443/", search_endpoint="https://smoke.search.windows.net")
     regista = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"], env=child_env())
-    for name, make, want in (("regista-mcp", lambda: regista, {"search_clips", "search_library"}),
+    for name, make, want in (("regista-mcp", lambda: regista, {"search_clips", "search_library", "list_competitions",
+                                                                  "search_catalogue_players", "get_catalogue_player"}),
                              ("azure-mcp-public", lambda: azure_mcp_tool(cfg, ("search",)), {"search_index_query"}),
                              ("azure-mcp-cli", lambda: azure_mcp_tool(cfg), {"search_index_query", "cosmos_database_container_item_query"})):
         try:
