@@ -1385,14 +1385,25 @@ class SeasonMetrics:
         self.matches_per_club = 0
         self.thresholds: dict[str, Record] = {}
         self.peer_pools: dict[tuple[str, str], list[float]] = {}
+        self.min_minutes_floor = 0.0   # from_streams: the qualifying minutes' floor (0: a third of a club's minutes)
+        self.min_pool = 2              # from_streams: the smallest percentile pool
         # split-half reliability per metric (regista.season.reliability; load_metrics fills it from reliability.json)
         self.reliability: Record = {"metrics": {}, "stale": "not loaded"}
 
     # ------------------------------------------------------------------ build
     @classmethod
-    def from_streams(cls, league: Record, streams: list[tuple[Record, list[Record], ClipIndex | None]]) -> SeasonMetrics:
-        """``streams``: (fixture, event stream, clip index or None) for each league fixture."""
+    def from_streams(cls, league: Record, streams: list[tuple[Record, list[Record], ClipIndex | None]], *,
+                     xt: XTModel | None = None, min_minutes_floor: float = 0.0, min_pool: int = 2) -> SeasonMetrics:
+        """``streams``: (fixture, event stream, clip index or None) for each league fixture.
+
+        The keyword arguments are for the catalogue's sparse competitions (``regista.catalogue.metrics``); their defaults
+        are the Regista League's rules, exactly as before them. ``xt``: a fitted xT grid to value moves with instead of
+        fitting one on these streams (3-8 matches cannot fit a 12 x 8 grid: the catalogue uses the league's).
+        ``min_minutes_floor``: the qualifying minutes are at least this (a third of a club's minutes, as always, when that
+        is more). ``min_pool``: a position's percentile pool needs at least this many qualified players."""
         self = cls(league)
+        self.min_minutes_floor = float(min_minutes_floor)
+        self.min_pool = int(min_pool)
         analysed: list[tuple[Record, MatchMetrics]] = []
         for fx, stream, clips in streams:
             analysed.append((fx, analyse_match(stream)))
@@ -1403,7 +1414,7 @@ class SeasonMetrics:
         for fx, stream, _c in streams:
             starts += _failed_move_starts(stream)
         shots = [s for _fx, mm in analysed for s in mm.shots_xt]
-        self.xt = fit_xt(moves, shots, starts)
+        self.xt = fit_xt(moves, shots, starts) if xt is None else xt
         for _fx, mm in analysed:
             for pid, eid, t, kind, sx, sy, ex, ey, _ok in mm.moves:
                 key = "xt_passes" if kind == "pass" else "xt_carries"
@@ -1479,6 +1490,8 @@ class SeasonMetrics:
                                    "counts": dict(counts), "peak": peak[0] if peak else None})
         self.matches_per_club = max(team_matches.values(), default=0)
         self.min_minutes = qualifying_minutes(max(team_minutes.values(), default=0.0))
+        if self.min_minutes_floor > self.min_minutes:   # a branch: the league (floor 0) keeps its exact float
+            self.min_minutes = self.min_minutes_floor
         self.thresholds = thresholds(max(team_minutes.values(), default=0.0))
         for ps in self.players.values():
             ps.values = {k: self._value(ps, m) for k, m in CATALOGUE.items()}
@@ -1535,7 +1548,7 @@ class SeasonMetrics:
             for ps in self.players.values():
                 pos = ps.info["position"]
                 vals = pools.get(pos)
-                if not vals or len(vals) < 2 or not self.qualified(ps, m) or pos not in m.positions:
+                if not vals or len(vals) < self.min_pool or not self.qualified(ps, m) or pos not in m.positions:
                     ps.percentiles[m.key] = None
                     continue
                 pct = fbref_percentile(vals, rank_value(ps.values[m.key]))

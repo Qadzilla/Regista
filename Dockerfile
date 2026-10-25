@@ -20,6 +20,7 @@ COPY data/season/summaries.json ./data/season/summaries.json
 COPY data/season/reliability.json ./data/season/reliability.json
 COPY data/catalogue/catalogue.json ./data/catalogue/catalogue.json
 COPY data/catalogue/competitions ./data/catalogue/competitions
+COPY data/catalogue/reliability.json ./data/catalogue/reliability.json
 # cloud: Azure SDKs and Agent Framework; vision: the Player view's job runs the vision workflow from this same image
 RUN pip install --no-cache-dir ".[cloud,vision]"
 # The Regista League's 30 matches, regenerated from the committed definition (deterministic; tracks come on demand)

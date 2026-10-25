@@ -115,8 +115,27 @@ def catalogue_checks(index: Path | None = None, root: Path | None = None) -> lis
     return [{"check": "catalogue-pins", "ok": not moved, "root": str(root), "differs": moved}]
 
 
+def catalogue_reliability_checks(index: Path | None = None) -> list[dict]:
+    """The per-level reliability shipped with the image was measured for this catalogue and generator, so the engine
+    marks noisy numbers (``regista.catalogue.reliability``); a stale or missing table would mark none."""
+    from regista.catalogue import reliability as rel
+    from regista.catalogue import store
+    from regista.catalogue.taxonomy import ENGLAND_ID
+    from regista.season.league import load_league
+
+    index = index or Path(os.environ.get("REGISTA_CATALOGUE", "data/catalogue/catalogue.json"))
+    try:
+        league = load_league(store.competition_path(store.entry(ENGLAND_ID, index), index))
+        data = rel.load(league, store.new_competitions(index), index.with_name(rel.FILE_NAME))
+    except Exception as exc:  # noqa: BLE001 - reported, then the exit code says it failed
+        return [{"check": "catalogue-reliability", "ok": False, "error": f"{type(exc).__name__}: {exc}"}]
+    return [{"check": "catalogue-reliability", "ok": "stale" not in data, "levels": sorted(data.get("levels", {})),
+             "stale": data.get("stale")}]
+
+
 def main() -> int:
-    results = file_checks() + vision_checks() + season_checks() + catalogue_checks() + asyncio.run(checks())
+    results = (file_checks() + vision_checks() + season_checks() + catalogue_checks() + catalogue_reliability_checks()
+               + asyncio.run(checks()))
     for r in results:
         print(json.dumps(r))
     return 0 if all(r["ok"] for r in results) else 1

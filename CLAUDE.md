@@ -313,6 +313,14 @@ src/regista/catalogue/       the catalogue (feature/catalogue, not merged): 13 m
                              professional line (taxonomy.py levels and scales, names.py, clubs.py, define.py -> data/catalogue/,
                              store.py, build.py -> data/catalogue/matches/, pins.py CATALOGUE_PINS for all 60 uploaded matches);
                              England semi-pro men is league.json by reference, untouched (docs/catalogue/build/design.md)
+src/regista/catalogue/metrics.py  the engine over the catalogue: one SeasonMetrics per competition (England = load_metrics' own
+                             object; the others with England's xT, a 45-minute floor, pools of 5+), percentiles pooled by scope
+                             (level = tier/age/gender + position, the default; competition; all = one gender), every cell with its
+                             pool and sample, careers (one row per competition, no merged per-90), similar players within and across
+                             levels, team style with a level rank; profiles.py: moments, touch maps, uploads' results per
+                             competition; measure.py + reliability.py: split-half reliability per level on full regenerated seasons
+                             (data/catalogue/reliability.json); realism.py: per level which checks exist (band, order, reference,
+                             none). Report: docs/catalogue/build/engine.md
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
@@ -394,6 +402,8 @@ python3 -m regista.mcp_server --list-tools        # or without the flag: stdio M
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
 python3 -m regista.season build && python3 -m regista.season table && python3 -m regista.season players --position FW --sort take_ons_won
 python3 -m regista.catalogue define --check && python3 -m regista.catalogue check && python3 -m regista.catalogue competitions
+python3 -m regista.catalogue levels && python3 -m regista.catalogue player pl_bro_09 --scope level   # pools; a player across levels
+python3 -m regista.catalogue reliability                      # re-measure every level (about 5 min on 10 cores; writes the table)
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python3 -m regista.synth.report --league [--repeat 6] [--out docs/realism-report.md]   # the league against every band (6 seasons pooled)
 python3 -m regista.season.audit                                # split-half reliability, the top scorers (Femi Toure first)
