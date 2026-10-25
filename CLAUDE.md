@@ -517,7 +517,15 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-25 (early).** The Scout terminal is live, all three parts. Part A + C (PR #36, merge 1900d8a): player
+**As of 2026-10-25 (evening).** The friendlier Scout terminal is live (PR #38, merge 27595c5, revision
+`regista-api--d1025202154`): a search box instead of CMD>/<GO>, plain panel names, "Selected:" and "Compare with…",
+the table left and the player card right, Clips as a drawer, short column labels, example chips, Open profile, a phone
+panel row; the search understands plain questions for all 127 metrics (`static/scout/terminal-words.js`). Checked live,
+read-only, at 1440 and 375 px: no console errors, "which forwards dribble the most" ranks take-ons won, a number opens
+its moments in the drawer. 857 tests. CI caught one Linux-only test failure (a command-line argument over 128 KB),
+fixed by feeding the parser harness on stdin.
+
+**Earlier, 2026-10-25 (early).** The Scout terminal is live, all three parts. Part A + C (PR #36, merge 1900d8a): player
 attributes, league-mode generator 0.7.1 (identical on macOS and Linux via `regista.detmath`, guarded by season pins),
 10 Hz physical, the metrics engine and API, refreshed seeds, docs and Fabric (756 of 756); Femi Toure 5 league goals, two
 clear. Part B (PR #37, merge 4eecdfc, revision `regista-api--d1025024757`): `/scout#terminal` on the real API (commands,
