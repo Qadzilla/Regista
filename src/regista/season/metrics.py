@@ -1615,6 +1615,15 @@ class SeasonMetrics:
         return {"keys": list(keys), "total": total, "offset": offset, "items": [self._evidence_item(k, e) for k, e in rows],
                 "per_match": False}
 
+    def evidence_total(self, ps: PlayerSeason, key: str) -> int:
+        """How many items ``evidence`` lists for this number (its ``total``), without building them: the moments behind
+        an event metric, or the matches behind a physical one. The Scout terminal shows it ("play its 5 moments") and
+        draws a number with nothing behind it as plain text."""
+        m = CATALOGUE[key]
+        if m.group == "physical":
+            return len(self._match_evidence(ps, key))
+        return sum(len(ps.evidence.get(k, [])) for k in m.evidence_keys())
+
     def _evidence_item(self, key: str, e: tuple) -> Record:
         mi, pid, eid, t, value, note = e
         row = self.match_rows[mi]

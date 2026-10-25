@@ -141,7 +141,8 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
                  sort: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None, order: Literal["asc", "desc"] | None = None,
                  limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0, le=MAX_OFFSET)) -> dict[str, Any]:
     """Players with the chosen metric columns (default: the position's core set). Each cell: value (per 90, ratio, ...),
-    the count behind it, the percentile among position peers, and whether the player qualifies. Sorted by ``sort`` (default
+    the count behind it, the percentile among position peers, whether the player qualifies, and ``evidence_total`` (how
+    many moments, or for a physical number matches, ``/api/players/{id}/metrics?evidence=KEY`` lists behind it). Sorted by ``sort`` (default
     the first column), best first unless ``order`` says otherwise; ``min_minutes`` defaults to the qualifying minimum.
     ``offset`` skips that many rows, so a reader can page past ``limit`` (``total`` counts every row)."""
     keys = _keys(metrics_, default=DEFAULT_COLUMNS.get(position, DEFAULT_COLUMNS[None]))
@@ -151,7 +152,8 @@ async def screen(metrics_: Annotated[str | None, Query(alias="metrics", pattern=
         sm = metrics()
         rows = sm.sort(_filters(sm, position, role, club, min_minutes, age_min, age_max, foot, q), sort_key, order)
         return {"columns": [sm.describe(k) for k in keys], "sort": sort_key, "total": len(rows), "offset": offset,
-                "players": [{**sm.card(ps), "values": {k: sm.cell(ps, k) for k in keys}} for ps in rows[offset:offset + limit]],
+                "players": [{**sm.card(ps), "values": {k: {**sm.cell(ps, k), "evidence_total": sm.evidence_total(ps, k)}
+                                                       for k in keys}} for ps in rows[offset:offset + limit]],
                 "season": _season_meta(sm)}
 
     return await run_in_threadpool(run)
@@ -189,7 +191,8 @@ async def rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], position: POS
 async def scatter(x: Annotated[str, Query(pattern=KEY_PATTERN)], y: Annotated[str, Query(pattern=KEY_PATTERN)],
                   position: POSITION = None, role: ROLE = None, club: CLUB = None, min_minutes: MIN_MINUTES = None,
                   age_min: AGE = None, age_max: AGE = None, foot: FOOT = None) -> dict[str, Any]:
-    """Two metrics for every player who passes the filters and has both values; the pool's medians draw the quadrants."""
+    """Two metrics for every player who passes the filters and has both values (with how many moments are behind each,
+    ``x_evidence_total`` and ``y_evidence_total``); the pool's medians draw the quadrants."""
     kx, ky = _key(x), _key(y)
 
     def run() -> dict[str, Any]:
@@ -201,7 +204,8 @@ async def scatter(x: Annotated[str, Query(pattern=KEY_PATTERN)], y: Annotated[st
             if vx is None or vy is None:
                 continue
             pts.append({**sm.card(ps), "x": round(vx, CATALOGUE[kx].digits), "y": round(vy, CATALOGUE[ky].digits),
-                        "x_percentile": ps.percentiles.get(kx), "y_percentile": ps.percentiles.get(ky)})
+                        "x_percentile": ps.percentiles.get(kx), "y_percentile": ps.percentiles.get(ky),
+                        "x_evidence_total": sm.evidence_total(ps, kx), "y_evidence_total": sm.evidence_total(ps, ky)})
         def med(vals: list[float]) -> float | None:
             return round(statistics.median(vals), 4) if vals else None
 

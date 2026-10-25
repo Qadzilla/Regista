@@ -109,29 +109,44 @@
     </section>
   </div>
 
-  <!-- Terminal: the Scout terminal. A command line with Bloomberg-style mnemonics over linked panels; every number opens
-       every moment behind it. terminal.js fills it from the API (read only); workspaces stay in this browser. -->
+  <!-- Terminal: the Scout terminal. A search box (names, clubs, stats, plain commands and questions) over linked panels;
+       every underlined number plays every moment behind it in the clips drawer. terminal.js fills it from the API (read
+       only; terminal-words.js reads the search box); saved layouts stay in this browser. -->
   <div class="pv" data-panel="terminal" hidden>
    <div class="tx">
     <h1 class="sr">Terminal</h1>
     <div class="tx-top">
-      <form class="tx-cmd" id="txForm" role="search" autocomplete="off">
-        <label class="tx-prompt" for="txIn" aria-hidden="true">CMD&gt;</label>
-        <div class="tx-combo">
-          <input id="txIn" type="text" role="combobox" aria-label="Command line" aria-expanded="false" aria-controls="txAc" aria-autocomplete="list"
-                 spellcheck="false" autocapitalize="off" maxlength="200" placeholder="TOURE · RANK FW npxg · CMP · SCAT · TEAM BRO · HELP">
-          <ul id="txAc" class="tx-ac" role="listbox" aria-label="Suggestions" hidden></ul>
-        </div>
-        <button type="submit" class="tx-go" aria-label="Go">&lt;GO&gt;</button>
-        <kbd class="tx-kbd" title="Cmd+K or Ctrl+K focuses the command line">&#8984;K</kbd>
-      </form>
+      <div class="tx-row">
+        <form class="tx-cmd" id="txForm" role="search" autocomplete="off">
+          <label class="sr" for="txIn">Search a player, club or stat</label>
+          <svg class="tx-sic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3.5 3.5"/></svg>
+          <div class="tx-combo">
+            <input id="txIn" type="text" role="combobox" aria-expanded="false" aria-controls="txAc" aria-autocomplete="list"
+                   spellcheck="false" autocapitalize="off" enterkeyhint="search" maxlength="200" placeholder="Search a player, club or stat…">
+            <ul id="txAc" class="tx-ac" role="listbox" aria-label="Suggestions" hidden></ul>
+          </div>
+          <kbd class="tx-kbd" title="Cmd+K or Ctrl+K goes to the search box">&#8984;K</kbd>
+          <button type="submit" class="tx-go">Search</button>
+        </form>
+        <div class="tx-sel" id="txSel" role="group" aria-label="Selected player"></div>
+      </div>
+      <div class="tx-ex" id="txEx" role="group" aria-label="Examples"></div>
       <p class="tx-out" id="txOut" role="status" aria-live="polite"></p>
-      <div class="tx-fkeys" id="txKeys" aria-label="Panels"></div>
+      <div class="tx-line">
+        <div class="tx-fkeys" id="txKeys" role="toolbar" aria-label="Panels"></div>
+        <button type="button" class="tx-more" id="txMore" data-act="more" aria-expanded="false" aria-controls="txMeta">Layouts &amp; notes</button>
+        <div class="tx-meta" id="txMeta"></div>
+      </div>
       <div class="tx-help" id="txHelp" role="dialog" aria-labelledby="txHelpH" hidden></div>
     </div>
-    <div class="tx-meta" id="txMeta"></div>
-    <div class="tx-sel" id="txSel" aria-label="Selected players"></div>
+    <nav class="tx-mnav" id="txNav" aria-label="Jump to a panel"></nav>
     <div class="tx-grid" id="txGrid"></div>
+    <p class="tx-foot" id="txFoot"></p>
+    <aside class="tx-drawer" id="txDrawer" role="dialog" aria-modal="false" aria-labelledby="txDrawerH" hidden>
+      <header class="tx-dh"><h2 id="txDrawerH" tabindex="-1">Clips</h2><span class="tx-pctx" id="txDrawerCtx"></span>
+        <button type="button" class="tx-dclose" data-act="dclose" aria-label="Close clips" title="Close (Esc)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 4 8 8M12 4l-8 8"/></svg> Close</button></header>
+      <div class="tx-db" id="txDrawerBody"></div>
+    </aside>
     <div class="tx-tip" id="txTip" role="tooltip" hidden></div>
    </div>
   </div>
@@ -264,6 +279,7 @@
 <script src="/static/shared/demo.js"></script>
 <script src="/static/player/profile-view.js" defer></script>
 <script src="/static/scout/scout.js" defer></script>
+<script src="/static/scout/terminal-words.js" defer></script>
 <script src="/static/scout/terminal.js" defer></script>
 </body>
 </html>
