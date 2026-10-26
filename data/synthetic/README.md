@@ -383,6 +383,21 @@ them, England's included, is byte-identical (the league generator version stays 
 are in the competition files only and are never served. Which part of each scale is sourced and which is Regista's
 assumption is recorded in `regista.catalogue.taxonomy.LEVELS[...].source`.
 
+- **Heavy touches** (catalogue sides with `execution` only; no league match writes them). When a side at execution e
+  receives a pass, its receiver miscontrols the first touch with probability `exec_touch` x e (0.022 per unit of e),
+  twice that (`exec_touch_pressure`) with a marker within 3.5 m, capped at 0.3. The records, in order:
+  1. a `touch` with `outcome: fail` and the qualifiers `first_touch` and `heavy_touch` (no `pitch_end`, no
+     `out_of_play`);
+  2. the receiver's possession ends with `lost_by: dispossessed` (no `tackle` record);
+  3. a `recovery` (success) by whoever else is nearest the loose ball, of either side, keepers included;
+  4. a new `possession` for that player with `gained_by: rebound` (his own side) or `loose_ball` (the other side).
+
+  This is the loose-ball convention of a failed take-on in league mode. A failed `touch` without `heavy_touch` still
+  means the ball went out of play (qualifier `out_of_play`, `lost_by: out_of_play`). A teammate's recovery still
+  counts as a ball loss for the receiver (`ball_losses` counts every possession ending `dispossessed`); on 89 built
+  catalogue matches (2026-10-25) 157 of 597 heavy touches (26%) were recovered by the receiver's own side. The schema needs no change:
+  qualifiers are free tags and every value above already exists.
+
 **Uploader and camera.** Each uploaded fixture has `uploader`: `{"type": "team", "club_id": …}` or
 `{"type": "player", "global_id": …, "club_id": …}` (a starter of either side), and `camera`: one of
 `tripod`, `phone`, `drone`, `broadcast`, drawn with weights by tier. **The camera type is a label only**: every match is
