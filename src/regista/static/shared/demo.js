@@ -40,13 +40,15 @@
     d.setHours(h, m, 0, 0);
     return Math.min(d.getTime(), Date.now() - (days + 1) * 60000);   // never in the future (early in the morning, "today, 10:05" would be)
   };
+  // one month spelling everywhere ("5 Sep"; the browser's en-GB short month can say "Sept")
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   // "Today, 09:15", "Yesterday, 18:02", "21 Oct, 18:02"; short: "Today", "Yesterday", "21 Oct".
   function whenText(at, short) {
     if (typeof at !== 'number' || !isFinite(at)) return '';
     const d = new Date(at), now = new Date();
     const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
     const diff = Math.round((day(now) - day(d)) / DAY);
-    const date = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+    const date = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : `${d.getDate()} ${MONTHS[d.getMonth()]}`;
     return short ? date : `${date}, ${d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
   }
 

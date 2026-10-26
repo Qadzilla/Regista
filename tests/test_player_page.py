@@ -222,3 +222,17 @@ def test_every_profile_ratio_has_its_count_and_words_in_the_renderer(view):
     block = re.search(r"const RATIOS = \{(.*?)\};", view, re.S).group(1)
     for key, (_label, num, den) in RATIOS.items():
         assert re.search(rf"{key}: \['{num}', '{den}', '[^']+'\]", block), key
+
+
+def test_the_catalogue_sample_line_is_the_players_own(view):
+    """The verify round: the profile's sample line is the player's own (matches, minutes, the club's uploaded matches, the
+    minutes a percentile needs), as the sandbox words it; the competition's sample words belong on its own page."""
+    assert "played ${smp.club_matches} of the competition's ${smp.competition_matches} uploaded matches" in view
+    assert "q('sample').textContent = [(r.sample || {}).words, r.basis]" not in view
+
+
+def test_one_month_spelling_on_the_dashboards():
+    """'5 Sep', never the browser's en-GB 'Sept': no date helper on these pages asks the browser for a short month."""
+    static = PLAYER.parent
+    for rel in ("player/profile-view.js", "me/me.js", "shared/demo.js", "scout/scout.js", "product/app.js"):
+        assert "month: 'short'" not in (static / rel).read_text(), rel

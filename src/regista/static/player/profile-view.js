@@ -52,7 +52,7 @@
   const colour = (c, fallback) => (/^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : fallback);
   const fmtDate = (d) => {
     const dt = new Date(`${d}T12:00:00Z`);
-    return isNaN(dt) ? String(d ?? '') : dt.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+    return isNaN(dt) ? String(d ?? '') : `${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`;   // "5 Sep", never the browser's "Sept"
   };
   // A league match is a round; a match from outside the league is footage the player filmed (the Player view) or a claim.
   const roundName = (m) => (!m ? '' : m.source === 'upload' ? 'Filmed by the player' : m.source === 'claim' ? 'Claimed match'
@@ -856,7 +856,14 @@
       q('warn').innerHTML = state.scope === 'all'
         ? `<div class="cp-warn"><p class="small">${esc(`Compared with ${group} at every ${r.gender}'s level at once. Lower levels and younger players produce different numbers, so treat this as a rough guide; Level is the fair comparison.`)}</p>`
           + `${cur.warning ? `<details class="cp-why"><summary>Why?</summary><p class="small">${esc(cur.warning)}</p></details>` : ''}</div>` : '';
-      q('sample').textContent = [(r.sample || {}).words, r.basis].filter(Boolean).join(' ');
+      // the player's own sample, as the sandbox words it (the competition's sample words belong on its page)
+      const smp = r.sample || {};
+      const full = (comps.get(r.competition_id) || {}).coverage === 'full';
+      const named = full || ((r.not_counted || []).length > 0);
+      q('sample').textContent = smp.appearances != null
+        ? `${plural(smp.appearances, 'match')} · ${Math.round(smp.minutes || 0)} minutes in ${r.competition}. ${r.club} ${full
+          ? `played ${smp.club_matches} league matches, all uploaded` : `played ${smp.club_matches} of the competition's ${smp.competition_matches} uploaded matches`}. A percentile needs ${Math.round(smp.qualifying_minutes || 0)} minutes here.${named && r.basis ? ` ${r.basis}` : ''}`
+        : [smp.words, r.basis].filter(Boolean).join(' ');
       q('numh').textContent = `Numbers in ${r.competition}`;
       // the ≈ mark: one line says what it means when any headline number carries it
       const nz = heads.filter((k) => stats[k].noisy).length;

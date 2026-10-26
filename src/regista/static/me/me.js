@@ -92,7 +92,7 @@
     return `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, '0')} s`;
   }
   const dayText = (epochS) => {
-    try { return new Date(epochS * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; }
+    try { const d = new Date(epochS * 1000); return isNaN(d) ? '' : `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; } catch (e) { return ''; }
   };
   const clockText = (epochS) => {
     try { return new Date(epochS * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }

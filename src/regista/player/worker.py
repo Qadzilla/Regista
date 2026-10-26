@@ -525,6 +525,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--models", type=Path, default=None, help="use these models instead of the store's models/vision/")
     ap.add_argument("--work", type=Path, default=None, help="scratch folder for the video and the match (default: the system temp)")
     args = ap.parse_args(argv)
+    if args.work is not None:
+        args.work.mkdir(parents=True, exist_ok=True)   # a new scratch folder is fine (it failed every upload before)
     store = store_from_env()
     log(f"store {store.kind}; {'once' if args.once else f'polling every {args.poll:g}s'}")
     if args.once:
