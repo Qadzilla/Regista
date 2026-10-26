@@ -239,7 +239,9 @@ def test_each_career_story_fits_its_fixtures_and_registration(comps, careers):
         (src, dst), (src_club, dst_club) = car["competitions"], car["clubs"]
         story = car["story"]
         dst_fx = sorted((f for f in comps[dst]["fixtures"] if dst_club in (f["home"], f["away"])), key=lambda f: f["date"])
-        rule = next(when for s, d, _r, _n, st, when in D.CAREERS if (s, d) == (src, dst) and st == story)
+        rule = next(when for s, d, _r, _n, st, when in D.CAREERS if (s, d) == (src, dst)
+                    and re.fullmatch(re.escape(st).replace(r"\{age\}", r"\d+").replace(r"\{src_club\}", ".+")
+                                     .replace(r"\{dst_club\}", ".+"), story))
         if "college season" in story:   # a student at home in August: every match before the college season opens
             assert "before" in story and "August" in story and rule == D.BEFORE_SEASON, (gid, story)
             assert dst_fx and all(f["date"] < BY_ID[src].window[0] and f["date"][5:7] == "08" for f in dst_fx), (gid, dst_fx)
@@ -247,9 +249,11 @@ def test_each_career_story_fits_its_fixtures_and_registration(comps, careers):
             assert [f["round"] for f in dst_fx] == [1], (gid, dst_fx)
         if rule == D.BEFORE_SEASON:
             assert "college season" in story
-        if BY_ID[src].country == "Spain":
-            assert BY_ID[src].region == BY_ID[dst].region and BY_ID[src].region in story
-            assert "affiliated" in story and "territorial federation" in story
+        if BY_ID[src].country == "Spain":   # plain words (the catalogue port): his age, both clubs, the same region
+            clubs = {c["club_id"]: c for comp in comps.values() for c in comp["clubs"]}
+            assert BY_ID[src].region == BY_ID[dst].region and "the same region" in story
+            assert clubs[dst_club]["name"] in story and clubs[src_club]["name"].rsplit(" ", 1)[0] in story
+            assert "under-19 side" in story and "juvenil" not in story.lower() and "federation" not in story
 
 
 def test_youth_birth_dates_meet_each_competitions_cut_off(comps, index):

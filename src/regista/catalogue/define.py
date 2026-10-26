@@ -31,6 +31,7 @@ from __future__ import annotations
 import datetime as dt
 import itertools
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -61,15 +62,16 @@ PRIMARY_MIN, GK_PRIMARY_MIN, GK_GK_MIN = 150.0, 150.0, 120.0
 # person can play in the destination). ``BEFORE_SEASON``: only before the source competition's season starts (a student
 # at home in the summer), so every uploaded destination match of their club is dated before the source's window opens.
 # ``ANY``: any matchday (the two Spanish juveniles play both on weekends of the same autumn). The catalogue is dated
-# ``taxonomy.AS_OF``, so no story speaks of matches after it.
+# ``taxonomy.AS_OF``, so no story speaks of matches after it. A story may name the person's age ({age}) and clubs
+# ({src_club}, without a youth suffix such as "Juvenil", and {dst_club}): plain words, filled in by ``_careers``.
 ANY, BEFORE_SEASON = "any", "before_season"
 CAREERS: list[tuple[str, str, tuple[str, ...], str | None, str, str]] = [
     ("co_esp_u19", "co_esp_am_men", ("ST",), None,
-     "a juvenil striker who, while still eligible for the juvenil, also plays for the senior amateur club his academy "
-     "side is affiliated with, in the same territorial federation (Valencian Community)", ANY),
+     "{age} and still plays for {src_club}'s under-19 side; he also plays for {dst_club}, the senior amateur club it is "
+     "linked to, in the same region", ANY),
     ("co_esp_u19", "co_esp_am_men", ("CM",), None,
-     "a juvenil midfielder who, while still eligible for the juvenil, also plays for the senior amateur club his academy "
-     "side is affiliated with, in the same territorial federation (Valencian Community)", ANY),
+     "{age} and still plays for {src_club}'s under-19 side; he also plays for {dst_club}, the senior amateur club it is "
+     "linked to, in the same region", ANY),
     ("co_usa_col_women", "co_eng_sp_women", ("W",), "England",
      "an English student-athlete at a US college who is also registered with her home club in Yorkshire: she played its "
      "opening match in August, before she flew out for the college season", BEFORE_SEASON),
@@ -386,8 +388,10 @@ def _careers(comps: dict[str, Record], standouts: dict[str, set[str]], used: set
         for key in PERSON_KEYS:
             slot[key] = person[key] if key != "attributes" else dict(person["attributes"])
         taken.add(person["global_id"])
+        words = {"age": L.age_on(person["date_of_birth"]), "dst_club": dst_club["name"],
+                 "src_club": re.sub(r"\s+(Juvenil|Juniors|Colts|Academy|U\d\d)$", "", src_club["name"])}
         out.append({"global_id": person["global_id"], "name": person["name"], "competitions": [src_id, dst_id],
-                    "clubs": [src_club["club_id"], dst_club["club_id"]], "story": story})
+                    "clubs": [src_club["club_id"], dst_club["club_id"]], "story": story.format(**words)})
     return out
 
 
