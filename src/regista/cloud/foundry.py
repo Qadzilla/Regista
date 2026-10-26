@@ -131,7 +131,8 @@ def azure_mcp_tool(cloud: CloudConfig, namespaces: tuple[str, ...] | None = None
 
 
 REGISTA_MCP_TOOLS = ("search_clips", "search_library", "list_matches", "derive_clips", "validate_stream", "render_clip",
-                     "search_players", "get_profile", "compare_players", "match_recap")
+                     "search_players", "get_profile", "compare_players", "match_recap", "list_competitions",
+                     "search_catalogue_players", "get_catalogue_player")
 
 
 def tool_server(name: str) -> str | None:

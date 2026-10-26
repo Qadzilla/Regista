@@ -34,6 +34,14 @@ LEAGUE_GENERATOR_VERSION = "0.7.1"   # with them (league mode): player ratings d
 #        the back line steps up in possession, full-backs and wingers hold the width, centre-backs hit some balls long
 # 0.7.1: the same match on every platform: exp, log, sin, cos, hypot and Gaussians from ``regista.detmath`` instead of
 #        libm, whose last bits differ between macOS and Linux (a league fixture came out different on CI); same tuning
+# catalogue (not a version: inert without it, so every league stream and pin is unchanged): an optional team-spec key
+#        ``style_offset`` ({"keep": x, "press": y}) re-centres TEAM_STYLE on a competition whose players sit on another
+#        level of the rating scale (regista.catalogue); without it every low-level side would sit at the style clamp
+# catalogue (not a version either: inert without it): an optional team-spec key ``execution`` (a float, 0 or absent at
+#        the reference level) lowers a side's technical execution against absolute football, not against the opponent:
+#        pass completion, first touches on received passes and keeping the ball under a challenge (``LEAGUE["exec_*"]``).
+#        Ratings scaled by level cancel in head-to-head outcomes (a weaker passer meets a weaker marker), so without it
+#        an amateur side completed as many passes as a semi-pro one
 
 PITCH_L = 105.0
 PITCH_W = 68.0
@@ -291,6 +299,18 @@ LEAGUE: dict[str, Any] = {
     "gk_launch_distribution": 0.5,   # log-odds per z of the keeper's distribution, against launching
     "gk_launch_keep": 1.0,           # log-odds per style z of the side's ``keep``, against launching
     "sub_window": (0.58, 0.95),  # substitutions happen at stoppages from about the hour mark
+    # Technical execution by level (catalogue only; a team spec's ``execution``, 0 or absent at the reference level, so no
+    # league stream reads these). A side at execution e, against absolute football rather than its opponent:
+    "exec_pass": 0.25,         # ... completes fewer passes and crosses (log-odds per unit of e, on every pass) ...
+    "exec_touch": 0.022,       # ... miscontrols this share of the passes it receives per unit of e (a heavy first touch
+                               # that runs loose: lost as a dispossession, picked up by whoever is nearest) ...
+    "exec_touch_pressure": 2.0,  # ... twice as often with a marker within 3.5 m ...
+    "exec_lose": 0.12,         # ... is dispossessed more often when challenged (log scale per unit of e) ...
+    "exec_shot": 0.30,         # ... shoots more readily from where it stands (log scale per unit of e): with fewer passes
+                               # arriving, chances come from shooting early rather than working the ball closer ...
+    "exec_keeper": 0.20,       # ... and its keeper and last defenders keep out fewer shots (log-odds per unit of e of the
+                               # side defending the shot), so goals do not fall with the level: youth tournaments score
+                               # more goals per match than senior ones, not fewer
 }
 # League-mode motion (regista.synth.physical): every player on the pitch moves every 0.1 s within his own top speed and
 # acceleration, tiring with his stamina. Speeds in m/s. The caps say how hard a player is willing to go in each situation;
@@ -400,6 +420,8 @@ class Team:
     squad: list[dict[str, Any]] | None = None        # fixed names and global ids, formation order then bench
     players: list[Player] = field(default_factory=list)
     style: dict[str, float] = field(default_factory=dict)   # league mode: team style from the starters' ratings (TEAM_STYLE)
+    style_offset: dict[str, float] | None = None   # catalogue: TEAM_STYLE's centres moved to the competition's level
+    execution: float | None = None                  # catalogue: technical execution below the reference level (LEAGUE exec_*)
 
     @property
     def goal(self) -> Point:
@@ -631,6 +653,8 @@ class MatchSim:
         keeper's shot stopping, in log-odds."""
         lo = _logit(xg) + LEAGUE["finish"] * self.z(shooter, "aerial" if headed else "finishing") \
             - LEAGUE["keeper"] * self.z(keeper, "shot_stopping")
+        if keeper.team.execution:   # catalogue: shot stopping below the reference level
+            lo += LEAGUE["exec_keeper"] * keeper.team.execution
         if not headed:
             lo += -LEAGUE["weak_foot"] if weak else LEAGUE["strong_foot"]
         return _sigmoid(lo)
@@ -686,6 +710,8 @@ class MatchSim:
         xi = [p for p in team.players[:11] if p.position != "GK"]
         for key, (ratings, centre, sd) in TEAM_STYLE.items():
             mean = sum(sum((p.attrs or {}).get(r, SKILL_CENTRE[r]) for r in ratings) / len(ratings) for p in xi) / max(1, len(xi))
+            if team.style_offset:  # a catalogue competition on another level: style is relative to its own sides
+                centre = centre + team.style_offset.get(key, 0.0)
             out[key] = clamp((mean - centre) / sd, -2.5, 2.5)
         return out
 
@@ -1399,6 +1425,11 @@ class MatchSim:
         if pressure:
             self.cur_pos["under_pressure"] = True
             self._event("pressure", marker, related=p, pitch=marker.pos, under_pressure=False)
+        if team.execution and self.cur_pos["touches"] == 0 and self.cur_pos["gained_by"] == "pass_received" \
+                and rng.random() < clamp(LEAGUE["exec_touch"] * team.execution
+                                         * (LEAGUE["exec_touch_pressure"] if pressure else 1.0), 0.0, 0.3):
+            self._heavy_touch(p, pressure)
+            return
 
         hold = rng.uniform(*self.tune["hold"])
         touches = max(1, int(hold / (LEAGUE["touch_every_s"] if self.league else 0.8)))
@@ -1452,6 +1483,9 @@ class MatchSim:
             if self.att_x(team, p.x) < PITCH_L * 0.6:   # in his own 60%: the opponents' press (their PPDA zone)
                 w_lose *= LEAGUE["press_base"] * self.m.exp(LEAGUE["press_lose"] * opp.style.get("press", 0.0))
             w_lose *= LEAGUE["lose_role"].get(marker.role or "", 1.0)
+            if team.execution:   # a side below the reference level keeps the ball less well and shoots sooner
+                w_lose *= self.m.exp(LEAGUE["exec_lose"] * team.execution)
+                w_shot *= self.m.exp(LEAGUE["exec_shot"] * team.execution)
         action = rng.choices(["pass", "take_on", "shot", "lose", "out"], weights=[w_pass, w_take_on, w_shot, w_lose, w_out])[0]
         if action == "pass":
             self._do_pass(p, pressure)
@@ -1474,6 +1508,28 @@ class MatchSim:
                 self._start_possession(marker, "tackle", from_player=p)
         else:
             self._do_out_of_play(p)
+
+    def _heavy_touch(self, p: Player, pressure: bool) -> None:
+        """A received pass miscontrolled (catalogue, a side with ``execution``): one first touch that runs loose, lost as a
+        dispossession, and whoever is nearest picks it up, as a failed take-on's loose ball (a recovery, no tackle)."""
+        rng = self.rng
+        team, opp = p.team, self.other(p.team)
+        assert self.cur_pos is not None
+        self.cur_pos["touches"] += 1
+        self._event("touch", p, pitch=p.pos, under_pressure=pressure, outcome="fail",
+                    qualifiers=["first_touch", "heavy_touch"])
+        self._end_possession("dispossessed")
+        loose = (clamp(p.x + team.attack_sign * rng.uniform(1.5, 5.0), 1.0, PITCH_L - 1.0),
+                 clamp(p.y + rng.gauss(0, 2.5), 1.0, PITCH_W - 1.0))
+        self._chase(loose, team, opp)
+        self.ball_speed = 5.0
+        self.advance(0.6, ball_to=loose)
+        self.ball_speed = 0.0
+        self.chasers.clear()
+        winner = min((q for q in team.starters + opp.starters if q is not p), key=lambda q: (self.dist(q.pos, loose), q.player_id))
+        self._reach(winner, loose)
+        self._event("recovery", winner, pitch=loose, outcome="success")
+        self._start_possession(winner, "rebound" if winner.team is team else "loose_ball", from_player=p)
 
     def _tackler(self, p: Player, marker: Player) -> Player:
         """League mode: who wins the ball off ``p``. The nearest man presses, but the ball is won by whoever of the
@@ -1857,6 +1913,8 @@ class MatchSim:
             lo -= LEAGUE["pass_pressure"] * self.z(marker, "defending")
         if kind == "cross":
             lo += LEAGUE["cross_delivery"]
+        if team.execution:   # below the reference level: fewer passes arrive, whoever marks the receiver
+            lo -= LEAGUE["exec_pass"] * team.execution
         ok = rng.random() < clamp(_sigmoid(lo), 0.05 if kind == "cross" else 0.2, 0.985)
         # Offside: a mistimed run on a ball in behind, or a long forward ball to the furthest man forward.
         furthest = max((q for q in team.starters if q.position != "GK"), key=lambda q: self.att_x(team, q.x))
@@ -2385,6 +2443,10 @@ def _team_specs(teams: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
             base["kit"] = {**base["kit"], **{k: str(v) for k, v in given["kit"].items()}}
         if "club_id" in given:
             base["club_id"] = str(given["club_id"])
+        if given.get("style_offset"):
+            base["style_offset"] = {str(k): float(v) for k, v in given["style_offset"].items()}
+        if given.get("execution"):
+            base["execution"] = float(given["execution"])
         if "squad" in given:
             squad = [_squad_member(m) for m in given["squad"]]
             if len(squad) != len(FORMATION_433) + len(BENCH):

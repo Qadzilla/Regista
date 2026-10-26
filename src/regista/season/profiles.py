@@ -104,19 +104,25 @@ class Season:
     reliability: Record = field(default_factory=lambda: {"metrics": {}})   # regista.season.reliability (load_season)
     _club_minutes: dict[str, float] = field(default_factory=dict)
     _club_matches: dict[str, int] = field(default_factory=dict)
+    _min_minutes_floor: float = 0.0
+    _min_pool: int = 2
 
     # ------------------------------------------------------------------ build
     @classmethod
     def build(cls, league: Record, root: Path | str, claimed: list[Record] | None = None,
-              uploaded: list[Record] | None = None) -> Season:
+              uploaded: list[Record] | None = None, *, min_minutes_floor: float = 0.0, min_pool: int = 2) -> Season:
         """The season from the league's fixtures, plus the matches of ``claimed`` (``regista.season.claims.claimed_matches``:
         one row per confirmed claim) and of ``uploaded`` (``regista.player_api.uploaded_matches``: one row per finished
-        Player-view upload)."""
+        Player-view upload). ``min_minutes_floor``: the percentile pool's qualifying minutes are at least this, and
+        ``min_pool``: no percentile from fewer peers (the catalogue's sparse competitions use 45 and 5, as
+        ``SeasonMetrics.from_streams`` does; the defaults keep the league's rules)."""
         from regista.season.build import build_all
 
         build_all(league, root)   # a cold folder is generated in parallel first (the loop below then only reads)
         s = cls(league, Path(root), extra=_group_claims(claimed or []),
                 uploads=_group_claims([{**u, "claim_id": u["upload_id"]} for u in uploaded or []]))
+        s._min_minutes_floor = float(min_minutes_floor)
+        s._min_pool = int(min_pool)
         s._aggregate()
         return s
 
@@ -156,7 +162,9 @@ class Season:
         self._club_minutes = club_minutes
         self._club_matches = {cid: sum(1 for fx in self.league["fixtures"] if cid in (fx["home"], fx["away"])) for cid in clubs}
         self.min_minutes = qualifying_minutes(max(club_minutes.values(), default=0.0))
-        _percentiles(self.profiles, self.min_minutes)
+        if self._min_minutes_floor > self.min_minutes:   # a branch: the league (floor 0) keeps its exact float
+            self.min_minutes = self._min_minutes_floor
+        _percentiles(self.profiles, self.min_minutes, self._min_pool)
         self.table = sorted(table.values(), key=lambda r: (-r["points"], -(r["goals_for"] - r["goals_against"]), -r["goals_for"], r["club"]))
         for i, r in enumerate(self.table, start=1):
             r["position"] = i
@@ -386,7 +394,7 @@ PERCENTILE_RULE = ("FBref's percentile rank, the same rule as the Scout terminal
                    "the qualifying minutes (a third of a club's minutes, FBref's 30 minutes per squad game)")
 
 
-def _percentiles(profiles: dict[str, Record], min_minutes: float) -> None:
+def _percentiles(profiles: dict[str, Record], min_minutes: float, min_pool: int = 2) -> None:
     """Each per-90 rate's percentile (0-100) among players in the same position with the qualifying minutes, by FBref's rule
     (:data:`PERCENTILE_RULE`): one number for one stat, on the profile and in the Scout terminal alike."""
     by_pos: dict[str, list[Record]] = {}
@@ -399,7 +407,7 @@ def _percentiles(profiles: dict[str, Record], min_minutes: float) -> None:
         for key in STATS:
             values = sorted(p["_rates"][key] for p in group)
             for p in group:
-                p["percentiles"][key] = round(fbref_percentile(values, p["_rates"][key])) if len(values) > 1 else None
+                p["percentiles"][key] = round(fbref_percentile(values, p["_rates"][key])) if len(values) >= min_pool else None
     for group in by_pos.values():
         for p in group:
             del p["_rates"]

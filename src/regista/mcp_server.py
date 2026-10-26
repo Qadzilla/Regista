@@ -18,8 +18,16 @@ Tools
                                                 the Regista League's players filtered and ranked by any stat per 90
 - ``get_profile(player)``                       one player's season (by global id or name), without the evidence lists
 - ``compare_players(players)``                  two or three players side by side
+- ``list_competitions(country, tier, age_group, gender)``
+                                                the catalogue's 14 synthetic competitions (countries and levels below the
+                                                professional line), their uploads, levels and careers
+- ``search_catalogue_players(tier, age_group, gender, country, competition, position, sort, order, scope, limit, min_minutes)``
+                                                players across the catalogue ranked by a Scout terminal metric, each
+                                                percentile with the pool it came from (same level by default)
+- ``get_catalogue_player(player, scope)``       one player across the catalogue: career, a row per competition with pools
 
-The player tools read the league named by REGISTA_SEASON / REGISTA_SEASON_ROOT (default data/season/…).
+The player tools read the league named by REGISTA_SEASON / REGISTA_SEASON_ROOT (default data/season/…); the catalogue
+tools also read REGISTA_CATALOGUE / REGISTA_CATALOGUE_ROOT (default data/catalogue/…).
 
 Everything runs locally and deterministically; no model, no keys. A Foundry-hosted agent
 calls these tools and reasons about the answers; it never re-implements them. The server
@@ -48,7 +56,9 @@ server = FastMCP(
         "nutmeg'. Use derive_clips to list a player's clips, validate_stream to check data, render_clip "
         "to produce a video, match_recap for a written recap of a match (or of one player's match). Paths are "
         "match directories containing events.jsonl (and clips.jsonl). For the "
-        "synthetic Regista League's players across the season use search_players, get_profile and compare_players."
+        "synthetic Regista League's players across the season use search_players, get_profile and compare_players; for the "
+        "catalogue of 14 synthetic competitions across countries and levels use list_competitions, "
+        "search_catalogue_players and get_catalogue_player (percentiles within the same level by default)."
     ),
 )
 
@@ -193,6 +203,61 @@ def compare_players(players: list[str]) -> dict[str, Any]:
     from regista.season.scout import compare_players as _compare_players
 
     return _compare_players(_season(), players)
+
+
+# ---------------------------------------------------------------------------- the catalogue (14 competitions)
+
+def _catalogue():
+    from regista.catalogue.metrics import load_catalogue_metrics
+
+    return load_catalogue_metrics()   # REGISTA_CATALOGUE, REGISTA_CATALOGUE_ROOT, REGISTA_SEASON, REGISTA_SEASON_ROOT
+
+
+@server.tool()
+def list_competitions(country: str | None = None, tier: str | None = None, age_group: str | None = None,
+                      gender: str | None = None) -> dict[str, Any]:
+    """The catalogue's synthetic competitions (invented names; countries and levels are labels): each with country,
+    region, tier (semi_pro, amateur, college, academy), age_group (senior, college, U20, U19, U18, U17), gender (men,
+    women), teams, players, uploaded matches, cameras and uploaders; plus the levels (which competitions share a
+    percentile pool) and the careers (players in two competitions). Filters are optional."""
+    from regista.catalogue.tools import list_competitions as _list
+
+    return _list(None, country=country, tier=tier, age_group=age_group, gender=gender)
+
+
+@server.tool()
+def search_catalogue_players(tier: str | None = None, age_group: str | None = None, gender: str | None = None,
+                             country: str | None = None, competition: str | None = None, position: str | None = None,
+                             sort: str = "minutes", order: str = "desc", scope: str = "level", limit: int = 10,
+                             min_minutes: float | None = None, rank_by: str | None = None) -> dict[str, Any]:
+    """Players across the catalogue's competitions, one row per player and competition. Filters: tier, age_group, gender,
+    country, competition (an id from list_competitions), position (GK, DF, MF, FW). sort: minutes or a Scout terminal
+    metric key (npxg, np_goals, xa, sca, take_ons_won, progressive_passes, tackles_won, interceptions, pass_pct, ...).
+    scope: level (default: peers of the same tier, age group, gender and position), competition, or all (every level of
+    one gender; levels differ, so read each percentile against its pool). min_minutes: empty for each competition's
+    qualifying minutes. Percentiles are compared only within one position and raw numbers only within one level: rows
+    from more than one level that hold one position are ranked by each row's percentile within its own pool, one board
+    per gender; rows from more than one level and more than one position (no position given) by value within each
+    level, one board per level; rank_by "pool" or "value" forces a mode. order desc lists the largest numbers first in
+    value mode, and in pool mode the rows highest in their own pool (largest relative to the pool, not the largest
+    numbers). When the list has boards, players holds each board's top rows and boards gives each board's key, label,
+    size and offset; pass position, gender or competition to read one board further. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small,
+    reason)."""
+    from regista.catalogue.tools import search_players
+
+    return search_players(_catalogue(), tier=tier, age_group=age_group, gender=gender, country=country,
+                          competition=competition, position=position, sort=sort, order=order, scope=scope, limit=limit,
+                          min_minutes=min_minutes, rank_by=rank_by)
+
+
+@server.tool()
+def get_catalogue_player(player: str, scope: str = "level") -> dict[str, Any]:
+    """One catalogue player by global id (pl_sot_09) or full name: public bio, the career (every competition, club and
+    minutes), what adds up across competitions (no merged per-90), and per competition the position's core metrics with
+    percentiles in ``scope`` and their pools. Without the per-event evidence lists."""
+    from regista.catalogue.tools import get_player
+
+    return get_player(_catalogue(), player, scope)
 
 
 def main(argv: list[str] | None = None) -> int:

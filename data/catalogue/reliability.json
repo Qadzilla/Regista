@@ -1,0 +1,6965 @@
+{
+ "catalogue_fingerprint": "3a2d69dde65217a6",
+ "generator_version": "0.7.1",
+ "levels": {
+  "academy/U17/men": {
+   "competitions": [
+    "co_gha_u17"
+   ],
+   "matches": 72,
+   "median_half_minutes": 85.3,
+   "metrics": {
+    "accelerations_high": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.819,
+     "season_r": 0.9
+    },
+    "aerial_duels": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.079,
+     "season_r": 0.0
+    },
+    "aerial_duels_lost": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.075,
+     "season_r": 0.0
+    },
+    "aerial_duels_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.028,
+     "season_r": 0.055
+    },
+    "aerial_win_pct": {
+     "n": 168,
+     "noisy": true,
+     "r": 0.071,
+     "season_r": 0.133
+    },
+    "assists": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.123,
+     "season_r": 0.0
+    },
+    "avg_shot_distance": {
+     "n": 84,
+     "noisy": true,
+     "r": 0.109,
+     "season_r": 0.197
+    },
+    "ball_losses": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.016,
+     "season_r": 0.0
+    },
+    "big_chances": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.189,
+     "season_r": 0.317
+    },
+    "blocks": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.085,
+     "season_r": 0.0
+    },
+    "carries": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.504,
+     "season_r": 0.671
+    },
+    "carries_final_third": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.351,
+     "season_r": 0.519
+    },
+    "carries_into_box": {
+     "n": 144,
+     "noisy": true,
+     "r": -0.031,
+     "season_r": 0.0
+    },
+    "carry_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.558,
+     "season_r": 0.717
+    },
+    "clean_sheet_pct": {
+     "n": 24,
+     "noisy": true,
+     "r": -0.071,
+     "season_r": 0.0
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.063,
+     "season_r": 0.0
+    },
+    "cross_pct": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "crosses": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.087,
+     "season_r": 0.16
+    },
+    "crosses_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.228,
+     "season_r": 0.372
+    },
+    "crosses_into_box": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.227,
+     "season_r": 0.37
+    },
+    "decelerations_high": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.163,
+     "season_r": 0.28
+    },
+    "distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.396,
+     "season_r": 0.567
+    },
+    "dribbled_past": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.052,
+     "season_r": 0.099
+    },
+    "final_third_pass_pct": {
+     "n": 7,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "final_third_passes": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.315,
+     "season_r": 0.479
+    },
+    "final_third_passes_completed": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.382,
+     "season_r": 0.552
+    },
+    "fouls": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.044,
+     "season_r": 0.0
+    },
+    "fouls_won": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.106,
+     "season_r": 0.0
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.074,
+     "season_r": 0.139
+    },
+    "gk_avg_pass_length": {
+     "n": 14,
+     "noisy": false,
+     "r": 0.497,
+     "season_r": 0.664
+    },
+    "gk_launch_pct": {
+     "n": 14,
+     "noisy": true,
+     "r": 0.055,
+     "season_r": 0.105
+    },
+    "gk_pass_pct": {
+     "n": 15,
+     "noisy": true,
+     "r": 0.168,
+     "season_r": 0.288
+    },
+    "gk_passes": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.212,
+     "season_r": 0.35
+    },
+    "gk_passes_completed": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.083,
+     "season_r": 0.153
+    },
+    "goals": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.052,
+     "season_r": 0.0
+    },
+    "goals_conceded": {
+     "n": 24,
+     "noisy": true,
+     "r": -0.177,
+     "season_r": 0.0
+    },
+    "hi_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.474,
+     "season_r": 0.643
+    },
+    "hi_efforts": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.435,
+     "season_r": 0.606
+    },
+    "hsr_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.202,
+     "season_r": 0.336
+    },
+    "interceptions": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.024,
+     "season_r": 0.046
+    },
+    "key_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.097,
+     "season_r": 0.177
+    },
+    "long_pass_pct": {
+     "n": 17,
+     "noisy": true,
+     "r": -0.446,
+     "season_r": 0.0
+    },
+    "long_passes": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.163,
+     "season_r": 0.28
+    },
+    "long_passes_completed": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.021,
+     "season_r": 0.041
+    },
+    "medium_pass_pct": {
+     "n": 207,
+     "noisy": true,
+     "r": 0.219,
+     "season_r": 0.359
+    },
+    "medium_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.196,
+     "season_r": 0.327
+    },
+    "medium_passes_completed": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.374,
+     "season_r": 0.545
+    },
+    "mid_third_pass_pct": {
+     "n": 235,
+     "noisy": true,
+     "r": 0.285,
+     "season_r": 0.444
+    },
+    "mid_third_passes": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.327,
+     "season_r": 0.493
+    },
+    "mid_third_passes_completed": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.476,
+     "season_r": 0.645
+    },
+    "np_goals": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.071,
+     "season_r": 0.0
+    },
+    "np_goals_minus_xg": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.123,
+     "season_r": 0.0
+    },
+    "npxg": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.133,
+     "season_r": 0.234
+    },
+    "npxg_per_shot": {
+     "n": 84,
+     "noisy": true,
+     "r": 0.204,
+     "season_r": 0.339
+    },
+    "npxg_plus_xa": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.149,
+     "season_r": 0.259
+    },
+    "nutmegs": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.34,
+     "season_r": 0.508
+    },
+    "offsides": {
+     "n": 144,
+     "noisy": true,
+     "r": -0.055,
+     "season_r": 0.0
+    },
+    "onpitch_goals_against": {
+     "n": 264,
+     "noisy": true,
+     "r": -0.148,
+     "season_r": 0.0
+    },
+    "onpitch_goals_diff": {
+     "n": 264,
+     "noisy": true,
+     "r": -0.212,
+     "season_r": 0.0
+    },
+    "onpitch_goals_for": {
+     "n": 264,
+     "noisy": true,
+     "r": -0.025,
+     "season_r": 0.0
+    },
+    "onpitch_xg_against": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.05,
+     "season_r": 0.095
+    },
+    "onpitch_xg_diff": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.315,
+     "season_r": 0.479
+    },
+    "onpitch_xg_for": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.471,
+     "season_r": 0.64
+    },
+    "own_third_pass_pct": {
+     "n": 20,
+     "noisy": true,
+     "r": -0.144,
+     "season_r": 0.0
+    },
+    "own_third_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.012,
+     "season_r": 0.0
+    },
+    "own_third_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.016,
+     "season_r": 0.031
+    },
+    "pass_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.489,
+     "season_r": 0.657
+    },
+    "pass_pct": {
+     "n": 255,
+     "noisy": false,
+     "r": 0.361,
+     "season_r": 0.53
+    },
+    "passes": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.368,
+     "season_r": 0.538
+    },
+    "passes_completed": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.549,
+     "season_r": 0.709
+    },
+    "passes_final_third": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.095,
+     "season_r": 0.173
+    },
+    "passes_into_box": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.226,
+     "season_r": 0.368
+    },
+    "passes_received": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.48,
+     "season_r": 0.649
+    },
+    "passes_under_pressure": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.256,
+     "season_r": 0.407
+    },
+    "passes_under_pressure_completed": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.443,
+     "season_r": 0.614
+    },
+    "peak_speed": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.946,
+     "season_r": 0.972
+    },
+    "peak_speed_mean": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.882,
+     "season_r": 0.937
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 134,
+     "noisy": true,
+     "r": 0.254,
+     "season_r": 0.405
+    },
+    "pressure_regains": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.074,
+     "season_r": 0.137
+    },
+    "pressured_pass_pct": {
+     "n": 84,
+     "noisy": true,
+     "r": 0.233,
+     "season_r": 0.377
+    },
+    "pressures": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.012,
+     "season_r": 0.0
+    },
+    "progressive_carries": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.431,
+     "season_r": 0.602
+    },
+    "progressive_carry_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.575,
+     "season_r": 0.73
+    },
+    "progressive_pass_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.299,
+     "season_r": 0.46
+    },
+    "progressive_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.188,
+     "season_r": 0.317
+    },
+    "progressive_passes_received": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.098,
+     "season_r": 0.179
+    },
+    "recoveries": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.043,
+     "season_r": 0.083
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.221,
+     "season_r": 0.363
+    },
+    "sca": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.101,
+     "season_r": 0.184
+    },
+    "short_pass_pct": {
+     "n": 131,
+     "noisy": true,
+     "r": 0.036,
+     "season_r": 0.07
+    },
+    "short_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.167,
+     "season_r": 0.286
+    },
+    "short_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.283,
+     "season_r": 0.441
+    },
+    "shot_on_target_pct": {
+     "n": 84,
+     "noisy": true,
+     "r": -0.357,
+     "season_r": 0.0
+    },
+    "shots": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.135,
+     "season_r": 0.238
+    },
+    "shots_on_target": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.032,
+     "season_r": 0.0
+    },
+    "skill_moves": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.186,
+     "season_r": 0.314
+    },
+    "sot_faced": {
+     "n": 24,
+     "noisy": true,
+     "r": -0.077,
+     "season_r": 0.0
+    },
+    "sprint_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.838,
+     "season_r": 0.912
+    },
+    "sprints": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.813,
+     "season_r": 0.897
+    },
+    "switches": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.125,
+     "season_r": 0.0
+    },
+    "tackle_duels": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.194,
+     "season_r": 0.325
+    },
+    "tackle_success_pct": {
+     "n": 207,
+     "noisy": true,
+     "r": 0.086,
+     "season_r": 0.159
+    },
+    "tackles_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.182,
+     "season_r": 0.308
+    },
+    "take_on_pct": {
+     "n": 112,
+     "noisy": true,
+     "r": 0.067,
+     "season_r": 0.125
+    },
+    "take_ons": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.032,
+     "season_r": 0.0
+    },
+    "take_ons_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.069,
+     "season_r": 0.129
+    },
+    "through_balls": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.0,
+     "season_r": 0.0
+    },
+    "tkl_int": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.129,
+     "season_r": 0.229
+    },
+    "tkl_int_padj": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.134,
+     "season_r": 0.236
+    },
+    "touches": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.337,
+     "season_r": 0.504
+    },
+    "touches_in_box": {
+     "n": 144,
+     "noisy": false,
+     "r": 0.411,
+     "season_r": 0.582
+    },
+    "walking_share": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.179,
+     "season_r": 0.304
+    },
+    "xa": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.073,
+     "season_r": 0.136
+    },
+    "xg": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.301,
+     "season_r": 0.463
+    },
+    "xt_added": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.073,
+     "season_r": 0.136
+    },
+    "xt_carries": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.377,
+     "season_r": 0.548
+    },
+    "xt_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.065,
+     "season_r": 0.121
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "academy/U18/men": {
+   "competitions": [
+    "co_eng_u18"
+   ],
+   "matches": 72,
+   "median_half_minutes": 86.5,
+   "metrics": {
+    "accelerations_high": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.736,
+     "season_r": 0.848
+    },
+    "aerial_duels": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.029,
+     "season_r": 0.056
+    },
+    "aerial_duels_lost": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.041,
+     "season_r": 0.079
+    },
+    "aerial_duels_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.184,
+     "season_r": 0.31
+    },
+    "aerial_win_pct": {
+     "n": 159,
+     "noisy": true,
+     "r": 0.285,
+     "season_r": 0.444
+    },
+    "assists": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.168,
+     "season_r": 0.288
+    },
+    "avg_shot_distance": {
+     "n": 87,
+     "noisy": true,
+     "r": -0.041,
+     "season_r": 0.0
+    },
+    "ball_losses": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.063,
+     "season_r": 0.119
+    },
+    "big_chances": {
+     "n": 144,
+     "noisy": true,
+     "r": -0.063,
+     "season_r": 0.0
+    },
+    "blocks": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.089,
+     "season_r": 0.0
+    },
+    "carries": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.526,
+     "season_r": 0.689
+    },
+    "carries_final_third": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.264,
+     "season_r": 0.418
+    },
+    "carries_into_box": {
+     "n": 144,
+     "noisy": true,
+     "r": -0.03,
+     "season_r": 0.0
+    },
+    "carry_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.545,
+     "season_r": 0.706
+    },
+    "clean_sheet_pct": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.155,
+     "season_r": 0.268
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.111,
+     "season_r": 0.0
+    },
+    "cross_pct": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "crosses": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.042,
+     "season_r": 0.0
+    },
+    "crosses_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.162,
+     "season_r": 0.0
+    },
+    "crosses_into_box": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.155,
+     "season_r": 0.0
+    },
+    "decelerations_high": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.074,
+     "season_r": 0.138
+    },
+    "distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.396,
+     "season_r": 0.567
+    },
+    "dribbled_past": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.1,
+     "season_r": 0.183
+    },
+    "final_third_pass_pct": {
+     "n": 10,
+     "noisy": true,
+     "r": -0.322,
+     "season_r": 0.0
+    },
+    "final_third_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.115,
+     "season_r": 0.207
+    },
+    "final_third_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.041,
+     "season_r": 0.079
+    },
+    "fouls": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.066,
+     "season_r": 0.123
+    },
+    "fouls_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.158,
+     "season_r": 0.273
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.042,
+     "season_r": 0.08
+    },
+    "gk_avg_pass_length": {
+     "n": 15,
+     "noisy": false,
+     "r": 0.668,
+     "season_r": 0.801
+    },
+    "gk_launch_pct": {
+     "n": 15,
+     "noisy": false,
+     "r": 0.577,
+     "season_r": 0.732
+    },
+    "gk_pass_pct": {
+     "n": 21,
+     "noisy": false,
+     "r": 0.361,
+     "season_r": 0.531
+    },
+    "gk_passes": {
+     "n": 24,
+     "noisy": true,
+     "r": -0.003,
+     "season_r": 0.0
+    },
+    "gk_passes_completed": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.261,
+     "season_r": 0.414
+    },
+    "goals": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.175,
+     "season_r": 0.298
+    },
+    "goals_conceded": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.165,
+     "season_r": 0.284
+    },
+    "hi_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.351,
+     "season_r": 0.519
+    },
+    "hi_efforts": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.24,
+     "season_r": 0.388
+    },
+    "hsr_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.179,
+     "season_r": 0.304
+    },
+    "interceptions": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.133,
+     "season_r": 0.234
+    },
+    "key_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.066,
+     "season_r": 0.0
+    },
+    "long_pass_pct": {
+     "n": 13,
+     "noisy": true,
+     "r": -0.338,
+     "season_r": 0.0
+    },
+    "long_passes": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.14,
+     "season_r": 0.245
+    },
+    "long_passes_completed": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.137,
+     "season_r": 0.24
+    },
+    "medium_pass_pct": {
+     "n": 221,
+     "noisy": true,
+     "r": 0.255,
+     "season_r": 0.406
+    },
+    "medium_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.159,
+     "season_r": 0.274
+    },
+    "medium_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.27,
+     "season_r": 0.425
+    },
+    "mid_third_pass_pct": {
+     "n": 239,
+     "noisy": true,
+     "r": 0.154,
+     "season_r": 0.267
+    },
+    "mid_third_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.193,
+     "season_r": 0.323
+    },
+    "mid_third_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.297,
+     "season_r": 0.458
+    },
+    "np_goals": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.208,
+     "season_r": 0.344
+    },
+    "np_goals_minus_xg": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.124,
+     "season_r": 0.221
+    },
+    "npxg": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.133,
+     "season_r": 0.235
+    },
+    "npxg_per_shot": {
+     "n": 87,
+     "noisy": true,
+     "r": -0.101,
+     "season_r": 0.0
+    },
+    "npxg_plus_xa": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.189,
+     "season_r": 0.318
+    },
+    "nutmegs": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.026,
+     "season_r": 0.0
+    },
+    "offsides": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.088,
+     "season_r": 0.162
+    },
+    "onpitch_goals_against": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.152,
+     "season_r": 0.263
+    },
+    "onpitch_goals_diff": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.381,
+     "season_r": 0.552
+    },
+    "onpitch_goals_for": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.4,
+     "season_r": 0.571
+    },
+    "onpitch_xg_against": {
+     "n": 264,
+     "noisy": true,
+     "r": -0.281,
+     "season_r": 0.0
+    },
+    "onpitch_xg_diff": {
+     "n": 264,
+     "noisy": true,
+     "r": -0.076,
+     "season_r": 0.0
+    },
+    "onpitch_xg_for": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.381,
+     "season_r": 0.552
+    },
+    "own_third_pass_pct": {
+     "n": 25,
+     "noisy": true,
+     "r": 0.048,
+     "season_r": 0.091
+    },
+    "own_third_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.192,
+     "season_r": 0.0
+    },
+    "own_third_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.047,
+     "season_r": 0.0
+    },
+    "pass_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.347,
+     "season_r": 0.515
+    },
+    "pass_pct": {
+     "n": 261,
+     "noisy": true,
+     "r": 0.23,
+     "season_r": 0.374
+    },
+    "passes": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.188,
+     "season_r": 0.317
+    },
+    "passes_completed": {
+     "n": 264,
+     "noisy": false,
+     "r": 0.343,
+     "season_r": 0.51
+    },
+    "passes_final_third": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.063,
+     "season_r": 0.119
+    },
+    "passes_into_box": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.021,
+     "season_r": 0.0
+    },
+    "passes_received": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.199,
+     "season_r": 0.331
+    },
+    "passes_under_pressure": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.092,
+     "season_r": 0.169
+    },
+    "passes_under_pressure_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.194,
+     "season_r": 0.325
+    },
+    "peak_speed": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.902,
+     "season_r": 0.948
+    },
+    "peak_speed_mean": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.803,
+     "season_r": 0.89
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 134,
+     "noisy": true,
+     "r": 0.207,
+     "season_r": 0.343
+    },
+    "pressure_regains": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.132,
+     "season_r": 0.233
+    },
+    "pressured_pass_pct": {
+     "n": 74,
+     "noisy": true,
+     "r": 0.258,
+     "season_r": 0.41
+    },
+    "pressures": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.154,
+     "season_r": 0.266
+    },
+    "progressive_carries": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.363,
+     "season_r": 0.533
+    },
+    "progressive_carry_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.544,
+     "season_r": 0.704
+    },
+    "progressive_pass_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.146,
+     "season_r": 0.255
+    },
+    "progressive_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.22,
+     "season_r": 0.36
+    },
+    "progressive_passes_received": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.09,
+     "season_r": 0.165
+    },
+    "recoveries": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.042,
+     "season_r": 0.08
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 24,
+     "noisy": true,
+     "r": -0.105,
+     "season_r": 0.0
+    },
+    "sca": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.073,
+     "season_r": 0.137
+    },
+    "short_pass_pct": {
+     "n": 126,
+     "noisy": true,
+     "r": 0.079,
+     "season_r": 0.147
+    },
+    "short_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.06,
+     "season_r": 0.114
+    },
+    "short_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.154,
+     "season_r": 0.266
+    },
+    "shot_on_target_pct": {
+     "n": 87,
+     "noisy": true,
+     "r": -0.277,
+     "season_r": 0.0
+    },
+    "shots": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.16,
+     "season_r": 0.275
+    },
+    "shots_on_target": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.161,
+     "season_r": 0.278
+    },
+    "skill_moves": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.236,
+     "season_r": 0.382
+    },
+    "sot_faced": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.201,
+     "season_r": 0.335
+    },
+    "sprint_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.743,
+     "season_r": 0.852
+    },
+    "sprints": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.703,
+     "season_r": 0.826
+    },
+    "switches": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.072,
+     "season_r": 0.134
+    },
+    "tackle_duels": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.08,
+     "season_r": 0.149
+    },
+    "tackle_success_pct": {
+     "n": 191,
+     "noisy": true,
+     "r": 0.002,
+     "season_r": 0.005
+    },
+    "tackles_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.051,
+     "season_r": 0.097
+    },
+    "take_on_pct": {
+     "n": 127,
+     "noisy": true,
+     "r": -0.072,
+     "season_r": 0.0
+    },
+    "take_ons": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.127,
+     "season_r": 0.225
+    },
+    "take_ons_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.188,
+     "season_r": 0.316
+    },
+    "through_balls": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.0,
+     "season_r": 0.0
+    },
+    "tkl_int": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.111,
+     "season_r": 0.2
+    },
+    "tkl_int_padj": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.106,
+     "season_r": 0.192
+    },
+    "touches": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.221,
+     "season_r": 0.362
+    },
+    "touches_in_box": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.089,
+     "season_r": 0.164
+    },
+    "walking_share": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.185,
+     "season_r": 0.313
+    },
+    "xa": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.022,
+     "season_r": 0.0
+    },
+    "xg": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.073,
+     "season_r": 0.136
+    },
+    "xt_added": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.083,
+     "season_r": 0.0
+    },
+    "xt_carries": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.159,
+     "season_r": 0.274
+    },
+    "xt_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.135,
+     "season_r": 0.0
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "academy/U19/men": {
+   "competitions": [
+    "co_esp_u19",
+    "co_mar_u19"
+   ],
+   "matches": 192,
+   "median_half_minutes": 99.2,
+   "metrics": {
+    "accelerations_high": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.722,
+     "season_r": 0.838
+    },
+    "aerial_duels": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.024,
+     "season_r": 0.046
+    },
+    "aerial_duels_lost": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.041,
+     "season_r": 0.078
+    },
+    "aerial_duels_won": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.008,
+     "season_r": 0.016
+    },
+    "aerial_win_pct": {
+     "n": 325,
+     "noisy": true,
+     "r": 0.036,
+     "season_r": 0.069
+    },
+    "assists": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.084,
+     "season_r": 0.155
+    },
+    "avg_shot_distance": {
+     "n": 193,
+     "noisy": true,
+     "r": -0.131,
+     "season_r": 0.0
+    },
+    "ball_losses": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.041,
+     "season_r": 0.079
+    },
+    "big_chances": {
+     "n": 324,
+     "noisy": true,
+     "r": -0.017,
+     "season_r": 0.0
+    },
+    "blocks": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.061,
+     "season_r": 0.114
+    },
+    "carries": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.583,
+     "season_r": 0.737
+    },
+    "carries_final_third": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.307,
+     "season_r": 0.469
+    },
+    "carries_into_box": {
+     "n": 324,
+     "noisy": true,
+     "r": 0.134,
+     "season_r": 0.237
+    },
+    "carry_distance": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.611,
+     "season_r": 0.758
+    },
+    "clean_sheet_pct": {
+     "n": 54,
+     "noisy": true,
+     "r": 0.053,
+     "season_r": 0.101
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 540,
+     "noisy": true,
+     "r": -0.019,
+     "season_r": 0.0
+    },
+    "cross_pct": {
+     "n": 3,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "crosses": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.296,
+     "season_r": 0.456
+    },
+    "crosses_completed": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.231,
+     "season_r": 0.376
+    },
+    "crosses_into_box": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.222,
+     "season_r": 0.363
+    },
+    "decelerations_high": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.217,
+     "season_r": 0.357
+    },
+    "distance": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.467,
+     "season_r": 0.637
+    },
+    "dribbled_past": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.089,
+     "season_r": 0.163
+    },
+    "final_third_pass_pct": {
+     "n": 51,
+     "noisy": true,
+     "r": 0.109,
+     "season_r": 0.196
+    },
+    "final_third_passes": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.351,
+     "season_r": 0.519
+    },
+    "final_third_passes_completed": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.374,
+     "season_r": 0.544
+    },
+    "fouls": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.017,
+     "season_r": 0.033
+    },
+    "fouls_won": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.075,
+     "season_r": 0.14
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.053,
+     "season_r": 0.1
+    },
+    "gk_avg_pass_length": {
+     "n": 36,
+     "noisy": false,
+     "r": 0.503,
+     "season_r": 0.669
+    },
+    "gk_launch_pct": {
+     "n": 36,
+     "noisy": false,
+     "r": 0.374,
+     "season_r": 0.545
+    },
+    "gk_pass_pct": {
+     "n": 38,
+     "noisy": true,
+     "r": 0.195,
+     "season_r": 0.327
+    },
+    "gk_passes": {
+     "n": 54,
+     "noisy": false,
+     "r": 0.443,
+     "season_r": 0.614
+    },
+    "gk_passes_completed": {
+     "n": 54,
+     "noisy": true,
+     "r": 0.139,
+     "season_r": 0.244
+    },
+    "goals": {
+     "n": 540,
+     "noisy": true,
+     "r": -0.053,
+     "season_r": 0.0
+    },
+    "goals_conceded": {
+     "n": 54,
+     "noisy": true,
+     "r": 0.129,
+     "season_r": 0.229
+    },
+    "hi_distance": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.419,
+     "season_r": 0.59
+    },
+    "hi_efforts": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.355,
+     "season_r": 0.525
+    },
+    "hsr_distance": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.278,
+     "season_r": 0.435
+    },
+    "interceptions": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.088,
+     "season_r": 0.162
+    },
+    "key_passes": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.158,
+     "season_r": 0.273
+    },
+    "long_pass_pct": {
+     "n": 64,
+     "noisy": true,
+     "r": 0.101,
+     "season_r": 0.184
+    },
+    "long_passes": {
+     "n": 594,
+     "noisy": true,
+     "r": 0.253,
+     "season_r": 0.404
+    },
+    "long_passes_completed": {
+     "n": 594,
+     "noisy": true,
+     "r": 0.122,
+     "season_r": 0.218
+    },
+    "medium_pass_pct": {
+     "n": 499,
+     "noisy": true,
+     "r": 0.204,
+     "season_r": 0.338
+    },
+    "medium_passes": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.264,
+     "season_r": 0.418
+    },
+    "medium_passes_completed": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.367,
+     "season_r": 0.537
+    },
+    "mid_third_pass_pct": {
+     "n": 537,
+     "noisy": true,
+     "r": 0.263,
+     "season_r": 0.416
+    },
+    "mid_third_passes": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.407,
+     "season_r": 0.578
+    },
+    "mid_third_passes_completed": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.473,
+     "season_r": 0.642
+    },
+    "np_goals": {
+     "n": 540,
+     "noisy": true,
+     "r": -0.005,
+     "season_r": 0.0
+    },
+    "np_goals_minus_xg": {
+     "n": 540,
+     "noisy": true,
+     "r": -0.046,
+     "season_r": 0.0
+    },
+    "npxg": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.033,
+     "season_r": 0.063
+    },
+    "npxg_per_shot": {
+     "n": 193,
+     "noisy": true,
+     "r": -0.098,
+     "season_r": 0.0
+    },
+    "npxg_plus_xa": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.162,
+     "season_r": 0.279
+    },
+    "nutmegs": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.004,
+     "season_r": 0.009
+    },
+    "offsides": {
+     "n": 324,
+     "noisy": true,
+     "r": -0.123,
+     "season_r": 0.0
+    },
+    "onpitch_goals_against": {
+     "n": 594,
+     "noisy": true,
+     "r": 0.141,
+     "season_r": 0.248
+    },
+    "onpitch_goals_diff": {
+     "n": 594,
+     "noisy": true,
+     "r": 0.266,
+     "season_r": 0.42
+    },
+    "onpitch_goals_for": {
+     "n": 594,
+     "noisy": true,
+     "r": 0.191,
+     "season_r": 0.321
+    },
+    "onpitch_xg_against": {
+     "n": 594,
+     "noisy": false,
+     "r": 0.324,
+     "season_r": 0.49
+    },
+    "onpitch_xg_diff": {
+     "n": 594,
+     "noisy": false,
+     "r": 0.465,
+     "season_r": 0.635
+    },
+    "onpitch_xg_for": {
+     "n": 594,
+     "noisy": false,
+     "r": 0.391,
+     "season_r": 0.562
+    },
+    "own_third_pass_pct": {
+     "n": 131,
+     "noisy": true,
+     "r": 0.149,
+     "season_r": 0.26
+    },
+    "own_third_passes": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.224,
+     "season_r": 0.365
+    },
+    "own_third_passes_completed": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.129,
+     "season_r": 0.228
+    },
+    "pass_distance": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.473,
+     "season_r": 0.642
+    },
+    "pass_pct": {
+     "n": 578,
+     "noisy": true,
+     "r": 0.294,
+     "season_r": 0.454
+    },
+    "passes": {
+     "n": 594,
+     "noisy": false,
+     "r": 0.423,
+     "season_r": 0.595
+    },
+    "passes_completed": {
+     "n": 594,
+     "noisy": false,
+     "r": 0.505,
+     "season_r": 0.671
+    },
+    "passes_final_third": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.165,
+     "season_r": 0.284
+    },
+    "passes_into_box": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.227,
+     "season_r": 0.37
+    },
+    "passes_received": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.449,
+     "season_r": 0.62
+    },
+    "passes_under_pressure": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.303,
+     "season_r": 0.466
+    },
+    "passes_under_pressure_completed": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.384,
+     "season_r": 0.555
+    },
+    "peak_speed": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.897,
+     "season_r": 0.946
+    },
+    "peak_speed_mean": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.805,
+     "season_r": 0.892
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 372,
+     "noisy": true,
+     "r": 0.103,
+     "season_r": 0.188
+    },
+    "pressure_regains": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.083,
+     "season_r": 0.154
+    },
+    "pressured_pass_pct": {
+     "n": 265,
+     "noisy": true,
+     "r": 0.086,
+     "season_r": 0.159
+    },
+    "pressures": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.203,
+     "season_r": 0.338
+    },
+    "progressive_carries": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.416,
+     "season_r": 0.587
+    },
+    "progressive_carry_distance": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.616,
+     "season_r": 0.762
+    },
+    "progressive_pass_distance": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.419,
+     "season_r": 0.591
+    },
+    "progressive_passes": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.241,
+     "season_r": 0.388
+    },
+    "progressive_passes_received": {
+     "n": 324,
+     "noisy": true,
+     "r": 0.295,
+     "season_r": 0.455
+    },
+    "recoveries": {
+     "n": 594,
+     "noisy": true,
+     "r": 0.062,
+     "season_r": 0.116
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 54,
+     "noisy": false,
+     "r": 0.321,
+     "season_r": 0.486
+    },
+    "sca": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.235,
+     "season_r": 0.38
+    },
+    "short_pass_pct": {
+     "n": 382,
+     "noisy": true,
+     "r": 0.097,
+     "season_r": 0.177
+    },
+    "short_passes": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.226,
+     "season_r": 0.369
+    },
+    "short_passes_completed": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.296,
+     "season_r": 0.456
+    },
+    "shot_on_target_pct": {
+     "n": 193,
+     "noisy": true,
+     "r": -0.129,
+     "season_r": 0.0
+    },
+    "shots": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.117,
+     "season_r": 0.21
+    },
+    "shots_on_target": {
+     "n": 540,
+     "noisy": true,
+     "r": -0.004,
+     "season_r": 0.0
+    },
+    "skill_moves": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.154,
+     "season_r": 0.267
+    },
+    "sot_faced": {
+     "n": 54,
+     "noisy": true,
+     "r": 0.294,
+     "season_r": 0.454
+    },
+    "sprint_distance": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.692,
+     "season_r": 0.818
+    },
+    "sprints": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.595,
+     "season_r": 0.746
+    },
+    "switches": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.126,
+     "season_r": 0.223
+    },
+    "tackle_duels": {
+     "n": 540,
+     "noisy": true,
+     "r": -0.032,
+     "season_r": 0.0
+    },
+    "tackle_success_pct": {
+     "n": 460,
+     "noisy": true,
+     "r": 0.151,
+     "season_r": 0.263
+    },
+    "tackles_won": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.102,
+     "season_r": 0.185
+    },
+    "take_on_pct": {
+     "n": 302,
+     "noisy": true,
+     "r": 0.056,
+     "season_r": 0.106
+    },
+    "take_ons": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.156,
+     "season_r": 0.27
+    },
+    "take_ons_won": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.216,
+     "season_r": 0.355
+    },
+    "through_balls": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.0,
+     "season_r": 0.0
+    },
+    "tkl_int": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.116,
+     "season_r": 0.208
+    },
+    "tkl_int_padj": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.202,
+     "season_r": 0.336
+    },
+    "touches": {
+     "n": 594,
+     "noisy": false,
+     "r": 0.366,
+     "season_r": 0.536
+    },
+    "touches_in_box": {
+     "n": 324,
+     "noisy": true,
+     "r": 0.141,
+     "season_r": 0.247
+    },
+    "walking_share": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.339,
+     "season_r": 0.506
+    },
+    "xa": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.211,
+     "season_r": 0.349
+    },
+    "xg": {
+     "n": 540,
+     "noisy": true,
+     "r": -0.033,
+     "season_r": 0.0
+    },
+    "xt_added": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.262,
+     "season_r": 0.415
+    },
+    "xt_carries": {
+     "n": 540,
+     "noisy": false,
+     "r": 0.396,
+     "season_r": 0.567
+    },
+    "xt_passes": {
+     "n": 540,
+     "noisy": true,
+     "r": 0.107,
+     "season_r": 0.193
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "academy/U20/men": {
+   "competitions": [
+    "co_bra_u20"
+   ],
+   "matches": 72,
+   "median_half_minutes": 86.0,
+   "metrics": {
+    "accelerations_high": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.677,
+     "season_r": 0.807
+    },
+    "aerial_duels": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.063,
+     "season_r": 0.119
+    },
+    "aerial_duels_lost": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.114,
+     "season_r": 0.0
+    },
+    "aerial_duels_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.211,
+     "season_r": 0.349
+    },
+    "aerial_win_pct": {
+     "n": 171,
+     "noisy": true,
+     "r": -0.035,
+     "season_r": 0.0
+    },
+    "assists": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.031,
+     "season_r": 0.059
+    },
+    "avg_shot_distance": {
+     "n": 93,
+     "noisy": true,
+     "r": 0.117,
+     "season_r": 0.21
+    },
+    "ball_losses": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.015,
+     "season_r": 0.03
+    },
+    "big_chances": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.041,
+     "season_r": 0.078
+    },
+    "blocks": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.16,
+     "season_r": 0.275
+    },
+    "carries": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.591,
+     "season_r": 0.743
+    },
+    "carries_final_third": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.376,
+     "season_r": 0.547
+    },
+    "carries_into_box": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.102,
+     "season_r": 0.185
+    },
+    "carry_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.616,
+     "season_r": 0.763
+    },
+    "clean_sheet_pct": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.055,
+     "season_r": 0.104
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.031,
+     "season_r": 0.06
+    },
+    "cross_pct": {
+     "n": 4,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "crosses": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.257,
+     "season_r": 0.409
+    },
+    "crosses_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.002,
+     "season_r": 0.003
+    },
+    "crosses_into_box": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.007,
+     "season_r": 0.013
+    },
+    "decelerations_high": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.174,
+     "season_r": 0.296
+    },
+    "distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.243,
+     "season_r": 0.391
+    },
+    "dribbled_past": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.177,
+     "season_r": 0.3
+    },
+    "final_third_pass_pct": {
+     "n": 23,
+     "noisy": true,
+     "r": 0.135,
+     "season_r": 0.238
+    },
+    "final_third_passes": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.351,
+     "season_r": 0.52
+    },
+    "final_third_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.251,
+     "season_r": 0.401
+    },
+    "fouls": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.076,
+     "season_r": 0.141
+    },
+    "fouls_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.114,
+     "season_r": 0.205
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.027,
+     "season_r": 0.0
+    },
+    "gk_avg_pass_length": {
+     "n": 11,
+     "noisy": false,
+     "r": 0.911,
+     "season_r": 0.953
+    },
+    "gk_launch_pct": {
+     "n": 11,
+     "noisy": false,
+     "r": 0.946,
+     "season_r": 0.972
+    },
+    "gk_pass_pct": {
+     "n": 14,
+     "noisy": false,
+     "r": 0.835,
+     "season_r": 0.91
+    },
+    "gk_passes": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.178,
+     "season_r": 0.302
+    },
+    "gk_passes_completed": {
+     "n": 24,
+     "noisy": false,
+     "r": 0.332,
+     "season_r": 0.498
+    },
+    "goals": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.143,
+     "season_r": 0.0
+    },
+    "goals_conceded": {
+     "n": 24,
+     "noisy": true,
+     "r": -0.115,
+     "season_r": 0.0
+    },
+    "hi_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.255,
+     "season_r": 0.406
+    },
+    "hi_efforts": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.231,
+     "season_r": 0.376
+    },
+    "hsr_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.084,
+     "season_r": 0.155
+    },
+    "interceptions": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.037,
+     "season_r": 0.071
+    },
+    "key_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.116,
+     "season_r": 0.208
+    },
+    "long_pass_pct": {
+     "n": 18,
+     "noisy": false,
+     "r": 0.352,
+     "season_r": 0.521
+    },
+    "long_passes": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.253,
+     "season_r": 0.404
+    },
+    "long_passes_completed": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.008,
+     "season_r": 0.015
+    },
+    "medium_pass_pct": {
+     "n": 218,
+     "noisy": true,
+     "r": 0.222,
+     "season_r": 0.363
+    },
+    "medium_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.055,
+     "season_r": 0.105
+    },
+    "medium_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.175,
+     "season_r": 0.298
+    },
+    "mid_third_pass_pct": {
+     "n": 238,
+     "noisy": true,
+     "r": 0.249,
+     "season_r": 0.398
+    },
+    "mid_third_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.067,
+     "season_r": 0.125
+    },
+    "mid_third_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.136,
+     "season_r": 0.24
+    },
+    "np_goals": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.136,
+     "season_r": 0.0
+    },
+    "np_goals_minus_xg": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.094,
+     "season_r": 0.0
+    },
+    "npxg": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.004,
+     "season_r": 0.0
+    },
+    "npxg_per_shot": {
+     "n": 93,
+     "noisy": true,
+     "r": 0.105,
+     "season_r": 0.19
+    },
+    "npxg_plus_xa": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.12,
+     "season_r": 0.214
+    },
+    "nutmegs": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.251,
+     "season_r": 0.401
+    },
+    "offsides": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.268,
+     "season_r": 0.422
+    },
+    "onpitch_goals_against": {
+     "n": 264,
+     "noisy": true,
+     "r": -0.106,
+     "season_r": 0.0
+    },
+    "onpitch_goals_diff": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.029,
+     "season_r": 0.056
+    },
+    "onpitch_goals_for": {
+     "n": 264,
+     "noisy": true,
+     "r": -0.089,
+     "season_r": 0.0
+    },
+    "onpitch_xg_against": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.045,
+     "season_r": 0.086
+    },
+    "onpitch_xg_diff": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.202,
+     "season_r": 0.336
+    },
+    "onpitch_xg_for": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.15,
+     "season_r": 0.261
+    },
+    "own_third_pass_pct": {
+     "n": 35,
+     "noisy": true,
+     "r": -0.223,
+     "season_r": 0.0
+    },
+    "own_third_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.002,
+     "season_r": 0.004
+    },
+    "own_third_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.085,
+     "season_r": 0.156
+    },
+    "pass_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.243,
+     "season_r": 0.391
+    },
+    "pass_pct": {
+     "n": 254,
+     "noisy": false,
+     "r": 0.377,
+     "season_r": 0.548
+    },
+    "passes": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.097,
+     "season_r": 0.177
+    },
+    "passes_completed": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.211,
+     "season_r": 0.348
+    },
+    "passes_final_third": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.039,
+     "season_r": 0.076
+    },
+    "passes_into_box": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.003,
+     "season_r": 0.006
+    },
+    "passes_received": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.261,
+     "season_r": 0.415
+    },
+    "passes_under_pressure": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.035,
+     "season_r": 0.0
+    },
+    "passes_under_pressure_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.063,
+     "season_r": 0.119
+    },
+    "peak_speed": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.859,
+     "season_r": 0.924
+    },
+    "peak_speed_mean": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.787,
+     "season_r": 0.881
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 130,
+     "noisy": true,
+     "r": 0.001,
+     "season_r": 0.002
+    },
+    "pressure_regains": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.099,
+     "season_r": 0.0
+    },
+    "pressured_pass_pct": {
+     "n": 95,
+     "noisy": true,
+     "r": 0.253,
+     "season_r": 0.403
+    },
+    "pressures": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.016,
+     "season_r": 0.0
+    },
+    "progressive_carries": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.408,
+     "season_r": 0.58
+    },
+    "progressive_carry_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.618,
+     "season_r": 0.764
+    },
+    "progressive_pass_distance": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.261,
+     "season_r": 0.415
+    },
+    "progressive_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.102,
+     "season_r": 0.185
+    },
+    "progressive_passes_received": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.293,
+     "season_r": 0.453
+    },
+    "recoveries": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.081,
+     "season_r": 0.149
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 24,
+     "noisy": true,
+     "r": 0.159,
+     "season_r": 0.275
+    },
+    "sca": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.215,
+     "season_r": 0.354
+    },
+    "short_pass_pct": {
+     "n": 157,
+     "noisy": true,
+     "r": 0.074,
+     "season_r": 0.138
+    },
+    "short_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.068,
+     "season_r": 0.0
+    },
+    "short_passes_completed": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.007,
+     "season_r": 0.0
+    },
+    "shot_on_target_pct": {
+     "n": 93,
+     "noisy": true,
+     "r": -0.128,
+     "season_r": 0.0
+    },
+    "shots": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.069,
+     "season_r": 0.129
+    },
+    "shots_on_target": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.097,
+     "season_r": 0.0
+    },
+    "skill_moves": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.043,
+     "season_r": 0.0
+    },
+    "sot_faced": {
+     "n": 24,
+     "noisy": true,
+     "r": -0.034,
+     "season_r": 0.0
+    },
+    "sprint_distance": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.631,
+     "season_r": 0.774
+    },
+    "sprints": {
+     "n": 240,
+     "noisy": false,
+     "r": 0.559,
+     "season_r": 0.717
+    },
+    "switches": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.007,
+     "season_r": 0.0
+    },
+    "tackle_duels": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.008,
+     "season_r": 0.016
+    },
+    "tackle_success_pct": {
+     "n": 193,
+     "noisy": true,
+     "r": 0.078,
+     "season_r": 0.145
+    },
+    "tackles_won": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.065,
+     "season_r": 0.0
+    },
+    "take_on_pct": {
+     "n": 127,
+     "noisy": true,
+     "r": 0.16,
+     "season_r": 0.275
+    },
+    "take_ons": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.218,
+     "season_r": 0.358
+    },
+    "take_ons_won": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.239,
+     "season_r": 0.385
+    },
+    "through_balls": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.0,
+     "season_r": 0.0
+    },
+    "tkl_int": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.076,
+     "season_r": 0.0
+    },
+    "tkl_int_padj": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.091,
+     "season_r": 0.0
+    },
+    "touches": {
+     "n": 264,
+     "noisy": true,
+     "r": 0.167,
+     "season_r": 0.286
+    },
+    "touches_in_box": {
+     "n": 144,
+     "noisy": true,
+     "r": 0.081,
+     "season_r": 0.149
+    },
+    "walking_share": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.146,
+     "season_r": 0.254
+    },
+    "xa": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.094,
+     "season_r": 0.171
+    },
+    "xg": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.03,
+     "season_r": 0.0
+    },
+    "xt_added": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.006,
+     "season_r": 0.011
+    },
+    "xt_carries": {
+     "n": 240,
+     "noisy": true,
+     "r": 0.192,
+     "season_r": 0.322
+    },
+    "xt_passes": {
+     "n": 240,
+     "noisy": true,
+     "r": -0.1,
+     "season_r": 0.0
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "amateur/senior/men": {
+   "competitions": [
+    "co_esp_am_men",
+    "co_mex_am_men",
+    "co_nga_am_men"
+   ],
+   "matches": 264,
+   "median_half_minutes": 90.3,
+   "metrics": {
+    "accelerations_high": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.356,
+     "season_r": 0.525
+    },
+    "aerial_duels": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.012,
+     "season_r": 0.023
+    },
+    "aerial_duels_lost": {
+     "n": 780,
+     "noisy": true,
+     "r": -0.01,
+     "season_r": 0.0
+    },
+    "aerial_duels_won": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.108,
+     "season_r": 0.195
+    },
+    "aerial_win_pct": {
+     "n": 476,
+     "noisy": true,
+     "r": 0.04,
+     "season_r": 0.077
+    },
+    "assists": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.017,
+     "season_r": 0.033
+    },
+    "avg_shot_distance": {
+     "n": 323,
+     "noisy": true,
+     "r": 0.233,
+     "season_r": 0.377
+    },
+    "ball_losses": {
+     "n": 780,
+     "noisy": true,
+     "r": -0.01,
+     "season_r": 0.0
+    },
+    "big_chances": {
+     "n": 468,
+     "noisy": true,
+     "r": -0.013,
+     "season_r": 0.0
+    },
+    "blocks": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.036,
+     "season_r": 0.07
+    },
+    "carries": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.557,
+     "season_r": 0.716
+    },
+    "carries_final_third": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.308,
+     "season_r": 0.471
+    },
+    "carries_into_box": {
+     "n": 468,
+     "noisy": true,
+     "r": -0.014,
+     "season_r": 0.0
+    },
+    "carry_distance": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.567,
+     "season_r": 0.724
+    },
+    "clean_sheet_pct": {
+     "n": 78,
+     "noisy": true,
+     "r": 0.137,
+     "season_r": 0.241
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 780,
+     "noisy": true,
+     "r": -0.021,
+     "season_r": 0.0
+    },
+    "cross_pct": {
+     "n": 7,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "crosses": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.171,
+     "season_r": 0.293
+    },
+    "crosses_completed": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.112,
+     "season_r": 0.201
+    },
+    "crosses_into_box": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.153,
+     "season_r": 0.265
+    },
+    "decelerations_high": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.166,
+     "season_r": 0.284
+    },
+    "distance": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.347,
+     "season_r": 0.516
+    },
+    "dribbled_past": {
+     "n": 780,
+     "noisy": true,
+     "r": -0.023,
+     "season_r": 0.0
+    },
+    "final_third_pass_pct": {
+     "n": 58,
+     "noisy": true,
+     "r": -0.037,
+     "season_r": 0.0
+    },
+    "final_third_passes": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.289,
+     "season_r": 0.448
+    },
+    "final_third_passes_completed": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.245,
+     "season_r": 0.394
+    },
+    "fouls": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.069,
+     "season_r": 0.128
+    },
+    "fouls_won": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.034,
+     "season_r": 0.065
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.026,
+     "season_r": 0.05
+    },
+    "gk_avg_pass_length": {
+     "n": 54,
+     "noisy": false,
+     "r": 0.621,
+     "season_r": 0.766
+    },
+    "gk_launch_pct": {
+     "n": 54,
+     "noisy": false,
+     "r": 0.532,
+     "season_r": 0.695
+    },
+    "gk_pass_pct": {
+     "n": 59,
+     "noisy": false,
+     "r": 0.475,
+     "season_r": 0.644
+    },
+    "gk_passes": {
+     "n": 78,
+     "noisy": true,
+     "r": 0.12,
+     "season_r": 0.215
+    },
+    "gk_passes_completed": {
+     "n": 78,
+     "noisy": true,
+     "r": 0.157,
+     "season_r": 0.271
+    },
+    "goals": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.011,
+     "season_r": 0.021
+    },
+    "goals_conceded": {
+     "n": 78,
+     "noisy": true,
+     "r": 0.184,
+     "season_r": 0.31
+    },
+    "hi_distance": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.31,
+     "season_r": 0.474
+    },
+    "hi_efforts": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.192,
+     "season_r": 0.323
+    },
+    "hsr_distance": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.162,
+     "season_r": 0.279
+    },
+    "interceptions": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.127,
+     "season_r": 0.225
+    },
+    "key_passes": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.159,
+     "season_r": 0.274
+    },
+    "long_pass_pct": {
+     "n": 74,
+     "noisy": true,
+     "r": 0.013,
+     "season_r": 0.026
+    },
+    "long_passes": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.25,
+     "season_r": 0.399
+    },
+    "long_passes_completed": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.093,
+     "season_r": 0.17
+    },
+    "medium_pass_pct": {
+     "n": 725,
+     "noisy": true,
+     "r": 0.235,
+     "season_r": 0.381
+    },
+    "medium_passes": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.208,
+     "season_r": 0.345
+    },
+    "medium_passes_completed": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.377,
+     "season_r": 0.547
+    },
+    "mid_third_pass_pct": {
+     "n": 775,
+     "noisy": true,
+     "r": 0.285,
+     "season_r": 0.444
+    },
+    "mid_third_passes": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.416,
+     "season_r": 0.587
+    },
+    "mid_third_passes_completed": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.523,
+     "season_r": 0.687
+    },
+    "np_goals": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.012,
+     "season_r": 0.024
+    },
+    "np_goals_minus_xg": {
+     "n": 780,
+     "noisy": true,
+     "r": -0.028,
+     "season_r": 0.0
+    },
+    "npxg": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.021,
+     "season_r": 0.041
+    },
+    "npxg_per_shot": {
+     "n": 323,
+     "noisy": true,
+     "r": 0.252,
+     "season_r": 0.403
+    },
+    "npxg_plus_xa": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.042,
+     "season_r": 0.081
+    },
+    "nutmegs": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.053,
+     "season_r": 0.1
+    },
+    "offsides": {
+     "n": 468,
+     "noisy": true,
+     "r": -0.026,
+     "season_r": 0.0
+    },
+    "onpitch_goals_against": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.168,
+     "season_r": 0.288
+    },
+    "onpitch_goals_diff": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.287,
+     "season_r": 0.446
+    },
+    "onpitch_goals_for": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.137,
+     "season_r": 0.24
+    },
+    "onpitch_xg_against": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.257,
+     "season_r": 0.409
+    },
+    "onpitch_xg_diff": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.286,
+     "season_r": 0.445
+    },
+    "onpitch_xg_for": {
+     "n": 858,
+     "noisy": true,
+     "r": 0.221,
+     "season_r": 0.362
+    },
+    "own_third_pass_pct": {
+     "n": 132,
+     "noisy": true,
+     "r": 0.25,
+     "season_r": 0.399
+    },
+    "own_third_passes": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.093,
+     "season_r": 0.17
+    },
+    "own_third_passes_completed": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.128,
+     "season_r": 0.227
+    },
+    "pass_distance": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.486,
+     "season_r": 0.654
+    },
+    "pass_pct": {
+     "n": 839,
+     "noisy": false,
+     "r": 0.351,
+     "season_r": 0.52
+    },
+    "passes": {
+     "n": 858,
+     "noisy": false,
+     "r": 0.38,
+     "season_r": 0.55
+    },
+    "passes_completed": {
+     "n": 858,
+     "noisy": false,
+     "r": 0.531,
+     "season_r": 0.693
+    },
+    "passes_final_third": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.158,
+     "season_r": 0.272
+    },
+    "passes_into_box": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.135,
+     "season_r": 0.238
+    },
+    "passes_received": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.529,
+     "season_r": 0.692
+    },
+    "passes_under_pressure": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.217,
+     "season_r": 0.357
+    },
+    "passes_under_pressure_completed": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.363,
+     "season_r": 0.532
+    },
+    "peak_speed": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.826,
+     "season_r": 0.904
+    },
+    "peak_speed_mean": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.777,
+     "season_r": 0.875
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 515,
+     "noisy": true,
+     "r": 0.11,
+     "season_r": 0.199
+    },
+    "pressure_regains": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.041,
+     "season_r": 0.078
+    },
+    "pressured_pass_pct": {
+     "n": 337,
+     "noisy": true,
+     "r": 0.297,
+     "season_r": 0.458
+    },
+    "pressures": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.036,
+     "season_r": 0.07
+    },
+    "progressive_carries": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.341,
+     "season_r": 0.509
+    },
+    "progressive_carry_distance": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.583,
+     "season_r": 0.736
+    },
+    "progressive_pass_distance": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.409,
+     "season_r": 0.58
+    },
+    "progressive_passes": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.206,
+     "season_r": 0.341
+    },
+    "progressive_passes_received": {
+     "n": 468,
+     "noisy": true,
+     "r": 0.231,
+     "season_r": 0.375
+    },
+    "recoveries": {
+     "n": 858,
+     "noisy": true,
+     "r": -0.069,
+     "season_r": 0.0
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 1,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 78,
+     "noisy": false,
+     "r": 0.339,
+     "season_r": 0.506
+    },
+    "sca": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.139,
+     "season_r": 0.245
+    },
+    "short_pass_pct": {
+     "n": 499,
+     "noisy": true,
+     "r": 0.171,
+     "season_r": 0.291
+    },
+    "short_passes": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.26,
+     "season_r": 0.413
+    },
+    "short_passes_completed": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.355,
+     "season_r": 0.524
+    },
+    "shot_on_target_pct": {
+     "n": 323,
+     "noisy": true,
+     "r": -0.086,
+     "season_r": 0.0
+    },
+    "shots": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.106,
+     "season_r": 0.191
+    },
+    "shots_on_target": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.064,
+     "season_r": 0.121
+    },
+    "skill_moves": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.14,
+     "season_r": 0.246
+    },
+    "sot_faced": {
+     "n": 78,
+     "noisy": false,
+     "r": 0.451,
+     "season_r": 0.622
+    },
+    "sprint_distance": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.508,
+     "season_r": 0.674
+    },
+    "sprints": {
+     "n": 780,
+     "noisy": false,
+     "r": 0.393,
+     "season_r": 0.565
+    },
+    "switches": {
+     "n": 780,
+     "noisy": true,
+     "r": -0.067,
+     "season_r": 0.0
+    },
+    "tackle_duels": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.111,
+     "season_r": 0.199
+    },
+    "tackle_success_pct": {
+     "n": 678,
+     "noisy": true,
+     "r": 0.023,
+     "season_r": 0.045
+    },
+    "tackles_won": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.188,
+     "season_r": 0.316
+    },
+    "take_on_pct": {
+     "n": 412,
+     "noisy": true,
+     "r": -0.01,
+     "season_r": 0.0
+    },
+    "take_ons": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.177,
+     "season_r": 0.3
+    },
+    "take_ons_won": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.144,
+     "season_r": 0.252
+    },
+    "through_balls": {
+     "n": 780,
+     "noisy": true,
+     "r": -0.025,
+     "season_r": 0.0
+    },
+    "tkl_int": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.192,
+     "season_r": 0.322
+    },
+    "tkl_int_padj": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.265,
+     "season_r": 0.419
+    },
+    "touches": {
+     "n": 858,
+     "noisy": false,
+     "r": 0.382,
+     "season_r": 0.552
+    },
+    "touches_in_box": {
+     "n": 468,
+     "noisy": true,
+     "r": 0.183,
+     "season_r": 0.309
+    },
+    "walking_share": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.249,
+     "season_r": 0.398
+    },
+    "xa": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.076,
+     "season_r": 0.141
+    },
+    "xg": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.062,
+     "season_r": 0.117
+    },
+    "xt_added": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.15,
+     "season_r": 0.261
+    },
+    "xt_carries": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.249,
+     "season_r": 0.399
+    },
+    "xt_passes": {
+     "n": 780,
+     "noisy": true,
+     "r": 0.125,
+     "season_r": 0.223
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "college/college/men": {
+   "competitions": [
+    "co_jpn_uni_men",
+    "co_usa_col_men"
+   ],
+   "matches": 252,
+   "median_half_minutes": 128.0,
+   "metrics": {
+    "accelerations_high": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.647,
+     "season_r": 0.785
+    },
+    "aerial_duels": {
+     "n": 600,
+     "noisy": true,
+     "r": -0.026,
+     "season_r": 0.0
+    },
+    "aerial_duels_lost": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.018,
+     "season_r": 0.035
+    },
+    "aerial_duels_won": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.032,
+     "season_r": 0.063
+    },
+    "aerial_win_pct": {
+     "n": 393,
+     "noisy": true,
+     "r": 0.081,
+     "season_r": 0.149
+    },
+    "assists": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.145,
+     "season_r": 0.254
+    },
+    "avg_shot_distance": {
+     "n": 282,
+     "noisy": true,
+     "r": -0.023,
+     "season_r": 0.0
+    },
+    "ball_losses": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.086,
+     "season_r": 0.158
+    },
+    "big_chances": {
+     "n": 360,
+     "noisy": true,
+     "r": 0.011,
+     "season_r": 0.022
+    },
+    "blocks": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.006,
+     "season_r": 0.013
+    },
+    "carries": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.556,
+     "season_r": 0.714
+    },
+    "carries_final_third": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.339,
+     "season_r": 0.506
+    },
+    "carries_into_box": {
+     "n": 360,
+     "noisy": true,
+     "r": 0.118,
+     "season_r": 0.211
+    },
+    "carry_distance": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.563,
+     "season_r": 0.721
+    },
+    "clean_sheet_pct": {
+     "n": 60,
+     "noisy": true,
+     "r": 0.239,
+     "season_r": 0.386
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.057,
+     "season_r": 0.107
+    },
+    "cross_pct": {
+     "n": 31,
+     "noisy": true,
+     "r": 0.231,
+     "season_r": 0.375
+    },
+    "crosses": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.335,
+     "season_r": 0.502
+    },
+    "crosses_completed": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.185,
+     "season_r": 0.312
+    },
+    "crosses_into_box": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.184,
+     "season_r": 0.311
+    },
+    "decelerations_high": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.276,
+     "season_r": 0.433
+    },
+    "distance": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.382,
+     "season_r": 0.553
+    },
+    "dribbled_past": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.106,
+     "season_r": 0.191
+    },
+    "final_third_pass_pct": {
+     "n": 100,
+     "noisy": true,
+     "r": 0.276,
+     "season_r": 0.433
+    },
+    "final_third_passes": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.465,
+     "season_r": 0.634
+    },
+    "final_third_passes_completed": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.471,
+     "season_r": 0.641
+    },
+    "fouls": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.109,
+     "season_r": 0.196
+    },
+    "fouls_won": {
+     "n": 600,
+     "noisy": true,
+     "r": -0.022,
+     "season_r": 0.0
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.189,
+     "season_r": 0.318
+    },
+    "gk_avg_pass_length": {
+     "n": 45,
+     "noisy": false,
+     "r": 0.683,
+     "season_r": 0.811
+    },
+    "gk_launch_pct": {
+     "n": 45,
+     "noisy": false,
+     "r": 0.635,
+     "season_r": 0.777
+    },
+    "gk_pass_pct": {
+     "n": 48,
+     "noisy": false,
+     "r": 0.708,
+     "season_r": 0.829
+    },
+    "gk_passes": {
+     "n": 60,
+     "noisy": false,
+     "r": 0.536,
+     "season_r": 0.698
+    },
+    "gk_passes_completed": {
+     "n": 60,
+     "noisy": false,
+     "r": 0.336,
+     "season_r": 0.503
+    },
+    "goals": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.122,
+     "season_r": 0.218
+    },
+    "goals_conceded": {
+     "n": 60,
+     "noisy": true,
+     "r": 0.273,
+     "season_r": 0.429
+    },
+    "hi_distance": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.337,
+     "season_r": 0.504
+    },
+    "hi_efforts": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.255,
+     "season_r": 0.406
+    },
+    "hsr_distance": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.232,
+     "season_r": 0.377
+    },
+    "interceptions": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.144,
+     "season_r": 0.252
+    },
+    "key_passes": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.255,
+     "season_r": 0.406
+    },
+    "long_pass_pct": {
+     "n": 111,
+     "noisy": true,
+     "r": 0.171,
+     "season_r": 0.292
+    },
+    "long_passes": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.415,
+     "season_r": 0.586
+    },
+    "long_passes_completed": {
+     "n": 660,
+     "noisy": true,
+     "r": 0.227,
+     "season_r": 0.369
+    },
+    "medium_pass_pct": {
+     "n": 577,
+     "noisy": false,
+     "r": 0.36,
+     "season_r": 0.53
+    },
+    "medium_passes": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.328,
+     "season_r": 0.494
+    },
+    "medium_passes_completed": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.518,
+     "season_r": 0.683
+    },
+    "mid_third_pass_pct": {
+     "n": 597,
+     "noisy": false,
+     "r": 0.379,
+     "season_r": 0.55
+    },
+    "mid_third_passes": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.446,
+     "season_r": 0.617
+    },
+    "mid_third_passes_completed": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.58,
+     "season_r": 0.734
+    },
+    "np_goals": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.151,
+     "season_r": 0.263
+    },
+    "np_goals_minus_xg": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.054,
+     "season_r": 0.102
+    },
+    "npxg": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.219,
+     "season_r": 0.359
+    },
+    "npxg_per_shot": {
+     "n": 282,
+     "noisy": true,
+     "r": -0.031,
+     "season_r": 0.0
+    },
+    "npxg_plus_xa": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.34,
+     "season_r": 0.508
+    },
+    "nutmegs": {
+     "n": 600,
+     "noisy": true,
+     "r": -0.051,
+     "season_r": 0.0
+    },
+    "offsides": {
+     "n": 360,
+     "noisy": true,
+     "r": -0.032,
+     "season_r": 0.0
+    },
+    "onpitch_goals_against": {
+     "n": 660,
+     "noisy": true,
+     "r": 0.254,
+     "season_r": 0.405
+    },
+    "onpitch_goals_diff": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.408,
+     "season_r": 0.58
+    },
+    "onpitch_goals_for": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.405,
+     "season_r": 0.576
+    },
+    "onpitch_xg_against": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.453,
+     "season_r": 0.624
+    },
+    "onpitch_xg_diff": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.666,
+     "season_r": 0.8
+    },
+    "onpitch_xg_for": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.672,
+     "season_r": 0.804
+    },
+    "own_third_pass_pct": {
+     "n": 189,
+     "noisy": true,
+     "r": 0.18,
+     "season_r": 0.305
+    },
+    "own_third_passes": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.084,
+     "season_r": 0.156
+    },
+    "own_third_passes_completed": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.018,
+     "season_r": 0.035
+    },
+    "pass_distance": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.607,
+     "season_r": 0.755
+    },
+    "pass_pct": {
+     "n": 648,
+     "noisy": false,
+     "r": 0.532,
+     "season_r": 0.694
+    },
+    "passes": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.48,
+     "season_r": 0.649
+    },
+    "passes_completed": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.624,
+     "season_r": 0.769
+    },
+    "passes_final_third": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.283,
+     "season_r": 0.441
+    },
+    "passes_into_box": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.16,
+     "season_r": 0.275
+    },
+    "passes_received": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.635,
+     "season_r": 0.777
+    },
+    "passes_under_pressure": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.349,
+     "season_r": 0.517
+    },
+    "passes_under_pressure_completed": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.466,
+     "season_r": 0.636
+    },
+    "peak_speed": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.772,
+     "season_r": 0.871
+    },
+    "peak_speed_mean": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.743,
+     "season_r": 0.853
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 448,
+     "noisy": true,
+     "r": 0.064,
+     "season_r": 0.121
+    },
+    "pressure_regains": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.074,
+     "season_r": 0.138
+    },
+    "pressured_pass_pct": {
+     "n": 373,
+     "noisy": true,
+     "r": 0.296,
+     "season_r": 0.457
+    },
+    "pressures": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.117,
+     "season_r": 0.21
+    },
+    "progressive_carries": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.292,
+     "season_r": 0.452
+    },
+    "progressive_carry_distance": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.562,
+     "season_r": 0.719
+    },
+    "progressive_pass_distance": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.488,
+     "season_r": 0.656
+    },
+    "progressive_passes": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.205,
+     "season_r": 0.34
+    },
+    "progressive_passes_received": {
+     "n": 360,
+     "noisy": true,
+     "r": 0.241,
+     "season_r": 0.388
+    },
+    "recoveries": {
+     "n": 660,
+     "noisy": true,
+     "r": 0.025,
+     "season_r": 0.049
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 5,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 60,
+     "noisy": true,
+     "r": 0.224,
+     "season_r": 0.366
+    },
+    "sca": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.341,
+     "season_r": 0.508
+    },
+    "short_pass_pct": {
+     "n": 474,
+     "noisy": true,
+     "r": 0.219,
+     "season_r": 0.36
+    },
+    "short_passes": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.27,
+     "season_r": 0.426
+    },
+    "short_passes_completed": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.397,
+     "season_r": 0.568
+    },
+    "shot_on_target_pct": {
+     "n": 282,
+     "noisy": true,
+     "r": 0.049,
+     "season_r": 0.093
+    },
+    "shots": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.178,
+     "season_r": 0.303
+    },
+    "shots_on_target": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.221,
+     "season_r": 0.362
+    },
+    "skill_moves": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.14,
+     "season_r": 0.245
+    },
+    "sot_faced": {
+     "n": 60,
+     "noisy": false,
+     "r": 0.366,
+     "season_r": 0.536
+    },
+    "sprint_distance": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.564,
+     "season_r": 0.721
+    },
+    "sprints": {
+     "n": 600,
+     "noisy": false,
+     "r": 0.482,
+     "season_r": 0.651
+    },
+    "switches": {
+     "n": 600,
+     "noisy": true,
+     "r": -0.017,
+     "season_r": 0.0
+    },
+    "tackle_duels": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.126,
+     "season_r": 0.224
+    },
+    "tackle_success_pct": {
+     "n": 487,
+     "noisy": true,
+     "r": 0.221,
+     "season_r": 0.362
+    },
+    "tackles_won": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.189,
+     "season_r": 0.317
+    },
+    "take_on_pct": {
+     "n": 365,
+     "noisy": true,
+     "r": 0.077,
+     "season_r": 0.142
+    },
+    "take_ons": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.067,
+     "season_r": 0.125
+    },
+    "take_ons_won": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.206,
+     "season_r": 0.341
+    },
+    "through_balls": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.051,
+     "season_r": 0.098
+    },
+    "tkl_int": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.168,
+     "season_r": 0.287
+    },
+    "tkl_int_padj": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.24,
+     "season_r": 0.387
+    },
+    "touches": {
+     "n": 660,
+     "noisy": false,
+     "r": 0.478,
+     "season_r": 0.646
+    },
+    "touches_in_box": {
+     "n": 360,
+     "noisy": true,
+     "r": 0.224,
+     "season_r": 0.365
+    },
+    "walking_share": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.28,
+     "season_r": 0.437
+    },
+    "xa": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.209,
+     "season_r": 0.345
+    },
+    "xg": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.163,
+     "season_r": 0.28
+    },
+    "xt_added": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.172,
+     "season_r": 0.294
+    },
+    "xt_carries": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.245,
+     "season_r": 0.393
+    },
+    "xt_passes": {
+     "n": 600,
+     "noisy": true,
+     "r": 0.078,
+     "season_r": 0.146
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "college/college/women": {
+   "competitions": [
+    "co_usa_col_women"
+   ],
+   "matches": 120,
+   "median_half_minutes": 113.7,
+   "metrics": {
+    "accelerations_high": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.662,
+     "season_r": 0.797
+    },
+    "aerial_duels": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.005,
+     "season_r": 0.009
+    },
+    "aerial_duels_lost": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.234,
+     "season_r": 0.38
+    },
+    "aerial_duels_won": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.127,
+     "season_r": 0.225
+    },
+    "aerial_win_pct": {
+     "n": 170,
+     "noisy": true,
+     "r": 0.205,
+     "season_r": 0.34
+    },
+    "assists": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.098,
+     "season_r": 0.179
+    },
+    "avg_shot_distance": {
+     "n": 139,
+     "noisy": true,
+     "r": -0.022,
+     "season_r": 0.0
+    },
+    "ball_losses": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.048,
+     "season_r": 0.092
+    },
+    "big_chances": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.015,
+     "season_r": 0.03
+    },
+    "blocks": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.096,
+     "season_r": 0.175
+    },
+    "carries": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.638,
+     "season_r": 0.779
+    },
+    "carries_final_third": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.283,
+     "season_r": 0.441
+    },
+    "carries_into_box": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.116,
+     "season_r": 0.208
+    },
+    "carry_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.652,
+     "season_r": 0.79
+    },
+    "clean_sheet_pct": {
+     "n": 30,
+     "noisy": true,
+     "r": 0.294,
+     "season_r": 0.455
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.017,
+     "season_r": 0.0
+    },
+    "cross_pct": {
+     "n": 4,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "crosses": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.179,
+     "season_r": 0.304
+    },
+    "crosses_completed": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.016,
+     "season_r": 0.032
+    },
+    "crosses_into_box": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.079,
+     "season_r": 0.146
+    },
+    "decelerations_high": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.165,
+     "season_r": 0.284
+    },
+    "distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.371,
+     "season_r": 0.541
+    },
+    "dribbled_past": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.06,
+     "season_r": 0.113
+    },
+    "final_third_pass_pct": {
+     "n": 31,
+     "noisy": true,
+     "r": -0.219,
+     "season_r": 0.0
+    },
+    "final_third_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.234,
+     "season_r": 0.38
+    },
+    "final_third_passes_completed": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.071,
+     "season_r": 0.132
+    },
+    "fouls": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.09,
+     "season_r": 0.165
+    },
+    "fouls_won": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.009,
+     "season_r": 0.019
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.087,
+     "season_r": 0.16
+    },
+    "gk_avg_pass_length": {
+     "n": 27,
+     "noisy": false,
+     "r": 0.736,
+     "season_r": 0.848
+    },
+    "gk_launch_pct": {
+     "n": 27,
+     "noisy": false,
+     "r": 0.569,
+     "season_r": 0.725
+    },
+    "gk_pass_pct": {
+     "n": 29,
+     "noisy": true,
+     "r": 0.232,
+     "season_r": 0.376
+    },
+    "gk_passes": {
+     "n": 30,
+     "noisy": true,
+     "r": 0.091,
+     "season_r": 0.167
+    },
+    "gk_passes_completed": {
+     "n": 30,
+     "noisy": true,
+     "r": 0.045,
+     "season_r": 0.085
+    },
+    "goals": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.02,
+     "season_r": 0.0
+    },
+    "goals_conceded": {
+     "n": 30,
+     "noisy": false,
+     "r": 0.353,
+     "season_r": 0.522
+    },
+    "hi_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.472,
+     "season_r": 0.641
+    },
+    "hi_efforts": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.402,
+     "season_r": 0.573
+    },
+    "hsr_distance": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.282,
+     "season_r": 0.439
+    },
+    "interceptions": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.016,
+     "season_r": 0.0
+    },
+    "key_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.073,
+     "season_r": 0.136
+    },
+    "long_pass_pct": {
+     "n": 42,
+     "noisy": true,
+     "r": 0.072,
+     "season_r": 0.135
+    },
+    "long_passes": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.214,
+     "season_r": 0.353
+    },
+    "long_passes_completed": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.07,
+     "season_r": 0.131
+    },
+    "medium_pass_pct": {
+     "n": 295,
+     "noisy": true,
+     "r": 0.247,
+     "season_r": 0.396
+    },
+    "medium_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.25,
+     "season_r": 0.4
+    },
+    "medium_passes_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.385,
+     "season_r": 0.556
+    },
+    "mid_third_pass_pct": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.296,
+     "season_r": 0.457
+    },
+    "mid_third_passes": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.457,
+     "season_r": 0.628
+    },
+    "mid_third_passes_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.606,
+     "season_r": 0.754
+    },
+    "np_goals": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.005,
+     "season_r": 0.01
+    },
+    "np_goals_minus_xg": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.06,
+     "season_r": 0.0
+    },
+    "npxg": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.049,
+     "season_r": 0.0
+    },
+    "npxg_per_shot": {
+     "n": 139,
+     "noisy": true,
+     "r": -0.046,
+     "season_r": 0.0
+    },
+    "npxg_plus_xa": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.057,
+     "season_r": 0.0
+    },
+    "nutmegs": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.156,
+     "season_r": 0.27
+    },
+    "offsides": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.071,
+     "season_r": 0.132
+    },
+    "onpitch_goals_against": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.343,
+     "season_r": 0.511
+    },
+    "onpitch_goals_diff": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.43,
+     "season_r": 0.602
+    },
+    "onpitch_goals_for": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.28,
+     "season_r": 0.437
+    },
+    "onpitch_xg_against": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.216,
+     "season_r": 0.356
+    },
+    "onpitch_xg_diff": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.189,
+     "season_r": 0.317
+    },
+    "onpitch_xg_for": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.027,
+     "season_r": 0.053
+    },
+    "own_third_pass_pct": {
+     "n": 78,
+     "noisy": true,
+     "r": 0.148,
+     "season_r": 0.258
+    },
+    "own_third_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.116,
+     "season_r": 0.207
+    },
+    "own_third_passes_completed": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.002,
+     "season_r": 0.004
+    },
+    "pass_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.477,
+     "season_r": 0.646
+    },
+    "pass_pct": {
+     "n": 329,
+     "noisy": false,
+     "r": 0.326,
+     "season_r": 0.491
+    },
+    "passes": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.386,
+     "season_r": 0.557
+    },
+    "passes_completed": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.563,
+     "season_r": 0.72
+    },
+    "passes_final_third": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.093,
+     "season_r": 0.169
+    },
+    "passes_into_box": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.07,
+     "season_r": 0.132
+    },
+    "passes_received": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.549,
+     "season_r": 0.709
+    },
+    "passes_under_pressure": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.285,
+     "season_r": 0.443
+    },
+    "passes_under_pressure_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.403,
+     "season_r": 0.575
+    },
+    "peak_speed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.958,
+     "season_r": 0.979
+    },
+    "peak_speed_mean": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.88,
+     "season_r": 0.936
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 237,
+     "noisy": true,
+     "r": 0.019,
+     "season_r": 0.036
+    },
+    "pressure_regains": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.06,
+     "season_r": 0.0
+    },
+    "pressured_pass_pct": {
+     "n": 161,
+     "noisy": true,
+     "r": 0.182,
+     "season_r": 0.307
+    },
+    "pressures": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.116,
+     "season_r": 0.208
+    },
+    "progressive_carries": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.307,
+     "season_r": 0.47
+    },
+    "progressive_carry_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.663,
+     "season_r": 0.797
+    },
+    "progressive_pass_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.304,
+     "season_r": 0.466
+    },
+    "progressive_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.14,
+     "season_r": 0.246
+    },
+    "progressive_passes_received": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.162,
+     "season_r": 0.279
+    },
+    "recoveries": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.108,
+     "season_r": 0.195
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 30,
+     "noisy": true,
+     "r": -0.177,
+     "season_r": 0.0
+    },
+    "sca": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.012,
+     "season_r": 0.023
+    },
+    "short_pass_pct": {
+     "n": 223,
+     "noisy": true,
+     "r": 0.085,
+     "season_r": 0.157
+    },
+    "short_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.227,
+     "season_r": 0.371
+    },
+    "short_passes_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.346,
+     "season_r": 0.514
+    },
+    "shot_on_target_pct": {
+     "n": 139,
+     "noisy": true,
+     "r": -0.08,
+     "season_r": 0.0
+    },
+    "shots": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.009,
+     "season_r": 0.018
+    },
+    "shots_on_target": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.077,
+     "season_r": 0.0
+    },
+    "skill_moves": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.159,
+     "season_r": 0.274
+    },
+    "sot_faced": {
+     "n": 30,
+     "noisy": true,
+     "r": 0.04,
+     "season_r": 0.076
+    },
+    "sprint_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.826,
+     "season_r": 0.905
+    },
+    "sprints": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.756,
+     "season_r": 0.861
+    },
+    "switches": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.129,
+     "season_r": 0.229
+    },
+    "tackle_duels": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.132,
+     "season_r": 0.233
+    },
+    "tackle_success_pct": {
+     "n": 273,
+     "noisy": true,
+     "r": 0.06,
+     "season_r": 0.113
+    },
+    "tackles_won": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.164,
+     "season_r": 0.282
+    },
+    "take_on_pct": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.204,
+     "season_r": 0.339
+    },
+    "take_ons": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.221,
+     "season_r": 0.362
+    },
+    "take_ons_won": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.299,
+     "season_r": 0.46
+    },
+    "through_balls": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.042,
+     "season_r": 0.0
+    },
+    "tkl_int": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.178,
+     "season_r": 0.302
+    },
+    "tkl_int_padj": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.257,
+     "season_r": 0.409
+    },
+    "touches": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.427,
+     "season_r": 0.599
+    },
+    "touches_in_box": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.033,
+     "season_r": 0.064
+    },
+    "walking_share": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.169,
+     "season_r": 0.289
+    },
+    "xa": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.045,
+     "season_r": 0.086
+    },
+    "xg": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.066,
+     "season_r": 0.0
+    },
+    "xt_added": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.049,
+     "season_r": 0.093
+    },
+    "xt_carries": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.198,
+     "season_r": 0.33
+    },
+    "xt_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.004,
+     "season_r": 0.009
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "semi_pro/senior/men": {
+   "competitions": [
+    "co_eng_sp_men",
+    "co_ger_sp_men"
+   ],
+   "matches": 360,
+   "median_half_minutes": 142.1,
+   "metrics": {
+    "accelerations_high": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.631,
+     "season_r": 0.774
+    },
+    "aerial_duels": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.021,
+     "season_r": 0.0
+    },
+    "aerial_duels_lost": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.056,
+     "season_r": 0.0
+    },
+    "aerial_duels_won": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.14,
+     "season_r": 0.245
+    },
+    "aerial_win_pct": {
+     "n": 477,
+     "noisy": true,
+     "r": 0.098,
+     "season_r": 0.178
+    },
+    "assists": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.056,
+     "season_r": 0.106
+    },
+    "avg_shot_distance": {
+     "n": 406,
+     "noisy": true,
+     "r": -0.088,
+     "season_r": 0.0
+    },
+    "ball_losses": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.1,
+     "season_r": 0.181
+    },
+    "big_chances": {
+     "n": 432,
+     "noisy": false,
+     "r": 0.313,
+     "season_r": 0.476
+    },
+    "blocks": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.001,
+     "season_r": 0.0
+    },
+    "carries": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.614,
+     "season_r": 0.761
+    },
+    "carries_final_third": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.267,
+     "season_r": 0.421
+    },
+    "carries_into_box": {
+     "n": 432,
+     "noisy": true,
+     "r": 0.135,
+     "season_r": 0.238
+    },
+    "carry_distance": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.639,
+     "season_r": 0.78
+    },
+    "clean_sheet_pct": {
+     "n": 72,
+     "noisy": true,
+     "r": 0.105,
+     "season_r": 0.19
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.012,
+     "season_r": 0.025
+    },
+    "cross_pct": {
+     "n": 70,
+     "noisy": true,
+     "r": 0.081,
+     "season_r": 0.151
+    },
+    "crosses": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.202,
+     "season_r": 0.336
+    },
+    "crosses_completed": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.294,
+     "season_r": 0.454
+    },
+    "crosses_into_box": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.192,
+     "season_r": 0.323
+    },
+    "decelerations_high": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.24,
+     "season_r": 0.387
+    },
+    "distance": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.527,
+     "season_r": 0.691
+    },
+    "dribbled_past": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.005,
+     "season_r": 0.01
+    },
+    "final_third_pass_pct": {
+     "n": 220,
+     "noisy": true,
+     "r": 0.005,
+     "season_r": 0.01
+    },
+    "final_third_passes": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.363,
+     "season_r": 0.532
+    },
+    "final_third_passes_completed": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.402,
+     "season_r": 0.574
+    },
+    "fouls": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.148,
+     "season_r": 0.258
+    },
+    "fouls_won": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.0,
+     "season_r": 0.0
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.122,
+     "season_r": 0.218
+    },
+    "gk_avg_pass_length": {
+     "n": 65,
+     "noisy": false,
+     "r": 0.628,
+     "season_r": 0.772
+    },
+    "gk_launch_pct": {
+     "n": 65,
+     "noisy": false,
+     "r": 0.569,
+     "season_r": 0.725
+    },
+    "gk_pass_pct": {
+     "n": 69,
+     "noisy": false,
+     "r": 0.641,
+     "season_r": 0.781
+    },
+    "gk_passes": {
+     "n": 72,
+     "noisy": true,
+     "r": 0.197,
+     "season_r": 0.33
+    },
+    "gk_passes_completed": {
+     "n": 72,
+     "noisy": false,
+     "r": 0.378,
+     "season_r": 0.549
+    },
+    "goals": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.129,
+     "season_r": 0.229
+    },
+    "goals_conceded": {
+     "n": 72,
+     "noisy": true,
+     "r": 0.011,
+     "season_r": 0.022
+    },
+    "hi_distance": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.423,
+     "season_r": 0.594
+    },
+    "hi_efforts": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.361,
+     "season_r": 0.531
+    },
+    "hsr_distance": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.282,
+     "season_r": 0.44
+    },
+    "interceptions": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.069,
+     "season_r": 0.129
+    },
+    "key_passes": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.224,
+     "season_r": 0.366
+    },
+    "long_pass_pct": {
+     "n": 230,
+     "noisy": true,
+     "r": 0.212,
+     "season_r": 0.349
+    },
+    "long_passes": {
+     "n": 792,
+     "noisy": true,
+     "r": 0.223,
+     "season_r": 0.365
+    },
+    "long_passes_completed": {
+     "n": 792,
+     "noisy": true,
+     "r": 0.164,
+     "season_r": 0.282
+    },
+    "medium_pass_pct": {
+     "n": 719,
+     "noisy": true,
+     "r": 0.278,
+     "season_r": 0.435
+    },
+    "medium_passes": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.241,
+     "season_r": 0.389
+    },
+    "medium_passes_completed": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.351,
+     "season_r": 0.52
+    },
+    "mid_third_pass_pct": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.269,
+     "season_r": 0.424
+    },
+    "mid_third_passes": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.306,
+     "season_r": 0.469
+    },
+    "mid_third_passes_completed": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.398,
+     "season_r": 0.569
+    },
+    "np_goals": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.107,
+     "season_r": 0.193
+    },
+    "np_goals_minus_xg": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.015,
+     "season_r": 0.029
+    },
+    "npxg": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.254,
+     "season_r": 0.405
+    },
+    "npxg_per_shot": {
+     "n": 406,
+     "noisy": true,
+     "r": -0.04,
+     "season_r": 0.0
+    },
+    "npxg_plus_xa": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.266,
+     "season_r": 0.42
+    },
+    "nutmegs": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.12,
+     "season_r": 0.214
+    },
+    "offsides": {
+     "n": 432,
+     "noisy": true,
+     "r": 0.077,
+     "season_r": 0.143
+    },
+    "onpitch_goals_against": {
+     "n": 792,
+     "noisy": true,
+     "r": -0.023,
+     "season_r": 0.0
+    },
+    "onpitch_goals_diff": {
+     "n": 792,
+     "noisy": true,
+     "r": 0.153,
+     "season_r": 0.266
+    },
+    "onpitch_goals_for": {
+     "n": 792,
+     "noisy": false,
+     "r": 0.352,
+     "season_r": 0.521
+    },
+    "onpitch_xg_against": {
+     "n": 792,
+     "noisy": true,
+     "r": 0.069,
+     "season_r": 0.129
+    },
+    "onpitch_xg_diff": {
+     "n": 792,
+     "noisy": false,
+     "r": 0.447,
+     "season_r": 0.618
+    },
+    "onpitch_xg_for": {
+     "n": 792,
+     "noisy": false,
+     "r": 0.519,
+     "season_r": 0.683
+    },
+    "own_third_pass_pct": {
+     "n": 350,
+     "noisy": true,
+     "r": 0.133,
+     "season_r": 0.235
+    },
+    "own_third_passes": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.06,
+     "season_r": 0.113
+    },
+    "own_third_passes_completed": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.07,
+     "season_r": 0.131
+    },
+    "pass_distance": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.444,
+     "season_r": 0.615
+    },
+    "pass_pct": {
+     "n": 789,
+     "noisy": false,
+     "r": 0.441,
+     "season_r": 0.612
+    },
+    "passes": {
+     "n": 792,
+     "noisy": false,
+     "r": 0.355,
+     "season_r": 0.524
+    },
+    "passes_completed": {
+     "n": 792,
+     "noisy": false,
+     "r": 0.458,
+     "season_r": 0.628
+    },
+    "passes_final_third": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.178,
+     "season_r": 0.303
+    },
+    "passes_into_box": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.154,
+     "season_r": 0.266
+    },
+    "passes_received": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.452,
+     "season_r": 0.623
+    },
+    "passes_under_pressure": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.18,
+     "season_r": 0.305
+    },
+    "passes_under_pressure_completed": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.26,
+     "season_r": 0.413
+    },
+    "peak_speed": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.867,
+     "season_r": 0.929
+    },
+    "peak_speed_mean": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.836,
+     "season_r": 0.911
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 651,
+     "noisy": true,
+     "r": -0.038,
+     "season_r": 0.0
+    },
+    "pressure_regains": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.042,
+     "season_r": 0.0
+    },
+    "pressured_pass_pct": {
+     "n": 550,
+     "noisy": true,
+     "r": 0.101,
+     "season_r": 0.184
+    },
+    "pressures": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.15,
+     "season_r": 0.261
+    },
+    "progressive_carries": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.435,
+     "season_r": 0.607
+    },
+    "progressive_carry_distance": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.635,
+     "season_r": 0.777
+    },
+    "progressive_pass_distance": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.365,
+     "season_r": 0.535
+    },
+    "progressive_passes": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.202,
+     "season_r": 0.337
+    },
+    "progressive_passes_received": {
+     "n": 432,
+     "noisy": true,
+     "r": 0.25,
+     "season_r": 0.399
+    },
+    "recoveries": {
+     "n": 792,
+     "noisy": true,
+     "r": 0.012,
+     "season_r": 0.025
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 1,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 72,
+     "noisy": true,
+     "r": 0.069,
+     "season_r": 0.13
+    },
+    "sca": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.285,
+     "season_r": 0.444
+    },
+    "short_pass_pct": {
+     "n": 648,
+     "noisy": true,
+     "r": 0.106,
+     "season_r": 0.192
+    },
+    "short_passes": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.202,
+     "season_r": 0.335
+    },
+    "short_passes_completed": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.242,
+     "season_r": 0.389
+    },
+    "shot_on_target_pct": {
+     "n": 406,
+     "noisy": true,
+     "r": 0.115,
+     "season_r": 0.206
+    },
+    "shots": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.231,
+     "season_r": 0.376
+    },
+    "shots_on_target": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.21,
+     "season_r": 0.347
+    },
+    "skill_moves": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.16,
+     "season_r": 0.275
+    },
+    "sot_faced": {
+     "n": 72,
+     "noisy": true,
+     "r": 0.067,
+     "season_r": 0.126
+    },
+    "sprint_distance": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.581,
+     "season_r": 0.735
+    },
+    "sprints": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.466,
+     "season_r": 0.636
+    },
+    "switches": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.049,
+     "season_r": 0.093
+    },
+    "tackle_duels": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.041,
+     "season_r": 0.0
+    },
+    "tackle_success_pct": {
+     "n": 560,
+     "noisy": true,
+     "r": 0.046,
+     "season_r": 0.088
+    },
+    "tackles_won": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.014,
+     "season_r": 0.0
+    },
+    "take_on_pct": {
+     "n": 518,
+     "noisy": true,
+     "r": 0.041,
+     "season_r": 0.078
+    },
+    "take_ons": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.166,
+     "season_r": 0.285
+    },
+    "take_ons_won": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.18,
+     "season_r": 0.305
+    },
+    "through_balls": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.136,
+     "season_r": 0.24
+    },
+    "tkl_int": {
+     "n": 720,
+     "noisy": true,
+     "r": -0.005,
+     "season_r": 0.0
+    },
+    "tkl_int_padj": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.007,
+     "season_r": 0.014
+    },
+    "touches": {
+     "n": 792,
+     "noisy": false,
+     "r": 0.352,
+     "season_r": 0.521
+    },
+    "touches_in_box": {
+     "n": 432,
+     "noisy": true,
+     "r": 0.257,
+     "season_r": 0.409
+    },
+    "walking_share": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.345,
+     "season_r": 0.513
+    },
+    "xa": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.16,
+     "season_r": 0.276
+    },
+    "xg": {
+     "n": 720,
+     "noisy": false,
+     "r": 0.37,
+     "season_r": 0.54
+    },
+    "xt_added": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.241,
+     "season_r": 0.389
+    },
+    "xt_carries": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.206,
+     "season_r": 0.342
+    },
+    "xt_passes": {
+     "n": 720,
+     "noisy": true,
+     "r": 0.127,
+     "season_r": 0.225
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  },
+  "semi_pro/senior/women": {
+   "competitions": [
+    "co_eng_sp_women"
+   ],
+   "matches": 120,
+   "median_half_minutes": 113.8,
+   "metrics": {
+    "accelerations_high": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.85,
+     "season_r": 0.919
+    },
+    "aerial_duels": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.026,
+     "season_r": 0.05
+    },
+    "aerial_duels_lost": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.067,
+     "season_r": 0.125
+    },
+    "aerial_duels_won": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.087,
+     "season_r": 0.16
+    },
+    "aerial_win_pct": {
+     "n": 167,
+     "noisy": true,
+     "r": 0.209,
+     "season_r": 0.346
+    },
+    "assists": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.152,
+     "season_r": 0.264
+    },
+    "avg_shot_distance": {
+     "n": 146,
+     "noisy": true,
+     "r": 0.021,
+     "season_r": 0.04
+    },
+    "ball_losses": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.045,
+     "season_r": 0.086
+    },
+    "big_chances": {
+     "n": 180,
+     "noisy": true,
+     "r": -0.047,
+     "season_r": 0.0
+    },
+    "blocks": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.109,
+     "season_r": 0.197
+    },
+    "carries": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.707,
+     "season_r": 0.828
+    },
+    "carries_final_third": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.305,
+     "season_r": 0.467
+    },
+    "carries_into_box": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.034,
+     "season_r": 0.067
+    },
+    "carry_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.699,
+     "season_r": 0.823
+    },
+    "clean_sheet_pct": {
+     "n": 30,
+     "noisy": false,
+     "r": 0.345,
+     "season_r": 0.514
+    },
+    "clean_sheets": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "clearances": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.052,
+     "season_r": 0.098
+    },
+    "cross_pct": {
+     "n": 5,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "crosses": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.395,
+     "season_r": 0.567
+    },
+    "crosses_completed": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.251,
+     "season_r": 0.401
+    },
+    "crosses_into_box": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.288,
+     "season_r": 0.447
+    },
+    "decelerations_high": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.302,
+     "season_r": 0.464
+    },
+    "distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.448,
+     "season_r": 0.619
+    },
+    "dribbled_past": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.216,
+     "season_r": 0.355
+    },
+    "final_third_pass_pct": {
+     "n": 32,
+     "noisy": false,
+     "r": 0.643,
+     "season_r": 0.782
+    },
+    "final_third_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.278,
+     "season_r": 0.435
+    },
+    "final_third_passes_completed": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.246,
+     "season_r": 0.395
+    },
+    "fouls": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.189,
+     "season_r": 0.318
+    },
+    "fouls_won": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.072,
+     "season_r": 0.0
+    },
+    "full_matches": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "gca": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.005,
+     "season_r": 0.0
+    },
+    "gk_avg_pass_length": {
+     "n": 28,
+     "noisy": false,
+     "r": 0.686,
+     "season_r": 0.814
+    },
+    "gk_launch_pct": {
+     "n": 28,
+     "noisy": false,
+     "r": 0.763,
+     "season_r": 0.866
+    },
+    "gk_pass_pct": {
+     "n": 28,
+     "noisy": false,
+     "r": 0.623,
+     "season_r": 0.768
+    },
+    "gk_passes": {
+     "n": 30,
+     "noisy": false,
+     "r": 0.621,
+     "season_r": 0.766
+    },
+    "gk_passes_completed": {
+     "n": 30,
+     "noisy": false,
+     "r": 0.445,
+     "season_r": 0.616
+    },
+    "goals": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.159,
+     "season_r": 0.274
+    },
+    "goals_conceded": {
+     "n": 30,
+     "noisy": true,
+     "r": 0.277,
+     "season_r": 0.434
+    },
+    "hi_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.463,
+     "season_r": 0.633
+    },
+    "hi_efforts": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.369,
+     "season_r": 0.539
+    },
+    "hsr_distance": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.289,
+     "season_r": 0.448
+    },
+    "interceptions": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.012,
+     "season_r": 0.024
+    },
+    "key_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.2,
+     "season_r": 0.334
+    },
+    "long_pass_pct": {
+     "n": 51,
+     "noisy": true,
+     "r": 0.031,
+     "season_r": 0.061
+    },
+    "long_passes": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.389,
+     "season_r": 0.56
+    },
+    "long_passes_completed": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.057,
+     "season_r": 0.108
+    },
+    "medium_pass_pct": {
+     "n": 297,
+     "noisy": false,
+     "r": 0.373,
+     "season_r": 0.543
+    },
+    "medium_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.27,
+     "season_r": 0.425
+    },
+    "medium_passes_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.516,
+     "season_r": 0.681
+    },
+    "mid_third_pass_pct": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.376,
+     "season_r": 0.547
+    },
+    "mid_third_passes": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.542,
+     "season_r": 0.703
+    },
+    "mid_third_passes_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.7,
+     "season_r": 0.824
+    },
+    "np_goals": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.178,
+     "season_r": 0.302
+    },
+    "np_goals_minus_xg": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.144,
+     "season_r": 0.252
+    },
+    "npxg": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.137,
+     "season_r": 0.241
+    },
+    "npxg_per_shot": {
+     "n": 146,
+     "noisy": true,
+     "r": -0.028,
+     "season_r": 0.0
+    },
+    "npxg_plus_xa": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.241,
+     "season_r": 0.388
+    },
+    "nutmegs": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.189,
+     "season_r": 0.317
+    },
+    "offsides": {
+     "n": 180,
+     "noisy": true,
+     "r": -0.036,
+     "season_r": 0.0
+    },
+    "onpitch_goals_against": {
+     "n": 330,
+     "noisy": true,
+     "r": 0.197,
+     "season_r": 0.328
+    },
+    "onpitch_goals_diff": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.598,
+     "season_r": 0.749
+    },
+    "onpitch_goals_for": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.662,
+     "season_r": 0.796
+    },
+    "onpitch_xg_against": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.686,
+     "season_r": 0.814
+    },
+    "onpitch_xg_diff": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.774,
+     "season_r": 0.873
+    },
+    "onpitch_xg_for": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.669,
+     "season_r": 0.802
+    },
+    "own_third_pass_pct": {
+     "n": 76,
+     "noisy": true,
+     "r": -0.079,
+     "season_r": 0.0
+    },
+    "own_third_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.169,
+     "season_r": 0.289
+    },
+    "own_third_passes_completed": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.085,
+     "season_r": 0.156
+    },
+    "pass_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.622,
+     "season_r": 0.767
+    },
+    "pass_pct": {
+     "n": 328,
+     "noisy": false,
+     "r": 0.494,
+     "season_r": 0.661
+    },
+    "passes": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.516,
+     "season_r": 0.681
+    },
+    "passes_completed": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.688,
+     "season_r": 0.815
+    },
+    "passes_final_third": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.19,
+     "season_r": 0.319
+    },
+    "passes_into_box": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.233,
+     "season_r": 0.378
+    },
+    "passes_received": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.551,
+     "season_r": 0.71
+    },
+    "passes_under_pressure": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.374,
+     "season_r": 0.544
+    },
+    "passes_under_pressure_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.562,
+     "season_r": 0.72
+    },
+    "peak_speed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.895,
+     "season_r": 0.945
+    },
+    "peak_speed_mean": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.844,
+     "season_r": 0.916
+    },
+    "penalties_faced": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_saved": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_taken": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalties_won": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "penalty_goals": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "pressure_regain_pct": {
+     "n": 241,
+     "noisy": true,
+     "r": 0.05,
+     "season_r": 0.096
+    },
+    "pressure_regains": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.047,
+     "season_r": 0.0
+    },
+    "pressured_pass_pct": {
+     "n": 172,
+     "noisy": false,
+     "r": 0.406,
+     "season_r": 0.578
+    },
+    "pressures": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.202,
+     "season_r": 0.336
+    },
+    "progressive_carries": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.333,
+     "season_r": 0.499
+    },
+    "progressive_carry_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.702,
+     "season_r": 0.825
+    },
+    "progressive_pass_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.456,
+     "season_r": 0.627
+    },
+    "progressive_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.239,
+     "season_r": 0.386
+    },
+    "progressive_passes_received": {
+     "n": 180,
+     "noisy": false,
+     "r": 0.314,
+     "season_r": 0.478
+    },
+    "recoveries": {
+     "n": 330,
+     "noisy": true,
+     "r": -0.037,
+     "season_r": 0.0
+    },
+    "red_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "save_pct": {
+     "n": 2,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    },
+    "saves": {
+     "n": 30,
+     "noisy": true,
+     "r": 0.274,
+     "season_r": 0.43
+    },
+    "sca": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.321,
+     "season_r": 0.486
+    },
+    "short_pass_pct": {
+     "n": 235,
+     "noisy": true,
+     "r": 0.218,
+     "season_r": 0.358
+    },
+    "short_passes": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.323,
+     "season_r": 0.489
+    },
+    "short_passes_completed": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.45,
+     "season_r": 0.621
+    },
+    "shot_on_target_pct": {
+     "n": 146,
+     "noisy": true,
+     "r": 0.107,
+     "season_r": 0.193
+    },
+    "shots": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.368,
+     "season_r": 0.538
+    },
+    "shots_on_target": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.27,
+     "season_r": 0.425
+    },
+    "skill_moves": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.142,
+     "season_r": 0.249
+    },
+    "sot_faced": {
+     "n": 30,
+     "noisy": false,
+     "r": 0.425,
+     "season_r": 0.597
+    },
+    "sprint_distance": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.788,
+     "season_r": 0.881
+    },
+    "sprints": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.729,
+     "season_r": 0.843
+    },
+    "switches": {
+     "n": 300,
+     "noisy": true,
+     "r": -0.102,
+     "season_r": 0.0
+    },
+    "tackle_duels": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.053,
+     "season_r": 0.101
+    },
+    "tackle_success_pct": {
+     "n": 276,
+     "noisy": true,
+     "r": 0.146,
+     "season_r": 0.255
+    },
+    "tackles_won": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.099,
+     "season_r": 0.18
+    },
+    "take_on_pct": {
+     "n": 175,
+     "noisy": true,
+     "r": -0.037,
+     "season_r": 0.0
+    },
+    "take_ons": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.212,
+     "season_r": 0.349
+    },
+    "take_ons_won": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.255,
+     "season_r": 0.406
+    },
+    "through_balls": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.0,
+     "season_r": 0.0
+    },
+    "tkl_int": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.086,
+     "season_r": 0.159
+    },
+    "tkl_int_padj": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.173,
+     "season_r": 0.295
+    },
+    "touches": {
+     "n": 330,
+     "noisy": false,
+     "r": 0.456,
+     "season_r": 0.627
+    },
+    "touches_in_box": {
+     "n": 180,
+     "noisy": true,
+     "r": 0.222,
+     "season_r": 0.363
+    },
+    "walking_share": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.372,
+     "season_r": 0.542
+    },
+    "xa": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.143,
+     "season_r": 0.25
+    },
+    "xg": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.092,
+     "season_r": 0.168
+    },
+    "xt_added": {
+     "n": 300,
+     "noisy": false,
+     "r": 0.332,
+     "season_r": 0.499
+    },
+    "xt_carries": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.272,
+     "season_r": 0.427
+    },
+    "xt_passes": {
+     "n": 300,
+     "noisy": true,
+     "r": 0.186,
+     "season_r": 0.314
+    },
+    "yellow_cards": {
+     "n": 0,
+     "noisy": null,
+     "r": null,
+     "season_r": null
+    }
+   },
+   "seasons": 6
+  }
+ },
+ "method": "split-half reliability within role, per level: each competition's full double round robin regenerated 6 times with measurement seeds (regista.catalogue.measure), each season cut into its first and second half of rounds, each half computed with the catalogue engine's rule for its competition; values centred on the role's mean in that competition-season; rows pooled over the level's competitions and seasons. r is the split-half correlation, season_r its Spearman-Brown estimate for a whole season, 2r/(1+r). noisy: r below 0.3",
+ "min_rows": 8,
+ "noise_r": 0.3,
+ "note": "measured per level on full regenerated seasons of its competitions (split in halves of rounds); the uploaded sample of every sparse competition is smaller than half a season, so its numbers are noisier still",
+ "seasons": 6,
+ "synthetic": true
+}

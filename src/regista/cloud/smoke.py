@@ -7,7 +7,8 @@ CI runs this inside the freshly built image (.github/workflows/build-image.yml),
 .NET binary whose runtime needs (ICU, OpenSSL) differ between a laptop and the slim Linux image. Listing tools is an
 MCP handshake only: nothing is queried. The file checks catch a build that forgot package data (the Product and Studio
 pages ship as ``regista/static``) or a ``.dockerignore`` that dropped a sample match. The season check compares the
-league the image built with the committed pins, on the platform the live app runs on.
+league the image built with the committed pins, on the platform the live app runs on, and the catalogue check does
+the same for the catalogue's uploaded matches (``regista.catalogue.pins``).
 """
 
 from __future__ import annotations
@@ -57,7 +58,8 @@ async def checks() -> list[dict]:
     # Placeholder endpoints switch the namespaces on; the handshake never contacts them.
     cfg = CloudConfig(cosmos_endpoint="https://smoke.documents.azure.com:443/", search_endpoint="https://smoke.search.windows.net")
     regista = MCPStdioTool(name="regista", command=sys.executable, args=["-m", "regista.mcp_server"], env=child_env())
-    for name, make, want in (("regista-mcp", lambda: regista, {"search_clips", "search_library"}),
+    for name, make, want in (("regista-mcp", lambda: regista, {"search_clips", "search_library", "list_competitions",
+                                                                  "search_catalogue_players", "get_catalogue_player"}),
                              ("azure-mcp-public", lambda: azure_mcp_tool(cfg, ("search",)), {"search_index_query"}),
                              ("azure-mcp-cli", lambda: azure_mcp_tool(cfg), {"search_index_query", "cosmos_database_container_item_query"})):
         try:
@@ -99,8 +101,61 @@ def season_checks(league_path: Path | None = None, root: Path | None = None) -> 
     return [{"check": "season-pins", "ok": not moved, "root": str(root), "differs": moved}]
 
 
+def catalogue_checks(index: Path | None = None, root: Path | None = None) -> list[dict]:
+    """The catalogue's matches the Dockerfile built inside the image are the committed ones, bit for bit
+    (``regista.catalogue.pins``), like the league's."""
+    from regista.catalogue import store
+    from regista.catalogue.pins import drift
+
+    index = index or Path(os.environ.get("REGISTA_CATALOGUE", "data/catalogue/catalogue.json"))
+    root = root or Path(os.environ.get("REGISTA_CATALOGUE_ROOT", "data/catalogue/matches"))
+    try:
+        moved = drift(store.new_competitions(index), root)
+    except Exception as exc:  # noqa: BLE001 - reported, then the exit code says it failed
+        return [{"check": "catalogue-pins", "ok": False, "error": f"{type(exc).__name__}: {exc}"}]
+    return [{"check": "catalogue-pins", "ok": not moved, "root": str(root), "differs": moved}]
+
+
+def catalogue_reliability_checks(index: Path | None = None) -> list[dict]:
+    """The per-level reliability shipped with the image was measured for this catalogue and generator, so the engine
+    marks noisy numbers (``regista.catalogue.reliability``); a stale or missing table would mark none."""
+    from regista.catalogue import reliability as rel
+    from regista.catalogue import store
+    from regista.catalogue.taxonomy import ENGLAND_ID
+    from regista.season.league import load_league
+
+    index = index or Path(os.environ.get("REGISTA_CATALOGUE", "data/catalogue/catalogue.json"))
+    try:
+        league = load_league(store.competition_path(store.entry(ENGLAND_ID, index), index))
+        data = rel.load(league, store.new_competitions(index), index.with_name(rel.FILE_NAME))
+    except Exception as exc:  # noqa: BLE001 - reported, then the exit code says it failed
+        return [{"check": "catalogue-reliability", "ok": False, "error": f"{type(exc).__name__}: {exc}"}]
+    return [{"check": "catalogue-reliability", "ok": "stale" not in data, "levels": sorted(data.get("levels", {})),
+             "stale": data.get("stale")}]
+
+
+def catalogue_realism_checks(index: Path | None = None) -> list[dict]:
+    """The realism verdicts shipped with the image were measured for this catalogue and generator, so a served check says
+    pass, fail or not separated (``regista.catalogue.realism``); a stale or missing file would serve "not measured"."""
+    from regista.catalogue import realism as rea
+    from regista.catalogue import store
+    from regista.catalogue.taxonomy import ENGLAND_ID
+    from regista.season.league import load_league
+
+    index = index or Path(os.environ.get("REGISTA_CATALOGUE", "data/catalogue/catalogue.json"))
+    try:
+        league = load_league(store.competition_path(store.entry(ENGLAND_ID, index), index))
+        data = rea.load(index.with_name(rea.FILE_NAME), league, store.new_competitions(index))
+    except Exception as exc:  # noqa: BLE001 - reported, then the exit code says it failed
+        return [{"check": "catalogue-realism", "ok": False, "error": f"{type(exc).__name__}: {exc}"}]
+    checks = data.get("bands", []) + data.get("orders", [])
+    return [{"check": "catalogue-realism", "ok": "stale" not in data and bool(checks)
+             and all(c.get("verdict") for c in checks), "checks": len(checks), "stale": data.get("stale")}]
+
+
 def main() -> int:
-    results = file_checks() + vision_checks() + season_checks() + asyncio.run(checks())
+    results = (file_checks() + vision_checks() + season_checks() + catalogue_checks() + catalogue_reliability_checks()
+               + catalogue_realism_checks() + asyncio.run(checks()))
     for r in results:
         print(json.dumps(r))
     return 0 if all(r["ok"] for r in results) else 1

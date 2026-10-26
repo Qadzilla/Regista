@@ -127,6 +127,27 @@ part B). Three pieces:
 --league [--repeat N]` checks the season against the bands. Build reports, independent verification and review rounds:
 `docs/scout-terminal/build/`.
 
+**The catalogue** (built on `feature/catalogue`, **not merged, not deployed**: the live app serves none of it yet;
+CLAUDE.md §2.11, `docs/catalogue/build/design.md`). Regista as a library of uploaded footage below the professional
+line: 14 synthetic competitions in 10 countries (tiers semi-pro, amateur, college, academy; senior, college and U17-U20
+age groups; men and women), 66 clubs, 1,183 invented people, 90 matches. The Regista League is one of them, "England
+semi-pro men", by reference: `league.json`, its pins and every existing endpoint's answer are unchanged
+(`tests/test_catalogue_backcompat.py`). The other 13 are league-shaped files in `data/catalogue/` whose 60 uploaded
+matches build on demand like the league's and are pinned (`regista.catalogue.pins`). Each level scales the hidden
+ratings and sets an `execution` size the generator reads (inert when absent, so generator 0.7.1 and every existing
+match are unchanged). Camera type and uploader are labels of each upload: every match is rendered the same way.
+
+- **Engine** (`regista.catalogue.metrics`): one `SeasonMetrics` per competition, the same 127 metrics, percentiles
+  re-pooled by level (same tier, age group, gender and position across countries; `scope=competition` or `all` on
+  request), every number with its `pool` and `sample`; rankings compare percentiles only within a position and raw
+  numbers only within a level. Reliability per level on six full regenerated seasons (`data/catalogue/reliability.json`).
+- **API** (`regista.catalogue_api`, read-only and open): `/api/catalogue`, `/api/competitions[/{id}[/players]]`,
+  `/api/catalogue/{players[/{id}],rank,compare,matches,pools}`, `/api/players/{id}/career`, and optional catalogue
+  parameters on `/api/season`, `/api/players` and the terminal endpoints. Without them every response is `main`'s.
+- **Realism per level** (`python3 -m regista.synth.report --catalogue`, `docs/catalogue/realism.md`): one sourced band
+  (U17 peak match speed), sourced orders between levels, assumed orders shown but never counted, and "no published band"
+  for event rates below the professional line. Premier League bands appear only as an upper reference.
+
 **The Player view's cloud path** (`src/regista/player/`, `src/regista/player_api.py`, CLAUDE.md §2.6):
 
 ```
@@ -181,6 +202,9 @@ The two original dashboards in detail (plan: `docs/plan-two-dashboards.md`):
 | `get_profile(player)` | one player's season by global id or full name, without the per-event evidence lists |
 | `compare_players(players)` | two or three players side by side |
 | `match_recap(match_dir, player_id)` | the match recap (rules engine): headline, paragraphs with a citation on every sentence, the recap reel; from one player's side when given |
+| `list_competitions(country, tier, age_group, gender)` | the catalogue's competitions with their uploads, levels and careers (`feature/catalogue`, not merged) |
+| `search_catalogue_players(tier, age_group, gender, country, competition, position, sort, order, scope, limit, min_minutes)` | players across the catalogue ranked by a terminal metric, each percentile with its pool (same level by default; not merged) |
+| `get_catalogue_player(player, scope)` | one player across the catalogue: career and a row per competition with pools (not merged) |
 
 Any MCP host can drive Regista with these. The Foundry Librarian attaches this server, and beside it Microsoft's Azure MCP Server (`azmcp`, from the `msmcp-azure` package), started read-only with only the Cosmos DB namespace, plus the Search namespace when Search is configured; the tools allowed are `cosmos_database_container_item_query`, `cosmos_list`, and `search_index_query` (`src/regista/cloud/foundry.py`). Calls to the Cosmos DB query tool have been seen from local CLI runs. Inside the container (public Ask Foundry, AI Search namespace only), `search_index_query` was verified on 2026-10-21 (revision `regista-api--d1021183822`); the Cosmos DB tools are not offered there by design.
 

@@ -82,6 +82,9 @@ CACHE_ROOT = Path(os.environ.get("REGISTA_CACHE", "data/clips"))
 # The Regista League (regista.season): a committed definition, matches regenerated from it into SEASON_ROOT on demand.
 SEASON_LEAGUE = Path(os.environ.get("REGISTA_SEASON", "data/season/league.json"))
 SEASON_ROOT = Path(os.environ.get("REGISTA_SEASON_ROOT", "data/season/matches"))
+# The catalogue (regista.catalogue): 13 more competitions; their uploaded matches (cm_...) regenerate into CATALOGUE_ROOT.
+CATALOGUE = Path(os.environ.get("REGISTA_CATALOGUE", "data/catalogue/catalogue.json"))
+CATALOGUE_ROOT = Path(os.environ.get("REGISTA_CATALOGUE_ROOT", "data/catalogue/matches"))
 STATIC = Path(__file__).resolve().parent / "static"  # product/, studio/, shared/
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024
 SYNC_TTL_S = 30.0
@@ -208,7 +211,18 @@ def _match_dir(match_id: str) -> Path:
     return d
 
 
+def _catalogue_match(match_id: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """(competition, fixture) of a catalogue match (``cm_...``), or None."""
+    if not match_id.startswith("cm_") or not CATALOGUE.exists():
+        return None
+    from regista.catalogue.store import resolve_match
+
+    return resolve_match(match_id, CATALOGUE)
+
+
 def _is_season_match(match_id: str) -> bool:
+    if match_id.startswith("cm_"):
+        return _catalogue_match(match_id) is not None
     if not match_id.startswith("rl_") or not SEASON_LEAGUE.exists():
         return False
     from regista.season.build import fixture_of
@@ -218,7 +232,15 @@ def _is_season_match(match_id: str) -> bool:
 
 
 def _season_match_dir(match_id: str) -> Path | None:
-    """A Regista League match, regenerated from its fixture if needed (with tracks, for video); None if it is not one."""
+    """A Regista League or catalogue match, regenerated from its fixture if needed (with tracks, for video); None if it
+    is not one."""
+    if match_id.startswith("cm_"):
+        hit = _catalogue_match(match_id)
+        if hit is None:
+            return None
+        from regista.catalogue.build import ensure_tracks as ensure_catalogue_tracks
+
+        return ensure_catalogue_tracks(hit[0], hit[1], CATALOGUE_ROOT)
     if not match_id.startswith("rl_") or not SEASON_LEAGUE.exists():
         return None
     from regista.season.build import ensure_tracks, fixture_of
@@ -1511,9 +1533,11 @@ from regista.player_api import router as _player_router  # noqa: E402
 from regista.season_api import router as _season_router  # noqa: E402
 from regista.studio_api import router as _studio_router  # noqa: E402
 from regista.terminal_api import router as _terminal_router  # noqa: E402
+from regista.catalogue_api import router as _catalogue_router  # noqa: E402
 
 app.include_router(_season_router)
 app.include_router(_terminal_router)
+app.include_router(_catalogue_router)
 app.include_router(_claims_router)
 app.include_router(_player_router)
 app.include_router(_studio_router)

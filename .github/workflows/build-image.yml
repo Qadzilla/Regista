@@ -13,7 +13,7 @@ name: build-image
 on:
   push:
     branches: [main, "feature/**"]   # feature branches: tested, built and pushed as branch-<sha>, never deployed
-    paths: ["src/**", "tests/**", "data/synthetic/**", "data/season/**", "Dockerfile", ".dockerignore", "pyproject.toml", "README.md", "LICENSE",
+    paths: ["src/**", "tests/**", "data/synthetic/**", "data/season/**", "data/catalogue/**", "Dockerfile", ".dockerignore", "pyproject.toml", "README.md", "LICENSE",
             ".github/workflows/build-image.yml", "infra/ci-deploy.sh", "infra/lib/**"]
   pull_request:
     branches: [main]

@@ -269,6 +269,41 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
 - **Honest numbers:** no metric without its definition and source; the sample size is stated (a regular plays about 300
   minutes a season); metrics whose split-half reliability is below 0.3 are marked noisy.
 
+### 2.11 The catalogue (decided 2026-10-25)
+
+Design `docs/catalogue/build/design.md`; build records, reviews and fixes in `docs/catalogue/build/`; the realism
+report `docs/catalogue/realism.md`; the data contract in `data/synthetic/README.md` ("Catalogue"). Built on branch
+`feature/catalogue`: **not merged, not deployed**, so the live app serves none of it yet.
+- **Zaid's decisions.**
+  - Regista becomes a **catalogue of uploaded footage for recruitment below the professional line**: players and teams
+    upload matches; scouts find and compare players across countries and levels. `professional` is not a tier.
+  - **Comparisons are within level by default**: percentiles from peers of the same tier, age group, gender and
+    position (`scope=level`); `competition` and `all` (one gender, with a warning) on request. Men and women never share
+    a pool or a board.
+  - **14 competitions in 10 countries**: tiers semi-pro, amateur, college, academy; age groups senior, college, U20,
+    U19, U18, U17; men and women. The **Regista League is kept as "England semi-pro men"**, by reference and
+    byte-identical: `data/season/league.json`, `SEASON_PINS` and every existing endpoint's answer are unchanged
+    (`tests/test_backcompat.py`, `tests/test_catalogue_backcompat.py`), and Femi Toure keeps 5 league goals, none a
+    penalty, two clear. The other 13 competitions add 60 clubs, 1,075 people and 60 uploaded matches (3-8 each).
+  - **Synthetic, invented names**: people, clubs and competitions are invented; countries, regions and levels are
+    labels only. No real players' profiles.
+  - **Camera type is a label only** (tripod, phone, drone, broadcast): every match is rendered the same way and the
+    vision layer is measured only on that render. Uploads are from a team account or a player who started.
+- **What is built (data, engine, API):** the committed definition (`data/catalogue/`, dated as of 2026-10-24: only
+  matches already played), five careers across two competitions, one hidden rating scale with level scales and a
+  per-level `execution` size in the generator (inert when absent; generator 0.7.1 unchanged), 60 pinned matches, the
+  engine (`regista.catalogue.metrics`: pools within level, every number with its pool and sample, ranking rule:
+  percentiles only within a position, raw numbers only within a level), reliability per level, the catalogue API
+  (`catalogue_api.py`, read-only) with optional catalogue parameters on existing endpoints, three MCP tools, and the
+  realism report per level (`python -m regista.synth.report --catalogue`: 10 of 10 sourced checks pass, 1 band and 9
+  orders, of which 3 confirm a calibration and 7 follow from level scales set in the source's direction, so none
+  independently validates football below the professional line; of 7 assumed orders, 6 hold and running distance
+  U18 < U19 fails).
+- **What the UI round will do (not built):** the Scout and Player pages on the catalogue (country and level filters,
+  pools and small-pool flags shown well, careers on profiles), whether the public Scout agent gets the catalogue tools,
+  whether Player-view uploads may come from catalogue clubs, a Fabric push of the catalogue, and the demo and pitch
+  lines for it.
+
 ---
 
 ## 3. How Regista maps to the hackathon pipeline and hero tech
@@ -309,6 +344,28 @@ src/regista/player_api.py    the Player view (/me): uploads to the store (admin)
 src/regista/season/playing_time.py  time on the pitch from substitutions and red cards (profiles, build, Fabric lineups)
 src/regista/season/audit.py  can a scout trust it: split-half reliability within a kit slot, the scoring chart (python -m regista.season.audit)
 src/regista/season/reliability.py  split-half reliability per metric (data/season/reliability.json); below 0.3 is marked noisy
+src/regista/catalogue/       the catalogue (feature/catalogue, not merged): 13 more synthetic competitions in 10 countries below the
+                             professional line (taxonomy.py levels and scales, names.py, clubs.py, define.py -> data/catalogue/,
+                             store.py, build.py -> data/catalogue/matches/, pins.py CATALOGUE_PINS for all 60 uploaded matches);
+                             England semi-pro men is league.json by reference, untouched (docs/catalogue/build/design.md)
+src/regista/catalogue/metrics.py  the engine over the catalogue: one SeasonMetrics per competition (England = load_metrics' own
+                             object; the others with England's xT, a 45-minute floor, pools of 5+), percentiles pooled by scope
+                             (level = tier/age/gender + position, the default; competition; all = one gender), every cell with its
+                             pool and sample, careers (one row per competition, no merged per-90), similar players within and across
+                             levels, team style with a level rank; profiles.py: moments, touch maps, uploads' results per
+                             competition; measure.py + reliability.py: split-half reliability per level on full regenerated seasons
+                             (data/catalogue/reliability.json); realism.py: per level which checks exist (band, order, assumed
+                             order, reference, none) and their committed verdicts (data/catalogue/realism.json). Report:
+                             docs/catalogue/build/engine.md; levels and execution: docs/catalogue/build/levels.md
+src/regista/synth/report.py --catalogue  the catalogue realism report: each level against its sourced band, sourced orders,
+                             assumed orders and "no published band", from the committed measurement (fast); --regenerate
+                             [--level L] measures again and compares, never writing; output docs/catalogue/realism.md
+src/regista/catalogue_api.py the catalogue's API (feature/catalogue, not merged): /api/catalogue, /api/competitions[/{id}[/players]],
+                             /api/catalogue/{players[/{id}],rank,compare,matches,pools}, /api/players/{id}/career; optional
+                             competition/country/tier(level)/age_group/gender/scope(pool) on /api/season, /api/players and the
+                             terminal endpoints (without them every response is main's: tests/test_catalogue_backcompat.py);
+                             catalogue/tools.py: the MCP tools list_competitions, search_catalogue_players, get_catalogue_player.
+                             Report with every endpoint and an example: docs/catalogue/build/api.md
 src/regista/season/claims.py "that's me": claims and Studio decisions as human annotations (claims.jsonl in the feedback folder,
                              Cosmos DB when configured); confirmed claims add their uploaded match to the claimed league player's profile
 src/regista/claims_api.py    GET /api/claims [studio], POST /api/claims and /api/claims/{id}/decision [write]; a confirm runs the workflow
@@ -389,6 +446,11 @@ python3 -m regista.recap data/synthetic/sample/syn_0294 --player t_home_09 [--en
 python3 -m regista.mcp_server --list-tools        # or without the flag: stdio MCP server for any MCP host
 python3 -m regista.synth.report data/synthetic/sample/syn_0294
 python3 -m regista.season build && python3 -m regista.season table && python3 -m regista.season players --position FW --sort take_ons_won
+python3 -m regista.catalogue define --check && python3 -m regista.catalogue check && python3 -m regista.catalogue competitions
+python3 -m regista.catalogue levels && python3 -m regista.catalogue player pl_bro_09 --scope level   # pools; a player across levels
+python3 -m regista.catalogue reliability                      # re-measure every level (about 5 min on 10 cores; writes the table)
+python3 -m regista.synth.report --catalogue [--out docs/catalogue/realism.md]   # each level against its checks (committed measurement)
+python3 -m regista.synth.report --catalogue --regenerate [--level academy/U17/men]   # measure again and compare (writes nothing)
 python3 -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python3 -m regista.synth.report --league [--repeat 6] [--out docs/realism-report.md]   # the league against every band (6 seasons pooled)
 python3 -m regista.season.audit                                # split-half reliability, the top scorers (Femi Toure first)
@@ -517,7 +579,14 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-25 (evening).** The friendlier Scout terminal is live (PR #38, merge 27595c5, revision
+**As of 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
+the realism report per level (`docs/catalogue/realism.md`: 10 of 10 sourced checks pass, 3 of them confirming a
+calibration; of 7 assumed orders, running distance U18 < U19 fails). PR #39 is open; merge and deploy wait for Zaid's go-ahead, so the live
+app does not serve the catalogue. England semi-pro men (the Regista League) is byte-identical. 980 quick tests and 15 slow pass on the Mac. The 60
+catalogue pins were recorded on macOS; Linux CI runs them on the PR. Next: the UI round (Scout and Player pages on the
+catalogue).
+
+**Earlier, 2026-10-25 (evening).** The friendlier Scout terminal is live (PR #38, merge 27595c5, revision
 `regista-api--d1025202154`): a search box instead of CMD>/<GO>, plain panel names, "Selected:" and "Compare with…",
 the table left and the player card right, Clips as a drawer, short column labels, example chips, Open profile, a phone
 panel row; the search understands plain questions for all 127 metrics (`static/scout/terminal-words.js`). Checked live,
