@@ -218,13 +218,34 @@ def pool_key(tier: str, age_group: str, gender: str) -> str:
     return f"{tier}/{age_group}/{gender}"
 
 
-def levels_public() -> dict[str, Any]:
-    """The taxonomy as labels (what ``catalogue.json`` and the API may show): no scale."""
+TIER_WORDS = {"semi_pro": "semi-pro", "amateur": "amateur", "college": "college", "academy": "academy"}
+POSITION_WORDS = {"GK": "goalkeepers", "DF": "defenders", "MF": "midfielders", "FW": "forwards"}
+
+
+def level_words(level_key: str) -> str:
+    """A level in plain words: "semi-pro men", "academy U18 men", "college women" (the age group only where it is not
+    the tier's own: senior and college say nothing more)."""
+    tier, age_group, gender = level_key.split("/")
+    age = "" if age_group in ("senior", "college") else f" {age_group}"
+    return f"{TIER_WORDS[tier]}{age} {gender}"
+
+
+def level_label(level_key: str) -> str:
+    """A level as a heading: "Semi-pro, senior, men", "Academy / youth, under 18, men"."""
+    tier, age_group, gender = level_key.split("/")
+    return f"{dict(TIERS)[tier]}, {dict(AGE_GROUPS)[age_group].lower()}, {dict(GENDERS)[gender].lower()}"
+
+
+def levels_public(words: bool = False) -> dict[str, Any]:
+    """The taxonomy as labels (what ``catalogue.json`` and the API may show): no scale. With ``words`` (the API) each
+    pool also carries its ``key``, its plain ``words`` ("semi-pro men") and its ``label`` ("Semi-pro, senior, men");
+    ``catalogue.json`` keeps the plain shape."""
     pools: dict[str, list[str]] = {}
     for c in COMPETITIONS:
         pools.setdefault(c.level_key, []).append(c.competition_id)
     return {"tiers": [{"key": k, "label": v} for k, v in TIERS],
             "age_groups": [{"key": k, "label": v} for k, v in AGE_GROUPS],
             "genders": [{"key": k, "label": v} for k, v in GENDERS],
-            "pools": [{"tier": k.split("/")[0], "age_group": k.split("/")[1], "gender": k.split("/")[2], "competitions": v}
+            "pools": [{"tier": k.split("/")[0], "age_group": k.split("/")[1], "gender": k.split("/")[2], "competitions": v,
+                       **({"key": k, "words": level_words(k), "label": level_label(k)} if words else {})}
                       for k, v in pools.items()]}

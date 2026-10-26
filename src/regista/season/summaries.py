@@ -25,6 +25,7 @@ import re
 import threading
 import time
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +55,29 @@ MIN_COUNT = 3  # a stat counted fewer times than this is not a claim worth makin
 GENDERED = re.compile(r"\b(he|him|his|himself|she|her|hers|herself)\b", re.I)
 
 
+@dataclass(frozen=True)
+class Wording:
+    """How a summary words its numbers on the catalogue's pages (the default, None, is the league profile's own text,
+    unchanged). ``competition``: the competition's name; ``sparse``: only its uploaded matches count, so a rank is among
+    "the 12 forwards with enough minutes in <competition>'s uploaded matches", else among "the <competition>'s 18
+    forwards"; rates with ``rate_digits`` decimals ("2.30 per 90") and percentages with ``pct_digits`` ("91.6%");
+    ``qualified`` False (fewer than ``needed`` minutes): no rank clause and no "also ranks" sentence, but "not ranked:
+    30 minutes, under the 45 needed"; ``overrides``: a stat fact's numbers from elsewhere (the pass sentence reads the
+    metrics engine's pass completion, crosses included)."""
+
+    competition: str
+    sparse: bool = False
+    rate_digits: int = 2
+    pct_digits: int = 1
+    qualified: bool = True
+    minutes: float = 0.0
+    needed: float = 0.0
+    overrides: dict[str, Record] = field(default_factory=dict)
+
+    def where(self) -> str:
+        return self.competition if self.competition.lower().startswith("the ") else f"the {self.competition}"
+
+
 def basis(season: Season, p: Record, fs: list[Record] | None = None) -> str:
     """Fingerprint of what a summary is written from: its facts (minutes, every candidate stat with its rank among the
     position, the best moments). The ranks are in it because they move when *other* players' numbers move: a player
@@ -64,13 +88,16 @@ def basis(season: Season, p: Record, fs: list[Record] | None = None) -> str:
 
 # ---------------------------------------------------------------------------- facts
 
-def facts(season: Season, p: Record) -> list[Record]:
-    """The numbered facts a summary may cite: P1 the season, S… every candidate stat with its rank, M… best moments."""
+def facts(season: Season, p: Record, wording: Wording | None = None) -> list[Record]:
+    """The numbered facts a summary may cite: P1 the season, S… every candidate stat with its rank, M… best moments.
+    ``wording.overrides`` replaces a stat's numbers (the catalogue's pass completion)."""
     group = POSITIONS[p["position"]][1]
     out: list[Record] = [{"id": "P1", "type": "season", "name": p["name"], "club": p["club"], "position": p["position"],
                           "kit_number": p["kit_number"], "appearances": p["appearances"], "minutes": p["minutes"]}]
     for i, key in enumerate(CANDIDATES, start=1):
         s = stat_of(p, key, rank_in_position(season, p, key))
+        if wording is not None and key in wording.overrides:
+            s = {**s, **wording.overrides[key]}
         if s["kind"] == "ratio" and (s["value"] is None or s["of"] < _ratio_min(key)):
             continue
         out.append({"id": f"S{i}", "type": "stat", "group": group, **s})
@@ -90,9 +117,24 @@ def _ordinal(n: int) -> str:
     return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
 
 
-def _stat_phrase(s: Record) -> str:
+def _num(x: float) -> str:
+    """A count as people write it: 12, not 12.0."""
+    return f"{x:g}" if isinstance(x, (int, float)) else str(x)
+
+
+def _display(s: Record, w: Wording | None = None) -> str:
+    if w is None:
+        return s["display"]
     if s["kind"] == "ratio":
-        return f"{s['label'].lower()} of {s['display']} ({s['count']} of {s['of']})"
+        return "n/a" if s["value"] is None else f"{100 * s['value']:.{w.pct_digits}f}%"
+    return f"{s['value']:.{w.rate_digits}f} per 90"
+
+
+def _stat_phrase(s: Record, w: Wording | None = None) -> str:
+    if s["kind"] == "ratio":
+        return f"{s['label'].lower()} of {_display(s, w)} ({_num(s['count'])} of {_num(s['of'])})"
+    if w is not None:
+        return f"{s['value']:.{w.rate_digits}f} {s['label'].lower()} per 90"
     return f"{s['value']:g} {s['label'].lower()} per 90"
 
 
@@ -100,10 +142,16 @@ def _place(s: Record) -> str:
     return f"{'joint ' if s['tied_with'] else ''}{_ordinal(s['rank'])}"
 
 
-def _rank_phrase(s: Record) -> str:
+def _rank_phrase(s: Record, w: Wording | None = None) -> str:
+    if w is None:
+        whom = f"the league's {s['of_players']} {s['group']}"
+    elif w.sparse:
+        whom = f"the {s['of_players']} {s['group']} with enough minutes in {w.competition}'s uploaded matches"
+    else:
+        whom = f"{w.where()}'s {s['of_players']} {s['group']}"
     if s["rank"] == 1 and not s["tied_with"]:
-        return f"the best of the league's {s['of_players']} {s['group']}"
-    return f"{_place(s)} of the league's {s['of_players']} {s['group']}"
+        return f"the best of {whom}"
+    return f"{_place(s)} of {whom}"
 
 
 def _a(word: str) -> str:
@@ -118,9 +166,11 @@ def _summary(sentences: list[tuple[str, list[str]]], fs: list[Record], model: st
 
 # ---------------------------------------------------------------------------- rules
 
-def rules_summary(season: Season, p: Record, model: str = RULES_MODEL) -> Record:
-    """Three sentences from the numbers: the kind of player, what else stands out, the best moment."""
-    fs = facts(season, p)
+def rules_summary(season: Season, p: Record, model: str = RULES_MODEL, wording: Wording | None = None) -> Record:
+    """Three sentences from the numbers: the kind of player, what else stands out, the best moment. ``wording`` (the
+    catalogue's pages) words the ranks and numbers for a competition; without it the text is the league profile's."""
+    fs = facts(season, p, wording)
+    ranked = wording is None or wording.qualified
     stats = {f["key"]: f for f in fs if f["type"] == "stat"}
     season_fact = fs[0]
     surname = p["name"].split()[-1]
@@ -136,17 +186,22 @@ def rules_summary(season: Season, p: Record, model: str = RULES_MODEL) -> Record
     lead = min((stats[k] for k in keys if k in stats and stats[k]["count"] >= MIN_COUNT), key=lambda s: s["rank"], default=None)
     if lead is not None and share(lead) > 0.5:  # nothing in the archetype ranks in the top half: no label
         lead = None
+    if not ranked:   # too few minutes for a rank: no rank clause, no "also ranks"
+        lead = None
     sentences: list[tuple[str, list[str]]] = []
     if lead is not None:
-        sentences.append((f"{p['name']} is {_a(kind)} for {p['club']}: {_stat_phrase(lead)}, {_rank_phrase(lead)}.", [lead["id"]]))
+        sentences.append((f"{p['name']} is {_a(kind)} for {p['club']}: {_stat_phrase(lead, wording)}, "
+                          f"{_rank_phrase(lead, wording)}.", [lead["id"]]))
     else:
         sentences.append((f"{p['name']} plays as {_a(_group_word(p))} for {p['club']}, with {p['appearances']} appearances and "
                           f"{p['minutes']:g} minutes.", ["P1"]))
+    if not ranked:
+        sentences.append((f"Not ranked: {wording.minutes:g} minutes, under the {wording.needed:g} needed.", ["P1"]))
     others = sorted((s for s in stats.values() if s["count"] >= MIN_COUNT and (lead is None or s["key"] != lead["key"]) and
                      s["key"] not in _overlaps(lead["key"] if lead else "")), key=lambda s: (s["rank"] / s["of_players"], CANDIDATES.index(s["key"])))
-    good = [s for s in others if s["rank"] <= max(3, s["of_players"] // 4)][:2]
+    good = [s for s in others if s["rank"] <= max(3, s["of_players"] // 4)][:2] if ranked else []
     if good:
-        parts = [f"{_place(s)} for {s['label'].lower()} ({_stat_value(s)})" for s in good]
+        parts = [f"{_place(s)} for {s['label'].lower()} ({_stat_value(s, wording)})" for s in good]
         sentences.append((f"{surname} also ranks {' and '.join(parts)} among the {good[0]['group']}.", [s["id"] for s in good]))
     else:
         g, a = stats.get("goals"), stats.get("assists")
@@ -166,7 +221,7 @@ def rules_summary(season: Season, p: Record, model: str = RULES_MODEL) -> Record
         sentences.append((f"Best moment: {_moment_words(best['title'])} in round {best['round']}{against}.", [best["id"]]))
     if len(sentences) < 2:  # a substitute with a few minutes and nothing to rank: say so rather than overclaim
         sentences.append((f"{surname} has played too little so far for rates to mean much.", ["P1"]))
-    return _summary(sentences, fs, model, basis(season, p, fs))
+    return _summary(sentences, fs, model, basis(season, p, fs) if wording is None else basis(season, p))
 
 
 def _group_word(p: Record) -> str:
@@ -179,7 +234,9 @@ def _overlaps(key: str) -> set[str]:
     return set().union(*(s for s in pairs if key in s)) - {key} if key else set()
 
 
-def _stat_value(s: Record) -> str:
+def _stat_value(s: Record, w: Wording | None = None) -> str:
+    if w is not None:
+        return _display(s, w)
     return s["display"] if s["kind"] == "ratio" else f"{s['value']:g} per 90"
 
 
@@ -354,12 +411,23 @@ def summaries_path() -> Path:
     return Path(override) if override else Path(os.environ.get("REGISTA_SEASON", "data/season/league.json")).with_name("summaries.json")
 
 
-def summary_for(season: Season, p: Record, path: Path | str | None = None) -> Record | None:
+def summary_for(season: Season, p: Record, path: Path | str | None = None, *, wording: Wording | None = None,
+                stored: bool = True) -> Record | None:
     """The player's summary: the stored one while its numbers are current, else the rules summary written now
-    (``model`` says "rules-v0 (live)"). None for players without minutes."""
+    (``model`` says "rules-v0 (live)"). None for players without minutes.
+
+    ``wording`` (the catalogue's pages): a stored summary is served only when a Foundry model wrote it and its numbers
+    still hold for ``season``; otherwise the rules summary in that wording. ``stored`` False never reads the file (a
+    competition other than the league, whose players have no stored summary). Without either, today's behaviour."""
     if not p["appearances"] or not p["minutes"]:
         return None
-    stored = load_summaries(path or summaries_path()).get("players", {}).get(p["global_id"])
-    if stored and stored.get("basis") == basis(season, p):
-        return stored
-    return rules_summary(season, p, model=f"{RULES_MODEL} (live)")
+    if wording is None and stored:
+        kept = load_summaries(path or summaries_path()).get("players", {}).get(p["global_id"])
+        if kept and kept.get("basis") == basis(season, p):
+            return kept
+        return rules_summary(season, p, model=f"{RULES_MODEL} (live)")
+    if stored:
+        kept = load_summaries(path or summaries_path()).get("players", {}).get(p["global_id"])
+        if kept and str(kept.get("model", "")).startswith("foundry") and kept.get("basis") == basis(season, p):
+            return kept
+    return rules_summary(season, p, model=f"{RULES_MODEL} (live)", wording=wording)

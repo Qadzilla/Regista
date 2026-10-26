@@ -354,7 +354,8 @@ def process(store: Store, upload_id: str, *, models_dir: Path | None = None, wor
             from regista.player.film import roster_for
 
             try:
-                roster = roster_for(rec.club_id, rec.opponent_club_id, rec.side)
+                roster = roster_for(rec.club_id, rec.opponent_club_id, rec.side, competition_id=rec.competition_id,
+                                    date=rec.date_played)
             except ValueError as exc:
                 raise JobError(f"Cannot build the team sheet: {exc}.") from exc
             player = the_player(roster, rec)
@@ -422,7 +423,8 @@ def build_manifest(out: Path, rec: UploadRecord, roster: Record, player: Record,
         "player": {"global_id": rec.global_id, "player_id": player["player_id"], "name": player["name"],
                    "kit_number": player["kit_number"], "team_id": player["team_id"], "club_id": rec.club_id},
         "home": home.get("club_id"), "away": away.get("club_id"),
-        "competition": roster.get("competition"), "date": roster.get("date"), "venue": roster.get("venue"),
+        "competition": roster.get("competition"), "date": rec.date_played or roster.get("date"), "venue": roster.get("venue"),
+        **catalogue_labels(rec),
         "score": score,
         "video": {"fps": info.fps, "width": info.width, "height": info.height, "duration_s": info.duration_s,
                   "blob": f"uploads/{rec.upload_id}/video.mp4"},
@@ -441,6 +443,20 @@ def build_manifest(out: Path, rec: UploadRecord, roster: Record, player: Record,
         "worker": {"seconds": round(seconds, 1), "peak_rss_mb": peak_rss_mb(), "models": "models/vision (from storage)",
                    "finished_at": datetime.now(timezone.utc).isoformat(timespec="seconds")},
     }
+
+
+def catalogue_labels(rec: UploadRecord) -> Record:
+    """A catalogue club's upload names its competition (labels only), the camera and the uploader in its manifest; the
+    Regista League's friendly form (no competition) adds nothing, so its manifests are what they were."""
+    if not rec.competition_id:
+        return {}
+    from regista.catalogue.taxonomy import BY_ID
+
+    lab = BY_ID.get(rec.competition_id)
+    labels = {k: getattr(lab, k) for k in ("country", "region", "tier", "age_group", "gender")} if lab else {}
+    return {"competition_id": rec.competition_id, **labels, "camera": rec.camera,
+            "uploader": {"type": rec.uploader_type, "global_id": rec.global_id, "club_id": rec.club_id},
+            "counted": False}
 
 
 def _portable_run_json(out: Path) -> None:

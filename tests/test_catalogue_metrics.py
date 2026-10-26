@@ -64,16 +64,27 @@ def test_england_is_the_league_engine_itself(cm, england):
 
 
 def test_englands_competition_scope_is_todays_numbers_for_every_player_and_metric(cm, england):
-    """Where the pool is the competition, every cell the existing endpoints serve is unchanged, field for field."""
-    moved = []
+    """Where the pool is the competition, every cell the existing endpoints serve is unchanged, field for field, except
+    the one catalogue rule: a count at 0 is none yet there (no percentile, and how many of the pool have none)."""
+    from regista.season.metrics import COUNT_METRICS
+
+    moved, none_yet = [], 0
     for gid, ps in england.players.items():
         for key in CATALOGUE:
             want = england.cell(ps, key)
             got = cm.cell(ENGLAND_ID, gid, key, "competition")
+            if got["none_yet"]:
+                none_yet += 1
+                assert key in COUNT_METRICS and want["value"] == 0 and got["percentile"] is None
+                assert got["zeros"]["of"] == want["peers"] and got["zeros"]["none"] >= (1 if want["qualified"] and want["peers"] else 0)
+                want = {k: v for k, v in want.items() if k != "percentile"}
+            else:
+                assert got["zeros"] is None
             if {k: got[k] for k in want} != want:
                 moved.append((gid, key))
             assert got["pool"]["size"] == want["peers"] and got["pool"]["min_size"] == 2
     assert not moved, moved[:5]
+    assert none_yet
 
 
 def test_englands_competition_scope_similar_is_the_existing_one(cm, england):
