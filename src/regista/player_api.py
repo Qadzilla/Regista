@@ -624,6 +624,25 @@ def _finish(rec: UploadRecord, note: str, ms: int) -> UploadRecord:
     return rec
 
 
+REFRESHED = ("record_counts", "segments", "validation", "event_records")   # what the recompute measures again
+
+
+def _keep_manifest(d: Path, worker: dict[str, Any]) -> None:
+    """The recompute writes the vision layer's own manifest over the worker's: put the worker's back (title, uploader,
+    player, competition labels, camera, video facts: what the Product and the catalogue read), with the counts the
+    recompute measured again, and no machine paths (``out_dir``, the video's local path)."""
+    if not worker:
+        return
+    now = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
+    merged = {**worker, **{k: now[k] for k in REFRESHED if k in now}}
+    if isinstance(now.get("identity"), dict):
+        merged["identity"] = {k: v for k, v in now["identity"].items() if k != "video"}
+    merged.pop("out_dir", None)
+    if isinstance(merged.get("video"), dict):
+        merged["video"] = {k: v for k, v in merged["video"].items() if k != "path"}
+    (d / "manifest.json").write_text(json.dumps(merged, indent=1, default=str) + "\n", encoding="utf-8")
+
+
 _answer_locks: dict[str, threading.Lock] = {}
 
 
@@ -662,6 +681,7 @@ def _answer(upload_id: str, body: AnswersIn) -> dict[str, Any]:
         answers = _identity_answers(items, body, me)
         if not (d / ".vision_work" / "identity.joblib").exists():
             raise HTTPException(409, "this match has no identity result to correct (the worker did not keep .vision_work)")
+        worker_manifest = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
         _point_at_video(d, rec)
         models = _models_dir(d)
         from regista.vision.review import QUEUE_FILE
@@ -682,6 +702,7 @@ def _answer(upload_id: str, body: AnswersIn) -> dict[str, Any]:
             os.rename(claimed, q)
             raise
         write_clips(d, me)  # the uploader's moments, cut again from the corrected stream
+        _keep_manifest(d, worker_manifest)
         store().put_match(d.name, d)
         yes = sum(a.is_me for a in body.answers)
         rec = _finish(rec, f"{len(answers)} answer(s) from the player ({yes} yes)", int((time.perf_counter() - t0) * 1000))

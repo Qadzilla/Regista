@@ -271,6 +271,9 @@ def test_answers_go_through_the_identity_review_and_the_match_goes_back_to_the_s
         seen.update(work=work, answers=[a.model_dump(exclude_none=True) for a in body.answers], annotator=body.annotator,
                     queue_claimed=claimed.exists(), video=json.loads((work / "manifest.json").read_text())["video"]["path"])
         (work / "recomputed.txt").write_text("yes")
+        # the recompute writes the vision layer's own manifest over the worker's (regista.vision.pipeline)
+        (work / "manifest.json").write_text(json.dumps({"match_id": work.name, "out_dir": str(work), "record_counts": {"event": 7},
+                                                        "video": {"path": "/machine/video.mp4", "fps": 10.0}}))
         return {"renamed": [[3, None, "x"]]}
 
     monkeypatch.setattr(api, "_apply_identity_review", fake_apply)
@@ -284,6 +287,9 @@ def test_answers_go_through_the_identity_review_and_the_match_goes_back_to_the_s
     assert (Path(_store().root) / "matches" / rec.match_id / "recomputed.txt").exists()       # pushed to the store
     assert (d / "clips.jsonl").exists() and _store().get_record(rec.upload_id).status == "done"
     assert _store().get_record(rec.upload_id).stages[-1]["role"] == "identity_review"
+    m = json.loads((Path(_store().root) / "matches" / rec.match_id / "manifest.json").read_text())
+    assert m["title"] == "Friendly, filmed by the player" and m["record_counts"] == {"event": 7}   # the worker's, kept
+    assert "out_dir" not in m and "path" not in m["video"]                                         # no machine paths
 
 
 def test_an_answer_about_someone_else_is_refused(client, league):
