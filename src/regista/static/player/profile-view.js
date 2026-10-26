@@ -555,7 +555,7 @@
   // (Level, Competition, All levels) asks the API again with scope=. Minutes are the engine's: the moments behind a
   // number show the minute the clip titles use.
   const CAT_RATIOS = [['pass_accuracy', 'of passes completed, crosses included'], ['take_on_success', 'of take-ons won'],
-                      ['shot_accuracy', 'of shots on target'], ['aerial_win', 'of aerial duels won']];
+                      ['shot_accuracy', 'of shots on target, penalties excluded'], ['aerial_win', 'of aerial duels won']];
   const FOOT = { left: 'Left foot', right: 'Right foot', both: 'Both feet' };
   const CAMERA = { tripod: 'Tripod', phone: 'Phone', drone: 'Drone', broadcast: 'Broadcast camera' };
   const CLIP_VIEW = /^\/\?match=[A-Za-z0-9_]+(&[a-z_]+=[A-Za-z0-9_]+)*$/;      // Clip view links from the API
@@ -565,7 +565,9 @@
   const longDate = (iso) => { const [y, m, d] = String(iso || '').split('-').map(Number); return y && m ? `${d} ${MONTHS[m - 1]} ${y}` : ''; };
   const plural = (n, one, many = `${one}es`) => `${n} ${n === 1 ? one : many}`;
   const ONE = { FW: 'forward', MF: 'midfielder', DF: 'defender', GK: 'goalkeeper' };
-  const clean = (label) => String(label || '').replace(/ \(incl\. penalties\)/, '');
+  // A stat's label as the engine gives it: what it counts in or leaves out ("crosses included", "penalties excluded")
+  // stays on screen, so two numbers on one page never look like one.
+  const clean = (label) => String(label || '');
   const fixed2 = (v) => (typeof v === 'number' ? v.toFixed(2) : '0.00');
   // "A, B and C"
   const listWords = (xs) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : xs.join(''));
@@ -658,6 +660,10 @@
       return (m.home ? [m.club, m.score, m.opponent] : [m.opponent, m.score, m.club]).join(' ');
     };
     const minuteOf = (x) => (x && typeof x.minute === 'number' ? `${x.minute}'` : '');
+    // A moment's match clock as its video's scoreboard draws it ("05:48"; the API works it out from the match's
+    // periods), else the engine's minute.
+    const CLOCK = /^(\d{2}:\d{2}|HT|ET|FT)$/;
+    const clockOf = (x) => (x && CLOCK.test(String(x.clock || '')) ? x.clock : minuteOf(x));
 
     const el = document.createElement('div');
     el.className = 'pf pf-profile cp-profile';
@@ -785,8 +791,8 @@
       const match = matchOf.get(m.match_id);
       q('now').className = `reason${m.reason && m.reason !== 'on_ball_main' ? ' replay' : ''}`;
       q('now').textContent = [reel.on ? `Reel · clip ${reel.i} of ${reel.ids.length}` : '', m.reason ? reasonLabel(m.reason) : 'Moment',
-        roundOf(match || m), minuteOf(m)].filter(Boolean).join(' · ');
-      q('title').textContent = m.title ? short(m.title) : `Moment at ${minuteOf(m)}`;
+        roundOf(match || m), clockOf(m)].filter(Boolean).join(' · ');
+      q('title').textContent = m.title ? short(m.title) : `Moment at ${clockOf(m)}`;
       q('tags').innerHTML = (m.tags || []).filter((t) => !QUIET.test(t)).slice(0, 5).map((t) => `<span>${esc(tagLabel(t))}</span>`).join('');
       q('mwhere').textContent = [vsOf(match), compName(m.comp || (match || {}).comp) || ''].filter(Boolean).join(' · ');
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.toggle('on', b.dataset.clip === k);
@@ -802,7 +808,7 @@
         .map(([v, l]) => `<button type="button" class="chip" data-mom="${esc(v)}" aria-pressed="${state.mom === v}">${esc(l)}</button>`).join('') : '';
       const top = shownMoments();
       q('strip').innerHTML = top.map((m) => `<li><button type="button" class="pf-clip" data-clip="${esc(key(m))}">
-        <span class="reason${m.reason && m.reason !== 'on_ball_main' ? ' replay' : ''}">${esc(reasonLabel(m.reason))} · ${esc(roundOf(m))}</span>
+        <span class="reason${m.reason && m.reason !== 'on_ball_main' ? ' replay' : ''}">${esc([reasonLabel(m.reason), roundOf(m), clockOf(m)].filter(Boolean).join(' · '))}</span>
         <span class="pf-ctitle">${esc(short(m.title))}</span><span class="pf-cmatch">${esc(vsOf(matchOf.get(m.match_id)))}${many ? ` · ${esc(compName(m.comp))}` : ''}</span></button></li>`).join('')
         || '<li class="muted small">No moments with a clip of their own yet.</li>';
       q('reel').hidden = !top.length;

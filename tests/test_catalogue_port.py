@@ -350,7 +350,8 @@ def test_no_hidden_rating_scale_or_seed_in_the_ported_payloads(client):
                          (f"/api/competitions/{GER}", {}), ("/api/catalogue", {}),
                          ("/api/catalogue/compare", {"ids": f"{STAR},{CRUZ}"}),
                          ("/api/catalogue/rank", {"metric": "goals", "tier": "amateur,academy"}),
-                         ("/api/catalogue/players", {"sort": "minutes", "min_minutes": 0, "limit": 200})]:
+                         ("/api/catalogue/players", {"sort": "minutes", "min_minutes": 0, "limit": 200}),
+                         ("/api/catalogue/directory", {})]:
         assert not _hidden(ok(client, path, **params)), path
 
 

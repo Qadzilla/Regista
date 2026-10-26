@@ -205,7 +205,8 @@ def test_the_terminal_only_reads(js, words):
     used = set(re.findall(r"R\.api\(`?'?(/api/[a-z/]+)", js))
     allowed = {"/api/metrics", "/api/season", "/api/teams", "/api/terminal/scatter", "/api/players/", "/api/teams/",
                # the catalogue (port of the catalogue round): every read is public
-               "/api/catalogue", "/api/catalogue/players", "/api/catalogue/matches", "/api/catalogue/compare", "/api/competitions/"}
+               "/api/catalogue", "/api/catalogue/players", "/api/catalogue/matches", "/api/catalogue/compare", "/api/competitions/",
+               "/api/catalogue/directory"}   # the name directory in one read (fixes round 1)
     assert used and used <= allowed, used - allowed
     assert "auth: true" not in js and "X-Regista-Token" not in js
 

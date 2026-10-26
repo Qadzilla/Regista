@@ -8,15 +8,16 @@ Per player-competition row, in one scope (level by default):
   scope's pool and the pool's plain words. **One ranking rule:** a stat gets a percentile for a position only when its
   Scout terminal metric is scored for that position (``CATALOGUE[key].positions``); otherwise none, with the reason ("not
   ranked for goalkeepers"). A stat with no terminal metric (forward passes) keeps the profile engine's percentile for
-  outfield players and none for goalkeepers. Passes and passes completed are the metrics engine's own cells (crosses
-  included), so the profile and the Terminal say one number.
+  outfield players and none for goalkeepers. Passes and passes completed (crosses included), shots, shots on target and
+  saves (penalty kicks excluded) are the metrics engine's own cells, so the profile and the Terminal say one number.
 - **None yet:** a count where more is better at exactly 0 has no percentile, and says how many of its pool have none
   (``none_yet: {none, of}``). A count where fewer is better (offsides, aerial duels lost) is never none yet: at 0 it
   keeps the engine's percentile or reason.
 - ``ratios[key]``: the metrics engine's ratio for each profile ratio (``METRIC_OF``: pass completion, take-on success,
   shots on target %, aerial duels won %), so a ratio here equals the Terminal's, value and denominator.
 - ``evidence[stat]``: up to 10 events behind each count (match, clip, time, the engine's minute, video) and the true
-  total; ``matches`` with uploader (named), camera and Clip view link; ``grid``; ``moments``; ``summary`` worded for the
+  total; ``matches`` with uploader (named), camera and Clip view link; ``grid``; ``moments`` (each with ``clock``, the
+  scoreboard's time); ``summary`` worded for the
   competition (``regista.season.summaries.Wording``).
 
 Never a hidden rating or a level scale: everything here reads the event streams and the public bio.
@@ -33,7 +34,14 @@ from regista.season.metrics import CATALOGUE, COUNT_METRICS, rank_value
 Record = dict[str, Any]
 
 EVIDENCE_KEPT = 10
-FROM_METRICS = {"passes": "passes", "passes_completed": "passes_completed"}   # profile stat -> the metrics engine's cell
+# profile stat -> (the metrics engine's cell, what its label adds): passes count crosses too; shots, shots on target and
+# saves leave penalty kicks out (the profile engine's own counts include them), so the profile, Find players, the Terminal
+# and the agent say one number for each
+FROM_METRICS = {"passes": ("passes", " (crosses included)"), "passes_completed": ("passes_completed", " (crosses included)"),
+                "shots": ("shots", " (penalties excluded)"), "shots_on_target": ("shots_on_target", " (penalties excluded)"),
+                "saves": ("saves", " (penalties excluded)")}
+# a summary fact read from the metrics engine instead of the profile engine (the stats above, and the shot ratio)
+SUMMARY_FROM_METRICS = {k: v for k, v in FROM_METRICS.items() if k in ("shots", "shots_on_target", "saves")}
 LOWER_IS_BETTER = {"aerial_duels_lost", "offsides"}                             # never "none yet"
 PASSES_NOTE = "Passes and pass completion count crosses too, as the Scout terminal does."
 
@@ -70,6 +78,47 @@ def minute_of(cm: CatalogueMetrics, cid: str) -> Any:
     return minute
 
 
+PERIOD_START_MIN = {1: 0, 2: 45, 3: 90, 4: 105, 5: 120}
+
+
+def clock_text(periods: list[Record], t: float) -> str:
+    """The match clock the clip video's scoreboard draws at ``t`` (the renderer's ``Scene.clock_at``): MM:SS inside a
+    period (the second half from 45:00, as the engine counts minutes), HT or ET between periods, FT after the last."""
+    for per in periods:
+        if t < per["t"]:
+            return "00:00" if per is periods[0] else ("HT" if per["period"] == 2 else "ET")
+        if per["t"] <= t < per["t_end"]:
+            secs = PERIOD_START_MIN.get(per["period"], 0) * 60 + (t - per["t"])
+            return f"{int(secs // 60):02d}:{int(secs % 60):02d}"
+    return "FT"
+
+
+def clock_of(cm: CatalogueMetrics, cid: str) -> Any:
+    """match_id, t -> the match clock at t (``clock_text``), or None for a match the competition does not count."""
+    sm = cm.metrics[cid]
+    index = {r["match_id"]: i for i, r in enumerate(sm.match_rows)}
+
+    def clock(match_id: str, t: float | None) -> str | None:
+        mi = index.get(match_id)
+        if mi is None or t is None or mi >= len(sm.match_clock) or not sm.match_clock[mi]["periods"]:
+            return None
+        return clock_text(sm.match_clock[mi]["periods"], float(t))
+    return clock
+
+
+def with_clock(cm: CatalogueMetrics, moments: list[Record], cid: str | None = None) -> list[Record]:
+    """Each moment with ``clock``: the scoreboard's time at its start (each moment's own ``competition_id`` unless
+    ``cid`` is given). Titles keep the engine's minute."""
+    clocks: dict[str, Any] = {}
+    out = []
+    for m in moments:
+        c = cid or m.get("competition_id")
+        if c not in clocks:
+            clocks[c] = clock_of(cm, c) if c in cm.metrics else (lambda _mid, _t: None)
+        out.append({**m, "clock": clocks[c](m.get("match_id"), m.get("t"))})
+    return out
+
+
 def wording_for(cm: CatalogueMetrics, cp: Any, cid: str, gid: str) -> Any:
     """The summary's wording for this row: the competition's name, full or sparse coverage, two-decimal rates and
     one-decimal percentages, whether the row has the minutes for a rank, and the pass sentence from the metrics engine's
@@ -94,6 +143,21 @@ def wording_for(cm: CatalogueMetrics, cp: Any, cid: str, gid: str) -> Any:
             "of": round(ps.totals.get("passes", 0.0)),
             "rank": 1 + sum(1 for q in group if q.values["pass_pct"] > v), "of_players": len(group),
             "tied_with": sum(1 for q in group if q is not ps and q.values["pass_pct"] == v)}
+    if ps is not None:   # shots, shots on target and saves as the page shows them: the metrics engine's, no penalties
+        pos = ps.info["position"]
+        for k, (mk, adds) in SUMMARY_FROM_METRICS.items():
+            m = CATALOGUE[mk]
+            if pos not in m.positions or ps.values.get(mk) is None:
+                continue
+            group = [q for q in sm.players.values() if q.info["position"] == pos and q.values.get(mk) is not None
+                     and sm.qualified(q, m)]
+            if ps not in group:
+                group.append(ps)
+            v = ps.values[mk]
+            overrides[k] = {"label": m.label + adds, "value": v, "display": f"{v:.2f} per 90",
+                            "count": round(ps.totals.get(mk, 0.0)),
+                            "rank": 1 + sum(1 for q in group if q.values[mk] > v), "of_players": len(group),
+                            "tied_with": sum(1 for q in group if q is not ps and q.values[mk] == v)}
     minutes = cp._minutes(cid, p)
     return Wording(competition=cm.labels[cid]["name"], sparse=cm.labels[cid]["coverage"] != "full",
                    qualified=bool(p["appearances"]) and minutes >= s.min_minutes, minutes=round(p["minutes"], 1),
@@ -134,15 +198,16 @@ def profile_row(cm: CatalogueMetrics, cp: Any, cid: str, gid: str, scope: str = 
 
     for k, (label, _test) in STATS.items():
         ranked, why = _ranked_for(k, pos)
-        mk = FROM_METRICS.get(k)
+        mk, adds = FROM_METRICS.get(k, (None, ""))
         if mk and ps is not None:
             cell = cm.cell(cid, gid, mk, scope)
             count = round(cell.get("total") or 0.0)
             rate = cell["value"]
-            pct, pool, reason = cell["percentile"], cell["pool"], cell["pool"]["reason"]
+            pct, pool = (cell["percentile"], cell["pool"]) if ranked else (None, cell["pool"])
+            reason = cell["pool"]["reason"] if ranked else why
             noisy, ev_total = cell["noisy"], cell["evidence_total"]
             zeros = cell["zeros"]
-            label = CATALOGUE[mk].label + " (crosses included)"
+            label = CATALOGUE[mk].label + adds
             counts[k], per90[k] = count, rate
             ev = cm.evidence(cid, gid, mk, EVIDENCE_KEPT)
             items = [{"match_id": i["match_id"], "clip_id": i.get("clip_id"), "t": i.get("t"), "minute": i.get("minute"),
@@ -197,5 +262,5 @@ def profile_row(cm: CatalogueMetrics, cp: Any, cid: str, gid: str, scope: str = 
             "qualifying_minutes": round(s.min_minutes, 1),
             "qualified": bool(p["appearances"]) and cp._minutes(cid, p) >= s.min_minutes,
             "counts": counts, "per90": per90, "stats": stats, "ratios": ratios, "evidence": evidence, "matches": rows,
-            "grid": p["grid"], "moments": [{**mm, "competition_id": cid} for mm in p["moments"][:moments]],
+            "grid": p["grid"], "moments": with_clock(cm, [{**mm, "competition_id": cid} for mm in p["moments"][:moments]], cid),
             "summary": summary_row(cm, cp, cid, gid), "passes_note": PASSES_NOTE, "none_yet_rule": NONE_YET_RULE}

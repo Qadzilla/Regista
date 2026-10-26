@@ -102,6 +102,7 @@
   // The catalogue: competitions, levels (pools: key "semi_pro/senior/men" -> words "semi-pro men"), a player's number of
   // rows and first row by global id, the counts that read "none yet" at 0, the countries in the catalogue's order.
   const COMP = new Map(), LVL = new Map(), GIDN = new Map(), GID1 = new Map(), COUNT = new Set(), STORY = new Map();
+  const QMIN = new Map();   // competition id -> its qualifying minutes (the directory read)
   let COUNTRIES = [], MINE = { tier: 'semi_pro', age_group: 'senior', gender: 'men' }, MINE_CLUB = 'Fairhaven FC';
   let PLAYERS = [];
   // Cells per percentile scope: "<scope>|<row id>" -> { metric key: cell } (table columns, and every metric once loaded).
@@ -188,16 +189,12 @@
     if (r.values && scope) { const key = `${scope}|${id}`, cs = CELLS.get(key) || {}; Object.assign(cs, r.values); CELLS.set(key, cs); }
     return id;
   }
-  // Every player row of the catalogue, once: names for the search, row ids and playing time (one stat's cells come along).
+  // Every player row of the catalogue, once, in one read: names for the search, row ids and playing time (no metric
+  // cells: the table and the card ask for those).
   async function directory() {
-    const all = [];
-    for (let offset = 0, total = Infinity; offset < total;) {
-      const j = await R.api(`/api/catalogue/players?min_minutes=0&sort=name&metrics=goals&limit=${SCREEN_PAGE}&offset=${offset}`);
-      all.push(...(j.players || []));
-      total = j.total;
-      if (!(j.players || []).length) break;
-      offset += j.players.length;
-    }
+    const j = await R.api('/api/catalogue/directory');
+    const all = j.players || [];
+    for (const [cid, q] of Object.entries(j.qualifying_minutes || {})) if (COMPID.test(cid) && typeof q === 'number') QMIN.set(cid, q);
     for (const r of all) GIDN.set(r.global_id, (GIDN.get(r.global_id) || 0) + 1);
     for (const r of all) addRow(r, 'level');
   }
@@ -446,7 +443,7 @@
   // The qualifying minutes of a row's competition, as people say them ("101 minutes" in England, "45" elsewhere).
   function minMin(p) {
     const cs = p && CELLS.get(`${S.scope}|${p.id}`), any = cs && Object.values(cs).find(c => c && c.sample);
-    const q = any ? any.sample.qualifying_minutes : (p && p.cid === ENG ? CAT.season.min_minutes : null);
+    const q = any ? any.sample.qualifying_minutes : p && QMIN.has(p.cid) ? QMIN.get(p.cid) : (p && p.cid === ENG ? CAT.season.min_minutes : null);
     return q == null ? null : Math.ceil(Number(q) || 0);
   }
   const sampleOf = (p) => { const cs = p && CELLS.get(`${S.scope}|${p.id}`), any = cs && Object.values(cs).find(c => c && c.sample); return any ? any.sample : null; };

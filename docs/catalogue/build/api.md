@@ -208,6 +208,22 @@ GET /api/catalogue/players?tier=academy&age_group=U19&position=FW&metrics=np_goa
  "pool_rule": "…", "reliability_note": "…", "camera_note": null, "synthetic": true, "note": "…"}
 ```
 
+### `GET /api/catalogue/directory`
+
+Every player-competition row of the catalogue once (1,057 rows, a career player twice), by name: the cards of
+`/api/catalogue/players` without metric cells, pools or samples, plus `qualifying_minutes` per competition. The
+Terminal's name search reads it once instead of paging the screen six times (fixes round 1). Nothing in it is ranked.
+
+```
+{"players": [{"global_id": "pl_…", "name": "…", "club": "…", "position": "FW", "minutes": 52.9, "qualified": true,
+              "competition_id": "co_…", "competition": "…", "country": "…", "tier": "…", "age_group": "…", "gender": "…",
+              "career": false, "also_in": [], "profile_url": "/players/pl_…", "api_url": "/api/catalogue/players/pl_…", …}, …],
+ "total": 1057, "qualifying_minutes": {"co_eng_sp_men": 101.0, …}, "synthetic": true, "note": "…"}
+```
+
+JSON answers of 1 KB or more are sent gzip-compressed to clients that accept it (`_JSONGzip` in `regista.api`); video,
+pages, scripts and styles are not.
+
 ### `GET /api/catalogue/players/{global_id}`
 
 One player across the catalogue:

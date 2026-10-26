@@ -44,6 +44,7 @@ ACCESS = {
     "GET /api/competitions/{competition_id}": "public",
     "GET /api/competitions/{competition_id}/players": "public",
     "GET /api/catalogue/players": "public",
+    "GET /api/catalogue/directory": "public",
     "GET /api/catalogue/players/{gid}": "public",
     "GET /api/catalogue/rank": "public",
     "GET /api/catalogue/compare": "public",

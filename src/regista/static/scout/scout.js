@@ -94,7 +94,7 @@
   const cap = (t) => String(t || '').charAt(0).toUpperCase() + String(t || '').slice(1);
   const ord = (n) => PV.ordinal(Math.round(Number(n)));
   const labelOf = (key) => key === 'minutes' ? 'Minutes played' : (state.metrics.get(key)?.label || R.tagLabel(key));
-  const shortStat = (k) => labelOf(k).replace(/ \(incl\. penalties\)/, '').toLowerCase();
+  const shortStat = (k) => labelOf(k).toLowerCase();
   const statWords = (k) => (k === 'minutes' ? 'minutes played' : `${shortStat(k)} per 90`);
   const HEX = /^#[0-9a-f]{6}$/i;
   const VIDEO = /^\/api\/[A-Za-z0-9_./?=&%-]+$/;     // video urls from the API are relative; anything else is not played
@@ -1067,7 +1067,7 @@
         <span class="muted small">${esc(p.country)} · ${esc(levelWords(p))}</span>
         <span class="muted small">${esc(fmtMinutes(p.minutes))}</span></th>`).join('');
     const body = keys.filter(k => ps.some(p => p.values && p.values[k])).map(k => {
-      const label = labelOf(k).replace(/ \(incl\. penalties\)/, '');
+      const label = labelOf(k);
       const best = new Set((out.best && out.best[k]) || []);
       const cells = ps.map(p => {
         const c = p.values && p.values[k];
@@ -1103,7 +1103,7 @@
       return;
     }
     const ev = E.evidence || { items: [], total: 0 };
-    const label = labelOf(key).replace(/ \(incl\. penalties\)/, '').toLowerCase();
+    const label = labelOf(key).toLowerCase();
     const items = ev.items || [];
     const li = (e) => {
       const where = `Round ${e.round ?? '?'} · ${e.minute ?? '?'}'`;

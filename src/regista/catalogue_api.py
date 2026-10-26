@@ -14,6 +14,8 @@ GET /api/competitions/{competition_id}/players   that competition's players with
 GET /api/catalogue/players                 the cross-country screen: filters tier, age_group, gender, country, competition,
                                            position, role, club, q, min_minutes, age_min, age_max, foot, camera, career;
                                            metrics, sort, order, scope (level by default), limit, offset
+GET /api/catalogue/directory               every player-competition row once, by name: the cards without metric cells (a
+                                           name search's one read), and each competition's qualifying minutes
 GET /api/catalogue/players/{global_id}     one player across the catalogue: bio, career, what adds up, one row per
                                            competition with its pools, touch maps, moments, a rules summary;
                                            evidence=KEY (with competition=) pages one number's evidence
@@ -636,6 +638,24 @@ async def catalogue_players(w: WhereDep, scope: ScopeDep,
     return await run_in_threadpool(run)
 
 
+@router.get("/api/catalogue/directory")
+async def catalogue_directory() -> Record:
+    """Every player-competition row of the catalogue once, by name: who they are and where they play (the cards of
+    ``/api/catalogue/players`` without any metric cell, pool or sample), for a name search. ``total`` counts them;
+    ``qualifying_minutes`` gives each competition's minutes for a percentile. One read instead of paging the screen;
+    nothing here is ranked."""
+
+    def run() -> Record:
+        cm = catalogue_metrics()
+        _cids, rows = _rows(cm, Where(), default_all=True, min_minutes=0)
+        rows, _mode, _by = _list_sort(cm, rows, "name", None)
+        return {"players": [_card(cm, cid, ps) for cid, ps in rows], "total": len(rows),
+                "qualifying_minutes": {cid: round(cm.metrics[cid].min_minutes, 1) for cid in cm.order},
+                "synthetic": True, "note": SYNTHETIC_NOTE}
+
+    return await run_in_threadpool(run)
+
+
 def _main_row(cm: CatalogueMetrics, gid: str, competition: str | None) -> tuple[str, Any]:
     rows = cm.player_rows(gid)
     if competition:
@@ -678,7 +698,7 @@ async def catalogue_player(gid: str, scope: ScopeDep, competition: COMPETITION =
     sc = scope or "level"
 
     def run() -> Record:
-        from regista.catalogue.page import profile_row, summary_row
+        from regista.catalogue.page import profile_row, summary_row, with_clock
 
         cm = catalogue_metrics()
         if gid not in cm.people:
@@ -704,7 +724,7 @@ async def catalogue_player(gid: str, scope: ScopeDep, competition: COMPETITION =
                 comp = store.competition(cid, _index_path())
                 row["profile"] = profile_row(cm, cp, cid, gid, sc, moments=40, matches=cp.matches(cid),
                                              uploader=lambda up, comp=comp: _uploader_public(up, comp))
-        out["moments"] = cp.moments(gid, limit=moments) if moments else []
+        out["moments"] = with_clock(cm, cp.moments(gid, limit=moments)) if moments else []
         out["profile_url"] = f"/players/{gid}"
         out["not_counted"] = uncounted
         out["summary_note"] = ("Each row's summary is written from that competition's own matches (England: the Regista "

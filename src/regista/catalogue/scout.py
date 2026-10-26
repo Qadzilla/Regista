@@ -20,7 +20,7 @@ from typing import Any
 
 from regista.catalogue import tools
 from regista.catalogue.metrics import CatalogueMetrics
-from regista.catalogue.taxonomy import POSITION_WORDS, level_words
+from regista.catalogue.taxonomy import POSITION_WORDS, TIER_WORDS, level_words
 from regista.season.metrics import CATALOGUE, DEFAULT_COLUMNS
 
 Record = dict[str, Any]
@@ -119,32 +119,83 @@ def _number(st: Record) -> str:
     return f"{v:.2f} per 90" if m.kind in ("per90", "padj") else f"{v:g}"
 
 
-def _pool_line(st: Record) -> str:
+def _pool_line(st: Record, row: Record | None = None) -> str:
+    """The pool line as the pages word it: "98th percentile among 33 semi-pro men forwards", "none yet · 25 of the 33
+    semi-pro men forwards have none", or the engine's reason for no percentile (never a guessed one)."""
     pool = st["pool"]
+    if st.get("none_yet"):
+        z = st.get("zeros") or {}
+        if not z.get("of"):
+            return "none yet"
+        who = pool.get("words") or "players"
+        share = f"all {z['of']}" if z["none"] == z["of"] else f"{z['none']} of the {z['of']}"
+        return f"none yet · {share} {who} have none"
     if st.get("percentile") is None:
-        return f"no percentile ({pool.get('reason') or 'not enough minutes'})"
+        m = CATALOGUE.get(st.get("key") or "")
+        if pool.get("reason"):
+            why = pool["reason"]
+        elif m is not None and m.kind == "total":
+            why = "a season total, ranked by value only"
+        elif row is not None and row.get("qualified") is False:
+            why = f"{round(row.get('minutes') or 0)} minutes, under the minutes a regular needs in {row.get('competition')}"
+        elif m is not None and m.kind == "ratio":
+            why = "too few attempts"
+        else:
+            why = None
+        return f"no percentile ({why})" if why else "no percentile"
     small = ", a small pool" if pool.get("small") else ""
     noisy = "; ≈ noisy over a sample this size" if st.get("noisy") else ""
     return f"{_ordinal(round(st['percentile']))} percentile among {pool['size']} {pool['words']}{small}{noisy}"
 
 
+def _stat_words(st: Record, row: Record | None = None) -> str:
+    """A number with its pool line: "1.64 per 90, 98th percentile among 33 semi-pro men forwards", or "none yet · 25 of
+    the 33 … have none"."""
+    return _pool_line(st, row) if st.get("none_yet") else f"{_number(st)}, {_pool_line(st, row)}"
+
+
+def lower_label(key: str) -> str:
+    """A metric's label inside a sentence: lower case but for its abbreviations ("non-penalty xG", "npxG + xA")."""
+    import re
+
+    return re.sub(r"\b(?!xG\b|xA\b|xT\b|npxG\b)([A-Z])", lambda m: m.group(1).lower(), CATALOGUE[key].label)
+
+
+def _fewest_word(key: str) -> str:
+    """"fewest" for a count, "lowest" for a measure (a percentage, a distance, a speed)."""
+    return "fewest" if CATALOGUE[key].kind in ("per90", "padj", "total") else "lowest"
+
+
+def default_note(query: Record, position: str | None) -> str:
+    """Said when the question named no stat Regista knows: which one the answer ranks by instead."""
+    if not query.get("defaulted"):
+        return ""
+    whose = f"the {POSITION_WORDS[position][:-1]}s' first column" if position else "the default column"
+    return (f" I did not find a stat I know in the question, so this ranks by {CATALOGUE[query['sort']].label} "
+            f"({whose}); the Terminal's search knows every metric by name.")
+
+
 def reply_for(result: Record, query: Record) -> str:
     rows = result.get("players") or []
-    label = CATALOGUE[query["sort"]].label.lower()
+    lab = lower_label(query["sort"])
     who = query["who"]
+    note = default_note(query, query.get("position"))
     if not rows:
-        return f"No {who} in the catalogue match that yet."
+        return f"No {who} in the catalogue match that yet.{note}"
     top = rows[0]
     st = top["stat"]
-    head = (f"{top['name']} ({top['club']}, {top['competition']}, {top['country']}) leads {who} for {label}: "
-            f"{_number(st)}, {_pool_line(st)}.")
+    place = f"{top['name']} ({top['club']}, {top['competition']}, {top['country']})"
+    if query.get("order") == "asc":
+        head = f"{place} has the {_fewest_word(query['sort'])} {lab} among the {who}: {_stat_words(st, top)}."
+    else:
+        head = f"{place} leads the {who} for {lab}: {_stat_words(st, top)}."
     nxt = [f"{r['name']} {_number(r['stat'])}" for r in rows[1:3]]
     out = head + (f" Next: {' and '.join(nxt)}." if nxt else "")
     if result.get("with_any") is not None and result.get("none_yet"):
         out += f" {result['with_any']} of {result['with_any'] + result['none_yet']} have any so far."
     if result.get("warning"):
         out += " These rows come from more than one level: read each percentile against its own pool."
-    return out
+    return out + note
 
 
 def answer_catalogue(season: Any, cm: CatalogueMetrics, question: str, trace: list[Record] | None = None) -> Record:
@@ -160,33 +211,99 @@ def answer_catalogue(season: Any, cm: CatalogueMetrics, question: str, trace: li
     q = timed_step(trace, "scout.parse", parse_question, season, place["rest"] or question)
     named = named_player(cm, question)
     w = dict(place["where"])
+    asked = stat_asked(q)
+    _catalogue_heard(q)
+    if asked is None or metric_for(asked, None) != SORT_OF.get(asked, asked):
+        hit = catalogue_stat(place["rest"] or question)
+        if hit:
+            asked = hit[0]
+            q["heard"] = [*(q.get("heard") or []), f"“{hit[1]}” → {CATALOGUE[hit[0]].label.lower()}"]
     if named:
         result = timed_step(trace, "scout.get_catalogue_player", tools.get_player, cm, named)
-        c = player_card(cm, named)
-        reply = (f"{c['name']} ({c['club']}, {c['competition']}, {c['country']}): {c['stat']['label'].lower()} "
-                 f"{_number(c['stat'])}, {_pool_line(c['stat'])}." if c else result.get("error", ""))
+        rows = cm.player_rows(named)
+        pos = max(rows, key=lambda r: r[1].minutes)[1].info["position"] if rows else None
+        c = player_card(cm, named, sort=metric_for(asked, pos) if asked else None)
+        reply = (f"{c['name']} ({c['club']}, {c['competition']}, {c['country']}): {lower_label(c['stat']['key'])} "
+                 f"{_stat_words(c['stat'], c)}." if c else result.get("error", ""))
         query = {"mode": "player", "ids": [named], "where": w, "sort": c["stat"]["key"] if c else None,
                  "position": None, "order": "desc", "limit": 1}
         return {"reply": reply, "understood": _understood(place, q, query, named=True), "query": query,
                 "players": [c] if c else [], "trace": trace, "answered_by": "rules", "tools_used": [], "where": "catalogue",
                 "warning": None}
-    sort = metric_for(q["sort"], q["position"])
+    sort = metric_for(asked, q["position"])
     order = "asc" if q["order"] == "asc" else "desc"
     args = {**{k: w[k] for k in ("tier", "age_group", "gender", "country", "competition") if k in w},
             "position": q["position"], "sort": sort, "order": order, "limit": q["limit"]}
     result = timed_step(trace, "scout.search_catalogue_players", lambda: tools.search_players(cm, **args))
     pos = POSITION_WORDS.get(q["position"] or "", "players")
-    level = level_words(f"{w['tier']}/{w['age_group']}/{w['gender']}") if {"tier", "age_group", "gender"} <= set(w) else \
-        " ".join(x for x in (w.get("tier", "").replace("_", "-"), w.get("age_group", ""), w.get("gender", "")) if x)
-    where_words = " ".join(x for x in (level, pos) if x) + (f" in {w['country']}" if w.get("country") else "") + \
+    where_words = " ".join(x for x in (level_phrase(w), pos) if x) + (f" in {w['country']}" if w.get("country") else "") + \
         (f" in {v['comp_name'][w['competition']]}" if w.get("competition") else "")
     query = {"mode": "rank", "where": w, "position": q["position"], "sort": sort, "order": order, "limit": q["limit"],
-             "who": f"the {where_words}".replace("  ", " "), "args": args}
+             "who": where_words, "args": args, "defaulted": asked is None or metric_for(asked, None) != SORT_OF.get(asked, asked)}
     reply = reply_for(result, query) if "error" not in result else result["error"]
-    return {"reply": reply, "understood": _understood(place, q, query), "query": {k: query[k] for k in query if k != "who"},
+    return {"reply": reply, "understood": _understood(place, q, query),
+            "query": {k: query[k] for k in query if k not in ("who", "defaulted")},
             "players": [card(r) for r in result.get("players", [])], "trace": trace, "answered_by": "rules",
             "tools_used": [], "where": "catalogue", "warning": result.get("warning"), "result_total": result.get("total"),
             "with_any": result.get("with_any"), "none_yet": result.get("none_yet")}
+
+
+def level_phrase(w: Record) -> str:
+    """The level words of a place filter, each word once: "semi-pro men", "college women", "U19", "college" (the age
+    group only where it is not the tier's own, as ``level_words`` says it)."""
+    if {"tier", "age_group", "gender"} <= set(w):
+        return level_words(f"{w['tier']}/{w['age_group']}/{w['gender']}")
+    tier = TIER_WORDS.get(w.get("tier", ""), w.get("tier", "").replace("_", "-"))
+    age = w.get("age_group", "")
+    age = "" if age == "senior" or (age == "college" and tier == "college") else age
+    return " ".join(x for x in (tier, age, w.get("gender", "")) if x)
+
+
+def _phrases() -> list[tuple[str, str]]:
+    """(phrase, metric key) for every catalogue metric: its label and its key in words, longest first."""
+    out: dict[str, str] = {}
+    for k, m in CATALOGUE.items():
+        for ph in (m.label.lower(), k.replace("_", " ")):
+            ph = ph.split(" (")[0].strip()
+            if len(ph) >= 3:
+                out.setdefault(ph, k)
+    return sorted(out.items(), key=lambda kv: -len(kv[0]))
+
+
+PHRASES = _phrases()
+
+
+def catalogue_stat(text: str) -> tuple[str, str] | None:
+    """(metric key, the words that named it) for a stat the league parser does not know ("yellow cards", "fouls",
+    "sprint distance"), by any Terminal metric's label or key, singular or plural; the longest name wins."""
+    import re
+
+    low = f" {text.lower()} "
+    for ph, k in PHRASES:
+        stem = ph[:-1] if ph.endswith("s") else ph
+        m = re.search(rf"(?<![\w]){re.escape(stem)}s?(?![\w])", low)
+        if m:
+            return k, m.group(0).strip()
+    return None
+
+
+def stat_asked(q: Record) -> str | None:
+    """The stat the question named (the league parser's key), else None (a rank with no stat reads "minutes")."""
+    return q["sort"] if q.get("sort") not in (None, "minutes") else None
+
+
+def _catalogue_heard(q: Record) -> None:
+    """The parser's "heard" lines name the catalogue's metric, not the league profile's stat: "“shots” → shots" (the
+    Terminal's shots leave penalties out), "“forward passes” → progressive passes"."""
+    from regista.season.scout import stat_label
+
+    keys = [k for k in [q.get("sort"), *(q.get("also") or [])] if k not in (None, "minutes")]
+    for k in keys:
+        mk = SORT_OF.get(k, k)
+        if mk not in CATALOGUE:
+            continue
+        old, new = f"→ {stat_label(k).lower()}", f"→ {CATALOGUE[mk].label.lower()}"
+        q["heard"] = [h.replace(old, new) if h.endswith(old) else h for h in q.get("heard") or []]
 
 
 def _understood(place: Record, q: Record, query: Record, named: bool = False) -> str:
@@ -201,7 +318,7 @@ def _understood(place: Record, q: Record, query: Record, named: bool = False) ->
         if q.get("position"):
             parts.append(POSITION_WORDS[q["position"]])
         m = CATALOGUE[query["sort"]]
-        parts.append(f"{'fewest' if query['order'] == 'asc' else 'most'} {m.label.lower()}"
+        parts.append(f"{_fewest_word(query['sort']) if query['order'] == 'asc' else 'most'} {m.label.lower()}"
                      + (" per 90" if m.kind == "per90" else ""))
         parts.append(f"top {query['limit']}")
         parts.append("percentiles within each player's level")
