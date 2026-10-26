@@ -672,6 +672,8 @@ every new endpoint's JSON (and the optional-parameter variants) for any key in `
 (§4.1). It never uses the sparse committed sample, which is too small for a verdict. It reports each level against the
 kinds of checks below. A slow test runs it and asserts the verdict lines.
 
+The served checks, with each one's basis, are in `docs/catalogue/realism.md` and `regista.catalogue.realism` (`ORDERS`); where they differ from this design table, they supersede it (corrected 2026-10-25, fixes-close2.md).
+
 Kinds of check:
 - **band**: a published band read for this level → pass/fail.
 - **reference**: a band from a higher level shown beside the number, **no verdict** (an upper reference).
@@ -685,10 +687,10 @@ Kinds of check:
 | college / college / men | PL bands as reference | NCAA Division I: about 9,367 m per match [S4], reference only (NCAA's re-entry substitutions make it per match, not per 90) | |
 | college / college / women | none | women's references: total distance per 90 9.5-11.0 km from positional means in women's internationals [S2]; teams covered 103.3 km per match on average at the 2023 Women's World Cup [S11]; season top speed within 24.4-31.0 km/h [S3] | All are elite references (upper), no verdict |
 | semi_pro / senior / women | none | as college women | |
-| amateur / senior / men | none | none | order: sprint distance per 90 below semi-pro [S9]; pass completion below semi-pro [S10] |
-| academy / U20, U19, U18 | none | none | order: peak speed mean and distance per 90 rise U17 < U18 < U19 < U20 < senior [S5, S6, S8] |
+| amateur / senior / men | none | none | order: pass completion lower and ball losses higher than semi-pro, a direction extended from [S10] (amateurs against internationals, small-sided games), not reported at these levels; **assumed order** (no published band): sprint distance per 90 below semi-pro, against [S9] (no difference in sprinting between second-tier professionals and fourth-tier amateurs in full matches) and [S15] (none in match maximal speed between first-division professionals and fourth-division elite amateurs) |
+| academy / U20, U19, U18 | none | none | order: distance per 90 rises U17 < U18 [S8] (S8 covers U13-U18); **assumed orders** (no published band) beyond each source's span: distance per 90 U18 < U19 < U20 < senior, and peak speed mean U17 < U18 < U19 < U20 < senior ([S5, S6] stop at U17; it holds by construction, since the youth speed scales are interpolated between U17 and senior) |
 | academy / U17 / men | none | **band**: mean peak match speed of outfielders (the engine's `peak_speed_mean`) in 24.9-28.7 km/h, 26.8 ± 1.9 [S5] | the one sourced band below senior level: highly trained academy players, which fits an academy U17 |
-| women vs men (any tier) | order: pass completion lower, dispossessions higher in women's pools [S1] | order: distance at ≥ 20 km/h per 90 lower in women's pools [S1, S2]; second-half drop in high-intensity distance [S1] | |
+| women vs men (any tier) | order: pass completion lower [S1, S12] (with a gap check: 8 points at the World Cups [S12], the gap the level scale was calibrated from), ball losses higher in women's pools [S1]; directions from elite football, extended by the build | order: distance at ≥ 20 km/h per 90 lower in women's pools [S1]; second-half drop in high-intensity distance [S1] not checked (the engine's metrics do not split halves) | |
 
 The physical metrics keep **one definition everywhere**: FIFA's men's zones, ≥ 20 and ≥ 25 km/h. Women's tournaments
 use 19 and 23 km/h [S11], so women's sprint counts here are on the men's thresholds and are not compared with
@@ -850,6 +852,10 @@ only what these say and keep the citation with the number.
 - [S14] Bradley PS. Setting the benchmark, part 3: setting physical benchmarks across positions. FIFA Training Centre,
   2024. https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-3-setting-physical-benchmarks-across-positions.php
   : top speeds in games 28.0-29.4 km/h by position at the 2023 Women's World Cup. Added 2026-10-25.
+- [S15] Djaoui L, Chamari K, Owen AL, Dellal A. Maximal sprinting speed of elite soccer players during training and
+  matches. *J Strength Cond Res* 2017;31(6):1509-1517. doi:10.1519/JSC.0000000000001642 : no difference in match
+  maximal sprinting speed between first-division professionals and fourth-division elite amateurs; cited only as
+  evidence against the assumed amateur sprint order. Added 2026-10-25 (fixes-close2.md; served in realism.py).
 
 Author lists confirmed 2026-10-25 (PubMed): [S4] Curtis RM, Huggins RA, Looney DP, West CA, Fortunati A, Fontaine GJ,
 Casa DJ (doi:10.1519/JSC.0000000000002719); [S5] Al Haddad H, Simpson BM, Buchheit M, Di Salvo V, Mendez-Villanueva A

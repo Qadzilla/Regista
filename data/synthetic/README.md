@@ -394,7 +394,7 @@ assumption is recorded in `regista.catalogue.taxonomy.LEVELS[...].source`.
 
   This is the loose-ball convention of a failed take-on in league mode. A failed `touch` without `heavy_touch` still
   means the ball went out of play (qualifier `out_of_play`, `lost_by: out_of_play`). A teammate's recovery still
-  counts as a ball loss for the receiver (`ball_losses` counts every possession ending `dispossessed`); on 89 built
+  counts as a ball loss for the receiver (`ball_losses` counts every possession ending `dispossessed`); on the 60
   catalogue matches (2026-10-25) 157 of 597 heavy touches (26%) were recovered by the receiver's own side. The schema needs no change:
   qualifiers are free tags and every value above already exists.
 

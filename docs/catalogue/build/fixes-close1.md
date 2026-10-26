@@ -20,7 +20,7 @@ Commits: da3a404 (heavy-touch records), 51aaa45 (realism wording).
 - how it differs from the old failed touch (`out_of_play`), that it follows the failed take-on's loose-ball convention,
   and that a teammate's recovery still counts as a ball loss.
 
-I checked the record pattern on the 89 locally built catalogue matches: every heavy touch is followed by a recovery
+I checked the record pattern on the 60 catalogue matches (corrected 2026-10-25, fixes-close2.md: the local folder held 89, of which 29 were stale pre-date-fix builds with no heavy touches; all 597 come from the 60 current matches): every heavy touch is followed by a recovery
 and a possession with the stated `gained_by`, and every one ends the receiver's possession as `dispossessed`. 157 of
 597 (26%) were recovered by the receiver's own side. The review counted 25 of 98 on six matches. No schema change was
 needed: qualifiers are free tags.
