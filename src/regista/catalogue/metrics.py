@@ -587,6 +587,27 @@ class CatalogueMetrics:
         by = self.board_by([where(r) for r in rows], mode)
         return self.group_boards(ordered, by, where), mode, by, ranked
 
+    def placed(self, rows: list[tuple[str, PlayerSeason]], key: str, mode: str, by_pct: set) -> list[tuple[str, PlayerSeason]]:
+        """The rows that get a place, in order (``RANK_RULE``): pool mode, the rows ranked by percentile; value mode, the rows
+        with their competition's minimum minutes (and attempts), never none yet (a count at 0). ``by_pct``: the fourth
+        value of ``order_rows``."""
+        m = CATALOGUE[key]
+        if mode == "pool":
+            return [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) in by_pct]
+        return [(cid, ps) for cid, ps in rows
+                if (self.metrics[cid].qualified(ps, m) or (m.kind == "total" and ps.values.get(key) is not None))
+                and not self.none_yet(ps, key)]
+
+    def ranked_first(self, rows: list[tuple[str, PlayerSeason]], key: str, mode: str, by_pct: set,
+                     by: str | None) -> tuple[list[tuple[str, PlayerSeason]], set]:
+        """(``order_rows``' rows with, on each board, the rows that get a place first and the rest after in their order, as
+        ``/api/catalogue/rank`` lists them; the (cid, gid) of the placed rows). A ratio below its minimum attempts never
+        leads a list."""
+        placed = {(cid, ps.info["global_id"]) for cid, ps in self.placed(rows, key, mode, by_pct)}
+        first = [r for r in rows if (r[0], r[1].info["global_id"]) in placed]
+        rest = [r for r in rows if (r[0], r[1].info["global_id"]) not in placed]
+        return self.group_boards(first + rest, by, self.where_of), placed
+
     @staticmethod
     def where_of(row: tuple[str, PlayerSeason]) -> tuple[str, str]:
         return row[0], row[1].info["position"]

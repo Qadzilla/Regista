@@ -493,7 +493,9 @@ Scout terminal metric key such as np_goals, take_ons_won, key_passes, intercepti
 percentiles are within the player's own level by default; say the pool and its size as the tool gives it ("98th
 percentile among 33 semi-pro men forwards"); when rows come from more than one level, say that each percentile is read
 against its own pool; never put men and women in one pool or one ranking; a count of 0 is "none yet", never a rank;
-a number marked noisy is a small sample. Quote only numbers the tools returned."""
+a row with ranked false (below its minimum attempts, or none yet) is listed after the ranked rows and never leads: when
+no row is ranked, say that no one is ranked (or has any) yet; a number marked noisy is a small sample. Quote only
+numbers the tools returned."""
 
 
 async def foundry_scout_answer(cloud: CloudConfig, question: str, understood: str, season_env: dict[str, str],

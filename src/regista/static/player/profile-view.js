@@ -581,7 +581,8 @@
     const pool = c.pool || {};
     const who = pool.words || group;
     if (c.none_yet) {
-      const z = c.none_yet;
+      const z = typeof c.none_yet === 'object' ? c.none_yet : c.zeros;
+      if (!z || !z.of) return 'None yet';
       return `None yet · ${z.none === z.of ? `all ${z.of}` : `${z.none} of the ${z.of}`} ${who} have none`;
     }
     if (c.percentile !== null && c.percentile !== undefined) return `${ordinal(Math.round(c.percentile))} percentile among ${pool.size} ${who}`;

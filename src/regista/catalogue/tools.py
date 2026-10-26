@@ -103,7 +103,9 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
 
     A list with boards returns each board's top rows (up to ``limit`` each on two boards, up to ``BOARD_TOP`` each on
     more; each row's ``board``), and ``boards`` gives each board's key, label, size, offset and top rows, so no board is
-    out of reach; ``hint`` says how to read one board further."""
+    out of reach; ``hint`` says how to read one board further. On each board the rows that get a place come first
+    (``ranked`` true) and the rest follow in order (``ranked`` false: below the minimum attempts, or none yet), as
+    ``/api/catalogue/rank`` lists them."""
     err = filter_errors(tier=tier, age_group=age_group, gender=gender, position=position, scope=scope)
     if err:
         return {"error": err}
@@ -123,8 +125,12 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
         rows.sort(key=lambda r: ((-1 if order == "desc" else 1) * r[1].minutes, r[1].info["name"], r[0]))
         by = cm.board_by([cm.where_of(r) for r in rows], "value")
         rows = cm.group_boards(rows, by, cm.where_of)
+        placed = {(cid, ps.info["global_id"]) for cid, ps in rows if ps.minutes >= cm.metrics[cid].min_minutes}
     else:
-        rows, mode, by, _ranked = cm.order_rows(rows, sort, scope, order, rank_by)
+        # the rows that get a place first on each board, the rest after (below their minimum attempts, none yet), as
+        # /api/catalogue/rank lists them: an unranked row never leads
+        rows, mode, by, by_pct = cm.order_rows(rows, sort, scope, order, rank_by)
+        rows, placed = cm.ranked_first(rows, sort, mode, by_pct, by)
 
     def row_of(cid: str, ps: Any) -> Record:
         gid = ps.info["global_id"]
@@ -132,7 +138,7 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
                "position": ps.info["position"], "role": ps.info.get("role"), "age": ps.info.get("age"),
                "minutes": round(ps.minutes, 1), "appearances": ps.appearances,
                "qualified": ps.minutes >= cm.metrics[cid].min_minutes, "career": len(cm.people.get(gid, [])) > 1,
-               "board": cm.board_key(by, cid, ps.info["position"])}
+               "board": cm.board_key(by, cid, ps.info["position"]), "ranked": (cid, gid) in placed}
         if sort != "minutes":
             c = cm.cell(cid, gid, sort, scope)
             row["stat"] = {"key": sort, "label": CATALOGUE[sort].label, "value": c["value"], "percentile": c["percentile"],

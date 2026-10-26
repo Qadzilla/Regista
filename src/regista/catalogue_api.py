@@ -827,14 +827,8 @@ def _places(cm: CatalogueMetrics, ranked: list, by: str | None, shown: Any) -> l
 
 
 def _ranked_rows(cm: CatalogueMetrics, rows: list, key: str, mode: str, by_pct: set) -> list:
-    """The rows that get a place, in order (``RANK_RULE``): pool mode, the rows ranked by percentile; value mode, the rows
-    with their competition's minimum minutes (and attempts), never none yet (a count at 0)."""
-    m = CATALOGUE[key]
-    if mode == "pool":
-        return [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) in by_pct]
-    return [(cid, ps) for cid, ps in rows
-            if (cm.metrics[cid].qualified(ps, m) or (m.kind == "total" and ps.values.get(key) is not None))
-            and not cm.none_yet(ps, key)]
+    """The rows that get a place, in order (``RANK_RULE``; ``CatalogueMetrics.placed``)."""
+    return cm.placed(rows, key, mode, by_pct)
 
 
 def _rank(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metric: str, position, role, club,

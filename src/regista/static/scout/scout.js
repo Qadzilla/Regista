@@ -133,7 +133,7 @@
     const who = pool.words || `${levelWords(r)} ${GROUP[r.position] || 'players'}`;
     if (c.none_yet) {
       const z = c.zeros;
-      return z ? `None yet · ${z.none === z.of ? `all ${z.of}` : `${z.none} of the ${z.of}`} ${who} have none` : 'None yet';
+      return z && z.of ? `None yet · ${z.none === z.of ? `all ${z.of}` : `${z.none} of the ${z.of}`} ${who} have none` : 'None yet';
     }
     if (c.percentile !== null && c.percentile !== undefined) return `${ord(c.percentile)} percentile among ${pool.size} ${who}`;
     const s = c.sample || {};
@@ -618,6 +618,16 @@
         ${json.trace_note ? `<p class="small muted">${esc(json.trace_note)}</p>` : ''}</details></details>`;
   }
 
+  // The number on an agent card in its metric's own unit: "1.64 goals per 90", "75.0% save %", "3 penalties won".
+  function agentNumber(s) {
+    const m = state.metrics.get(s.key) || {};
+    const label = String(s.label || m.label || '').toLowerCase();
+    if (s.value === null || s.value === undefined) return `no value yet · ${label}`;
+    const v = Number(s.value);
+    if (m.kind === 'ratio') return `${label} ${v.toFixed(m.digits ?? 1)}${m.unit === '%' ? '%' : ` ${m.unit || ''}`}`;
+    if (m.kind === 'total') return `${v.toFixed(0)} ${label}`;
+    return `${fmtRate(v)} ${label} per 90`;
+  }
   // One player the Scout agent found: who, where, the number the answer was about with its pool line, small and noisy
   // marks, minutes, and a link to the profile.
   function agentRow(p) {
@@ -625,10 +635,10 @@
     const known = player(p.global_id);
     const url = /^\/players\/pl_[a-z0-9_]+$/.test(p.profile_url || '') ? p.profile_url : `/players/${enc(p.global_id)}`;
     const cell = s ? { ...s, qualified: p.qualified, sample: { minutes: p.minutes } } : null;
-    const line = s ? `${fmtRate(s.value)} ${String(s.label || '').toLowerCase()} per 90 · ${poolLine(cell, p)}` : '';
+    const line = s ? `${agentNumber(s)} · ${poolLine(cell, p)}` : '';
     return `<a href="${esc(url)}" class="sc-minirow">${known && known.kit ? `<span class="sc-shirt" aria-hidden="true">${shirt(known)}</span>` : ''}
       <span><b>${esc(p.name)}</b> <span class="muted small">${esc(POSITIONS[p.position] || p.position || '')} · ${esc(p.club || '')}${p.competition ? ` · ${esc(p.competition)}, ${esc(p.country || '')}` : ''}</span>
-        <span class="small">${esc(line)}${s && s.pool && s.pool.small && !s.none_yet ? ' · <span class="sc-small">Small pool</span>' : ''} · ${esc(fmtMinutes(p.minutes))}${care(s, p.minutes)}</span></span></a>`;
+        <span class="small">${s ? `${esc(line)}${s.pool && s.pool.small && !s.none_yet ? ' · <span class="sc-small">Small pool</span>' : ''} · ` : ''}${esc(fmtMinutes(p.minutes))}${!s && typeof p.appearances === 'number' ? ` · ${esc(plural(p.appearances, 'appearance'))}` : ''}${care(s, p.minutes)}</span></span></a>`;
   }
   // Renders a reply from the Scout agent (POST /api/scout/ask) into #scoutAnswer: the reply, how the question was
   // understood, who answered and with which tools, the cross-level warning when the tool gave one, the players, and the
@@ -1073,7 +1083,7 @@
         const c = p.values && p.values[k];
         if (!c) return '<td>–</td>';
         const isBest = best.has(p.global_id);
-        const pct = c.none_yet ? `None yet${c.zeros ? ` · ${c.zeros.none === c.zeros.of ? `all ${c.zeros.of}` : `${c.zeros.none} of ${c.zeros.of}`} in the pool have none` : ''}`
+        const pct = c.none_yet ? `None yet${c.zeros && c.zeros.of ? ` · ${c.zeros.none === c.zeros.of ? `all ${c.zeros.of}` : `${c.zeros.none} of ${c.zeros.of}`} in the pool have none` : ''}`
           : c.percentile !== null && c.percentile !== undefined ? `${ord(c.percentile)} percentile · pool ${c.pool?.size ?? c.peers}` : 'no percentile';
         const said = poolLine(c, p);
         return `<td class="${isBest ? 'best' : ''}"><button type="button" class="link" data-ev="${esc(p.global_id)}|${esc(p.competition_id)}|${esc(k)}"

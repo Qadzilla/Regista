@@ -84,12 +84,16 @@ def test_rules_sentences_read_right(client):
     assert not empty["players"] and empty["reply"].startswith("No women goalkeepers in Nigeria")
     assert "No the" not in empty["reply"]
     college = ask(client, "best college players")
-    assert "college college" not in college["reply"] and "leads the college players" in college["reply"]
-    fewest = ask(client, "fewest fouls by forwards")
+    # college men and women are two levels: one list per level (fixes round 2), so no "leads"
+    assert "college college" not in college["reply"] and "One list per level for the college players" in college["reply"]
+    fewest = ask(client, "fewest fouls by forwards at my level")
     assert fewest["query"]["sort"] == "fouls" and fewest["query"]["order"] == "asc"
-    assert " has the fewest fouls committed among the forwards: " in fewest["reply"] and " leads " not in fewest["reply"]
-    low = ask(client, "fewest pass completion by midfielders")
-    assert " has the lowest pass completion among the midfielders: " in low["reply"]
+    assert " has the fewest fouls committed among the semi-pro men forwards: " in fewest["reply"]
+    assert " leads " not in fewest["reply"]
+    low = ask(client, "fewest pass completion by midfielders at my level")
+    assert " has the lowest pass completion among the semi-pro men midfielders: " in low["reply"]
+    across = ask(client, "fewest fouls by forwards")   # several levels, one position: the pool rule, lowest first
+    assert "in their own pool, lowest first" in across["reply"] and " leads " not in across["reply"]
 
 
 def test_a_stat_the_league_parser_does_not_know_is_read_from_the_metric_names(client):
