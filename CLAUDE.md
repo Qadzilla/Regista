@@ -272,8 +272,8 @@ Regista's data can compute, the chosen catalogue). Build reports, verification a
 ### 2.11 The catalogue (decided 2026-10-25)
 
 Design `docs/catalogue/build/design.md`; build records, reviews and fixes in `docs/catalogue/build/`; the realism
-report `docs/catalogue/realism.md`; the data contract in `data/synthetic/README.md` ("Catalogue"). Built on branch
-`feature/catalogue`: **not merged, not deployed**, so the live app serves none of it yet.
+report `docs/catalogue/realism.md`; the data contract in `data/synthetic/README.md` ("Catalogue"). Merged (PR #39, then the UI
+round PR #40) and live since 2026-10-26.
 - **Zaid's decisions.**
   - Regista becomes a **catalogue of uploaded footage for recruitment below the professional line**: players and teams
     upload matches; scouts find and compare players across countries and levels. `professional` is not a tier.
@@ -299,8 +299,8 @@ report `docs/catalogue/realism.md`; the data contract in `data/synthetic/README.
   orders, of which 3 confirm a calibration and 7 follow from level scales set in the source's direction, so none
   independently validates football below the professional line; of 7 assumed orders, 6 hold and running distance
   U18 < U19 fails).
-- **The UI round (approved in the sandbox `ux/sandbox` 2026-10-26, ported on branch `ux/catalogue`, PR #40 on top of
-  PR #39, not merged; reports `docs/redesign/catalogue/`):** Scout's Find players on the whole catalogue (Country,
+- **The UI round (approved in the sandbox `ux/sandbox` 2026-10-26, ported by PR #40, live with PR #39 since
+  2026-10-26 on revision `regista-api--d1026204656`; reports `docs/redesign/catalogue/`):** Scout's Find players on the whole catalogue (Country,
   Level, Age group, Gender, Competition filters, "My level", one list per level, pool lines such as "98th percentile
   among 33 semi-pro men forwards", small pools with reasons, "none yet" for zeros), a Competitions section with
   competition pages (table, squads, uploaded matches with uploader, camera and date), profiles at `/players/{id}` for
@@ -589,9 +589,14 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-26.** The catalogue's UI round is ported on `ux/catalogue` (§2.11), PR #40 on top of PR #39; neither is
-merged or deployed. 1121 quick tests pass on the Mac; two reviewers signed off after three rounds (the last two items
-fixed and checked by hand).
+**As of 2026-10-26 (evening).** The catalogue is live (§2.11): PR #39 (data, engine, API; merge 2952844) and PR #40
+(the UI round; merge fd0969f), deployed by CI to revision `regista-api--d1026204656`. Checked live, read-only, at 1440
+and 375 px: Find players on the whole catalogue (Femi Toure first in semi-pro men), Competitions (14 in 10 countries),
+Sergio Cruz's profile with his two-competition career, a catalogue clip playing (the first view of each clip on a
+fresh revision renders it, about 20 s), the Terminal on 1,057 rows, the Clip view's picker with 94 matches, /me; no
+console errors, no horizontal scroll; "most goals in England" puts Femi Toure first; a write without the token is
+refused (401). 1121 quick tests. Left: Zaid's recorded match (if any), the demo video (storyboard to update for the
+catalogue), the pitch, a Fabric push of the catalogue, making the repo public, submitting by 2026-10-27.
 
 **Earlier, 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
 the realism report per level (`docs/catalogue/realism.md`: 10 of 10 sourced checks pass, 3 of them confirming a
