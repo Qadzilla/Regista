@@ -187,7 +187,12 @@ def _place(r: Record) -> str:
 
 
 def _minutes(r: Record) -> str:
-    return f"{whole(r['minutes']):,} minutes"
+    n = whole(r['minutes'])
+    return f"{n:,} minute{'' if n == 1 else 's'}"
+
+
+def _apps(n: int) -> str:
+    return f"{n} appearance{'' if n == 1 else 's'}"
 
 
 def _boards_of(result: Record, rows: list[Record]) -> list[tuple[Record | None, list[Record]]]:
@@ -244,8 +249,8 @@ def _minutes_reply(result: Record, query: Record) -> str:
         tied = [r for r in rs[1:] if whole(r["minutes"]) == whole(top["minutes"])]
         if tied:
             return f"The {most} minutes among the {who}: {_minutes_top(rs)}."
-        out = f"{_place(top)} has played the {most} minutes among the {who}: {_minutes(top)} in {top['appearances']} " \
-              f"appearances."
+        out = f"{_place(top)} has played the {most} minutes among the {who}: {_minutes(top)} in " \
+              f"{_apps(top['appearances'])}."
         nxt = [f"{r['name']} ({_minutes(r)})" for r in rs[1:3]]
         return out + (f" Next: {' and '.join(nxt)}." if nxt else "")
     parts = [f"{_cap(_board_name(b))}: {_minutes_top(_ranked_rows(rs) or rs)}." for b, rs in groups[:3]]
@@ -347,7 +352,7 @@ def answer_catalogue(season: Any, cm: CatalogueMetrics, question: str, trace: li
         result = timed_step(trace, "scout.get_catalogue_player", tools.get_player, cm, named)
         c = player_card(cm, named, sort=asked if asked != "minutes" else None)
         if c and asked == "minutes":
-            reply = f"{_place(c)}: {_minutes(c)} in {c['appearances']} appearances."
+            reply = f"{_place(c)}: {_minutes(c)} in {_apps(c['appearances'])}."
         elif c:
             reply = f"{_place(c)}: {lower_label(c['stat']['key'])} {_stat_words(c['stat'], c)}."
         else:
@@ -361,6 +366,8 @@ def answer_catalogue(season: Any, cm: CatalogueMetrics, question: str, trace: li
     order = "asc" if q["order"] == "asc" else "desc"
     args = {**{k: w[k] for k in ("tier", "age_group", "gender", "country", "competition") if k in w},
             "position": q["position"], "sort": sort, "order": order, "limit": q["limit"]}
+    if sort == "minutes":   # a total with no percentile: every player counts, not only those with enough minutes for one
+        args["min_minutes"] = 0
     result = timed_step(trace, "scout.search_catalogue_players", lambda: tools.search_players(cm, **args))
     pos = POSITION_WORDS.get(q["position"] or "", "players")
     where_words = " ".join(x for x in (level_phrase(w), pos) if x) + (f" in {w['country']}" if w.get("country") else "") + \

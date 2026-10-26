@@ -299,10 +299,20 @@ report `docs/catalogue/realism.md`; the data contract in `data/synthetic/README.
   orders, of which 3 confirm a calibration and 7 follow from level scales set in the source's direction, so none
   independently validates football below the professional line; of 7 assumed orders, 6 hold and running distance
   U18 < U19 fails).
-- **What the UI round will do (not built):** the Scout and Player pages on the catalogue (country and level filters,
-  pools and small-pool flags shown well, careers on profiles), whether the public Scout agent gets the catalogue tools,
-  whether Player-view uploads may come from catalogue clubs, a Fabric push of the catalogue, and the demo and pitch
-  lines for it.
+- **The UI round (approved in the sandbox `ux/sandbox` 2026-10-26, ported on branch `ux/catalogue`, PR on top of
+  PR #39, not merged; reports `docs/redesign/catalogue/`):** Scout's Find players on the whole catalogue (Country,
+  Level, Age group, Gender, Competition filters, "My level", one list per level, pool lines such as "98th percentile
+  among 33 semi-pro men forwards", small pools with reasons, "none yet" for zeros), a Competitions section with
+  competition pages (table, squads, uploaded matches with uploader, camera and date), profiles at `/players/{id}` for
+  every catalogue player (career strip, numbers per competition, Level / Competition / All levels), the Terminal on the
+  catalogue (place words in `static/scout/terminal-place.js`, level boards, pool column), the Clip view's picker and
+  search over all 90 matches, and the Player view's Switch player across the catalogue with uploads from catalogue
+  clubs (competition-aware film and team sheet; uploader, camera, date and consent on the upload record). Zaid's port
+  decisions: the engine's minutes stay as they are (a 2 x 15 match's second half counts from 45'), noisy marks stay,
+  and catalogue pages count league fixtures only (Femi Toure's Player-view friendly is named, not counted). The
+  Foundry Scout agent holds the catalogue tools (public, read-only). New modules: `regista.catalogue.page` (catalogue
+  profiles and pages), `place` (place words), `scout` (the Scout agent's catalogue rules). Not built: a Fabric push of
+  the catalogue, the demo and pitch lines.
 
 ---
 
@@ -579,7 +589,11 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
+**As of 2026-10-26.** The catalogue's UI round is ported on `ux/catalogue` (§2.11), a PR on top of PR #39; neither is
+merged or deployed. 1121 quick tests pass on the Mac; two reviewers signed off after three rounds (the last two items
+fixed and checked by hand).
+
+**Earlier, 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
 the realism report per level (`docs/catalogue/realism.md`: 10 of 10 sourced checks pass, 3 of them confirming a
 calibration; of 7 assumed orders, running distance U18 < U19 fails). PR #39 is open; merge and deploy wait for Zaid's go-ahead, so the live
 app does not serve the catalogue. England semi-pro men (the Regista League) is byte-identical. 980 quick tests and 15 slow pass on the Mac. The 60

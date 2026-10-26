@@ -635,7 +635,10 @@
     const known = player(p.global_id);
     const url = /^\/players\/pl_[a-z0-9_]+$/.test(p.profile_url || '') ? p.profile_url : `/players/${enc(p.global_id)}`;
     const cell = s ? { ...s, qualified: p.qualified, sample: { minutes: p.minutes } } : null;
-    const line = s ? `${agentNumber(s)} · ${poolLine(cell, p)}` : '';
+    // A row the ranking rule gives no place (ranked false) says why, as the Terminal does: it is listed after the ranked rows
+    const why = p.ranked !== false || (s && s.none_yet) ? ''
+      : p.qualified === false ? ' · Not ranked: not enough minutes yet, listed after' : ' · Not ranked: too few attempts, listed after';
+    const line = s ? `${agentNumber(s)} · ${poolLine(cell, p)}${why}` : '';
     return `<a href="${esc(url)}" class="sc-minirow">${known && known.kit ? `<span class="sc-shirt" aria-hidden="true">${shirt(known)}</span>` : ''}
       <span><b>${esc(p.name)}</b> <span class="muted small">${esc(POSITIONS[p.position] || p.position || '')} · ${esc(p.club || '')}${p.competition ? ` · ${esc(p.competition)}, ${esc(p.country || '')}` : ''}</span>
         <span class="small">${s ? `${esc(line)}${s.pool && s.pool.small && !s.none_yet ? ' · <span class="sc-small">Small pool</span>' : ''} · ` : ''}${esc(fmtMinutes(p.minutes))}${!s && typeof p.appearances === 'number' ? ` · ${esc(plural(p.appearances, 'appearance'))}` : ''}${care(s, p.minutes)}</span></span></a>`;

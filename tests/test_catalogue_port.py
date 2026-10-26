@@ -613,3 +613,18 @@ def test_the_foundry_scout_agent_holds_the_catalogue_tools_and_its_cards_are_its
     monkeypatch.setattr(season_api, "_scout_foundry", made_up)
     d = client.post("/api/scout/ask", json={"q": "amateur midfielders chances", "where": "catalogue"}).json()
     assert d["checked"]["numbers_not_in_tool_results"] == ["99.9"]
+
+
+def test_fewest_minutes_answers_count_every_player(client):
+    """Minutes need no percentile, so a minutes answer lists every player, not only those with enough minutes for one
+    (review B, pass 3): the fewest at my level is the player with the fewest minutes of all, and every card is ranked."""
+    r = client.post("/api/scout/ask", json={"q": "who played the fewest minutes at my level", "engine": "rules",
+                                            "where": "catalogue"})
+    assert r.status_code == 200
+    body = r.json()
+    cards = body["players"]
+    assert cards and all(c.get("ranked") is not False for c in cards)
+    everyone = [p for p in ok(client, "/api/catalogue/players", tier="semi_pro", age_group="senior", gender="men",
+                              min_minutes=0, sort="minutes", order="asc", limit=5)["players"]]
+    assert cards[0]["minutes"] == everyone[0]["minutes"]
+    assert " 1 minutes" not in body["reply"] and " 1 appearances" not in body["reply"]

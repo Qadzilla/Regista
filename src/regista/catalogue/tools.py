@@ -125,7 +125,9 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
         rows.sort(key=lambda r: ((-1 if order == "desc" else 1) * r[1].minutes, r[1].info["name"], r[0]))
         by = cm.board_by([cm.where_of(r) for r in rows], "value")
         rows = cm.group_boards(rows, by, cm.where_of)
-        placed = {(cid, ps.info["global_id"]) for cid, ps in rows if ps.minutes >= cm.metrics[cid].min_minutes}
+        # with min_minutes=0 every row is in the list and minutes need no percentile, so every row gets a place
+        placed = {(cid, ps.info["global_id"]) for cid, ps in rows
+                  if min_minutes == 0 or ps.minutes >= cm.metrics[cid].min_minutes}
     else:
         # the rows that get a place first on each board, the rest after (below their minimum attempts, none yet), as
         # /api/catalogue/rank lists them: an unranked row never leads
