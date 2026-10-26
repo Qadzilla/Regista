@@ -770,7 +770,7 @@ async def catalogue_pools(scope: ScopeDep) -> Record:
 
 def season_payload(competition_id: str, stats: list[Record]) -> Record:
     """``/api/season?competition=``: the same keys for that competition (``league`` is its name). A sparse competition's
-    ``table`` is its uploaded matches' results (``table_note``); ``rounds`` lists the matchdays with uploads."""
+    ``table`` is its uploaded matches' results (``table_note``); ``rounds`` lists the rounds with uploads."""
     from regista.season.league import bio, club_by_id
     from regista.season.profiles import METRIC_OF, PERCENTILE_RULE, RATIOS, STATS
 

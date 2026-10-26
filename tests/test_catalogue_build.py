@@ -61,7 +61,7 @@ def test_catalogue_manifests_carry_the_competition_uploader_and_camera(comps, bu
             assert {k: m[k] for k in ("competition_id", "country", "region", "tier", "age_group", "gender")} == \
                 {k: labels[k] for k in ("competition_id", "country", "region", "tier", "age_group", "gender")}
             assert m["uploader"] == fx["uploader"] and m["camera"] == fx["camera"]
-            assert m["title"].startswith(f"{comp['league']}, matchday {fx['round']}: ")
+            assert m["title"].startswith(f"Round {fx['round']}: ") and "matchday" not in m["title"] + m["subtitle"]
             assert "synthetic uploaded match" in m["subtitle"] and "camera type is a label" in m["subtitle"]
             assert m["generator"]["seed"] == fx["seed"] and m["generator"]["version"] == LEAGUE_GENERATOR_VERSION
 
@@ -143,7 +143,7 @@ def test_a_catalogue_match_opens_in_the_clip_view_endpoints(comps, built, tmp_pa
     monkeypatch.setattr(api, "CATALOGUE_ROOT", tmp_path)
     c = TestClient(api.app)
     m = c.get(f"/api/matches/{fx['match_id']}").json()
-    assert m["title"].startswith("Minato Bay University League, matchday") and m["clip_count"] > 0
+    assert m["title"].startswith(f"Round {fx['round']}: ") and "matchday" not in m["subtitle"] and m["clip_count"] > 0
     clips = c.get(f"/api/matches/{fx['match_id']}/clips").json()
     assert clips and isinstance(clips, (list, dict))
     assert c.get(f"/api/matches/{fx['match_id']}/recap").status_code == 200
