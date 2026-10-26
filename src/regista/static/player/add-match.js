@@ -6,7 +6,8 @@
 //    video file on that machine and run the vision layer first (a Studio vision-run job); on the live app that part says
 //    where video processing runs.
 // 2. "Which one is you?": team and kit number in that match, sent as a claim (POST /api/claims). The claim stays pending
-//    until the operator confirms it in the Studio; then the match counts in this profile.
+//    until the operator confirms it in the Studio; then the league's own profile counts the match, and this page (the
+//    catalogue's numbers, the Regista League's fixtures only) names it without counting it.
 //
 // Every write needs the admin key, kept as the Studio keeps it: sessionStorage, asked for once, sent only in the
 // X-Regista-Token header. Everything from the API reaches the page through textContent, never as markup.
@@ -74,7 +75,7 @@
   const body = h('div', { class: 'am-stack' });
   swap(root, h('h2', {}, 'Add a match'),
     h('p', { class: 'muted' }, 'Played in a match Regista has not seen? Add it, then say which player is you. ',
-      'The operator confirms the claim in the Studio, and the match then counts in this profile.'),
+      'The operator confirms the claim in the Studio. The match is then named on this profile; its numbers count the Regista League fixtures only.'),
     body, status);
   const TONES = ['ok', 'bad', 'warn'];  // shared/regista.css tokens, through player.css
   const say = (text, cls) => { status.className = `small am-status${TONES.includes(cls) ? ` ${cls}` : ''}`; status.textContent = text || ''; };
@@ -96,6 +97,10 @@
 
   async function start() {
     say('');
+    // On /players/{id}, player.js says whether this is a Regista League player: only they add a match here (anyone else
+    // adds one from their own dashboard), so for the others nothing is asked of the league's API.
+    const host = window.RegistaPlayer;
+    if (host && host.inLeague && !(await host.inLeague)) return;
     try {
       const [person, health] = await Promise.all([api(`/api/players/${enc(GID)}`), api('/api/health')]);
       S.person = person; S.writes = health.writes;
@@ -278,7 +283,7 @@
     swap(body, h('div', { class: stack },
       h('b', {}, 'Claim sent: pending.'),
       h('span', {}, `${c.player.name || c.player_id} (${c.player.kit_number}) in ${c.match_id} is ${S.person.name}, if the operator confirms it in the Studio. `,
-        'Once confirmed, Regista cuts your moments in that match and this profile counts it.'),
+        'Once confirmed, Regista cuts your moments in that match and names it on this profile (not counted in its numbers).'),
       h('span', { class: 'small' }, h('a', { href: c.links.match }, 'Watch the match'), ' · ', h('a', { href: '/studio#claims' }, 'Studio, Claims')),
       h('button', { type: 'button', class: 'alt', onclick: chooseSource }, 'Add another match')));
     say('');

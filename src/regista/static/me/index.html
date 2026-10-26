@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Regista Player</title>
-<meta name="description" content="Upload a match you played: Regista's vision agents find you, cut every moment you are on the ball, and add the match to your profile.">
+<meta name="description" content="A player's own dashboard for any club in the catalogue: your numbers against your level, your moments, and the matches you filmed, which Regista's vision agents work on.">
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
 <link rel="stylesheet" href="/static/shared/dashboard.css">
@@ -13,11 +13,6 @@
 <body>
 <header class="top">
   <p class="brand">REGI<span>STA</span></p>
-  <div class="me-as" id="as" hidden>
-    <span class="mini" id="asShirt" aria-hidden="true"></span>
-    <span class="me-asname" id="asName"></span>
-    <button type="button" class="alt" id="change" aria-expanded="false" aria-controls="finder">Switch player</button>
-  </div>
 </header>
 
 <div class="shell">
@@ -29,16 +24,25 @@
 
   <p class="loadingline" id="loading" role="status">Loading your dashboard…</p>
 
-  <!-- Switch player: any synthetic player of the Regista League (?player=pl_… names one; Femi Toure by default) -->
+  <!-- Who this dashboard is for, and Switch player: any synthetic player of the catalogue (?player=pl_… names one;
+       Femi Toure by default) -->
+  <div class="me-as panel" id="as" hidden>
+    <span class="mini" id="asShirt" aria-hidden="true"></span>
+    <p class="me-asline" id="asLine"></p>
+    <button type="button" class="alt" id="change" aria-expanded="false" aria-controls="finder">Switch player</button>
+  </div>
   <section class="panel finder" id="finder" aria-labelledby="finderHead" hidden>
     <div class="pf-bar"><h2 id="finderHead">Switch player</h2>
       <button type="button" class="alt" id="finderClose">Close</button></div>
+    <p class="muted small">A player signs in to their own dashboard; this demo lets you open anyone's. Every player here is
+      synthetic, with an invented name.</p>
     <form class="findrow" id="findForm" role="search">
-      <label class="sr" for="find">Search the league's players by name or club</label>
-      <input id="find" type="search" autocomplete="off" maxlength="80" placeholder="Search by name or club">
+      <label class="pf-field"><span>Name or club</span>
+        <input id="find" type="search" autocomplete="off" maxlength="80" placeholder="Search by name or club"></label>
+      <label class="pf-field"><span>Competition</span><select id="findComp"><option value="">Any</option></select></label>
       <button type="submit">Search</button>
     </form>
-    <p class="muted small" id="foundNote">Or pick one of the league's forwards:</p>
+    <p class="muted small" id="foundNote" role="status"></p>
     <ul class="found" id="found" aria-live="polite"></ul>
   </section>
 
@@ -46,7 +50,8 @@
   <div class="pv" data-panel="overview" hidden>
     <header class="pf-head panel">
       <div class="shirt" id="ovShirt" aria-hidden="true"></div>
-      <div class="pf-who"><p class="pf-hi muted">Your dashboard</p><h1 id="ovName"></h1><p class="pf-line" id="ovLine"></p></div>
+      <div class="pf-who"><p class="pf-hi muted">Your dashboard</p><h1 id="ovName"></h1><p class="pf-line" id="ovLine"></p>
+        <p class="pf-line cp-where" id="ovWhere"></p></div>
       <a class="pf-btn" href="#matches/add">Add a match</a>
     </header>
     <section class="panel" aria-labelledby="ovNeedHead">
@@ -72,7 +77,7 @@
     </section>
   </div>
 
-  <!-- My profile: what scouts see (player/profile-view.js, the same page /players/{id} shows, without the scout bar) -->
+  <!-- My profile: what scouts see (player/profile-view.js `catalogue`, the same page /players/{id} shows, without the scout bar) -->
   <div class="pv" data-panel="profile" hidden>
     <p class="pf-scouts">This is what scouts see when they open your profile.</p>
     <div id="meProfile"></div>
@@ -85,23 +90,40 @@
 
     <section class="pf-addform panel" id="addBox" aria-labelledby="addHead" hidden>
       <h2 id="addHead">Add a match</h2>
-      <p class="muted small">Upload footage of a match you played. Regista's vision agents find you in it, cut every moment you
-        are on the ball, and add the match to your profile.</p>
-      <p class="muted small me-hint">Regista's own footage: an MP4 at 640x360, 10 frames a second, as Regista renders a friendly
-        between two league clubs.</p>
+      <p class="muted small">Upload footage of a match you played for your club. Regista's vision agents find you in it and cut
+        every moment you are on the ball. The match is then listed on your profile and on your competition's page.</p>
+      <p class="muted small me-hint">Regista's own synthetic footage: an MP4 at 640x360, 10 frames a second, as Regista renders a
+        match between two clubs of one competition.</p>
       <p class="operator" id="operator">Uploading starts cloud work, so it needs the operator's admin key. Anyone can watch the
         progress and the results.</p>
       <div id="keyBox"></div>
-      <form id="uploadForm">
-        <div class="pf-fields">
-          <label class="pf-field"><span>Video (MP4, up to <span id="maxMb">300</span> MB)</span>
-            <input id="video" type="file" accept="video/mp4,.mp4" required></label>
-          <label class="pf-field"><span>Against</span><select id="opponent" required></select></label>
-          <fieldset class="pf-seg"><legend>You played</legend>
-            <label><input type="radio" name="side" value="home" checked><span>At home</span></label>
-            <label><input type="radio" name="side" value="away"><span>Away</span></label>
-          </fieldset>
-        </div>
+      <form id="uploadForm" novalidate>
+        <ol class="me-addsteps">
+          <li><h3>The match</h3>
+            <div class="pf-fields">
+              <label class="pf-field"><span>Competition</span><select id="upComp"></select></label>
+              <label class="pf-field"><span>Against</span><select id="opponent"></select></label>
+              <fieldset class="pf-seg"><legend>You played</legend>
+                <label><input type="radio" name="side" value="home" checked><span>At home</span></label>
+                <label><input type="radio" name="side" value="away"><span>Away</span></label>
+              </fieldset>
+              <label class="pf-field"><span>Date played</span><input id="upDate" type="date"></label>
+            </div>
+            <p class="muted small me-addhint" id="upCompNote"></p></li>
+          <li><h3>The footage</h3>
+            <div class="pf-fields">
+              <label class="pf-field"><span>Video (MP4, up to <span id="maxMb">300</span> MB)</span>
+                <input id="video" type="file" accept="video/mp4,.mp4"></label>
+              <fieldset class="pf-seg"><legend>Filmed on</legend>
+                <label><input type="radio" name="camera" value="tripod" checked><span>Tripod</span></label>
+                <label><input type="radio" name="camera" value="phone"><span>Phone</span></label>
+                <label><input type="radio" name="camera" value="drone"><span>Drone</span></label>
+                <label><input type="radio" name="camera" value="broadcast"><span>Broadcast camera</span></label>
+              </fieldset>
+            </div>
+            <p class="muted small me-addhint" id="upCamNote"></p>
+            <label class="me-check"><input type="checkbox" id="upConsent"> <span>Everyone I filmed agreed to be filmed and shown</span></label></li>
+        </ol>
         <div class="pf-addbar"><button type="submit" id="uploadGo">Upload and start</button>
           <button type="button" class="alt" id="addCancel">Cancel</button></div>
       </form>
@@ -116,6 +138,7 @@
       <div class="pf-bar"><h2 id="uploadsHead">Your uploads</h2><p class="muted small" id="uploadsSub"></p></div>
       <ol class="runs" id="runs"></ol>
       <p class="empty muted" id="noUploads" hidden>No uploads yet. Add a match to watch Regista's agents work on it here, step by step.</p>
+      <div id="catUploads"></div>
     </section>
 
     <section class="panel" id="questions" aria-labelledby="questionsHead">
@@ -155,7 +178,7 @@
     <p class="muted small me-note" id="mxNote"></p>
   </div>
 
-  <!-- Team: my details (kept in this browser) and my club (the league's squad, results and table) -->
+  <!-- Team: my details (kept in this browser) and my club in my competition (its squad with minutes, results, table) -->
   <div class="pv" data-panel="team" hidden>
     <div class="pv-title"><h1>Team</h1></div>
     <form class="panel tm-details" id="tmForm">
@@ -177,12 +200,14 @@
       <p class="small pf-addnote" id="tmNote" role="status"></p>
     </form>
     <section class="panel" aria-labelledby="tmClubHead">
+      <div class="cp-scope me-clubs" id="tmClubs" role="group" aria-label="Your clubs" hidden></div>
       <div class="tm-club"><div class="tm-crest" id="tmCrest" aria-hidden="true"></div>
         <div><h2 id="tmClubHead"></h2><p class="muted small" id="tmClubLine"></p></div></div>
       <div class="pf-two tm-two">
         <div><h3>Squad</h3><ol class="tm-squad" id="tmSquad"></ol></div>
-        <div><h3>Results</h3><ol class="tm-results" id="tmResults"></ol>
-          <h3>League table</h3><div class="tablewrap"><table class="tm-table" id="tmTable"></table></div></div>
+        <div><h3 id="tmResHead">Results</h3><ol class="tm-results" id="tmResults"></ol>
+          <h3 id="tmTableHead">League table</h3><p class="muted small" id="tmTableNote" hidden></p>
+          <div class="tablewrap"><table class="tm-table" id="tmTable"></table></div></div>
       </div>
     </section>
   </div>
@@ -237,7 +262,7 @@
   <!-- A player who cannot be loaded -->
   <section class="missing panel" id="missing" hidden aria-labelledby="missingHead">
     <h1 id="missingHead">No such player</h1>
-    <p id="missingText" class="muted">No player with this id has played in the Regista League.</p>
+    <p id="missingText" class="muted">No player with this id is in the catalogue.</p>
     <p><button type="button" id="missingPick">Pick a player</button></p>
   </section>
 </main>
