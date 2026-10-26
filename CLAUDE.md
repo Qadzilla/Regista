@@ -581,7 +581,7 @@ for the record:
 
 **As of 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
 the realism report per level (`docs/catalogue/realism.md`: 10 of 10 sourced checks pass, 3 of them confirming a
-calibration; of 7 assumed orders, running distance U18 < U19 fails). The branch is not pushed yet; the PR, merge and deploy wait for Zaid's go-ahead, so the live
+calibration; of 7 assumed orders, running distance U18 < U19 fails). PR #39 is open; merge and deploy wait for Zaid's go-ahead, so the live
 app does not serve the catalogue. England semi-pro men (the Regista League) is byte-identical. 980 quick tests and 15 slow pass on the Mac. The 60
 catalogue pins were recorded on macOS; Linux CI runs them on the PR. Next: the UI round (Scout and Player pages on the
 catalogue).
