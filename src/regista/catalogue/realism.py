@@ -68,7 +68,8 @@ SOURCES: dict[str, str] = {
           "2019;3(3):E82-E88. doi:10.1055/a-0943-3682",
     "S10": "Dellal A, Hill-Haas S, Lago-Penas C, Chamari K. Small-sided games in soccer: amateur vs. professional players' "
            "physiological responses, physical, and technical activities. J Strength Cond Res 2011;25(9):2371-2381. "
-           "doi:10.1519/JSC.0b013e3181fb4296 (small-sided games, not full matches: direction only)",
+           "doi:10.1519/JSC.0b013e3181fb4296 (fourth-division French amateurs against international players, in small-sided games, "
+           "not full matches: direction only)",
     "S11": "Bradley PS. Setting the benchmark, part 2: setting physical benchmarks across teams. FIFA Training Centre, FIFA "
            "Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/"
            "fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/"
@@ -88,7 +89,8 @@ SOURCES: dict[str, str] = {
 BANDS: list[Record] = [
     {"id": "u17_peak_speed_mean", "level": "academy/U17/men", "metric": "peak_speed_mean", "low": 24.9, "high": 28.7,
      "unit": "km/h", "sources": ["S5"],
-     "label": "highly trained U17 academy outfielders' mean peak match speed is 26.8 +/- 1.9 km/h"},
+     "label": "U17 academy players' peak match speed is 26.8 +/- 1.9 km/h (mean +/- SD across the study's U17 "
+              "players, of 180 U13-U17 in all; the band is that SD around the mean, wide for a level's mean)"},
 ]
 
 # The women's pass completion gap: 8 points at the World Cups (0.76 +/- 0.08 against 0.84 +/- 0.05 per team and match,
@@ -101,8 +103,10 @@ WOMEN_PASS_GAP = (5.0, 11.0)
 # (``measure.level_aggregates``).
 ORDERS: list[Record] = [
     {"id": "amateur_sprint_distance", "metric": "sprint_distance", "path": ("outfield_per90", "sprint_distance"),
-     "levels": ["amateur/senior/men", SEMI_PRO_MEN], "sources": ["S9"],
-     "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90)", "unit": "m per 90"},
+     "levels": ["amateur/senior/men", SEMI_PRO_MEN], "sources": ["S10"],
+     "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90; the source compares fourth-division "
+              "amateurs with internationals in small-sided games [S10]; in full matches [S9] found no difference between "
+              "second-tier professionals and fourth-tier amateurs, only the top tier sprinted more)", "unit": "m per 90"},
     {"id": "amateur_pass_pct", "metric": "pass_pct", "path": ("pass_pct",),
      "levels": ["amateur/senior/men", SEMI_PRO_MEN], "sources": ["S10"],
      "label": "amateurs complete fewer passes than semi-pros", "unit": "%"},
@@ -161,11 +165,11 @@ ORDERS: list[Record] = [
      "levels": ["college/college/men", "college/college/women"], "sources": ["S1"],
      "label": "women lose the ball more often than men (college)", "unit": "per 90"},
     {"id": "women_hi_distance_semi_pro", "metric": "hi_distance", "path": ("outfield_per90", "hi_distance"),
-     "levels": ["semi_pro/senior/women", SEMI_PRO_MEN], "sources": ["S1", "S2"],
+     "levels": ["semi_pro/senior/women", SEMI_PRO_MEN], "sources": ["S1"],
      "label": "women cover less distance at 20 km/h or more than men (semi-pro; men's FIFA zones for both)",
      "unit": "m per 90"},
     {"id": "women_hi_distance_college", "metric": "hi_distance", "path": ("outfield_per90", "hi_distance"),
-     "levels": ["college/college/women", "college/college/men"], "sources": ["S1", "S2"],
+     "levels": ["college/college/women", "college/college/men"], "sources": ["S1"],
      "label": "women cover less distance at 20 km/h or more than men (college; men's FIFA zones for both)",
      "unit": "m per 90"},
 ]
@@ -175,7 +179,8 @@ NOT_CHECKED = ["women's second-half drop in high-intensity distance [S1]: the en
 WOMEN_REFERENCES: dict[str, list[Record]] = {
     "distance": [{"text": "total distance per 90 about 9.5-11.0 km from positional means in elite women's internationals",
                   "sources": ["S2"]},
-                 {"text": "teams 103.3 +/- 4.4 km per match at the 2023 Women's World Cup", "sources": ["S11"]}],
+                 {"text": "teams covered 103.3 km per match on average at the 2023 Women's World Cup (match-to-match variation "
+                          "3.9%)", "sources": ["S11"]}],
     "peak_speed": [{"text": "peak sprint speed 27.3 +/- 1.4 km/h, maxima above 30 km/h (high-level American players)",
                     "sources": ["S3"]}],
     "peak_speed_mean": [{"text": "top speeds in games 28.0-29.4 km/h by position at the 2023 Women's World Cup (central "

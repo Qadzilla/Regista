@@ -362,8 +362,9 @@ Where each number comes from, honestly:
   Default pools never compare across genders.
 - **Skill offsets for college, amateur and academy: Regista's definition of the levels.** No published source can put
   a number on "an amateur is N rating points below a semi-pro". The directions are sourced where possible: amateurs
-  completed fewer passes and sprinted less than professionals in small-sided games [S10]; higher-standard players
-  sprint more in Norway's three standards [S9]. The offsets are stated as assumptions in the docs and in this table.
+  completed fewer passes and sprinted less than international professionals in small-sided games [S10]. In Norway's
+  three standards only the top tier sprinted more, with no difference between second-tier professionals and
+  fourth-tier amateurs [S9] (corrected 2026-10-25, verify-2.md). The offsets are stated as assumptions in the docs and in this table.
 - **Amateur top speed × 0.97, college × 0.99, amateur stamina −4: Regista's assumptions.** No published band was read.
   In the Norwegian study high-speed running was similar across standards, while sprinting was higher at the top [S9].
 - **Heights: Regista's assumptions.** No football height band was read for women or youth.
@@ -682,7 +683,7 @@ Kinds of check:
 | semi_pro / senior / men, England | the existing `--league` report, unchanged: Premier League bands, now labelled "Premier League bands, an upper reference for semi-pro football: the generator was tuned to them" | same | No semi-pro band was read. The PL is the only source, and the claim is capped at "tuned to PL bands". |
 | semi_pro / senior / men, Germany | PL bands as **reference** (same rating scale as England, so expect them to hold); verdicts not claimed for semi-pro | PL / World Cup bands as reference | |
 | college / college / men | PL bands as reference | NCAA Division I: about 9,367 m per match [S4], reference only (NCAA's re-entry substitutions make it per match, not per 90) | |
-| college / college / women | none | women's references: total distance per 90 9.5-11.0 km from positional means in women's internationals [S2]; teams 103.3 ± 4.4 km per match at the 2023 Women's World Cup [S11]; season top speed within 24.4-31.0 km/h [S3] | All are elite references (upper), no verdict |
+| college / college / women | none | women's references: total distance per 90 9.5-11.0 km from positional means in women's internationals [S2]; teams covered 103.3 km per match on average at the 2023 Women's World Cup [S11]; season top speed within 24.4-31.0 km/h [S3] | All are elite references (upper), no verdict |
 | semi_pro / senior / women | none | as college women | |
 | amateur / senior / men | none | none | order: sprint distance per 90 below semi-pro [S9]; pass completion below semi-pro [S10] |
 | academy / U20, U19, U18 | none | none | order: peak speed mean and distance per 90 rise U17 < U18 < U19 < U20 < senior [S5, S6, S8] |
@@ -824,14 +825,18 @@ only what these say and keep the citation with the number.
   *Int J Sports Med* 2010;31(11):818-825 : match running output rose with age (U13-U18) and varied by position.
 - [S9] Match running performance on three different competitive standards in Norwegian soccer.
   https://lida.sport-iat.de/ta/Record/4059033 : level-1 professionals sprinted 61% and 51% more than level-2
-  professionals and level-4 amateurs; high-speed running was similar across levels.
+  professionals and level-4 amateurs, with no difference between level 2 and level 4 (full text, Results); high-speed
+  running was similar across levels. Authors and DOI below.
 - [S10] Professional vs amateur players in small-sided games (amateurs: less sprinting and high-intensity running,
   lower pass success, higher perceived effort), as summarised in https://pmc.ncbi.nlm.nih.gov/articles/PMC6815094.
-  A training format, not full matches: used for direction only. Confirm the exact paper before quoting it.
+  A training format, not full matches: used for direction only. Confirmed below: Dellal et al. 2011, twenty
+  international players against twenty French fourth-division amateurs.
 - [S11] FIFA Training Centre, FIFA Women's World Cup 2023 physical analysis, part 2: setting physical benchmarks across
   teams.
   https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-2-setting-physical-benchmarks-across-teams.php
-  : teams 103.3 ± 4.4 km per match; 6.7 ± 0.6 km above 19.0 km/h; 1.9 ± 0.3 km above 23.0 km/h (women's zones).
+  : teams covered 103.3 km per match on average, 6.7 km above 19.0 km/h and 1.9 km above 23.0 km/h (women's zones);
+  match-to-match coefficients of variation 3.9%, 11.1% and 18.8%. The page text gives no ± values (the ± 4.4, ± 0.6 and
+  ± 0.3 first written here were not found in it; corrected 2026-10-25, verify-2.md).
 
 - [S12] Pappalardo L, Rossi A, Natilli M, Cintia P. Explaining the difference between men's and women's football. *PLoS
   One* 2021;16(8):e0255407. doi:10.1371/journal.pone.0255407 : pass accuracy 0.84 ± 0.05 (2018 men's World Cup) against

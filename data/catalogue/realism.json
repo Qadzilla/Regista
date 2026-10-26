@@ -3,7 +3,7 @@
   {
    "high": 28.7,
    "id": "u17_peak_speed_mean",
-   "label": "highly trained U17 academy outfielders' mean peak match speed is 26.8 +/- 1.9 km/h",
+   "label": "U17 academy players' peak match speed is 26.8 +/- 1.9 km/h (mean +/- SD across the study's U17 players, of 180 U13-U17 in all; the band is that SD around the mean, wide for a level's mean)",
    "level": "academy/U17/men",
    "low": 24.9,
    "metric": "peak_speed_mean",
@@ -235,14 +235,14 @@
    "covers": null,
    "gap": null,
    "id": "amateur_sprint_distance",
-   "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90)",
+   "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90; the source compares fourth-division amateurs with internationals in small-sided games [S10]; in full matches [S9] found no difference between second-tier professionals and fourth-tier amateurs, only the top tier sprinted more)",
    "levels": [
     "amateur/senior/men",
     "semi_pro/senior/men"
    ],
    "metric": "sprint_distance",
    "sources": [
-    "S9"
+    "S10"
    ],
    "steps": [
     {
@@ -853,8 +853,7 @@
    ],
    "metric": "hi_distance",
    "sources": [
-    "S1",
-    "S2"
+    "S1"
    ],
    "steps": [
     {
@@ -886,8 +885,7 @@
    ],
    "metric": "hi_distance",
    "sources": [
-    "S1",
-    "S2"
+    "S1"
    ],
    "steps": [
     {
@@ -2149,7 +2147,7 @@
  "separation_se": 2.0,
  "sources": {
   "S1": "Bradley PS, Dellal A, Mohr M, Castellano J, Wilkie A. Gender differences in match performance characteristics of soccer players competing in the UEFA Champions League. Hum Mov Sci 2014;33:159-171. doi:10.1016/j.humov.2013.07.024",
-  "S10": "Dellal A, Hill-Haas S, Lago-Penas C, Chamari K. Small-sided games in soccer: amateur vs. professional players' physiological responses, physical, and technical activities. J Strength Cond Res 2011;25(9):2371-2381. doi:10.1519/JSC.0b013e3181fb4296 (small-sided games, not full matches: direction only)",
+  "S10": "Dellal A, Hill-Haas S, Lago-Penas C, Chamari K. Small-sided games in soccer: amateur vs. professional players' physiological responses, physical, and technical activities. J Strength Cond Res 2011;25(9):2371-2381. doi:10.1519/JSC.0b013e3181fb4296 (fourth-division French amateurs against international players, in small-sided games, not full matches: direction only)",
   "S11": "Bradley PS. Setting the benchmark, part 2: setting physical benchmarks across teams. FIFA Training Centre, FIFA Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-2-setting-physical-benchmarks-across-teams.php",
   "S12": "Pappalardo L, Rossi A, Natilli M, Cintia P. Explaining the difference between men's and women's football. PLoS One 2021;16(8):e0255407. doi:10.1371/journal.pone.0255407 (2018 men's and 2019 women's World Cups, Wyscout events)",
   "S13": "Bradley PS, Carling C, Gomez Diaz A, Hood P, Barnes C, Ade J, Boddy M, Krustrup P, Mohr M. Match performance and physical capacity of players in the top three competitive standards of English professional soccer. Hum Mov Sci 2013;32(4):808-821. doi:10.1016/j.humov.2013.06.002",

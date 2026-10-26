@@ -55,13 +55,13 @@ Pooled over every competition of the level and every measurement season. Per-90 
 
 | Check | Level | Measured | Band | Verdict | Source |
 |---|---|---|---|---|---|
-| highly trained U17 academy outfielders' mean peak match speed is 26.8 +/- 1.9 km/h | Academy U17 | 26.80 km/h | 24.9-28.7 km/h | **pass** | S5 |
+| U17 academy players' peak match speed is 26.8 +/- 1.9 km/h (mean +/- SD across the study's U17 players, of 180 U13-U17 in all; the band is that SD around the mean, wide for a level's mean) | Academy U17 | 26.80 km/h | 24.9-28.7 km/h | **pass** | S5 |
 
 ## Orders between levels (sourced)
 
 | Check | Levels, lowest expected first | Weakest step (margin, SE ratio) | Verdict | Sources |
 |---|---|---|---|---|
-| amateurs sprint less than semi-pros (distance at 25 km/h or more per 90) (m per 90) | Amateur men 208, Semi-pro men 233 | Amateur men to Semi-pro men: +25.3 (16.0 SE) | **pass** | S9 |
+| amateurs sprint less than semi-pros (distance at 25 km/h or more per 90; the source compares fourth-division amateurs with internationals in small-sided games [S10]; in full matches [S9] found no difference between second-tier professionals and fourth-tier amateurs, only the top tier sprinted more) (m per 90) | Amateur men 208, Semi-pro men 233 | Amateur men to Semi-pro men: +25.3 (16.0 SE) | **pass** | S10 |
 | amateurs complete fewer passes than semi-pros (%) | Amateur men 72.08, Semi-pro men 80.53 | Amateur men to Semi-pro men: +8.45 (31.3 SE) | **pass** | S10 |
 | amateurs lose the ball more often than semi-pros (per 90) | Semi-pro men 12.68, Amateur men 17.49 | Semi-pro men to Amateur men: +4.81 (37.9 SE) | **pass** | S10 |
 | match running distance per 90 rises with age through U13-U18 (the catalogue's step: U17 < U18) (m per 90) | Academy U17 9,955, Academy U18 10,128 | Academy U17 to Academy U18: +172.8 (3.6 SE) | **pass** | S8 |
@@ -69,8 +69,8 @@ Pooled over every competition of the level and every measurement season. Per-90 
 | women complete fewer passes than men (college): 76% against 84% at the 2019 and 2018 World Cups [S12], a gap of 8 points (%) | College women 69.30, College men 77.21 | College women to College men: +7.91 (22.9 SE) | **pass** | S1, S12; the step must fall inside 5-11 |
 | women lose the ball more often than men (semi-pro) (per 90) | Semi-pro men 12.68, Semi-pro women 17.34 | Semi-pro men to Semi-pro women: +4.66 (27.2 SE) | **pass** | S1 |
 | women lose the ball more often than men (college) (per 90) | College men 14.95, College women 18.75 | College men to College women: +3.79 (20.6 SE) | **pass** | S1 |
-| women cover less distance at 20 km/h or more than men (semi-pro; men's FIFA zones for both) (m per 90) | Semi-pro women 847, Semi-pro men 1,040 | Semi-pro women to Semi-pro men: +192.8 (18.1 SE) | **pass** | S1, S2 |
-| women cover less distance at 20 km/h or more than men (college; men's FIFA zones for both) (m per 90) | College women 830, College men 1,002 | College women to College men: +171.7 (15.6 SE) | **pass** | S1, S2 |
+| women cover less distance at 20 km/h or more than men (semi-pro; men's FIFA zones for both) (m per 90) | Semi-pro women 847, Semi-pro men 1,040 | Semi-pro women to Semi-pro men: +192.8 (18.1 SE) | **pass** | S1 |
+| women cover less distance at 20 km/h or more than men (college; men's FIFA zones for both) (m per 90) | College women 830, College men 1,002 | College women to College men: +171.7 (15.6 SE) | **pass** | S1 |
 
 ## Assumed orders (no published band)
 
@@ -109,11 +109,11 @@ Elite and higher-level figures beside the levels they are quoted for (realism.RE
 |---|---|---|---|
 | College men | about 9,367 m per match in NCAA Division I men's soccer (per match, not per 90: re-entry substitutions) | S4 | distance per 90 10,246 m |
 | Semi-pro women | total distance per 90 about 9.5-11.0 km from positional means in elite women's internationals | S2 | distance per 90 10,158 m |
-| Semi-pro women | teams 103.3 +/- 4.4 km per match at the 2023 Women's World Cup | S11 | not comparable (a team's total per match) |
+| Semi-pro women | teams covered 103.3 km per match on average at the 2023 Women's World Cup (match-to-match variation 3.9%) | S11 | not comparable (a team's total per match) |
 | Semi-pro women | peak sprint speed 27.3 +/- 1.4 km/h, maxima above 30 km/h (high-level American players) | S3 | not comparable (a sprint-test top speed) |
 | Semi-pro women | top speeds in games 28.0-29.4 km/h by position at the 2023 Women's World Cup (central and defensive midfielders lowest, attacking and wide players highest) | S14 | mean peak match speed 26.81 km/h |
 | College women | total distance per 90 about 9.5-11.0 km from positional means in elite women's internationals | S2 | distance per 90 10,087 m |
-| College women | teams 103.3 +/- 4.4 km per match at the 2023 Women's World Cup | S11 | not comparable (a team's total per match) |
+| College women | teams covered 103.3 km per match on average at the 2023 Women's World Cup (match-to-match variation 3.9%) | S11 | not comparable (a team's total per match) |
 | College women | peak sprint speed 27.3 +/- 1.4 km/h, maxima above 30 km/h (high-level American players) | S3 | not comparable (a sprint-test top speed) |
 | College women | top speeds in games 28.0-29.4 km/h by position at the 2023 Women's World Cup (central and defensive midfielders lowest, attacking and wide players highest) | S14 | mean peak match speed 26.78 km/h |
 
@@ -145,7 +145,7 @@ Every competition is classified on tier, age group and gender; its level is the 
 - [S6] Al Haddad H, Simpson BM, Buchheit M, Mendez-Villanueva A. Age-related differences in peak match running speed in highly-trained young soccer players. 17th Annual Congress of the ECSS, Bruges, 2012 (abstract); https://lida.sport-iat.de/ta/Record/4029276
 - [S8] Buchheit M, Mendez-Villanueva A, Simpson BM, Bourdon PC. Match running performance and fitness in youth soccer. Int J Sports Med 2010;31(11):818-825. doi:10.1055/s-0030-1262838
 - [S9] Saeterbakken A, Haug V, Fransson D, Grendstad HN, Gundersen HS, Moe VF, Ylvisaker E, Shaw M, Riiser A, Andersen V. Match running performance on three different competitive standards in Norwegian soccer. Sports Med Int Open 2019;3(3):E82-E88. doi:10.1055/a-0943-3682
-- [S10] Dellal A, Hill-Haas S, Lago-Penas C, Chamari K. Small-sided games in soccer: amateur vs. professional players' physiological responses, physical, and technical activities. J Strength Cond Res 2011;25(9):2371-2381. doi:10.1519/JSC.0b013e3181fb4296 (small-sided games, not full matches: direction only)
+- [S10] Dellal A, Hill-Haas S, Lago-Penas C, Chamari K. Small-sided games in soccer: amateur vs. professional players' physiological responses, physical, and technical activities. J Strength Cond Res 2011;25(9):2371-2381. doi:10.1519/JSC.0b013e3181fb4296 (fourth-division French amateurs against international players, in small-sided games, not full matches: direction only)
 - [S11] Bradley PS. Setting the benchmark, part 2: setting physical benchmarks across teams. FIFA Training Centre, FIFA Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-2-setting-physical-benchmarks-across-teams.php
 - [S12] Pappalardo L, Rossi A, Natilli M, Cintia P. Explaining the difference between men's and women's football. PLoS One 2021;16(8):e0255407. doi:10.1371/journal.pone.0255407 (2018 men's and 2019 women's World Cups, Wyscout events)
 - [S13] Bradley PS, Carling C, Gomez Diaz A, Hood P, Barnes C, Ade J, Boddy M, Krustrup P, Mohr M. Match performance and physical capacity of players in the top three competitive standards of English professional soccer. Hum Mov Sci 2013;32(4):808-821. doi:10.1016/j.humov.2013.06.002
