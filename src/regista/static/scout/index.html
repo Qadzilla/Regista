@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Regista Scout</title>
-<meta name="description" content="Every player in the Regista League, searchable: per-90 rates, percentiles and the moments behind them.">
+<meta name="description" content="Every player in the catalogue's 14 competitions, searchable: per-90 rates, percentiles within their own level and the moments behind them.">
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
 <link rel="stylesheet" href="/static/shared/dashboard.css">
@@ -17,7 +17,7 @@
 </header>
 
 <div class="shell">
-<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find">Find players</a><a href="/scout#terminal" data-section="terminal">Terminal</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
+<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find">Find players</a><a href="/scout#competitions" data-section="competitions">Competitions</a><a href="/scout#terminal" data-section="terminal">Terminal</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
 <div class="shell-main">
 
 <main class="pf sc" id="main">
@@ -32,20 +32,25 @@
       <a class="pf-btn" href="/scout#find">Find players</a>
     </header>
     <section class="panel" aria-labelledby="ovNeedsHead"><h2 id="ovNeedsHead">Needs you</h2><div class="ov-needs" id="ovNeeds"></div></section>
+    <section class="panel" aria-labelledby="ovNewHead"><div class="pf-bar"><h2 id="ovNewHead">New footage in the catalogue</h2><a href="/scout#competitions" class="small-link">All competitions</a></div>
+      <p class="muted small" id="ovNewLine"></p><ol class="sc-uploads" id="ovNewUploads"></ol></section>
     <section class="panel" aria-labelledby="ovShortHead"><div class="pf-bar"><h2 id="ovShortHead">Your shortlist</h2><a href="/scout#shortlist" class="small-link">Open the shortlist</a></div>
       <div class="sc-stagesum" id="ovStages"></div></section>
     <section class="panel" aria-labelledby="ovActHead"><h2 id="ovActHead">Recent activity</h2><ol class="ov-activity" id="ovActivity"></ol></section>
   </div>
 
-  <!-- Find players: the Scout agent, the filters and every player's card; the league table under them -->
+  <!-- Find players: the Scout agent (on the catalogue), then every player of the catalogue's 14 competitions: filters
+       (country, level, age group, gender, competition), My level and Whole catalogue, one list per level (or per gender
+       across levels for one position), each card's pool line. Order, places and boards are the engine's
+       (/api/catalogue/players); scout.js only shows them. -->
   <div class="pv" data-panel="find" hidden>
     <div class="pv-title"><h1 id="promise">Find players</h1></div>
 
     <section class="panel agent" aria-labelledby="agentHead">
       <h2 id="agentHead">Ask the Scout agent</h2>
       <form class="sc-ask" id="scoutAskForm" role="search">
-        <label class="sr" for="scoutAsk">Ask about the league's players</label>
-        <input id="scoutAsk" type="search" autocomplete="off" maxlength="200" placeholder="Ask about the league's players">
+        <label class="sr" for="scoutAsk">Ask about the catalogue's players</label>
+        <input id="scoutAsk" type="search" autocomplete="off" maxlength="200" placeholder="Ask about the catalogue's players">
         <button type="submit" id="scoutAskGo">Ask</button>
       </form>
       <div class="sc-askopts">
@@ -61,9 +66,19 @@
 
     <section class="panel sc-results" aria-labelledby="resultsHead">
       <h2 class="sr" id="resultsHead">Players</h2>
+      <div class="sc-scope" role="group" aria-label="Where to look">
+        <button type="button" class="chip" id="fWhole" aria-pressed="true">Whole catalogue</button>
+        <button type="button" class="chip" id="fMine" aria-pressed="false">My level</button>
+        <a class="small-link" href="/scout#competitions">Browse the competitions</a>
+      </div>
       <form id="filterForm" class="sc-filters">
         <label class="pf-field"><span>Name or club</span>
           <input id="fName" type="search" autocomplete="off" maxlength="80" placeholder="Search"></label>
+        <label class="pf-field"><span>Country</span><select id="fCountry"><option value="">Any</option></select></label>
+        <label class="pf-field"><span>Level</span><select id="fTier"><option value="">Any</option></select></label>
+        <label class="pf-field"><span>Age group</span><select id="fAge"><option value="">Any</option></select></label>
+        <label class="pf-field"><span>Gender</span><select id="fGender"><option value="">Any</option></select></label>
+        <label class="pf-field"><span>Competition</span><select id="fComp"><option value="">Any</option></select></label>
         <label class="pf-field"><span>Position</span>
           <select id="fPosition">
             <option value="">Any</option>
@@ -72,41 +87,26 @@
             <option value="DF">Defenders</option>
             <option value="GK">Goalkeepers</option>
           </select></label>
-        <label class="pf-field"><span>Sort by</span>
-          <select id="fSort">
-            <option value="minutes">Minutes played</option>
-            <option value="name">Name</option>
-          </select></label>
-        <button type="button" class="link sc-more" id="fMore" aria-expanded="false" aria-controls="fMoreBox">More filters</button>
-        <div class="sc-morebox" id="fMoreBox" hidden>
-          <label class="pf-field"><span>Club</span>
-            <select id="fClub"><option value="">All clubs</option></select></label>
-          <label class="pf-field"><span>Minimum minutes</span>
-            <input id="fMinutes" type="number" inputmode="numeric" min="0" max="10000" step="30" value="0"></label>
-          <button type="button" class="alt sc-reset" id="fReset">Reset</button>
-        </div>
+        <label class="pf-field"><span>Sort by</span><select id="fSort"></select></label>
       </form>
-      <p class="muted small" id="resultsSub"></p>
-      <div class="sc-cards" id="cards" aria-busy="true"></div>
+      <label class="sc-check"><input type="checkbox" id="fAll"> <span>Also show players without enough minutes for a percentile</span></label>
+      <p class="muted small" id="resultsSub" role="status"></p>
+      <div class="sc-rule" id="fRule"></div>
+      <div class="sc-boards" id="cards" aria-busy="true"></div>
       <p class="empty" id="empty" hidden></p>
     </section>
+  </div>
 
-    <section class="panel league" aria-labelledby="leagueHead">
-      <div class="pf-bar"><h2 id="leagueHead">The league</h2><p id="leagueSub" class="muted small"></p></div>
-      <div class="tablewrap">
-        <table class="table" id="table">
-          <caption class="sr">League table. Pick a club to show only its players.</caption>
-          <thead>
-            <tr><th scope="col"><abbr title="Position">#</abbr></th><th scope="col" class="club-col">Club</th>
-              <th scope="col"><abbr title="Played">P</abbr></th><th scope="col"><abbr title="Won">W</abbr></th>
-              <th scope="col"><abbr title="Drawn">D</abbr></th><th scope="col"><abbr title="Lost">L</abbr></th>
-              <th scope="col"><abbr title="Goal difference">GD</abbr></th><th scope="col"><abbr title="Points">Pts</abbr></th></tr>
-          </thead>
-          <tbody id="tableBody"><tr><td colspan="8" class="muted">Loading the league…</td></tr></tbody>
-        </table>
-      </div>
-      <p class="muted small sc-tablehint">Pick a club to show only its players.</p>
-    </section>
+  <!-- Competitions: the catalogue's competitions grouped by country (/api/catalogue), and one competition's page
+       (#competition/<id>, /api/competitions/<id>): how its players are compared, its uploaded matches, its table or
+       results, its squads. -->
+  <div class="pv" data-panel="competitions" hidden>
+    <div class="pv-title"><h1>Competitions</h1><p class="muted small" id="coLine"></p></div>
+    <div class="sc-colist" id="coList"></div>
+  </div>
+  <div class="pv" data-panel="competition" hidden>
+    <a class="small-link sc-backlink" href="/scout#competitions">&larr; All competitions</a>
+    <div class="sc-copage" id="coPage" aria-live="polite"></div>
   </div>
 
   <!-- Terminal: the Scout terminal. A search box (names, clubs, stats, plain commands and questions) over linked panels;
@@ -159,7 +159,7 @@
     <div class="sc-board" id="scBoard"></div>
     <section class="panel sc-compare" id="compare" aria-labelledby="compareHead" hidden>
       <div class="pf-bar"><h2 id="compareHead" tabindex="-1">Compare</h2><button type="button" class="alt" id="compareClose">Close</button></div>
-      <p class="muted small">Per 90 minutes this season. Pick a number to see the moments behind it.</p>
+      <p class="muted small" id="compareNote">Per 90 minutes. Pick a number to see the moments behind it.</p>
       <div class="tablewrap" id="compareBody"></div>
       <div class="sc-cev" id="compareEv" hidden></div>
     </section>
@@ -213,12 +213,13 @@
     </section>
     <section class="panel" aria-labelledby="needsHead">
       <div class="pf-bar"><h2 id="needsHead">What we are looking for</h2><button type="button" class="alt" id="addNeed" aria-expanded="false" aria-controls="needForm">Add a need</button></div>
-      <p class="muted small">Each need lists the league's players who fit it, from their numbers this season.</p>
+      <p class="muted small">Each need lists the catalogue's players who fit it: at your level (semi-pro men), and from the men's levels below, each judged against their own level.</p>
       <form class="sc-needform" id="needForm" hidden>
         <label class="pf-field"><span>We need</span><input id="needTitle" type="text" maxlength="60" placeholder="e.g. A winger who beats players"></label>
         <label class="pf-field"><span>Position</span><select id="needPos"><option value="FW">Forward</option><option value="MF">Midfielder</option><option value="DF">Defender</option><option value="GK">Goalkeeper</option></select></label>
         <label class="pf-field"><span>Judged on</span><select id="needStat"></select></label>
-        <label class="pf-field"><span>Better than</span><select id="needPct"><option value="90">90% of the position</option><option value="75" selected>75% of the position</option><option value="50">50% of the position</option></select></label>
+        <label class="pf-field"><span>Look at</span><select id="needWhere"><option value="below" selected>My level and below</option><option value="level">My level only</option></select></label>
+        <label class="pf-field"><span>Better than</span><select id="needPct"><option value="90">90% of their level's position</option><option value="75" selected>75% of their level's position</option><option value="50">50% of their level's position</option></select></label>
         <div class="pf-addbar"><button type="submit">Add</button><button type="button" class="alt" id="needCancel">Cancel</button></div>
       </form>
       <div class="sc-needs" id="needs"></div>

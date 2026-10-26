@@ -19,7 +19,10 @@
   const SCOUT = 'maya';
   const PLAYER = 'pl_bro_09';
   const SCOUTS = {
-    maya: { id: 'maya', name: 'Maya Lindqvist', initials: 'ML', role: 'Chief scout', club: 'Fairhaven FC', club_id: 'cl_fairhaven', verified: true },
+    // Maya's level, the catalogue's pool her club plays in (a persona seed, not served): "My level" in Find players and
+    // the Terminal, "At your level" in Team needs.
+    maya: { id: 'maya', name: 'Maya Lindqvist', initials: 'ML', role: 'Chief scout', club: 'Fairhaven FC', club_id: 'cl_fairhaven', verified: true,
+            level: { tier: 'semi_pro', age_group: 'senior', gender: 'men', competition_id: 'co_eng_sp_men' } },
     tomas: { id: 'tomas', name: 'Tomás Herrera', initials: 'TH', role: 'Scout', club: 'Ashby Athletic', club_id: 'cl_ashby', verified: true },
     priya: { id: 'priya', name: 'Priya Nair', initials: 'PN', role: 'Performance analyst', club: 'Dunmore City', club_id: 'cl_dunmore', verified: false },
   };
@@ -114,6 +117,11 @@
         pl_ash_09: { stage: 'Watching', note: 'Gets his shots away: second among the league\'s regular forwards for shots per 90. Watch more of his movement off the ball.', at: ago(8, '11:00') },
         pl_dun_06: { stage: 'Trial', note: 'Keeps the ball moving from deep: third among midfielders for passes per 90. Trial week booked for 9 November.', at: ago(7, '15:00') },
         pl_eas_03: { stage: 'Offer', note: 'Creates from full-back: ninth among defenders for key passes per 90 (one season of key passes is mostly noise). Offer sent, waiting for his answer.', at: ago(3, '11:00') },
+        // From the catalogue beyond the league: her level in Germany, US college, Spain's U19s (tests/test_shared_dashboard.py
+        // checks each note against /api/catalogue/players/{id}).
+        pl_vor_11: { stage: 'Watching', note: 'Same level as us, in Germany: a goal in 84 minutes. Only three uploaded matches so far, so wait for more footage.', at: ago(2, '10:00') },
+        pl_kbc_11: { stage: 'Watching', note: 'College forward who also played amateur football in the summer. Shoots a lot; tiny sample.', at: ago(2, '11:00') },
+        pl_sot_07: { stage: 'Watching', note: '17, academy U19 in Spain. One goal in 55 minutes: one to follow, not to judge yet.', at: ago(2, '12:00') },
       },
       compare: [],
       // Reports: sections of text, each citing moments that play.
@@ -129,11 +137,13 @@
               cites: [CLIPS.r01takeon58, CLIPS.r09takeon2] },
           ] },
       ],
-      // Fairhaven's needs: each lists the league's players who fit, from their numbers (stat per 90, percentile).
+      // Fairhaven's needs: each lists the catalogue's players who fit (the engine's answer, /api/catalogue/rank with
+      // min_percentile): at Maya's level, and with where 'below' also from the men's levels below, each judged against
+      // their own level. stat is a terminal metric key.
       needs: [
-        { id: 'nd_1', title: 'A forward who scores', pos: 'FW', stat: 'goals', pct: 75 },
-        { id: 'nd_2', title: 'A midfielder who wins the ball back', pos: 'MF', stat: 'recoveries', pct: 75 },
-        { id: 'nd_3', title: 'A defender who reads the game', pos: 'DF', stat: 'interceptions', pct: 75 },
+        { id: 'nd_1', title: 'A forward who scores', pos: 'FW', stat: 'goals', pct: 75, where: 'below' },
+        { id: 'nd_2', title: 'A midfielder who wins the ball back', pos: 'MF', stat: 'recoveries', pct: 75, where: 'below' },
+        { id: 'nd_3', title: 'A defender who reads the game', pos: 'DF', stat: 'interceptions', pct: 75, where: 'below' },
       ],
       // "My details" edits, per player: { name, position, kit_number, foot, height, bio }. None until a player saves.
       details: {},

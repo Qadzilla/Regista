@@ -1,11 +1,12 @@
 """The Scout dashboard (/scout): served by the app, loading only same-origin scripts and no inline script (the CSP allows
-``script-src 'self'`` only), with its eight sections in the left panel and the hooks other pages build on (the Terminal
+``script-src 'self'`` only), with its nine sections in the left panel and the hooks other pages build on (the Terminal
 section has its own tests: tests/test_scout_terminal.py).
 
-What is live comes from the API (the league, the players and their filters, the Scout agent, compare, profiles);
+What is live comes from the API (the catalogue, its players with the engine's order and places, the competitions, the
+Scout agent on the catalogue, Team needs through /api/catalogue/rank, compare, profiles);
 what is the visitor's own (messages, shortlist stages and notes, reports, needs, settings) goes through Regista.demo
 (shared/demo.js) and stays in the browser. The page's behaviour in a browser (desktop and 375 px) is checked by hand
-against a local offline run; see docs/redesign/dashboards/scout.md.
+against a local offline run; see docs/redesign/dashboards/scout.md and docs/redesign/catalogue/pages-scout.md.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 SCOUT = Path(__file__).resolve().parents[1] / "src/regista/static/scout"
-SECTIONS = ["overview", "find", "terminal", "shortlist", "reports", "messages", "team", "settings"]
+SECTIONS = ["overview", "find", "competitions", "terminal", "shortlist", "reports", "messages", "team", "settings"]
 
 
 @pytest.fixture(scope="module")
@@ -47,7 +48,7 @@ def test_scout_serves_the_page_not_the_placeholder(page):
     assert '<nav class="views"' in page and 'href="/scout" class="parent" aria-current="page"' in page and 'href="/"' in page
 
 
-def test_the_left_panel_lists_the_eight_scout_sections(page):
+def test_the_left_panel_lists_the_nine_scout_sections(page):
     nav = re.search(r'<nav class="views" aria-label="Views">(.*?)</nav>', page, flags=re.S).group(1)
     sub = re.search(r'<div class="subviews" role="group" aria-label="Scout sections">(.*?)</div>', nav, flags=re.S)
     assert sub, "the Scout sections are missing from the left panel"
@@ -61,6 +62,8 @@ def test_the_left_panel_lists_the_eight_scout_sections(page):
     for s in SECTIONS:
         assert re.search(rf'<div class="pv" data-panel="{s}"( hidden)?>', page), s
     assert '<div class="pv" data-panel="overview">' in page
+    # one competition's page (#competition/<id>) is a panel of its own, marked as Competitions in the panel
+    assert '<div class="pv" data-panel="competition" hidden>' in page
 
 
 def test_the_page_loads_only_same_origin_scripts_and_no_inline_script(page):
@@ -94,10 +97,14 @@ def test_the_page_says_its_players_are_synthetic(page):
 
 def test_the_scout_agent_is_wired(page, script):
     assert 'id="scoutAsk"' in page and 'id="scoutAnswer"' in page and 'name="scoutEngine"' in page
+    assert 'placeholder="Ask about the catalogue\'s players"' in page
     assert 'value="rules" checked><span>Data Search</span>' in page and 'value="foundry"><span>Foundry</span>' in page
     assert 'maxlength="200"' in page  # what the API accepts (ScoutAskIn.q), and what the 422 message says
     assert "coming in this build" not in page + script
-    assert "function renderScoutAnswer(json)" in script and "R.api('/api/scout/ask', { method: 'POST', body: { q, engine } })" in script
+    # the agent answers about the catalogue: its catalogue tools (search_catalogue_players...), both engines
+    assert "function renderScoutAnswer(json)" in script
+    assert "R.api('/api/scout/ask', { method: 'POST', body: { q, engine, where: 'catalogue' } })" in script
+    assert "the sandbox calls no AI model" not in script and "Example from real catalogue data" not in script
     assert "window.RegistaScout = { renderScoutAnswer }" in script
     # who answered is always said, and a Foundry fallback to the rules shows its reason; the steps it took open on demand
     assert "Answered by Microsoft Foundry" in script and "Answered by Regista's rules" in script
@@ -105,7 +112,9 @@ def test_the_scout_agent_is_wired(page, script):
 
 
 def test_numbers_come_from_the_api_and_text_is_escaped(script):
-    for endpoint in ("/api/season", "/api/players?", "/api/compare?ids=", "/api/players/${enc(gid)}"):
+    for endpoint in ("/api/catalogue'", "/api/catalogue/pools", "/api/metrics", "/api/catalogue/players?",
+                     "/api/catalogue/players/${enc(gid)}", "/api/catalogue/rank?", "/api/catalogue/compare?ids=",
+                     "/api/catalogue/matches?", "/api/competitions/${enc(cid)}", "/api/players?", "/api/players/${enc(gid)}"):
         assert endpoint in script
     assert "const esc = R.esc" in script
     # No raw stat keys in what people read: labels come from the API's stat catalogue.
@@ -123,7 +132,7 @@ def test_the_visitors_own_things_stay_in_this_browser_through_the_shared_store(p
                  "demo.setStage(", "demo.toggleCompare(", "demo.draftReport(", "demo.saveReport(", "demo.saveNeeds(",
                  "demo.saveSettings('scout'", "demo.reset()", "demo.markRead("):
         assert call in script, call
-    assert not re.search(r"method: 'POST'(?!, body: \{ q, engine \})", script), "the only write is the Scout agent's question"
+    assert not re.search(r"method: 'POST'(?!, body: \{ q, engine, where: 'catalogue' \})", script), "the only write is the Scout agent's question"
     # one quiet line in Messages and Settings (and Reports), and Settings can restore the seeds
     assert page.count("Messages, notes and reports are kept in this browser only.") == 2  # Messages and Settings only (Zaid, 2026-10-23)
     assert ">Reset this demo<" in page
@@ -131,7 +140,7 @@ def test_the_visitors_own_things_stay_in_this_browser_through_the_shared_store(p
 
 def test_the_scout_bar_links_open_their_section_with_the_player(script):
     # /scout#messages/<id>, #shortlist/<id>, #reports/<id> (player/player.js writes first; the hash alone is enough)
-    assert "R.sections({ fallback: 'overview', onChange: show })" in script
+    assert "R.sections({ fallback: 'overview', alias: { competition: 'competitions' }, onChange: show })" in script
     assert "if (section === 'shortlist') openShortlist(gid);" in script
     assert "if (section === 'reports') openReports(gid);" in script
     assert "if (section === 'messages') openMessages(gid);" in script
@@ -152,38 +161,65 @@ def test_the_script_parses():
     subprocess.run(["node", "--check", str(SCOUT / "scout.js")], check=True)
 
 
-def test_the_needs_and_the_squad_come_from_the_live_league(client):
-    # Team: Fairhaven's squad comes from /api/season, and the needs are matched against /api/players' headline numbers.
-    s = client.get("/api/season").json()
-    fair = next(c for c in s["clubs"] if c["club_id"] == "cl_fairhaven")
-    assert fair["name"] == "Fairhaven FC" and len(fair["squad"]) == 18
-    cards = client.get("/api/players?sort=name&limit=200").json()["players"]
-    headline = {st["key"] for st in s["stats"] if st["kind"] == "per90" and st["headline"]}
-    for need_stat in ("goals", "recoveries", "interceptions"):  # the seeded needs (shared/demo.js)
-        assert need_stat in headline
-        assert all(need_stat in p["headline"] for p in cards)
+def test_the_needs_and_the_squad_come_from_the_catalogue(client):
+    # Team: Fairhaven's squad and its table line come from the Regista League's competition page; each seeded need is a
+    # terminal metric that /api/catalogue/rank answers at Maya's level and from the men's levels below (min_percentile).
+    page = client.get("/api/competitions/co_eng_sp_men").json()
+    fair = next(c for c in page["clubs"] if c["club_id"] == "cl_fairhaven")
+    assert fair["name"] == "Fairhaven FC" and len(fair["squad"]) == 18 and all("minutes" in p for p in fair["squad"])
+    assert next(t for t in page["table"] if t["club_id"] == "cl_fairhaven")["position"] == 2
+    keys = {m["key"] for m in client.get("/api/metrics").json()["metrics"]}
+    for pos, stat in (("FW", "goals"), ("MF", "recoveries"), ("DF", "interceptions")):   # the seeds (shared/demo.js)
+        assert stat in keys
+        level = client.get("/api/catalogue/rank", params={"metric": stat, "position": pos, "tier": "semi_pro",
+                                                          "age_group": "senior", "gender": "men", "min_percentile": 75,
+                                                          "limit": 200}).json()
+        below = client.get("/api/catalogue/rank", params={"metric": stat, "position": pos, "tier": "amateur,college,academy",
+                                                          "gender": "men", "rank_by": "pool", "min_percentile": 75,
+                                                          "limit": 200}).json()
+        assert level["players"] and below["players"]
+        for r in level["players"] + below["players"]:
+            assert r["gender"] == "men" and r["position"] == pos and r["percentile"] >= 75 and not r["none_yet"]
+        assert {r["tier"] for r in level["players"]} == {"semi_pro"} and "semi_pro" not in {r["tier"] for r in below["players"]}
+    script = (SCOUT / "scout.js").read_text()
+    assert "u.set('tier', 'amateur,college,academy')" in script and "u.set('rank_by', 'pool')" in script
+    assert "r.club_id !== CLUB_ID" in script   # her own club's players never fit her needs
 
 
-def test_find_players_and_compare_follow_the_approved_layout_in_plain_words(page, script):
-    # Find players: the sandbox's three filters first (Club and Minimum minutes behind "More filters"), the cards, then
-    # the league table under them; no tagline or engine explanation beside the engine picker.
-    find = page[page.index('data-panel="find"'):page.index('data-panel="shortlist"')]
-    assert find.index("<span>Name or club</span>") < find.index("<span>Position</span>") < find.index("<span>Sort by</span>")
-    assert find.index('id="fMore"') < find.index('id="fClub"') and 'id="fMoreBox" hidden' in find
-    assert find.index('id="cards"') < find.index('id="tableBody"')
+def test_find_players_follows_the_approved_layout_in_plain_words(page, script):
+    # Find players: Whole catalogue and My level, then the sandbox's filters in its order, the minutes box, the rule line,
+    # the boards; the league table left Find players (the Regista League's table is on its competition page).
+    find = page[page.index('data-panel="find"'):page.index('data-panel="competitions"')]
+    order = ["<span>Name or club</span>", "<span>Country</span>", "<span>Level</span>", "<span>Age group</span>",
+             "<span>Gender</span>", "<span>Competition</span>", "<span>Position</span>", "<span>Sort by</span>"]
+    assert [find.index(x) for x in order] == sorted(find.index(x) for x in order)
+    assert find.index('id="fWhole"') < find.index('id="fMine"') < find.index('id="filterForm"')
+    assert "Also show players without enough minutes for a percentile" in find and 'id="tableBody"' not in page
     assert "every number backed by a moment" not in page and "player tools (MCP)" not in page
-    # Compare: the compact per-90 table, every number opening its moments, percentiles in words (never "Nth percentile")
-    assert "Per 90 minutes this season. Pick a number to see the moments behind it." in page
-    assert "percentile</span>" not in script and "PV.pctText(p.percentiles?.[k], p.card.position)" in script
-    # card wording: the house sentence as it is, and a Scout agent rank says among whom
-    assert "replace(\"the league's \"" not in script
-    assert "of ${s.of_players} ${GROUP[p.position]" in script
+    # the browser never ranks: order, places, boards and none yet are the engine's
+    assert "r.rank ?" in script and "out.boards" in script and "b.with_any" in script and "b.none_yet" in script
+    for word in ("Players showing the same number share a place.", "players with none yet come last, with no place number",
+                 "One list per level, ranked by", "goalkeepers left out of this sort (pick Goalkeeper to see them)",
+                 "only goalkeepers are ranked on this", "Show all ", "Small pool", "synthetic data, invented names"):
+        assert word in script, word
+    # pool lines in words, never "98th of 33"; none yet for a count at 0; Round, never matchday
+    assert "percentile among ${pool.size} ${who}" in script and "None yet · " in script
+    assert "matchday" not in script.lower() and "matchday" not in page.lower()
 
 
-def test_a_closed_more_filters_never_hides_an_active_filter(script):
-    # Club and Minimum minutes sit behind "More filters": closed, the link counts the ones that are on, and the results
-    # line and the empty state name them, so a filter is never on without anything on screen saying so.
-    assert "`More filters (${on})`" in script
-    assert "` at ${club}`" in script and "` with at least ${fmtMinutes(f.min_minutes)}`" in script
-    assert "Try a lower minimum or another position" not in script
-    assert script.count("syncMore();") >= 3  # moreFilters, setFilter and Reset
+def test_compare_marks_only_what_the_server_marks(page, script):
+    assert 'id="compareNote"' in page
+    assert "out.best && out.best[k]" in script and "/api/catalogue/compare?ids=" in script
+    assert "Nothing is marked best across levels and positions." in script
+    assert "evidence_offset=" in script and "Show more (" in script
+
+
+def test_competitions_list_and_pages_read_the_catalogue(client, page, script):
+    assert 'id="coList"' in page and 'id="coPage"' in page and 'href="/scout#competitions">&larr; All competitions</a>' in page
+    cat = client.get("/api/catalogue").json()
+    assert cat["totals"]["competitions"] == 14 and cat["totals"]["countries"] == 10 and len(cat["clubs"]) == 66
+    for word in ("How players here are compared", "Uploaded matches", "Find players here", "Your level",
+                 "not in any uploaded match yet", "not enough for a percentile", "Watch in the Clip view",
+                 "Uploaded through the Player view", "too few for a percentile: it takes "):
+        assert word in script, word
+    assert "S.sample?.words" in script and "S.player_uploads" in script and "S.table ?" in script

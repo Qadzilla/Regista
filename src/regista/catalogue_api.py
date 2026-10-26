@@ -73,6 +73,10 @@ GENDER = Annotated[str | None, Query(pattern="^(men|women)$")]
 COUNTRY = Annotated[str | None, Query(min_length=2, max_length=40, pattern=r"^[A-Za-z][A-Za-z .'\-]{1,39}$")]
 SCOPE = Annotated[Literal["level", "competition", "all"] | None, Query()]
 POSITION = Annotated[str | None, Query(pattern="^(GK|DF|MF|FW)$")]
+# /api/catalogue/players and /rank: one position or a comma list ("DF,MF,FW": the positions a metric is scored for, so a
+# goals list with no position picked leaves goalkeepers out, as the metrics engine decides)
+POSITIONS = Annotated[str | None, Query(pattern="^(GK|DF|MF|FW)(,(GK|DF|MF|FW)){0,3}$",
+                                        description="one position or a comma list of them")]
 ROLE = Annotated[str | None, Query(pattern="^(GK|FB|CB|DM|CM|AM|W|ST)$")]
 CLUB = Annotated[str | None, Query(max_length=40, pattern=r"^[A-Za-z0-9_ ]{1,40}$")]
 FOOT = Annotated[str | None, Query(pattern="^(right|left|both)$")]
@@ -343,10 +347,14 @@ def _meta(cm: CatalogueMetrics, cids: list[str], scope: str) -> Record:
 def _rows(cm: CatalogueMetrics, w: Where, *, default_all: bool, position=None, role=None, club=None, q=None,
           min_minutes=None, age_min=None, age_max=None, foot=None, camera=None, career=None) -> tuple[list[str], list]:
     cids = _selected(cm, w, default_all)
+    several = sorted(set(position.split(","))) if position and "," in position else None
     rows = []
     for cid in cids:
-        rows += cm.select(competition=cid, position=position, role=role, q=q, min_minutes=min_minutes, age_min=age_min,
-                          age_max=age_max, foot=foot, camera=camera, career=career)
+        rows += cm.select(competition=cid, position=None if several else position, role=role, q=q,
+                          min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot, camera=camera,
+                          career=career)
+    if several:
+        rows = [(cid, ps) for cid, ps in rows if ps.info["position"] in several]
     if club:
         c = club.lower()
         rows = [(cid, ps) for cid, ps in rows
@@ -533,12 +541,24 @@ def _screen(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, me
                        min_minutes=min_minutes, age_min=age_min, age_max=age_max, foot=foot, camera=camera, career=career)
     if by_list:
         rows, mode, by = _list_sort(cm, rows, sort_key, order)
+        # minutes: a place for every row with its competition's qualifying minutes, shared by the same whole minutes;
+        # a name list has no places
+        placed = [] if sort_key == "name" else [(cid, ps) for cid, ps in rows
+                                                if ps.minutes >= cm.metrics[cid].min_minutes]
+        places = _places(cm, placed, by, lambda cid, ps: round(ps.minutes))
     else:
         rows = _fits(cm, rows, sort_key, scope, min_percentile)
-        rows, mode, by, _ranked = cm.order_rows(rows, sort_key, scope, order, rank_by)
+        rows, mode, by, by_pct = cm.order_rows(rows, sort_key, scope, order, rank_by)
+        placed = _ranked_rows(cm, rows, sort_key, mode, by_pct)
+        digits = CATALOGUE[sort_key].digits
+        places = _places(cm, placed, by, lambda cid, ps: (cm.percentile(cid, ps, sort_key, scope),
+                                                          round(ps.values[sort_key], digits))
+                         if mode == "pool" else round(ps.values[sort_key], digits))
+    place_of = {(cid, ps.info["global_id"]): n for (cid, ps), n in zip(placed, places)}
 
     def row_of(cid: str, ps) -> Record:
         return {**_card(cm, cid, ps), "board": cm.board_key(by, cid, ps.info["position"]),
+                "rank": place_of.get((cid, ps.info["global_id"])),
                 "values": {k: cm.cell(cid, ps.info["global_id"], k, scope) for k in keys}}
 
     boards = cm.boards(by, rows, cm.where_of, lambda i: row_of(*rows[i]), limit,
@@ -583,7 +603,7 @@ async def competition_players(competition_id: str, scope: ScopeDep,
 @router.get("/api/catalogue/players")
 async def catalogue_players(w: WhereDep, scope: ScopeDep,
                             metrics_: Annotated[str | None, Query(alias="metrics", pattern=KEYS_PATTERN)] = None,
-                            position: POSITION = None, role: ROLE = None, club: CLUB = None, q: NAME_Q = None,
+                            position: POSITIONS = None, role: ROLE = None, club: CLUB = None, q: NAME_Q = None,
                             min_minutes: MIN_MINUTES = None, age_min: AGE = None, age_max: AGE = None, foot: FOOT = None,
                             camera: CAMERA = None, career: bool | None = None,
                             sort: Annotated[str | None, Query(pattern=KEY_PATTERN)] = None,
@@ -770,6 +790,33 @@ def career_block(cm: CatalogueMetrics, gid: str) -> Record:
             "basis": ENGLAND_BASIS if england else None, "api_url": f"/api/catalogue/players/{gid}"}
 
 
+def _places(cm: CatalogueMetrics, ranked: list, by: str | None, shown: Any) -> list[int]:
+    """The place of each ranked row, in order: each board ranks from 1, and rows showing the same number
+    (``shown(cid, ps)``: the rounded value, or in pool mode the percentile and the value) share a place (1, 2, 2, 4)."""
+    places, prev, place, board, n_in_board = [], None, 0, None, 0
+    for cid, ps in ranked:
+        g = cm.board_key(by, cid, ps.info["position"])
+        if g != board:   # each board ranks from 1
+            board, n_in_board, prev = g, 0, None
+        n_in_board += 1
+        tie = shown(cid, ps)
+        if tie != prev:
+            place, prev = n_in_board, tie
+        places.append(place)
+    return places
+
+
+def _ranked_rows(cm: CatalogueMetrics, rows: list, key: str, mode: str, by_pct: set) -> list:
+    """The rows that get a place, in order (``RANK_RULE``): pool mode, the rows ranked by percentile; value mode, the rows
+    with their competition's minimum minutes (and attempts), never none yet (a count at 0)."""
+    m = CATALOGUE[key]
+    if mode == "pool":
+        return [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) in by_pct]
+    return [(cid, ps) for cid, ps in rows
+            if (cm.metrics[cid].qualified(ps, m) or (m.kind == "total" and ps.values.get(key) is not None))
+            and not cm.none_yet(ps, key)]
+
+
 def _rank(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metric: str, position, role, club,
           min_minutes, age_min, age_max, foot, camera, career, order, limit, offset, rank_by=None,
           min_percentile=None) -> Record:
@@ -780,25 +827,11 @@ def _rank(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metr
                        age_min=age_min, age_max=age_max, foot=foot, camera=camera, career=career)
     rows = _fits(cm, rows, key, scope, min_percentile)
     rows, mode, by, by_pct = cm.order_rows(rows, key, scope, order, rank_by)
-    if mode == "pool":
-        ranked = [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) in by_pct]
-    else:   # none yet (a count at 0) gets no place
-        ranked = [(cid, ps) for cid, ps in rows
-                  if (cm.metrics[cid].qualified(ps, m) or (m.kind == "total" and ps.values.get(key) is not None))
-                  and not cm.none_yet(ps, key)]
+    ranked = _ranked_rows(cm, rows, key, mode, by_pct)   # none yet (a count at 0) gets no place
     ranked_ids = {(cid, ps.info["global_id"]) for cid, ps in ranked}
     rest = [(cid, ps) for cid, ps in rows if (cid, ps.info["global_id"]) not in ranked_ids]
-    places, prev, place, board, n_in_board = [], None, 0, None, 0
-    for cid, ps in ranked:
-        g = cm.board_key(by, cid, ps.info["position"])
-        if g != board:   # each board ranks from 1
-            board, n_in_board, prev = g, 0, None
-        n_in_board += 1
-        v = round(ps.values[key], m.digits)
-        tie = (cm.percentile(cid, ps, key, scope), v) if mode == "pool" else v
-        if tie != prev:
-            place, prev = n_in_board, tie
-        places.append(place)
+    places = _places(cm, ranked, by, lambda cid, ps: (cm.percentile(cid, ps, key, scope), round(ps.values[key], m.digits))
+                     if mode == "pool" else round(ps.values[key], m.digits))
 
     def row_of(i: int) -> Record:
         cid, ps = ranked[i]
@@ -823,7 +856,7 @@ def _rank(cm: CatalogueMetrics, w: Where, scope: str, *, default_all: bool, metr
 
 @router.get("/api/catalogue/rank")
 async def catalogue_rank(metric: Annotated[str, Query(pattern=KEY_PATTERN)], w: WhereDep, scope: ScopeDep,
-                         position: POSITION = None, role: ROLE = None, club: CLUB = None, min_minutes: MIN_MINUTES = None,
+                         position: POSITIONS = None, role: ROLE = None, club: CLUB = None, min_minutes: MIN_MINUTES = None,
                          age_min: AGE = None, age_max: AGE = None, foot: FOOT = None, camera: CAMERA = None,
                          career: bool | None = None, order: Literal["asc", "desc"] | None = None,
                          rank_by: RANK_BY = None, min_percentile: MIN_PERCENTILE = None,

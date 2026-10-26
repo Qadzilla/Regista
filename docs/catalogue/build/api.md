@@ -432,6 +432,14 @@ The port's backend adds fields and parameters to these endpoints, and nothing el
 `profile_url` for every player, `where: "catalogue"` on `POST /api/scout/ask`, and catalogue-club uploads. Every one is
 listed with its contract in `docs/redesign/catalogue/backend.md`.
 
+The Scout pages added two more (`docs/redesign/catalogue/pages-scout.md`):
+- every row of `GET /api/catalogue/players` (and its boards' `top`) carries `rank`: its place on its board, the same
+  place `/api/catalogue/rank` gives (shared by rows showing the same number; null for none yet, too few minutes, no
+  percentile in pool mode, and every row of a `sort=name` list; `sort=minutes` places rows with their competition's
+  qualifying minutes by whole minutes);
+- `position` on `GET /api/catalogue/players` and `/api/catalogue/rank` takes a comma list (`DF,MF,FW`), so a list
+  sorted by a metric can hold only the positions the metric is scored for. Every other endpoint keeps one position.
+
 ## Tests
 
 `tests/test_catalogue_api.py` has 27 tests on the committed catalogue. They check:

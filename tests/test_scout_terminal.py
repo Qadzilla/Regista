@@ -58,7 +58,7 @@ def _fn(js: str, name: str) -> str:
 
 def test_the_terminal_is_a_section_of_scout_with_its_own_files(page):
     nav = re.search(r'<div class="subviews" role="group" aria-label="Scout sections">(.*?)</div>', page, flags=re.S).group(1)
-    assert '<a href="/scout#find" data-section="find">Find players</a><a href="/scout#terminal" data-section="terminal">Terminal</a>' in nav
+    assert '<a href="/scout#competitions" data-section="competitions">Competitions</a><a href="/scout#terminal" data-section="terminal">Terminal</a>' in nav
     assert '<div class="pv" data-panel="terminal" hidden>' in page
     for el in ('id="txForm"', 'id="txIn"', 'id="txAc"', 'id="txOut"', 'id="txKeys"', 'id="txHelp"', 'id="txMeta"', 'id="txSel"',
                'id="txGrid"', 'id="txTip"', 'id="txEx"', 'id="txNav"', 'id="txFoot"', 'id="txDrawer"', 'id="txDrawerH"', 'id="txDrawerBody"'):
