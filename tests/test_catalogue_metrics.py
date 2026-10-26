@@ -28,7 +28,7 @@ MATCHES = ROOT / "data" / "catalogue" / "matches"
 LEAGUE = ROOT / "data" / "season" / "league.json"
 SEASON_ROOT = ROOT / "data" / "season" / "matches"
 HIDDEN = set(ATTRIBUTE_KEYS) | {"attributes", "skill_offset", "stamina_offset", "speed_mult", "accel_mult", "height_shift",
-                                "style_offset", "level_scale"}
+                                "execution", "style_offset", "level_scale"}
 STAR = "pl_bro_09"
 GER = "co_ger_sp_men"
 
@@ -346,6 +346,18 @@ def test_womens_speed_zone_numbers_say_they_use_the_mens_thresholds(cm):
         assert "threshold_note" not in cm.cell(cid, gid, "npxg", "level")
 
 
+def test_youth_speed_zone_numbers_say_they_use_the_senior_thresholds(cm):
+    """levels.md: youth match peaks sit near 27-29 km/h, so the men's senior 25 km/h zone says so in youth pools."""
+    from regista.catalogue.realism import YOUTH_ZONE_NOTE, ZONE_KEYS
+
+    for cid in ("co_gha_u17", "co_eng_u18", "co_esp_u19", "co_bra_u20"):
+        gid = next(iter(cm.metrics[cid].players))
+        for key in ZONE_KEYS:
+            assert cm.cell(cid, gid, key, "level").get("threshold_note") == YOUTH_ZONE_NOTE
+            assert cm.describe(key, cid)["realism"]["zone_note"] == YOUTH_ZONE_NOTE
+        assert "threshold_note" not in cm.cell(cid, gid, "distance", "level")
+
+
 def test_realism_claims_only_what_is_checked():
     eng = realism("pass_pct", ENGLAND_ID)
     assert eng["kind"] == "reference" and eng["tuned"] and "Premier-League-calibrated scale" in eng["note"]
@@ -366,8 +378,8 @@ def test_realism_claims_only_what_is_checked():
 
 def test_the_committed_realism_verdicts_are_current_and_served():
     """Review B M1: a served realism note says what was checked and what was measured, with the committed verdict, never
-    the source's sentence as a fact: the U17 band and the amateur pass order fail, and a margin inside season-to-season
-    noise is not separated."""
+    the source's sentence as a fact. Since the level retune (docs/catalogue/build/levels.md) the U17 band, the amateur
+    pass order and the women's ball-loss and pass-gap orders pass, each with its measured value in the note."""
     from regista.catalogue import realism as rea
 
     data = rea.load(INDEX.with_name(rea.FILE_NAME), load_league(LEAGUE), store.new_competitions(INDEX))
@@ -376,18 +388,25 @@ def test_the_committed_realism_verdicts_are_current_and_served():
     assert [o["id"] for o in data["orders"]] == [o["id"] for o in ORDERS]
     assert all(c["verdict"] in ("pass", "fail", "not separated") for c in data["bands"] + data["orders"])
     u17 = realism("peak_speed_mean", "co_gha_u17", data)
-    assert u17["kind"] == "band" and u17["verdict"] == "fail" and u17["band"]["value"] > u17["band"]["high"]
-    assert "fails" in u17["note"] and "the source reports" in u17["note"] and f"{u17['band']['value']:,.2f}" in u17["note"]
+    assert u17["kind"] == "band" and u17["verdict"] == "pass"
+    assert u17["band"]["low"] <= u17["band"]["value"] <= u17["band"]["high"]
+    assert "inside the band" in u17["note"] and "the source reports" in u17["note"]
+    assert f"{u17['band']['value']:,.2f}" in u17["note"]
     amateur = realism("pass_pct", "co_esp_am_men", data)
-    assert amateur["verdict"] == "fail" and "fails" in amateur["note"]
-    losses = {o["id"]: o for o in data["orders"]}["women_ball_losses_semi_pro"]
-    assert losses["verdict"] == "not separated" and not losses["steps"][0]["separated"]
-    assert "not separated" in realism("ball_losses", "co_eng_sp_women", data)["note"]
-    for o in data["orders"]:   # each step's verdict follows its margin and its noise
+    assert amateur["verdict"] == "pass" and "as reported" in amateur["note"]
+    by = {o["id"]: o for o in data["orders"]}
+    assert by["women_ball_losses_semi_pro"]["verdict"] == "pass" and by["women_ball_losses_semi_pro"]["steps"][0]["separated"]
+    gap = by["women_pass_pct_semi_pro"]
+    assert gap["verdict"] == "pass" and gap["gap"] == list(rea.WOMEN_PASS_GAP) and not gap["steps"][0]["outside_gap"]
+    assert "inside the sourced gap of 5-11" in realism("pass_pct", "co_eng_sp_women", data)["note"]
+    for o in data["orders"]:   # each step's verdict follows its margin, its noise and any sourced gap
         for st in o["steps"]:
             sep = abs(st["margin"]) >= rea.SEPARATION_SE * st["se"]
             assert st["separated"] == sep
-            assert st["verdict"] == ("not separated" if not sep else "pass" if st["margin"] > 0 else "fail")
+            want = "not separated" if not sep else "pass" if st["margin"] > 0 else "fail"
+            if st.get("outside_gap") and want == "pass":
+                want = "fail"
+            assert st["verdict"] == want
     for c in COMPETITIONS:   # no served note states a checked direction without its measured verdict
         for key in ("pass_pct", "ball_losses", "peak_speed_mean", "distance", "sprint_distance", "hi_distance"):
             r = realism(key, c.competition_id, data)
@@ -428,6 +447,11 @@ def test_band_and_order_checks_read_level_aggregates():
     assert o["verdict"] == "not separated" and o["steps"][0]["se"] > 0
     b = band_checks({"academy/U17/men": {"peak_speed_mean": 29.68}})[0]
     assert b["verdict"] == "fail" and b["outside_by"] == 0.98
+    # a sourced gap: women's pass completion must sit 5-11 points below men's, not merely below
+    for women, verdict in ((78.0, "fail"), (74.0, "pass"), (70.0, "pass"), (60.0, "fail")):
+        o = {x["id"]: x for x in order_checks({"semi_pro/senior/women": {"pass_pct": women},
+                                               "semi_pro/senior/men": {"pass_pct": 80.0}})}["women_pass_pct_semi_pro"]
+        assert o["verdict"] == verdict and o["steps"][0]["outside_gap"] == (verdict == "fail"), (women, o)
 
 
 # ---------------------------------------------------------------------------- privacy and pools at a glance

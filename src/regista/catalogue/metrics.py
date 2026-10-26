@@ -52,7 +52,7 @@ from pathlib import Path
 from typing import Any
 
 from regista.catalogue import store
-from regista.catalogue.realism import WOMEN_ZONE_NOTE, ZONE_KEYS
+from regista.catalogue.realism import zone_note_for
 from regista.catalogue.taxonomy import BY_ID, ENGLAND_ID
 from regista.season.metrics import (CATALOGUE, DEFAULT_COLUMNS, SIMILAR_DEFAULT, SIMILARITY_TEMPLATE, TEAM_CATALOGUE,
                                     ClipIndex, PlayerSeason, SeasonMetrics, fbref_percentile, rank_value)
@@ -80,9 +80,10 @@ RELIABILITY_NOTE = ("noisy: split-half reliability below 0.3 within a role. Engl
                     "k = the row's minutes / the level's median half-season minutes; r_at_minutes), so a short upload is "
                     "flagged where half a season would not be. A list of noisy metrics without a row reads the level's "
                     "table at half a season.")
-ALL_WARNING = ("rows from different levels: read each percentile against its own pool. Raw event rates barely encode "
-               "level (both sides of a synthetic match scale together, so pass completion, ball losses and goals come out "
-               "similar at every level); compare players through their percentiles within their pools.")
+ALL_WARNING = ("rows from different levels: read each percentile against its own pool. Raw numbers carry each level's "
+               "own football (lower levels and younger ages complete fewer passes and lose the ball more, women's pools "
+               "run on lower speeds), so a raw number from one level is not a better or worse player than the same "
+               "number from another; compare players through their percentiles within their pools.")
 RANK_BY = ("pool", "value")
 RANK_RULE = ("Percentiles are compared only within one position, raw numbers only within one level. One level: by the "
              "raw value. More than one level and one position (a position filter, or a list that holds one): rank_by "
@@ -284,8 +285,9 @@ class CatalogueMetrics:
         out["evidence_total"] = sm.evidence_total(ps, key)
         out["pool"] = pool
         out["sample"] = self.sample(cid, ps)
-        if self.labels[cid]["gender"] == "women" and key in ZONE_KEYS:
-            out["threshold_note"] = WOMEN_ZONE_NOTE
+        zone_note = zone_note_for(BY_ID[cid].level_key, key)
+        if zone_note:   # women's and youth pools read the men's senior zones
+            out["threshold_note"] = zone_note
         return out
 
     def evidence(self, cid: str, gid: str, key: str, limit: int | None = None, offset: int = 0) -> Record:

@@ -6,7 +6,9 @@ is not a tier, by decision. The data stays synthetic: competition and club names
 levels are classification labels only.
 
 ``LEVELS`` holds the scale each pool key applies to its players' hidden ratings and physical capacities, on one absolute
-rating scale whose reference (offset 0) is the Regista League, now labelled England semi-pro men. Where a number comes
+rating scale whose reference (offset 0) is the Regista League, now labelled England semi-pro men, and each level's
+technical execution against absolute football (``execution``: the generator's ``LEAGUE["exec_*"]``), which ratings
+cannot carry because a level's passers and markers drop together and cancel. Where a number comes
 from is in ``source``: ``sourced`` (a published figure, cited in design.md §14), ``direction`` (the sign is sourced, the
 size is Regista's) or ``assumption`` (Regista's definition of the level). The scales are hidden like the ratings they
 shape: no API or page serves them.
@@ -42,6 +44,8 @@ class Level:
     age_range: tuple[int, int]     # whole years on 1 August 2026
     age_mode: float                # the triangular draw's mode
     age_mode_gk_cb: float | None = None   # keepers and centre-backs peak later (senior men only, as the league)
+    execution: float = 0.0         # technical execution below the reference, against absolute football (the generator's
+                                   # LEAGUE["exec_*"]: pass completion, first touch, keeping the ball); 0 at the reference
     source: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -67,33 +71,47 @@ class Level:
         """What a competition file records of the scale it was drawn with (hidden: never served)."""
         return {"key": self.key, "skill_offset": self.skill_offset, "stamina_offset": self.stamina_offset,
                 "speed_mult": self.speed_mult, "accel_mult": self.accel_mult, "height_shift": self.height_shift,
-                "age_range": list(self.age_range), "style_offset": self.style_offset()}
+                "age_range": list(self.age_range), "style_offset": self.style_offset(), "execution": self.execution}
 
 
 _ASSUMED = "assumption"
+# Technical execution (``Level.execution``): no source puts a number on it per level. The directions are sourced (women
+# complete fewer passes and lose the ball more [S1, S12]; amateurs too [S10]; pass completion falls down England's
+# professional standards [S13]); the women's size is sourced (8 points of pass completion at the World Cups [S12]); every
+# other size is Regista's, set so the levels' pass completion lands on the targets in docs/catalogue/build/levels.md.
+_EXEC = "direction [S10, S13]; size an assumption (docs/catalogue/build/levels.md)"
+_EXEC_YOUTH = "assumption: no youth pass completion was found; rises with age (docs/catalogue/build/levels.md)"
+_EXEC_WOMEN = "sourced gap [S1, S12]: 8 points of pass completion below same-tier men (docs/catalogue/build/levels.md)"
+_YOUTH_SPEED = "interpolated in match peak speed between U17 [S5] and senior; direction [S7, S8]"
 LEVELS: dict[str, Level] = {lv.key: lv for lv in [
     Level("semi_pro/senior/men", 0, 0, 1.00, 1.00, 0, (17, 35), 26, 28,
           source={"all": "reference: the Regista League's own scales, tuned against Premier League bands"}),
-    Level("college/college/men", -3, 0, 0.99, 0.99, 0, (18, 23), 20,
-          source={"skill": _ASSUMED, "speed": _ASSUMED}),
-    Level("amateur/senior/men", -8, -4, 0.97, 0.97, 0, (18, 38), 27,
-          source={"skill": "direction [S9, S10]; size an assumption", "speed": _ASSUMED, "stamina": _ASSUMED}),
-    Level("academy/U20/men", -4, 0, 0.97, 0.97, 0, (17, 19), 18,
-          source={"skill": _ASSUMED, "speed": "interpolated between U17 [S6] and senior; direction [S7, S8]"}),
-    Level("academy/U19/men", -5, 0, 0.96, 0.96, -1, (16, 18), 17,
-          source={"skill": _ASSUMED, "speed": "interpolated between U17 [S6] and senior; direction [S7, S8]"}),
-    Level("academy/U18/men", -6, 0, 0.95, 0.95, -2, (16, 17), 16,
-          source={"skill": _ASSUMED, "speed": "interpolated between U17 [S6] and senior; direction [S7, S8]"}),
-    Level("academy/U17/men", -9, -2, 0.92, 0.92, -3, (15, 16), 16,
-          source={"skill": _ASSUMED, "speed": "sourced [S6]: maximal sprinting speed 30.7 km/h in U17, 30.7 / 33.4 = 0.92"}),
-    Level("semi_pro/senior/women", -3, -3, 0.83, 0.90, -12, (17, 35), 25,
+    Level("college/college/men", -3, 0, 0.99, 0.99, 0, (18, 23), 20, execution=1.4,
+          source={"skill": _ASSUMED, "speed": _ASSUMED, "execution": _EXEC}),
+    Level("amateur/senior/men", -8, -4, 0.97, 0.97, 0, (18, 38), 27, execution=2.65,
+          source={"skill": "direction [S9, S10]; size an assumption", "speed": _ASSUMED, "stamina": _ASSUMED,
+                  "execution": _EXEC}),
+    Level("academy/U20/men", -4, 0, 0.92, 0.97, 0, (17, 19), 18, execution=1.2,
+          source={"skill": _ASSUMED, "speed": _YOUTH_SPEED, "execution": _EXEC_YOUTH}),
+    Level("academy/U19/men", -5, 0, 0.88, 0.96, -1, (16, 18), 17, execution=1.3,
+          source={"skill": _ASSUMED, "speed": _YOUTH_SPEED, "execution": _EXEC_YOUTH}),
+    Level("academy/U18/men", -6, 0, 0.85, 0.95, -2, (16, 17), 16, execution=2.3,
+          source={"skill": _ASSUMED, "speed": _YOUTH_SPEED, "execution": _EXEC_YOUTH}),
+    Level("academy/U17/men", -9, -2, 0.81, 0.92, -3, (15, 16), 16, execution=3.0,
+          source={"skill": _ASSUMED, "execution": _EXEC_YOUTH,
+                  "speed": "sourced [S5]: set so U17 outfielders' mean peak match speed lands on 26.8 km/h, the source's "
+                           "mean (band 24.9-28.7); match peak is 87% of the sprint-test maximum at U17 [S5], so the "
+                           "sprint-test 30.7 km/h [S6] is not the target"}),
+    Level("semi_pro/senior/women", -3, -3, 0.83, 0.90, -12, (17, 35), 25, execution=2.3,
           source={"skill": "direction [S1]; size an assumption", "stamina": "direction [S1, S2]; size an assumption",
-                  "speed": "sourced [S3]: peak sprint speed 27.3 km/h, 27.3 / 33.4 = 0.82", "accel": _ASSUMED,
-                  "height": _ASSUMED}),
-    Level("college/college/women", -4, -3, 0.82, 0.90, -12, (18, 23), 20,
+                  "speed": "sourced [S3]: peak sprint speed 27.3 km/h, 27.3 / 33.4 = 0.82; the match peaks it gives sit "
+                           "below elite women's (28.0-29.4 km/h at the 2023 Women's World Cup [S14])", "accel": _ASSUMED,
+                  "height": _ASSUMED, "execution": _EXEC_WOMEN}),
+    Level("college/college/women", -4, -3, 0.82, 0.90, -12, (18, 23), 20, execution=2.8,
           source={"skill": "direction [S1]; size an assumption", "stamina": "direction [S1, S2]; size an assumption",
-                  "speed": "sourced [S3]: peak sprint speed 27.3 km/h, 27.3 / 33.4 = 0.82", "accel": _ASSUMED,
-                  "height": _ASSUMED}),
+                  "speed": "sourced [S3]: peak sprint speed 27.3 km/h, 27.3 / 33.4 = 0.82; the match peaks it gives sit "
+                           "below elite women's (28.0-29.4 km/h at the 2023 Women's World Cup [S14])", "accel": _ASSUMED,
+                  "height": _ASSUMED, "execution": _EXEC_WOMEN}),
 ]}
 
 # Camera types by tier (weights) and the chance that a team account, not a player, uploads (design.md §2.5). Camera

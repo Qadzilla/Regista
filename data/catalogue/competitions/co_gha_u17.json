@@ -35,7 +35,7 @@
   "key": "academy/U17/men",
   "skill_offset": -9,
   "stamina_offset": -2,
-  "speed_mult": 0.92,
+  "speed_mult": 0.81,
   "accel_mult": 0.92,
   "height_shift": -3,
   "age_range": [
@@ -45,7 +45,8 @@
   "style_offset": {
    "keep": -9.0,
    "press": -10.0
-  }
+  },
+  "execution": 3.0
  },
  "clubs": [
   {
@@ -82,7 +83,7 @@
       "shot_stopping": 58,
       "handling": 60,
       "distribution": 57,
-      "top_speed_kmh": 24.3,
+      "top_speed_kmh": 21.4,
       "acceleration_ms2": 2.39
      }
     },
@@ -105,7 +106,7 @@
       "defending": 56,
       "aerial": 41,
       "stamina": 57,
-      "top_speed_kmh": 34.4,
+      "top_speed_kmh": 30.3,
       "acceleration_ms2": 4.6
      }
     },
@@ -128,8 +129,8 @@
       "defending": 64,
       "aerial": 65,
       "stamina": 60,
-      "top_speed_kmh": 30.2,
-      "acceleration_ms2": 3.54
+      "top_speed_kmh": 26.6,
+      "acceleration_ms2": 3.53
      }
     },
     {
@@ -151,7 +152,7 @@
       "defending": 73,
       "aerial": 71,
       "stamina": 67,
-      "top_speed_kmh": 30.4,
+      "top_speed_kmh": 26.8,
       "acceleration_ms2": 3.81
      }
     },
@@ -174,8 +175,8 @@
       "defending": 51,
       "aerial": 38,
       "stamina": 60,
-      "top_speed_kmh": 32.3,
-      "acceleration_ms2": 3.71
+      "top_speed_kmh": 28.5,
+      "acceleration_ms2": 3.72
      }
     },
     {
@@ -197,7 +198,7 @@
       "defending": 55,
       "aerial": 51,
       "stamina": 71,
-      "top_speed_kmh": 29.0,
+      "top_speed_kmh": 25.5,
       "acceleration_ms2": 3.51
      }
     },
@@ -220,8 +221,8 @@
       "defending": 70,
       "aerial": 67,
       "stamina": 72,
-      "top_speed_kmh": 29.6,
-      "acceleration_ms2": 3.07
+      "top_speed_kmh": 26.1,
+      "acceleration_ms2": 3.08
      }
     },
     {
@@ -243,7 +244,7 @@
       "defending": 43,
       "aerial": 49,
       "stamina": 67,
-      "top_speed_kmh": 32.3,
+      "top_speed_kmh": 28.5,
       "acceleration_ms2": 3.9
      }
     },
@@ -266,7 +267,7 @@
       "defending": 23,
       "aerial": 30,
       "stamina": 48,
-      "top_speed_kmh": 33.1,
+      "top_speed_kmh": 29.2,
       "acceleration_ms2": 3.98
      }
     },
@@ -289,8 +290,8 @@
       "defending": 18,
       "aerial": 62,
       "stamina": 52,
-      "top_speed_kmh": 32.0,
-      "acceleration_ms2": 3.62
+      "top_speed_kmh": 28.3,
+      "acceleration_ms2": 3.63
      }
     },
     {
@@ -312,7 +313,7 @@
       "defending": 41,
       "aerial": 41,
       "stamina": 69,
-      "top_speed_kmh": 31.2,
+      "top_speed_kmh": 27.5,
       "acceleration_ms2": 3.56
      }
     },
@@ -338,7 +339,7 @@
       "shot_stopping": 60,
       "handling": 51,
       "distribution": 58,
-      "top_speed_kmh": 27.0,
+      "top_speed_kmh": 23.7,
       "acceleration_ms2": 2.39
      }
     },
@@ -361,8 +362,8 @@
       "defending": 57,
       "aerial": 51,
       "stamina": 40,
-      "top_speed_kmh": 30.0,
-      "acceleration_ms2": 3.3
+      "top_speed_kmh": 26.4,
+      "acceleration_ms2": 3.31
      }
     },
     {
@@ -384,7 +385,7 @@
       "defending": 65,
       "aerial": 49,
       "stamina": 70,
-      "top_speed_kmh": 31.0,
+      "top_speed_kmh": 27.3,
       "acceleration_ms2": 3.3
      }
     },
@@ -407,7 +408,7 @@
       "defending": 63,
       "aerial": 58,
       "stamina": 67,
-      "top_speed_kmh": 30.1,
+      "top_speed_kmh": 26.5,
       "acceleration_ms2": 3.41
      }
     },
@@ -430,8 +431,8 @@
       "defending": 29,
       "aerial": 39,
       "stamina": 70,
-      "top_speed_kmh": 31.7,
-      "acceleration_ms2": 3.84
+      "top_speed_kmh": 28.0,
+      "acceleration_ms2": 3.85
      }
     },
     {
@@ -453,7 +454,7 @@
       "defending": 18,
       "aerial": 61,
       "stamina": 62,
-      "top_speed_kmh": 30.9,
+      "top_speed_kmh": 27.2,
       "acceleration_ms2": 3.81
      }
     },
@@ -476,8 +477,8 @@
       "defending": 65,
       "aerial": 55,
       "stamina": 77,
-      "top_speed_kmh": 31.5,
-      "acceleration_ms2": 3.19
+      "top_speed_kmh": 27.7,
+      "acceleration_ms2": 3.18
      }
     }
    ]
@@ -516,8 +517,8 @@
       "shot_stopping": 57,
       "handling": 62,
       "distribution": 47,
-      "top_speed_kmh": 29.1,
-      "acceleration_ms2": 2.72
+      "top_speed_kmh": 25.6,
+      "acceleration_ms2": 2.73
      }
     },
     {
@@ -539,8 +540,8 @@
       "defending": 55,
       "aerial": 64,
       "stamina": 60,
-      "top_speed_kmh": 32.0,
-      "acceleration_ms2": 3.8
+      "top_speed_kmh": 28.1,
+      "acceleration_ms2": 3.79
      }
     },
     {
@@ -562,7 +563,7 @@
       "defending": 83,
       "aerial": 71,
       "stamina": 49,
-      "top_speed_kmh": 30.7,
+      "top_speed_kmh": 27.0,
       "acceleration_ms2": 3.38
      }
     },
@@ -585,8 +586,8 @@
       "defending": 72,
       "aerial": 87,
       "stamina": 56,
-      "top_speed_kmh": 31.8,
-      "acceleration_ms2": 4.37
+      "top_speed_kmh": 28.0,
+      "acceleration_ms2": 4.36
      }
     },
     {
@@ -608,7 +609,7 @@
       "defending": 60,
       "aerial": 48,
       "stamina": 61,
-      "top_speed_kmh": 29.7,
+      "top_speed_kmh": 26.2,
       "acceleration_ms2": 2.76
      }
     },
@@ -631,7 +632,7 @@
       "defending": 52,
       "aerial": 47,
       "stamina": 68,
-      "top_speed_kmh": 29.9,
+      "top_speed_kmh": 26.3,
       "acceleration_ms2": 3.53
      }
     },
@@ -654,7 +655,7 @@
       "defending": 64,
       "aerial": 56,
       "stamina": 66,
-      "top_speed_kmh": 31.0,
+      "top_speed_kmh": 27.3,
       "acceleration_ms2": 3.86
      }
     },
@@ -677,8 +678,8 @@
       "defending": 43,
       "aerial": 27,
       "stamina": 66,
-      "top_speed_kmh": 30.9,
-      "acceleration_ms2": 3.72
+      "top_speed_kmh": 27.2,
+      "acceleration_ms2": 3.73
      }
     },
     {
@@ -700,7 +701,7 @@
       "defending": 34,
       "aerial": 28,
       "stamina": 65,
-      "top_speed_kmh": 34.4,
+      "top_speed_kmh": 30.3,
       "acceleration_ms2": 4.62
      }
     },
@@ -723,8 +724,8 @@
       "defending": 31,
       "aerial": 79,
       "stamina": 54,
-      "top_speed_kmh": 29.9,
-      "acceleration_ms2": 3.37
+      "top_speed_kmh": 26.3,
+      "acceleration_ms2": 3.36
      }
     },
     {
@@ -746,8 +747,8 @@
       "defending": 21,
       "aerial": 39,
       "stamina": 64,
-      "top_speed_kmh": 32.2,
-      "acceleration_ms2": 3.91
+      "top_speed_kmh": 28.3,
+      "acceleration_ms2": 3.9
      }
     },
     {
@@ -772,7 +773,7 @@
       "shot_stopping": 67,
       "handling": 58,
       "distribution": 42,
-      "top_speed_kmh": 25.1,
+      "top_speed_kmh": 22.1,
       "acceleration_ms2": 2.39
      }
     },
@@ -795,7 +796,7 @@
       "defending": 73,
       "aerial": 69,
       "stamina": 78,
-      "top_speed_kmh": 29.2,
+      "top_speed_kmh": 25.7,
       "acceleration_ms2": 3.21
      }
     },
@@ -818,8 +819,8 @@
       "defending": 50,
       "aerial": 41,
       "stamina": 70,
-      "top_speed_kmh": 29.6,
-      "acceleration_ms2": 3.41
+      "top_speed_kmh": 26.1,
+      "acceleration_ms2": 3.42
      }
     },
     {
@@ -841,7 +842,7 @@
       "defending": 56,
       "aerial": 42,
       "stamina": 54,
-      "top_speed_kmh": 28.0,
+      "top_speed_kmh": 24.6,
       "acceleration_ms2": 3.11
      }
     },
@@ -864,7 +865,7 @@
       "defending": 20,
       "aerial": 37,
       "stamina": 48,
-      "top_speed_kmh": 32.6,
+      "top_speed_kmh": 28.7,
       "acceleration_ms2": 4.03
      }
     },
@@ -887,8 +888,8 @@
       "defending": 20,
       "aerial": 64,
       "stamina": 59,
-      "top_speed_kmh": 28.7,
-      "acceleration_ms2": 3.14
+      "top_speed_kmh": 25.2,
+      "acceleration_ms2": 3.12
      }
     },
     {
@@ -910,7 +911,7 @@
       "defending": 57,
       "aerial": 46,
       "stamina": 82,
-      "top_speed_kmh": 31.5,
+      "top_speed_kmh": 27.7,
       "acceleration_ms2": 3.86
      }
     }
@@ -950,7 +951,7 @@
       "shot_stopping": 59,
       "handling": 57,
       "distribution": 55,
-      "top_speed_kmh": 26.5,
+      "top_speed_kmh": 23.4,
       "acceleration_ms2": 2.39
      }
     },
@@ -973,7 +974,7 @@
       "defending": 64,
       "aerial": 54,
       "stamina": 85,
-      "top_speed_kmh": 33.0,
+      "top_speed_kmh": 29.1,
       "acceleration_ms2": 4.15
      }
     },
@@ -996,7 +997,7 @@
       "defending": 72,
       "aerial": 70,
       "stamina": 66,
-      "top_speed_kmh": 29.0,
+      "top_speed_kmh": 25.5,
       "acceleration_ms2": 3.16
      }
     },
@@ -1019,7 +1020,7 @@
       "defending": 60,
       "aerial": 77,
       "stamina": 70,
-      "top_speed_kmh": 28.7,
+      "top_speed_kmh": 25.3,
       "acceleration_ms2": 3.02
      }
     },
@@ -1042,7 +1043,7 @@
       "defending": 61,
       "aerial": 52,
       "stamina": 75,
-      "top_speed_kmh": 32.9,
+      "top_speed_kmh": 29.0,
       "acceleration_ms2": 4.21
      }
     },
@@ -1065,8 +1066,8 @@
       "defending": 42,
       "aerial": 38,
       "stamina": 65,
-      "top_speed_kmh": 32.6,
-      "acceleration_ms2": 3.94
+      "top_speed_kmh": 28.7,
+      "acceleration_ms2": 3.95
      }
     },
     {
@@ -1088,8 +1089,8 @@
       "defending": 69,
       "aerial": 47,
       "stamina": 62,
-      "top_speed_kmh": 31.8,
-      "acceleration_ms2": 3.71
+      "top_speed_kmh": 28.1,
+      "acceleration_ms2": 3.72
      }
     },
     {
@@ -1111,8 +1112,8 @@
       "defending": 36,
       "aerial": 21,
       "stamina": 48,
-      "top_speed_kmh": 32.0,
-      "acceleration_ms2": 3.83
+      "top_speed_kmh": 28.2,
+      "acceleration_ms2": 3.84
      }
     },
     {
@@ -1134,8 +1135,8 @@
       "defending": 50,
       "aerial": 58,
       "stamina": 78,
-      "top_speed_kmh": 30.9,
-      "acceleration_ms2": 3.59
+      "top_speed_kmh": 27.1,
+      "acceleration_ms2": 3.58
      }
     },
     {
@@ -1157,8 +1158,8 @@
       "defending": 35,
       "aerial": 58,
       "stamina": 55,
-      "top_speed_kmh": 31.5,
-      "acceleration_ms2": 3.6
+      "top_speed_kmh": 27.8,
+      "acceleration_ms2": 3.61
      }
     },
     {
@@ -1180,7 +1181,7 @@
       "defending": 36,
       "aerial": 42,
       "stamina": 52,
-      "top_speed_kmh": 32.3,
+      "top_speed_kmh": 28.5,
       "acceleration_ms2": 4.01
      }
     },
@@ -1206,7 +1207,7 @@
       "shot_stopping": 59,
       "handling": 61,
       "distribution": 54,
-      "top_speed_kmh": 25.5,
+      "top_speed_kmh": 22.5,
       "acceleration_ms2": 2.39
      }
     },
@@ -1229,8 +1230,8 @@
       "defending": 56,
       "aerial": 67,
       "stamina": 49,
-      "top_speed_kmh": 29.8,
-      "acceleration_ms2": 3.58
+      "top_speed_kmh": 26.2,
+      "acceleration_ms2": 3.57
      }
     },
     {
@@ -1252,7 +1253,7 @@
       "defending": 48,
       "aerial": 55,
       "stamina": 71,
-      "top_speed_kmh": 31.0,
+      "top_speed_kmh": 27.3,
       "acceleration_ms2": 3.65
      }
     },
@@ -1275,7 +1276,7 @@
       "defending": 61,
       "aerial": 65,
       "stamina": 59,
-      "top_speed_kmh": 29.1,
+      "top_speed_kmh": 25.6,
       "acceleration_ms2": 3.39
      }
     },
@@ -1298,7 +1299,7 @@
       "defending": 27,
       "aerial": 37,
       "stamina": 57,
-      "top_speed_kmh": 33.0,
+      "top_speed_kmh": 29.0,
       "acceleration_ms2": 3.76
      }
     },
@@ -1321,7 +1322,7 @@
       "defending": 33,
       "aerial": 63,
       "stamina": 65,
-      "top_speed_kmh": 30.4,
+      "top_speed_kmh": 26.8,
       "acceleration_ms2": 3.52
      }
     },
@@ -1344,7 +1345,7 @@
       "defending": 56,
       "aerial": 46,
       "stamina": 72,
-      "top_speed_kmh": 31.9,
+      "top_speed_kmh": 28.1,
       "acceleration_ms2": 3.49
      }
     }
@@ -1384,7 +1385,7 @@
       "shot_stopping": 69,
       "handling": 67,
       "distribution": 54,
-      "top_speed_kmh": 24.0,
+      "top_speed_kmh": 21.1,
       "acceleration_ms2": 2.39
      }
     },
@@ -1407,7 +1408,7 @@
       "defending": 59,
       "aerial": 53,
       "stamina": 53,
-      "top_speed_kmh": 31.6,
+      "top_speed_kmh": 27.8,
       "acceleration_ms2": 3.6
      }
     },
@@ -1430,7 +1431,7 @@
       "defending": 71,
       "aerial": 63,
       "stamina": 60,
-      "top_speed_kmh": 28.8,
+      "top_speed_kmh": 25.4,
       "acceleration_ms2": 3.33
      }
     },
@@ -1453,8 +1454,8 @@
       "defending": 70,
       "aerial": 64,
       "stamina": 61,
-      "top_speed_kmh": 29.7,
-      "acceleration_ms2": 3.29
+      "top_speed_kmh": 26.1,
+      "acceleration_ms2": 3.28
      }
     },
     {
@@ -1476,8 +1477,8 @@
       "defending": 59,
       "aerial": 57,
       "stamina": 56,
-      "top_speed_kmh": 31.7,
-      "acceleration_ms2": 3.28
+      "top_speed_kmh": 27.8,
+      "acceleration_ms2": 3.26
      }
     },
     {
@@ -1499,7 +1500,7 @@
       "defending": 52,
       "aerial": 45,
       "stamina": 83,
-      "top_speed_kmh": 30.5,
+      "top_speed_kmh": 26.9,
       "acceleration_ms2": 4.02
      }
     },
@@ -1522,7 +1523,7 @@
       "defending": 81,
       "aerial": 58,
       "stamina": 68,
-      "top_speed_kmh": 31.7,
+      "top_speed_kmh": 27.9,
       "acceleration_ms2": 3.48
      }
     },
@@ -1545,8 +1546,8 @@
       "defending": 50,
       "aerial": 40,
       "stamina": 64,
-      "top_speed_kmh": 32.3,
-      "acceleration_ms2": 3.68
+      "top_speed_kmh": 28.4,
+      "acceleration_ms2": 3.69
      }
     },
     {
@@ -1568,8 +1569,8 @@
       "defending": 19,
       "aerial": 44,
       "stamina": 68,
-      "top_speed_kmh": 29.9,
-      "acceleration_ms2": 3.3
+      "top_speed_kmh": 26.3,
+      "acceleration_ms2": 3.29
      }
     },
     {
@@ -1591,7 +1592,7 @@
       "defending": 21,
       "aerial": 69,
       "stamina": 55,
-      "top_speed_kmh": 32.7,
+      "top_speed_kmh": 28.8,
       "acceleration_ms2": 3.89
      }
     },
@@ -1614,8 +1615,8 @@
       "defending": 41,
       "aerial": 43,
       "stamina": 60,
-      "top_speed_kmh": 32.7,
-      "acceleration_ms2": 4.33
+      "top_speed_kmh": 28.8,
+      "acceleration_ms2": 4.34
      }
     },
     {
@@ -1640,7 +1641,7 @@
       "shot_stopping": 57,
       "handling": 56,
       "distribution": 51,
-      "top_speed_kmh": 27.1,
+      "top_speed_kmh": 23.9,
       "acceleration_ms2": 2.39
      }
     },
@@ -1663,8 +1664,8 @@
       "defending": 49,
       "aerial": 60,
       "stamina": 53,
-      "top_speed_kmh": 28.4,
-      "acceleration_ms2": 3.29
+      "top_speed_kmh": 25.0,
+      "acceleration_ms2": 3.28
      }
     },
     {
@@ -1686,7 +1687,7 @@
       "defending": 55,
       "aerial": 54,
       "stamina": 69,
-      "top_speed_kmh": 31.0,
+      "top_speed_kmh": 27.3,
       "acceleration_ms2": 3.65
      }
     },
@@ -1709,8 +1710,8 @@
       "defending": 73,
       "aerial": 70,
       "stamina": 80,
-      "top_speed_kmh": 27.9,
-      "acceleration_ms2": 2.76
+      "top_speed_kmh": 24.6,
+      "acceleration_ms2": 2.77
      }
     },
     {
@@ -1732,8 +1733,8 @@
       "defending": 28,
       "aerial": 35,
       "stamina": 65,
-      "top_speed_kmh": 33.7,
-      "acceleration_ms2": 4.44
+      "top_speed_kmh": 29.7,
+      "acceleration_ms2": 4.45
      }
     },
     {
@@ -1755,8 +1756,8 @@
       "defending": 41,
       "aerial": 58,
       "stamina": 77,
-      "top_speed_kmh": 32.0,
-      "acceleration_ms2": 3.68
+      "top_speed_kmh": 28.2,
+      "acceleration_ms2": 3.7
      }
     },
     {
@@ -1778,7 +1779,7 @@
       "defending": 52,
       "aerial": 34,
       "stamina": 70,
-      "top_speed_kmh": 31.1,
+      "top_speed_kmh": 27.4,
       "acceleration_ms2": 3.67
      }
     }

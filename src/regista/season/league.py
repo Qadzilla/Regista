@@ -292,7 +292,8 @@ def generate_kwargs(league: Record, fixture: Record, *, ratings: bool = True) ->
     default) each squad member carries its hidden ratings, role, height and foot, which switches the generator into
     league mode; ``ratings=False`` gives ids and names only (the generator as it was before ratings). A catalogue
     competition file (``regista.catalogue``) carries a ``level`` whose ``style_offset`` re-centres team style on that
-    level; ``league.json`` has none, so the Regista League's arguments are what they always were."""
+    level and whose ``execution`` lowers both sides' technical execution against absolute football; ``league.json`` has
+    no level, so the Regista League's arguments are what they always were."""
     clubs = club_by_id(league)
     g = league["generator"]
 
@@ -309,10 +310,14 @@ def generate_kwargs(league: Record, fixture: Record, *, ratings: bool = True) ->
 
     home = clubs[fixture["home"]]
     teams = [side(fixture["home"]), side(fixture["away"])]
-    style_offset = (league.get("level") or {}).get("style_offset")
+    level = league.get("level") or {}
+    style_offset, execution = level.get("style_offset"), level.get("execution")
     if ratings and style_offset:  # a catalogue competition on another level (regista.catalogue); league.json has no level
         for t in teams:
             t["style_offset"] = dict(style_offset)
+    if ratings and execution:     # ... whose technical execution sits below the reference level's (absolute, not relative)
+        for t in teams:
+            t["execution"] = float(execution)
     return {"seed": fixture["seed"], "minutes": g["minutes"], "track_hz": g["track_hz"], "profile": g["profile"],
             "periods": g["periods"], "teams": teams, "match_id": fixture["match_id"],
             "meta": {"competition": league["league"], "season": league["season"], "date": fixture["date"], "venue": home["ground"]}}

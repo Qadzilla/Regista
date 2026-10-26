@@ -8,7 +8,9 @@ kind of check its numbers get:
   of U17 outfielders [S5].
 - ``order``: a direction a source reports between levels (that amateurs complete fewer passes than semi-pros, that
   women's high-intensity distance is lower than men's, that youth running distance rises from U17 to U18), checked on
-  pooled measurement seasons: pass, fail, or not separated (the margin is inside season-to-season noise). Only the span
+  pooled measurement seasons: pass, fail, or not separated (the margin is inside season-to-season noise). Where the source
+  also gives a size (``gap``: women's pass completion 8 points below men's at the World Cups [S12]), the step must fall
+  inside it as well. Only the span
   a source covers is sourced: the youth sources stop at U17 [S5, S6] and U18 [S8], so the steps beyond them (U18 to
   senior; for peak speed, U17 to senior) are **assumed orders** (``basis: "assumed"``), worded "no published band",
   measured the same way and never counted as a check. The youth peak-speed steps hold **by construction**: the youth
@@ -44,16 +46,42 @@ SEMI_PRO_MEN = "semi_pro/senior/men"
 YOUTH_ORDER = ["academy/U17/men", "academy/U18/men", "academy/U19/men", "academy/U20/men", SEMI_PRO_MEN]
 
 SOURCES: dict[str, str] = {
-    "S1": "Bradley et al. 2014, Hum Mov Sci 33:159-171 (UEFA Champions League, women vs men)",
-    "S2": "Datson et al. 2017, J Strength Cond Res 31(9):2379-2387 (elite women's internationals)",
-    "S3": "Vescovi 2012, FAiM study (high-level American female players' sprint speed)",
-    "S4": "Match demands of NCAA Division I men's soccer, J Strength Cond Res 2018",
-    "S5": "Peak match speed and maximal sprinting speed in young soccer players, IJSPP 2015;10(7):888-896",
-    "S6": "Age-related differences in peak match running speed in highly-trained young soccer players",
-    "S8": "Buchheit et al. 2010, Int J Sports Med 31(11):818-825 (youth match running, U13-U18)",
-    "S9": "Match running performance on three competitive standards in Norwegian soccer",
-    "S10": "Professional vs amateur players in small-sided games (as summarised in PMC6815094; direction only)",
-    "S11": "FIFA Training Centre, Women's World Cup 2023 physical analysis, part 2",
+    "S1": "Bradley PS, Dellal A, Mohr M, Castellano J, Wilkie A. Gender differences in match performance characteristics of "
+          "soccer players competing in the UEFA Champions League. Hum Mov Sci 2014;33:159-171. doi:10.1016/j.humov.2013.07.024",
+    "S2": "Datson N, Drust B, Weston M, Jarman IH, Lisboa PJ, Gregson W. Match physical performance of elite female soccer "
+          "players during international competition. J Strength Cond Res 2017;31(9):2379-2387. doi:10.1519/JSC.0000000000001575",
+    "S3": "Vescovi JD. Sprint speed characteristics of high-level American female soccer players: Female Athletes in Motion "
+          "(FAiM) study. J Sci Med Sport 2012;15(5):474-478. doi:10.1016/j.jsams.2012.03.006",
+    "S4": "Curtis RM, Huggins RA, Looney DP, West CA, Fortunati A, Fontaine GJ, Casa DJ. Match demands of National "
+          "Collegiate Athletic Association Division I men's soccer. J Strength Cond Res 2018;32(10):2907-2917. "
+          "doi:10.1519/JSC.0000000000002719",
+    "S5": "Al Haddad H, Simpson BM, Buchheit M, Di Salvo V, Mendez-Villanueva A. Peak match speed and maximal sprinting speed "
+          "in young soccer players: effect of age and playing position. Int J Sports Physiol Perform 2015;10(7):888-896. "
+          "doi:10.1123/ijspp.2014-0539",
+    "S6": "Al Haddad H, Simpson BM, Buchheit M, Mendez-Villanueva A. Age-related differences in peak match running speed in "
+          "highly-trained young soccer players. 17th Annual Congress of the ECSS, Bruges, 2012 (abstract); "
+          "https://lida.sport-iat.de/ta/Record/4029276",
+    "S8": "Buchheit M, Mendez-Villanueva A, Simpson BM, Bourdon PC. Match running performance and fitness in youth soccer. "
+          "Int J Sports Med 2010;31(11):818-825. doi:10.1055/s-0030-1262838",
+    "S9": "Saeterbakken A, Haug V, Fransson D, Grendstad HN, Gundersen HS, Moe VF, Ylvisaker E, Shaw M, Riiser A, Andersen V. "
+          "Match running performance on three different competitive standards in Norwegian soccer. Sports Med Int Open "
+          "2019;3(3):E82-E88. doi:10.1055/a-0943-3682",
+    "S10": "Dellal A, Hill-Haas S, Lago-Penas C, Chamari K. Small-sided games in soccer: amateur vs. professional players' "
+           "physiological responses, physical, and technical activities. J Strength Cond Res 2011;25(9):2371-2381. "
+           "doi:10.1519/JSC.0b013e3181fb4296 (small-sided games, not full matches: direction only)",
+    "S11": "Bradley PS. Setting the benchmark, part 2: setting physical benchmarks across teams. FIFA Training Centre, FIFA "
+           "Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/"
+           "fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/"
+           "part-2-setting-physical-benchmarks-across-teams.php",
+    "S12": "Pappalardo L, Rossi A, Natilli M, Cintia P. Explaining the difference between men's and women's football. PLoS One "
+           "2021;16(8):e0255407. doi:10.1371/journal.pone.0255407 (2018 men's and 2019 women's World Cups, Wyscout events)",
+    "S13": "Bradley PS, Carling C, Gomez Diaz A, Hood P, Barnes C, Ade J, Boddy M, Krustrup P, Mohr M. Match performance and "
+           "physical capacity of players in the top three competitive standards of English professional soccer. Hum Mov Sci "
+           "2013;32(4):808-821. doi:10.1016/j.humov.2013.06.002",
+    "S14": "Bradley PS. Setting the benchmark, part 3: setting physical benchmarks across positions. FIFA Training Centre, FIFA "
+           "Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/"
+           "fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/"
+           "part-3-setting-physical-benchmarks-across-positions.php",
 }
 
 # The one band read below senior level: mean peak match speed of outfielders (the engine's peak_speed_mean), U17.
@@ -63,7 +91,13 @@ BANDS: list[Record] = [
      "label": "highly trained U17 academy outfielders' mean peak match speed is 26.8 +/- 1.9 km/h"},
 ]
 
-# Sourced directions between levels: ``levels`` from lowest to highest value. ``path`` reads a level aggregate
+# The women's pass completion gap: 8 points at the World Cups (0.76 +/- 0.08 against 0.84 +/- 0.05 per team and match,
+# [S12]); a step passes inside 8 +/- 3 points (the tolerance is Regista's: a same-tier gap below elite football is not
+# published).
+WOMEN_PASS_GAP = (5.0, 11.0)
+
+# Sourced directions between levels: ``levels`` from lowest to highest value. ``gap`` (low, high): the step must also
+# fall inside a sourced size, not only go the right way. ``path`` reads a level aggregate
 # (``measure.level_aggregates``).
 ORDERS: list[Record] = [
     {"id": "amateur_sprint_distance", "metric": "sprint_distance", "path": ("outfield_per90", "sprint_distance"),
@@ -72,12 +106,36 @@ ORDERS: list[Record] = [
     {"id": "amateur_pass_pct", "metric": "pass_pct", "path": ("pass_pct",),
      "levels": ["amateur/senior/men", SEMI_PRO_MEN], "sources": ["S10"],
      "label": "amateurs complete fewer passes than semi-pros", "unit": "%"},
+    {"id": "amateur_ball_losses", "metric": "ball_losses", "path": ("outfield_per90", "ball_losses"),
+     "levels": [SEMI_PRO_MEN, "amateur/senior/men"], "sources": ["S10"],
+     "label": "amateurs lose the ball more often than semi-pros", "unit": "per 90"},
+    # No source puts numbers on pass completion by level below the professional line, so the steps between the men's
+    # senior tiers are Regista's assumption; [S13] reports the direction within professional football only.
+    {"id": "tier_pass_pct", "metric": "pass_pct", "path": ("pass_pct",),
+     "levels": ["amateur/senior/men", "college/college/men", SEMI_PRO_MEN], "basis": "assumed", "sources": [],
+     "covers": {"sources": ["S10", "S13"], "span": "amateurs against internationals in small-sided games; England's top "
+                                                   "three professional standards"},
+     "label": "pass completion rises with the men's senior tier: amateur < college < semi-pro", "unit": "%"},
+    {"id": "lower_standard_passes", "metric": "passes", "path": ("outfield_per90", "passes"),
+     "levels": ["amateur/senior/men", SEMI_PRO_MEN], "basis": "assumed", "sources": [],
+     "covers": {"sources": ["S13"], "span": "England's top three professional standards"},
+     "label": "amateurs attempt fewer passes per 90 than semi-pros (shorter possessions, earlier shots)",
+     "unit": "per 90"},
+    # Youth passing: no published pass completion or ball losses by age group was found (the sources compare adult
+    # standards and genders), so the whole youth order is assumed.
+    {"id": "youth_pass_pct", "metric": "pass_pct", "path": ("pass_pct",), "levels": YOUTH_ORDER, "basis": "assumed",
+     "sources": [], "covers": {"sources": ["S1", "S10", "S12", "S13"], "span": "adult football"},
+     "label": "pass completion rises with age: U17 < U18 < U19 < U20 < senior", "unit": "%"},
+    {"id": "youth_ball_losses", "metric": "ball_losses", "path": ("outfield_per90", "ball_losses"),
+     "levels": YOUTH_ORDER[::-1], "basis": "assumed", "sources": [],
+     "covers": {"sources": ["S1", "S10", "S12"], "span": "adult football"},
+     "label": "ball losses fall with age: U17 > U18 > U19 > U20 > senior", "unit": "per 90"},
     # [S5, S6] cover U13-U17: no catalogue step is inside their span, so the whole youth speed order is assumed, and the
     # youth speed scales are interpolated between U17 and senior (taxonomy.LEVELS): it holds by construction.
     {"id": "youth_peak_speed_mean", "metric": "peak_speed_mean", "path": ("peak_speed_mean",), "levels": YOUTH_ORDER,
      "basis": "assumed", "sources": [], "covers": {"sources": ["S5", "S6"], "span": "U13-U17"},
-     "construction": "the youth speed scales are interpolated between U17 [S6] and senior (the level scales), so the "
-                     "order follows from the build's own assumption and tests the build, not football",
+     "construction": "the youth speed scales are set from U17's peak match speed [S5] and interpolated to senior (the "
+                     "level scales), so the order follows from the build's own assumption and tests the build, not football",
      "label": "peak match speed keeps rising from U17 to senior: U17 < U18 < U19 < U20 < senior", "unit": "km/h"},
     # [S8] covers U13-U18: the U17 to U18 step is sourced, the rest of the way to senior is assumed.
     {"id": "youth_distance", "metric": "distance", "path": ("outfield_per90", "distance"),
@@ -89,11 +147,13 @@ ORDERS: list[Record] = [
      "label": "match running distance per 90 keeps rising from U18 to senior: U18 < U19 < U20 < senior",
      "unit": "m per 90"},
     {"id": "women_pass_pct_semi_pro", "metric": "pass_pct", "path": ("pass_pct",),
-     "levels": ["semi_pro/senior/women", SEMI_PRO_MEN], "sources": ["S1"],
-     "label": "women complete fewer passes than men (semi-pro)", "unit": "%"},
+     "levels": ["semi_pro/senior/women", SEMI_PRO_MEN], "sources": ["S1", "S12"], "gap": WOMEN_PASS_GAP,
+     "label": "women complete fewer passes than men (semi-pro): 76% against 84% at the 2019 and 2018 World Cups [S12], a gap "
+              "of 8 points", "unit": "%"},
     {"id": "women_pass_pct_college", "metric": "pass_pct", "path": ("pass_pct",),
-     "levels": ["college/college/women", "college/college/men"], "sources": ["S1"],
-     "label": "women complete fewer passes than men (college)", "unit": "%"},
+     "levels": ["college/college/women", "college/college/men"], "sources": ["S1", "S12"], "gap": WOMEN_PASS_GAP,
+     "label": "women complete fewer passes than men (college): 76% against 84% at the 2019 and 2018 World Cups [S12], a gap "
+              "of 8 points", "unit": "%"},
     {"id": "women_ball_losses_semi_pro", "metric": "ball_losses", "path": ("outfield_per90", "ball_losses"),
      "levels": [SEMI_PRO_MEN, "semi_pro/senior/women"], "sources": ["S1"],
      "label": "women lose the ball more often than men (semi-pro)", "unit": "per 90"},
@@ -118,6 +178,8 @@ WOMEN_REFERENCES: dict[str, list[Record]] = {
                  {"text": "teams 103.3 +/- 4.4 km per match at the 2023 Women's World Cup", "sources": ["S11"]}],
     "peak_speed": [{"text": "peak sprint speed 27.3 +/- 1.4 km/h, maxima above 30 km/h (high-level American players)",
                     "sources": ["S3"]}],
+    "peak_speed_mean": [{"text": "top speeds in games 28.0-29.4 km/h by position at the 2023 Women's World Cup (central "
+                                 "and defensive midfielders lowest, attacking and wide players highest)", "sources": ["S14"]}],
 }
 REFERENCES: dict[str, dict[str, list[Record]]] = {
     "college/college/men": {"distance": [{"text": "about 9,367 m per match in NCAA Division I men's soccer (per match, "
@@ -133,6 +195,20 @@ ZONE_KEYS = ("hsr_distance", "hi_distance", "sprint_distance", "sprints", "hi_ef
 WOMEN_ZONE_NOTE = ("Speed zones are the men's FIFA zones (20 and 25 km/h) at every level; women's tournaments are "
                    "analysed with 19 and 23 km/h [S11], so these women's numbers are lower than on women's zones and many "
                    "players have none: compare them within women's pools only.")
+YOUTH_ZONE_NOTE = ("Speed zones are the men's senior FIFA zones (20 and 25 km/h) at every level; youth studies use lower "
+                   "or individual thresholds (very high intensity above 16.1 km/h in [S8]) and U17 match peaks average "
+                   "26.8 km/h [S5], so few academy players reach 25 km/h and many have no sprints: compare these numbers "
+                   "within youth pools only.")
+YOUTH_LEVELS = {"academy/U17/men", "academy/U18/men", "academy/U19/men", "academy/U20/men"}
+
+
+def zone_note_for(level: str, key: str) -> str | None:
+    """The threshold note a speed-zone number carries at this level (women's and youth pools), else None."""
+    if key not in ZONE_KEYS:
+        return None
+    return WOMEN_ZONE_NOTE if level in WOMEN_LEVELS else YOUTH_ZONE_NOTE if level in YOUTH_LEVELS else None
+
+
 SCALE_NOTE = ("Absolute values at every level sit on a Premier-League-calibrated scale (the Regista League was tuned to "
               "Premier League bands and every level is scaled from it), so they likely overstate real football below "
               "the professional line: read numbers within their pools.")
@@ -219,7 +295,8 @@ def _order_note(o: Record, check: Record | None) -> str:
     worst = [st for st in steps if st["verdict"] != "pass"]
     out = f"{head} Measured (lowest expected first): {vals}"
     if check["verdict"] == "pass":
-        return out + (": as assumed" if assumed(o) else ": as reported") + ", every step beyond season-to-season noise."
+        gap = f", and inside the sourced gap of {o['gap'][0]:g}-{o['gap'][1]:g}" if o.get("gap") else ""
+        return out + (": as assumed" if assumed(o) else ": as reported") + f", every step beyond season-to-season noise{gap}."
     parts = []
 
     def noise(st: Record) -> str:
@@ -227,7 +304,10 @@ def _order_note(o: Record, check: Record | None) -> str:
             f"season-to-season noise of +/- {SEPARATION_SE * st['se']:.2f}"
 
     for st in worst:
-        if st["verdict"] == "fail":
+        if st.get("outside_gap"):
+            parts.append(f"{st['lower']} to {st['higher']} differs by {st['margin']:+.2f}, outside the sourced gap of "
+                         f"{st['gap'][0]:g}-{st['gap'][1]:g}")
+        elif st["verdict"] == "fail":
             parts.append(f"{st['lower']} to {st['higher']} goes the other way by {abs(st['margin']):.2f}, beyond "
                          f"{noise(st)}")
         else:
@@ -298,7 +378,7 @@ def realism(key: str, competition_id: str, checks: Record | None = None) -> Reco
         note += " Also: " + " ".join(order_notes)
     if guess_notes:
         note += " " + " ".join(guess_notes)
-    zone_note = WOMEN_ZONE_NOTE if level in WOMEN_LEVELS and key in ZONE_KEYS else None
+    zone_note = zone_note_for(level, key)
     if zone_note:
         note += " " + zone_note
 
@@ -309,7 +389,7 @@ def realism(key: str, competition_id: str, checks: Record | None = None) -> Reco
 
     def order_out(o: Record) -> Record:
         v = order_v.get(o["id"]) or {}
-        return {**{k: o[k] for k in ("id", "levels", "sources", "label", "unit")},
+        return {**{k: o[k] for k in ("id", "levels", "sources", "label", "unit")}, "gap": list(o["gap"]) if o.get("gap") else None,
                 "basis": o.get("basis", "sourced"), "covers": o.get("covers"), "by_construction": bool(o.get("construction")),
                 "values": v.get("values"), "steps": v.get("steps"), "verdict": v.get("verdict")}
 
@@ -373,12 +453,19 @@ def order_checks(aggregates: dict[str, Record], per_season: dict[str, list[Recor
                 se = math.sqrt(ea * ea + eb * eb) if ea is not None and eb is not None else None
                 separated = se is None or abs(margin) >= SEPARATION_SE * se
                 verdict = "not separated" if not separated else "pass" if margin > 0 else "fail"
-                steps.append({"lower": la, "higher": lb, "margin": round(margin, 3),
-                              "se": None if se is None else round(se, 3), "separated": separated, "verdict": verdict})
+                step = {"lower": la, "higher": lb, "margin": round(margin, 3),
+                        "se": None if se is None else round(se, 3), "separated": separated, "verdict": verdict}
+                gap = o.get("gap")
+                if gap:   # a sourced size: the step passes only inside it
+                    step["gap"] = list(gap)
+                    step["outside_gap"] = not gap[0] <= margin <= gap[1]
+                    if step["outside_gap"] and verdict == "pass":
+                        step["verdict"] = "fail"
+                steps.append(step)
         vs = [st["verdict"] for st in steps]
         verdict = None if not measured else "fail" if "fail" in vs else "not separated" if "not separated" in vs else "pass"
         out.append({**{k: o[k] for k in ("id", "metric", "levels", "sources", "label", "unit")},
-                    "basis": o.get("basis", "sourced"), "covers": o.get("covers"),
+                    "gap": list(o["gap"]) if o.get("gap") else None, "basis": o.get("basis", "sourced"), "covers": o.get("covers"),
                     "by_construction": bool(o.get("construction")), "values": values, "steps": steps,
                     "verdict": verdict})
     return out

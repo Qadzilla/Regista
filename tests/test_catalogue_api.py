@@ -27,7 +27,7 @@ MATCHES = ROOT / "data" / "catalogue" / "matches"
 LEAGUE = ROOT / "data" / "season" / "league.json"
 SEASON_ROOT = ROOT / "data" / "season" / "matches"
 HIDDEN = set(ATTRIBUTE_KEYS) | {"attributes", "skill_offset", "stamina_offset", "speed_mult", "accel_mult", "height_shift",
-                                "style_offset", "level_scale", "seed", "age_range"}
+                                "execution", "style_offset", "level_scale", "seed", "age_range"}
 STAR = "pl_bro_09"
 CRUZ = "pl_sot_09"          # career: Spain U19 striker, then Spain amateur men
 GER = "co_ger_sp_men"

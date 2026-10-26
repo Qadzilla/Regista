@@ -323,27 +323,33 @@ This is the league's `_person_attributes` with a level applied. The draw order i
 The reference is the existing league (England semi-pro men). Its scales are the league module's constants, which were
 tuned against Premier League bands: §10 says how far that can be claimed.
 
-| Pool key | skill offset | stamina offset | top speed × | accel × | height shift (cm) | age range (mode) |
-|---|---|---|---|---|---|---|
-| semi_pro / senior / men | 0 | 0 | 1.00 | 1.00 | 0 | 17-35 (26; GK/CB 28) |
-| college / college / men | −3 | 0 | 0.99 | 0.99 | 0 | 18-23 (20) |
-| amateur / senior / men | −8 | −4 | 0.97 | 0.97 | 0 | 18-38 (27) |
-| academy / U20 / men | −4 | 0 | 0.97 | 0.97 | 0 | 17-19 (18) |
-| academy / U19 / men | −5 | 0 | 0.96 | 0.96 | −1 | 16-18 (17) |
-| academy / U18 / men | −6 | 0 | 0.95 | 0.95 | −2 | 16-17 (16) |
-| academy / U17 / men | −9 | −2 | 0.92 | 0.92 | −3 | 15-16 (16) |
-| semi_pro / senior / women | −3 | −3 | 0.83 | 0.90 | −12 | 17-35 (25) |
-| college / college / women | −4 | −3 | 0.82 | 0.90 | −12 | 18-23 (20) |
+> **Updated 2026-10-25 (levels.md, review B S-C and S-D).** The youth top-speed multipliers are now set from U17's
+> *match* peak speed [S5] (they were set from a sprint test [S6], and U17 match peaks came out at 29.68 km/h against a
+> band of 24.9-28.7), and every level below the reference has a technical **execution** deficit (§5.4). The table shows
+> the current values; the reasoning below each number is kept, with the youth speed and execution lines replaced.
+> `docs/catalogue/build/levels.md` has the before and after.
+
+| Pool key | skill offset | stamina offset | top speed × | accel × | height shift (cm) | age range (mode) | execution |
+|---|---|---|---|---|---|---|---|
+| semi_pro / senior / men | 0 | 0 | 1.00 | 1.00 | 0 | 17-35 (26; GK/CB 28) | 0 |
+| college / college / men | −3 | 0 | 0.99 | 0.99 | 0 | 18-23 (20) | 1.4 |
+| amateur / senior / men | −8 | −4 | 0.97 | 0.97 | 0 | 18-38 (27) | 2.65 |
+| academy / U20 / men | −4 | 0 | 0.92 | 0.97 | 0 | 17-19 (18) | 1.2 |
+| academy / U19 / men | −5 | 0 | 0.88 | 0.96 | −1 | 16-18 (17) | 1.3 |
+| academy / U18 / men | −6 | 0 | 0.85 | 0.95 | −2 | 16-17 (16) | 2.3 |
+| academy / U17 / men | −9 | −2 | 0.81 | 0.92 | −3 | 15-16 (16) | 3.0 |
+| semi_pro / senior / women | −3 | −3 | 0.83 | 0.90 | −12 | 17-35 (25) | 2.3 |
+| college / college / women | −4 | −3 | 0.82 | 0.90 | −12 | 18-23 (20) | 2.8 |
 
 Where each number comes from, honestly:
 
-- **Top speed, U17 men, × 0.92: sourced.** Highly trained U17 players reached a maximal sprinting speed of about
-  30.7 km/h (U13 about 25.2) in a study of peak match running speed in U13-U17 players [S6]. The league's mean outfield
-  top speed is 33.4 km/h (measured on `league.json`, 96 outfielders); 30.7 / 33.4 ≈ 0.92. Peak **match** speed in U17 was 26.8 ± 1.9 km/h [S5]; that
-  is the band in §10.
-- **Top speed, U18-U20, × 0.95 / 0.96 / 0.97: interpolated.** Regista's assumption between the sourced U17 figure and
-  seniors. The direction is sourced: sprint qualities rise with age and maturation [S7], and match running output
-  rises with age, U13 to U18 [S8].
+- **Top speed, U17 men, × 0.81: sourced to the match peak.** U17 players' peak match speed was 26.8 ± 1.9 km/h, 87.2%
+  of their sprint-test maximum [S5]; their sprint-test maximum was about 30.7 km/h [S6]. The generator's players reach
+  about 94-97% of their top speed in a match, so the multiplier is set so that U17 outfielders' mean match peak lands on
+  26.8 km/h (measured 26.80 over six regenerated seasons), not from the sprint test (× 0.92 before, which gave 29.68).
+- **Top speed, U18-U20, × 0.85 / 0.88 / 0.92: interpolated in match peak speed.** Regista's assumption between the U17
+  match peak and the senior reference (31.46 km/h), about 0.9 km/h a step. The direction is sourced: sprint qualities
+  rise with age and maturation [S7], and match running output rises with age, U13 to U18 [S8].
 - **Top speed, women, × 0.82-0.83: sourced.** High-level American female players' mean peak sprint speed was
   27.3 ± 1.4 km/h, with maxima above 30 [S3]. 27.3 / 33.4 ≈ 0.82, and the scaled outfield range (24.4-31.0 km/h)
   contains the reported maxima. The acceleration multiplier (0.90) is **Regista's assumption**: no published band was
@@ -407,6 +413,23 @@ skill ratings, so the offset is the same). England's kwargs never carry the key.
   Re-stamp it with `python -m regista.season.reliability` (6 seasons, slow). The numbers must come out identical: the
   builder diffs everything except the fingerprint and says so in the phase report. Otherwise `/api/metrics`'s
   `season.reliability.stale` would change, a response change.
+
+### 5.4 The second generator change: technical execution by level (2026-10-25, levels.md)
+
+The §10 measurement showed what §4.3 predicted: a level's passers and markers drop together, so pass completion, ball
+losses and goals came out alike at every level (amateurs completed 81.38% against semi-pro men's 80.53%). This is the
+§5.2 fallback, built as an execution effect rather than a volume re-centring:
+
+- An optional team-spec key `execution` (a float; the competition file's `level.execution`, copied by
+  `generate_kwargs`). Absent or 0, nothing below runs and no random draw is added, so England's kwargs (which never
+  carry it), `SEASON_PINS` and `tests/test_backcompat.py` are unchanged. `LEAGUE_GENERATOR_VERSION` is not bumped.
+- Against absolute football, not the opponent, a side at execution e: completes fewer passes (`exec_pass`, log-odds per
+  unit), miscontrols received passes (`exec_touch`, twice as often under pressure: a `heavy_touch` first touch that runs
+  loose, lost as a dispossession), is dispossessed more often (`exec_lose`), shoots sooner (`exec_shot`), and keeps out
+  fewer shots (`exec_keeper`, on the defending side). The last two keep shots and goals from falling with the level.
+- The sizes per level are in §4.3. Women's is sourced: 8 points of pass completion below same-tier men (76% against 84%
+  at the World Cups [S12]); every other size is Regista's, set so the levels' pass completion lands on the targets in
+  levels.md, with the directions sourced where a source exists [S1, S10, S13].
 
 ---
 
@@ -809,6 +832,28 @@ only what these say and keep the citation with the number.
   teams.
   https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-2-setting-physical-benchmarks-across-teams.php
   : teams 103.3 ± 4.4 km per match; 6.7 ± 0.6 km above 19.0 km/h; 1.9 ± 0.3 km above 23.0 km/h (women's zones).
+
+- [S12] Pappalardo L, Rossi A, Natilli M, Cintia P. Explaining the difference between men's and women's football. *PLoS
+  One* 2021;16(8):e0255407. doi:10.1371/journal.pone.0255407 : pass accuracy 0.84 ± 0.05 (2018 men's World Cup) against
+  0.76 ± 0.08 (2019 women's World Cup) per team and match, Wyscout events; women's teams win the ball back sooner
+  (recovery time 19.6 against 27.3 s). Added 2026-10-25 (levels.md).
+- [S13] Bradley PS, Carling C, Gomez Diaz A, Hood P, Barnes C, Ade J, Boddy M, Krustrup P, Mohr M. Match performance and
+  physical capacity of players in the top three competitive standards of English professional soccer. *Hum Mov Sci*
+  2013;32(4):808-821. doi:10.1016/j.humov.2013.06.002 : pass completion, forward and total passes, balls received and
+  touches per possession 4-39% higher in the Premier League than in the Championship and League 1; more high-intensity
+  running at the lower standards. Added 2026-10-25.
+- [S14] Bradley PS. Setting the benchmark, part 3: setting physical benchmarks across positions. FIFA Training Centre,
+  2024. https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-3-setting-physical-benchmarks-across-positions.php
+  : top speeds in games 28.0-29.4 km/h by position at the 2023 Women's World Cup. Added 2026-10-25.
+
+Author lists confirmed 2026-10-25 (PubMed): [S4] Curtis RM, Huggins RA, Looney DP, West CA, Fortunati A, Fontaine GJ,
+Casa DJ (doi:10.1519/JSC.0000000000002719); [S5] Al Haddad H, Simpson BM, Buchheit M, Di Salvo V, Mendez-Villanueva A
+(doi:10.1123/ijspp.2014-0539; the abstract gives U17 peak match speed as 87.2 ± 5.7% of maximal sprinting speed); [S6]
+Al Haddad H, Simpson BM, Buchheit M, Mendez-Villanueva A, ECSS Bruges 2012 abstract; [S9] Saeterbakken A et al., *Sports
+Med Int Open* 2019;3(3):E82-E88, doi:10.1055/a-0943-3682; [S10] Dellal A, Hill-Haas S, Lago-Penas C, Chamari K, *J
+Strength Cond Res* 2011;25(9):2371-2381, doi:10.1519/JSC.0b013e3181fb4296 (amateurs completed fewer passes and lost the
+ball more, in small-sided games); [S3] *J Sci Med Sport* 2012;15(5):474-478, doi:10.1016/j.jsams.2012.03.006; [S11]
+author Paul Bradley (06 Feb 2024).
 
 The Premier League and World Cup bands already in `regista.synth.report` keep their own cited sources and are used
 for England as today, and as references only for Germany semi-pro and college men (§10).

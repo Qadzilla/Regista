@@ -194,7 +194,7 @@ def test_every_competition_has_standouts_and_no_star_outside_england(comps, care
 
 def test_scales_and_ratings_stay_hidden_in_the_index(index):
     text = json.dumps(index)
-    for key in (*ATTRIBUTE_KEYS, "skill_offset", "speed_mult", "accel_mult", "stamina_offset", "style_offset"):
+    for key in (*ATTRIBUTE_KEYS, "skill_offset", "speed_mult", "accel_mult", "stamina_offset", "style_offset", "execution"):
         assert f'"{key}"' not in text, key
 
 

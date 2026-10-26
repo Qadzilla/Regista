@@ -329,6 +329,9 @@ regista.catalogue recheck-realism` with no season regenerated). As the design sa
 | Women cover less at 20 km/h or more, semi-pro [S1, S2] | 825 m, 1,040 m per 90 | pass |
 | Women cover less at 20 km/h or more, college [S1, S2] | 817 m, 985 m per 90 | pass |
 
+> **Update 2026-10-25:** both failures below are fixed in `docs/catalogue/build/levels.md` (U17 speed set from the
+> match peak; a technical execution effect by level). The tables here are the phase-4 record.
+
 Why the two fail:
 
 1. **U17 peak match speed.** The U17 top-speed multiplier (× 0.92) was taken from *maximal sprinting speed* (30.7 km/h

@@ -45,7 +45,8 @@
   "style_offset": {
    "keep": -8.0,
    "press": -10.0
-  }
+  },
+  "execution": 2.65
  },
  "clubs": [
   {
@@ -289,8 +290,8 @@
       "defending": 30,
       "aerial": 81,
       "stamina": 57,
-      "top_speed_kmh": 33.8,
-      "acceleration_ms2": 3.88
+      "top_speed_kmh": 31.0,
+      "acceleration_ms2": 3.87
      }
     },
     {
@@ -1065,8 +1066,8 @@
       "defending": 55,
       "aerial": 57,
       "stamina": 74,
-      "top_speed_kmh": 33.1,
-      "acceleration_ms2": 3.96
+      "top_speed_kmh": 30.3,
+      "acceleration_ms2": 3.95
      }
     },
     {

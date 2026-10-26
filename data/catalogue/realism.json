@@ -7,107 +7,107 @@
    "level": "academy/U17/men",
    "low": 24.9,
    "metric": "peak_speed_mean",
-   "outside_by": 0.98,
+   "outside_by": 0.0,
    "seasons": 6,
    "sources": [
     "S5"
    ],
    "unit": "km/h",
-   "value": 29.68,
-   "verdict": "fail"
+   "value": 26.8,
+   "verdict": "pass"
   }
  ],
- "catalogue_fingerprint": "ad54e036b2f4aa3d",
+ "catalogue_fingerprint": "3a2d69dde65217a6",
  "generator_version": "0.7.1",
  "levels": {
   "academy/U17/men": {
    "competitions": [
     "co_gha_u17"
    ],
-   "outfield_minutes": 43293.0,
+   "outfield_minutes": 43330.0,
    "outfield_per90": {
-    "ball_losses": 12.775,
-    "carries": 9.164,
-    "distance": 9855.372,
-    "fouls": 1.451,
-    "hi_distance": 883.483,
-    "passes": 43.195,
-    "sprint_distance": 172.901,
-    "tackles_won": 2.245,
-    "take_ons": 1.732
+    "ball_losses": 18.476,
+    "carries": 8.755,
+    "distance": 9954.767,
+    "fouls": 1.73,
+    "hi_distance": 811.514,
+    "passes": 38.202,
+    "sprint_distance": 92.669,
+    "tackles_won": 2.958,
+    "take_ons": 1.543
    },
-   "pass_pct": 80.04,
-   "peak_speed_mean": 29.68,
+   "pass_pct": 69.36,
+   "peak_speed_mean": 26.8,
    "seasons": 6,
-   "team_goals_per90": 1.099,
-   "team_shots_per90": 9.107
+   "team_goals_per90": 1.867,
+   "team_shots_per90": 11.056
   },
   "academy/U18/men": {
    "competitions": [
     "co_eng_u18"
    ],
-   "outfield_minutes": 43400.5,
+   "outfield_minutes": 43343.8,
    "outfield_per90": {
-    "ball_losses": 12.998,
-    "carries": 9.672,
-    "distance": 10034.202,
-    "fouls": 1.331,
-    "hi_distance": 925.262,
-    "passes": 43.266,
-    "sprint_distance": 193.467,
-    "tackles_won": 2.312,
-    "take_ons": 1.713
+    "ball_losses": 17.411,
+    "carries": 9.485,
+    "distance": 10127.578,
+    "fouls": 1.584,
+    "hi_distance": 893.144,
+    "passes": 38.883,
+    "sprint_distance": 125.225,
+    "tackles_won": 2.828,
+    "take_ons": 1.63
    },
-   "pass_pct": 79.87,
-   "peak_speed_mean": 30.26,
+   "pass_pct": 71.7,
+   "peak_speed_mean": 27.68,
    "seasons": 6,
-   "team_goals_per90": 1.058,
-   "team_shots_per90": 10.244
+   "team_goals_per90": 1.825,
+   "team_shots_per90": 12.174
   },
   "academy/U19/men": {
    "competitions": [
     "co_esp_u19",
     "co_mar_u19"
    ],
-   "outfield_minutes": 115509.6,
+   "outfield_minutes": 115592.0,
    "outfield_per90": {
-    "ball_losses": 13.401,
-    "carries": 10.277,
-    "distance": 10040.364,
-    "fouls": 1.335,
-    "hi_distance": 944.124,
-    "passes": 42.842,
-    "sprint_distance": 203.673,
-    "tackles_won": 2.428,
-    "take_ons": 1.717
+    "ball_losses": 16.218,
+    "carries": 9.909,
+    "distance": 10050.876,
+    "fouls": 1.456,
+    "hi_distance": 899.335,
+    "passes": 41.088,
+    "sprint_distance": 149.367,
+    "tackles_won": 2.655,
+    "take_ons": 1.606
    },
-   "pass_pct": 78.98,
-   "peak_speed_mean": 30.57,
+   "pass_pct": 74.13,
+   "peak_speed_mean": 28.55,
    "seasons": 12,
-   "team_goals_per90": 1.073,
-   "team_shots_per90": 9.84
+   "team_goals_per90": 1.05,
+   "team_shots_per90": 10.371
   },
   "academy/U20/men": {
    "competitions": [
     "co_bra_u20"
    ],
-   "outfield_minutes": 43360.5,
+   "outfield_minutes": 43355.3,
    "outfield_per90": {
-    "ball_losses": 12.188,
-    "carries": 11.341,
-    "distance": 10122.406,
-    "fouls": 1.046,
-    "hi_distance": 967.919,
-    "passes": 44.032,
-    "sprint_distance": 203.009,
-    "tackles_won": 1.883,
-    "take_ons": 1.849
+    "ball_losses": 14.683,
+    "carries": 10.826,
+    "distance": 10155.446,
+    "fouls": 1.192,
+    "hi_distance": 953.275,
+    "passes": 41.922,
+    "sprint_distance": 177.011,
+    "tackles_won": 2.202,
+    "take_ons": 1.906
    },
-   "pass_pct": 81.33,
-   "peak_speed_mean": 30.63,
+   "pass_pct": 77.5,
+   "peak_speed_mean": 29.47,
    "seasons": 6,
-   "team_goals_per90": 0.788,
-   "team_shots_per90": 11.473
+   "team_goals_per90": 1.1,
+   "team_shots_per90": 12.206
   },
   "amateur/senior/men": {
    "competitions": [
@@ -115,68 +115,68 @@
     "co_mex_am_men",
     "co_nga_am_men"
    ],
-   "outfield_minutes": 158954.0,
+   "outfield_minutes": 158841.0,
    "outfield_per90": {
-    "ball_losses": 12.062,
-    "carries": 9.954,
-    "distance": 9904.05,
-    "fouls": 1.29,
-    "hi_distance": 926.376,
-    "passes": 43.603,
-    "sprint_distance": 209.347,
-    "tackles_won": 1.975,
-    "take_ons": 1.727
+    "ball_losses": 17.488,
+    "carries": 9.42,
+    "distance": 10065.148,
+    "fouls": 1.546,
+    "hi_distance": 945.332,
+    "passes": 39.354,
+    "sprint_distance": 207.64,
+    "tackles_won": 2.604,
+    "take_ons": 1.598
    },
-   "pass_pct": 81.38,
-   "peak_speed_mean": 30.76,
+   "pass_pct": 72.08,
+   "peak_speed_mean": 30.68,
    "seasons": 18,
-   "team_goals_per90": 1.205,
-   "team_shots_per90": 10.855
+   "team_goals_per90": 1.657,
+   "team_shots_per90": 12.643
   },
   "college/college/men": {
    "competitions": [
     "co_jpn_uni_men",
     "co_usa_col_men"
    ],
-   "outfield_minutes": 151695.2,
+   "outfield_minutes": 151652.9,
    "outfield_per90": {
-    "ball_losses": 12.179,
-    "carries": 11.391,
-    "distance": 10180.086,
-    "fouls": 1.159,
-    "hi_distance": 985.193,
-    "passes": 43.311,
-    "sprint_distance": 222.069,
-    "tackles_won": 1.948,
-    "take_ons": 2.012
+    "ball_losses": 14.95,
+    "carries": 11.028,
+    "distance": 10246.143,
+    "fouls": 1.195,
+    "hi_distance": 1001.641,
+    "passes": 41.66,
+    "sprint_distance": 224.138,
+    "tackles_won": 2.251,
+    "take_ons": 1.881
    },
-   "pass_pct": 81.04,
-   "peak_speed_mean": 31.28,
+   "pass_pct": 77.21,
+   "peak_speed_mean": 31.31,
    "seasons": 12,
-   "team_goals_per90": 1.268,
-   "team_shots_per90": 12.261
+   "team_goals_per90": 1.53,
+   "team_shots_per90": 12.522
   },
   "college/college/women": {
    "competitions": [
     "co_usa_col_women"
    ],
-   "outfield_minutes": 72191.4,
+   "outfield_minutes": 72218.9,
    "outfield_per90": {
-    "ball_losses": 13.118,
-    "carries": 10.503,
-    "distance": 9921.238,
-    "fouls": 1.358,
-    "hi_distance": 817.49,
-    "passes": 42.937,
-    "sprint_distance": 84.754,
-    "tackles_won": 2.252,
-    "take_ons": 1.73
+    "ball_losses": 18.745,
+    "carries": 9.94,
+    "distance": 10086.617,
+    "fouls": 1.542,
+    "hi_distance": 829.988,
+    "passes": 38.426,
+    "sprint_distance": 84.085,
+    "tackles_won": 3.035,
+    "take_ons": 1.581
    },
-   "pass_pct": 79.18,
-   "peak_speed_mean": 26.71,
+   "pass_pct": 69.3,
+   "peak_speed_mean": 26.78,
    "seasons": 6,
-   "team_goals_per90": 0.946,
-   "team_shots_per90": 9.686
+   "team_goals_per90": 1.319,
+   "team_shots_per90": 11.302
   },
   "semi_pro/senior/men": {
    "competitions": [
@@ -205,23 +205,23 @@
    "competitions": [
     "co_eng_sp_women"
    ],
-   "outfield_minutes": 72265.4,
+   "outfield_minutes": 72189.3,
    "outfield_per90": {
-    "ball_losses": 12.731,
-    "carries": 11.397,
-    "distance": 10038.41,
-    "fouls": 1.274,
-    "hi_distance": 824.76,
-    "passes": 42.634,
-    "sprint_distance": 94.408,
-    "tackles_won": 2.107,
-    "take_ons": 1.984
+    "ball_losses": 17.337,
+    "carries": 10.825,
+    "distance": 10158.385,
+    "fouls": 1.406,
+    "hi_distance": 847.373,
+    "passes": 39.282,
+    "sprint_distance": 92.321,
+    "tackles_won": 2.619,
+    "take_ons": 1.8
    },
-   "pass_pct": 79.68,
-   "peak_speed_mean": 26.85,
+   "pass_pct": 72.0,
+   "peak_speed_mean": 26.81,
    "seasons": 6,
-   "team_goals_per90": 1.22,
-   "team_shots_per90": 11.127
+   "team_goals_per90": 1.519,
+   "team_shots_per90": 12.451
   }
  },
  "method": "level aggregates pooled over every competition of the level and every measurement season (regista.catalogue.measure: each competition's full double round robin regenerated 6 times). A band passes when the pooled value is inside it. An order step's margin is the higher level's value minus the lower's; its standard error combines the two levels' per-season standard errors; the step passes at 2 standard errors or more the way the source reports, fails as clearly the other way, and is otherwise not separated.",
@@ -233,6 +233,7 @@
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": null,
    "id": "amateur_sprint_distance",
    "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90)",
    "levels": [
@@ -247,15 +248,15 @@
     {
      "higher": "semi_pro/senior/men",
      "lower": "amateur/senior/men",
-     "margin": 23.545,
-     "se": 1.88,
+     "margin": 25.252,
+     "se": 1.58,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "m per 90",
    "values": [
-    209.347,
+    207.64,
     232.892
    ],
    "verdict": "pass"
@@ -264,6 +265,7 @@
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": null,
    "id": "amateur_pass_pct",
    "label": "amateurs complete fewer passes than semi-pros",
    "levels": [
@@ -278,18 +280,266 @@
     {
      "higher": "semi_pro/senior/men",
      "lower": "amateur/senior/men",
-     "margin": -0.85,
-     "se": 0.206,
+     "margin": 8.45,
+     "se": 0.27,
      "separated": true,
-     "verdict": "fail"
+     "verdict": "pass"
     }
    ],
    "unit": "%",
    "values": [
-    81.38,
+    72.08,
     80.53
    ],
-   "verdict": "fail"
+   "verdict": "pass"
+  },
+  {
+   "basis": "sourced",
+   "by_construction": false,
+   "covers": null,
+   "gap": null,
+   "id": "amateur_ball_losses",
+   "label": "amateurs lose the ball more often than semi-pros",
+   "levels": [
+    "semi_pro/senior/men",
+    "amateur/senior/men"
+   ],
+   "metric": "ball_losses",
+   "sources": [
+    "S10"
+   ],
+   "steps": [
+    {
+     "higher": "amateur/senior/men",
+     "lower": "semi_pro/senior/men",
+     "margin": 4.809,
+     "se": 0.127,
+     "separated": true,
+     "verdict": "pass"
+    }
+   ],
+   "unit": "per 90",
+   "values": [
+    12.679,
+    17.488
+   ],
+   "verdict": "pass"
+  },
+  {
+   "basis": "assumed",
+   "by_construction": false,
+   "covers": {
+    "sources": [
+     "S10",
+     "S13"
+    ],
+    "span": "amateurs against internationals in small-sided games; England's top three professional standards"
+   },
+   "gap": null,
+   "id": "tier_pass_pct",
+   "label": "pass completion rises with the men's senior tier: amateur < college < semi-pro",
+   "levels": [
+    "amateur/senior/men",
+    "college/college/men",
+    "semi_pro/senior/men"
+   ],
+   "metric": "pass_pct",
+   "sources": [],
+   "steps": [
+    {
+     "higher": "college/college/men",
+     "lower": "amateur/senior/men",
+     "margin": 5.13,
+     "se": 0.311,
+     "separated": true,
+     "verdict": "pass"
+    },
+    {
+     "higher": "semi_pro/senior/men",
+     "lower": "college/college/men",
+     "margin": 3.32,
+     "se": 0.274,
+     "separated": true,
+     "verdict": "pass"
+    }
+   ],
+   "unit": "%",
+   "values": [
+    72.08,
+    77.21,
+    80.53
+   ],
+   "verdict": "pass"
+  },
+  {
+   "basis": "assumed",
+   "by_construction": false,
+   "covers": {
+    "sources": [
+     "S13"
+    ],
+    "span": "England's top three professional standards"
+   },
+   "gap": null,
+   "id": "lower_standard_passes",
+   "label": "amateurs attempt fewer passes per 90 than semi-pros (shorter possessions, earlier shots)",
+   "levels": [
+    "amateur/senior/men",
+    "semi_pro/senior/men"
+   ],
+   "metric": "passes",
+   "sources": [],
+   "steps": [
+    {
+     "higher": "semi_pro/senior/men",
+     "lower": "amateur/senior/men",
+     "margin": 3.988,
+     "se": 0.161,
+     "separated": true,
+     "verdict": "pass"
+    }
+   ],
+   "unit": "per 90",
+   "values": [
+    39.354,
+    43.342
+   ],
+   "verdict": "pass"
+  },
+  {
+   "basis": "assumed",
+   "by_construction": false,
+   "covers": {
+    "sources": [
+     "S1",
+     "S10",
+     "S12",
+     "S13"
+    ],
+    "span": "adult football"
+   },
+   "gap": null,
+   "id": "youth_pass_pct",
+   "label": "pass completion rises with age: U17 < U18 < U19 < U20 < senior",
+   "levels": [
+    "academy/U17/men",
+    "academy/U18/men",
+    "academy/U19/men",
+    "academy/U20/men",
+    "semi_pro/senior/men"
+   ],
+   "metric": "pass_pct",
+   "sources": [],
+   "steps": [
+    {
+     "higher": "academy/U18/men",
+     "lower": "academy/U17/men",
+     "margin": 2.34,
+     "se": 0.441,
+     "separated": true,
+     "verdict": "pass"
+    },
+    {
+     "higher": "academy/U19/men",
+     "lower": "academy/U18/men",
+     "margin": 2.43,
+     "se": 0.372,
+     "separated": true,
+     "verdict": "pass"
+    },
+    {
+     "higher": "academy/U20/men",
+     "lower": "academy/U19/men",
+     "margin": 3.37,
+     "se": 0.374,
+     "separated": true,
+     "verdict": "pass"
+    },
+    {
+     "higher": "semi_pro/senior/men",
+     "lower": "academy/U20/men",
+     "margin": 3.03,
+     "se": 0.38,
+     "separated": true,
+     "verdict": "pass"
+    }
+   ],
+   "unit": "%",
+   "values": [
+    69.36,
+    71.7,
+    74.13,
+    77.5,
+    80.53
+   ],
+   "verdict": "pass"
+  },
+  {
+   "basis": "assumed",
+   "by_construction": false,
+   "covers": {
+    "sources": [
+     "S1",
+     "S10",
+     "S12"
+    ],
+    "span": "adult football"
+   },
+   "gap": null,
+   "id": "youth_ball_losses",
+   "label": "ball losses fall with age: U17 > U18 > U19 > U20 > senior",
+   "levels": [
+    "semi_pro/senior/men",
+    "academy/U20/men",
+    "academy/U19/men",
+    "academy/U18/men",
+    "academy/U17/men"
+   ],
+   "metric": "ball_losses",
+   "sources": [],
+   "steps": [
+    {
+     "higher": "academy/U20/men",
+     "lower": "semi_pro/senior/men",
+     "margin": 2.004,
+     "se": 0.177,
+     "separated": true,
+     "verdict": "pass"
+    },
+    {
+     "higher": "academy/U19/men",
+     "lower": "academy/U20/men",
+     "margin": 1.535,
+     "se": 0.174,
+     "separated": true,
+     "verdict": "pass"
+    },
+    {
+     "higher": "academy/U18/men",
+     "lower": "academy/U19/men",
+     "margin": 1.193,
+     "se": 0.147,
+     "separated": true,
+     "verdict": "pass"
+    },
+    {
+     "higher": "academy/U17/men",
+     "lower": "academy/U18/men",
+     "margin": 1.065,
+     "se": 0.263,
+     "separated": true,
+     "verdict": "pass"
+    }
+   ],
+   "unit": "per 90",
+   "values": [
+    12.679,
+    14.683,
+    16.218,
+    17.411,
+    18.476
+   ],
+   "verdict": "pass"
   },
   {
    "basis": "assumed",
@@ -301,6 +551,7 @@
     ],
     "span": "U13-U17"
    },
+   "gap": null,
    "id": "youth_peak_speed_mean",
    "label": "peak match speed keeps rising from U17 to senior: U17 < U18 < U19 < U20 < senior",
    "levels": [
@@ -316,50 +567,51 @@
     {
      "higher": "academy/U18/men",
      "lower": "academy/U17/men",
-     "margin": 0.58,
-     "se": 0.058,
+     "margin": 0.88,
+     "se": 0.024,
      "separated": true,
      "verdict": "pass"
     },
     {
      "higher": "academy/U19/men",
      "lower": "academy/U18/men",
-     "margin": 0.31,
-     "se": 0.055,
+     "margin": 0.87,
+     "se": 0.025,
      "separated": true,
      "verdict": "pass"
     },
     {
      "higher": "academy/U20/men",
      "lower": "academy/U19/men",
-     "margin": 0.06,
-     "se": 0.043,
-     "separated": false,
-     "verdict": "not separated"
+     "margin": 0.92,
+     "se": 0.034,
+     "separated": true,
+     "verdict": "pass"
     },
     {
      "higher": "semi_pro/senior/men",
      "lower": "academy/U20/men",
-     "margin": 0.83,
-     "se": 0.043,
+     "margin": 1.99,
+     "se": 0.036,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "km/h",
    "values": [
-    29.68,
-    30.26,
-    30.57,
-    30.63,
+    26.8,
+    27.68,
+    28.55,
+    29.47,
     31.46
    ],
-   "verdict": "not separated"
+   "verdict": "pass"
   },
   {
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": null,
    "id": "youth_distance",
    "label": "match running distance per 90 rises with age through U13-U18 (the catalogue's step: U17 < U18)",
    "levels": [
@@ -374,16 +626,16 @@
     {
      "higher": "academy/U18/men",
      "lower": "academy/U17/men",
-     "margin": 178.83,
-     "se": 37.411,
+     "margin": 172.811,
+     "se": 48.093,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "m per 90",
    "values": [
-    9855.372,
-    10034.202
+    9954.767,
+    10127.578
    ],
    "verdict": "pass"
   },
@@ -396,6 +648,7 @@
     ],
     "span": "U13-U18"
    },
+   "gap": null,
    "id": "youth_distance_extension",
    "label": "match running distance per 90 keeps rising from U18 to senior: U18 < U19 < U20 < senior",
    "levels": [
@@ -410,64 +663,74 @@
     {
      "higher": "academy/U19/men",
      "lower": "academy/U18/men",
-     "margin": 6.162,
-     "se": 30.034,
-     "separated": false,
-     "verdict": "not separated"
+     "margin": -76.702,
+     "se": 32.795,
+     "separated": true,
+     "verdict": "fail"
     },
     {
      "higher": "academy/U20/men",
      "lower": "academy/U19/men",
-     "margin": 82.042,
-     "se": 40.67,
+     "margin": 104.57,
+     "se": 32.07,
      "separated": true,
      "verdict": "pass"
     },
     {
      "higher": "semi_pro/senior/men",
      "lower": "academy/U20/men",
-     "margin": 242.816,
-     "se": 39.747,
+     "margin": 209.776,
+     "se": 26.456,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "m per 90",
    "values": [
-    10034.202,
-    10040.364,
-    10122.406,
+    10127.578,
+    10050.876,
+    10155.446,
     10365.222
    ],
-   "verdict": "not separated"
+   "verdict": "fail"
   },
   {
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": [
+    5.0,
+    11.0
+   ],
    "id": "women_pass_pct_semi_pro",
-   "label": "women complete fewer passes than men (semi-pro)",
+   "label": "women complete fewer passes than men (semi-pro): 76% against 84% at the 2019 and 2018 World Cups [S12], a gap of 8 points",
    "levels": [
     "semi_pro/senior/women",
     "semi_pro/senior/men"
    ],
    "metric": "pass_pct",
    "sources": [
-    "S1"
+    "S1",
+    "S12"
    ],
    "steps": [
     {
+     "gap": [
+      5.0,
+      11.0
+     ],
      "higher": "semi_pro/senior/men",
      "lower": "semi_pro/senior/women",
-     "margin": 0.85,
-     "se": 0.208,
+     "margin": 8.53,
+     "outside_gap": false,
+     "se": 0.259,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "%",
    "values": [
-    79.68,
+    72.0,
     80.53
    ],
    "verdict": "pass"
@@ -476,30 +739,40 @@
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": [
+    5.0,
+    11.0
+   ],
    "id": "women_pass_pct_college",
-   "label": "women complete fewer passes than men (college)",
+   "label": "women complete fewer passes than men (college): 76% against 84% at the 2019 and 2018 World Cups [S12], a gap of 8 points",
    "levels": [
     "college/college/women",
     "college/college/men"
    ],
    "metric": "pass_pct",
    "sources": [
-    "S1"
+    "S1",
+    "S12"
    ],
    "steps": [
     {
+     "gap": [
+      5.0,
+      11.0
+     ],
      "higher": "college/college/men",
      "lower": "college/college/women",
-     "margin": 1.86,
-     "se": 0.317,
+     "margin": 7.91,
+     "outside_gap": false,
+     "se": 0.345,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "%",
    "values": [
-    79.18,
-    81.04
+    69.3,
+    77.21
    ],
    "verdict": "pass"
   },
@@ -507,6 +780,7 @@
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": null,
    "id": "women_ball_losses_semi_pro",
    "label": "women lose the ball more often than men (semi-pro)",
    "levels": [
@@ -521,23 +795,24 @@
     {
      "higher": "semi_pro/senior/women",
      "lower": "semi_pro/senior/men",
-     "margin": 0.052,
-     "se": 0.118,
-     "separated": false,
-     "verdict": "not separated"
+     "margin": 4.658,
+     "se": 0.171,
+     "separated": true,
+     "verdict": "pass"
     }
    ],
    "unit": "per 90",
    "values": [
     12.679,
-    12.731
+    17.337
    ],
-   "verdict": "not separated"
+   "verdict": "pass"
   },
   {
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": null,
    "id": "women_ball_losses_college",
    "label": "women lose the ball more often than men (college)",
    "levels": [
@@ -552,16 +827,16 @@
     {
      "higher": "college/college/women",
      "lower": "college/college/men",
-     "margin": 0.939,
-     "se": 0.156,
+     "margin": 3.795,
+     "se": 0.184,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "per 90",
    "values": [
-    12.179,
-    13.118
+    14.95,
+    18.745
    ],
    "verdict": "pass"
   },
@@ -569,6 +844,7 @@
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": null,
    "id": "women_hi_distance_semi_pro",
    "label": "women cover less distance at 20 km/h or more than men (semi-pro; men's FIFA zones for both)",
    "levels": [
@@ -584,15 +860,15 @@
     {
      "higher": "semi_pro/senior/men",
      "lower": "semi_pro/senior/women",
-     "margin": 215.423,
-     "se": 10.993,
+     "margin": 192.81,
+     "se": 10.627,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "m per 90",
    "values": [
-    824.76,
+    847.373,
     1040.183
    ],
    "verdict": "pass"
@@ -601,6 +877,7 @@
    "basis": "sourced",
    "by_construction": false,
    "covers": null,
+   "gap": null,
    "id": "women_hi_distance_college",
    "label": "women cover less distance at 20 km/h or more than men (college; men's FIFA zones for both)",
    "levels": [
@@ -616,16 +893,16 @@
     {
      "higher": "college/college/men",
      "lower": "college/college/women",
-     "margin": 167.703,
-     "se": 5.185,
+     "margin": 171.653,
+     "se": 11.034,
      "separated": true,
      "verdict": "pass"
     }
    ],
    "unit": "m per 90",
    "values": [
-    817.49,
-    985.193
+    829.988,
+    1001.641
    ],
    "verdict": "pass"
   }
@@ -636,133 +913,133 @@
     "competitions": [
      "co_gha_u17"
     ],
-    "outfield_minutes": 7232.7,
+    "outfield_minutes": 7227.9,
     "outfield_per90": {
-     "ball_losses": 12.406,
-     "carries": 9.494,
-     "distance": 9813.172,
-     "fouls": 1.406,
-     "hi_distance": 872.937,
-     "passes": 43.303,
-     "sprint_distance": 172.004,
-     "tackles_won": 2.352,
-     "take_ons": 1.941
+     "ball_losses": 19.524,
+     "carries": 8.056,
+     "distance": 9883.172,
+     "fouls": 1.656,
+     "hi_distance": 801.495,
+     "passes": 38.625,
+     "sprint_distance": 91.992,
+     "tackles_won": 2.976,
+     "take_ons": 1.444
     },
-    "pass_pct": 81.09,
-    "peak_speed_mean": 29.78,
+    "pass_pct": 68.67,
+    "peak_speed_mean": 26.82,
     "seasons": 1,
-    "team_goals_per90": 1.244,
-    "team_shots_per90": 9.706
+    "team_goals_per90": 1.619,
+    "team_shots_per90": 8.965
    },
    {
     "competitions": [
      "co_gha_u17"
     ],
-    "outfield_minutes": 7199.6,
+    "outfield_minutes": 7222.8,
     "outfield_per90": {
-     "ball_losses": 12.651,
-     "carries": 8.838,
-     "distance": 9760.939,
-     "fouls": 1.513,
-     "hi_distance": 856.705,
-     "passes": 42.965,
-     "sprint_distance": 169.234,
-     "tackles_won": 1.988,
-     "take_ons": 1.525
+     "ball_losses": 18.305,
+     "carries": 8.797,
+     "distance": 10066.51,
+     "fouls": 1.607,
+     "hi_distance": 853.262,
+     "passes": 37.681,
+     "sprint_distance": 96.013,
+     "tackles_won": 2.916,
+     "take_ons": 1.595
     },
-    "pass_pct": 79.69,
-    "peak_speed_mean": 29.63,
+    "pass_pct": 69.11,
+    "peak_speed_mean": 26.82,
     "seasons": 1,
-    "team_goals_per90": 0.995,
-    "team_shots_per90": 9.077
+    "team_goals_per90": 1.617,
+    "team_shots_per90": 13.312
    },
    {
     "competitions": [
      "co_gha_u17"
     ],
-    "outfield_minutes": 7226.4,
+    "outfield_minutes": 7214.9,
     "outfield_per90": {
-     "ball_losses": 12.666,
-     "carries": 8.967,
-     "distance": 9865.282,
-     "fouls": 1.482,
-     "hi_distance": 875.025,
-     "passes": 42.469,
-     "sprint_distance": 165.353,
-     "tackles_won": 2.279,
-     "take_ons": 1.93
+     "ball_losses": 18.449,
+     "carries": 9.206,
+     "distance": 9968.081,
+     "fouls": 1.859,
+     "hi_distance": 821.047,
+     "passes": 37.996,
+     "sprint_distance": 91.569,
+     "tackles_won": 2.931,
+     "take_ons": 1.684
     },
-    "pass_pct": 80.65,
-    "peak_speed_mean": 29.6,
+    "pass_pct": 69.5,
+    "peak_speed_mean": 26.84,
     "seasons": 1,
-    "team_goals_per90": 1.121,
-    "team_shots_per90": 8.469
+    "team_goals_per90": 1.494,
+    "team_shots_per90": 11.33
    },
    {
     "competitions": [
      "co_gha_u17"
     ],
-    "outfield_minutes": 7234.5,
+    "outfield_minutes": 7226.3,
     "outfield_per90": {
-     "ball_losses": 13.1,
-     "carries": 9.318,
-     "distance": 9934.65,
-     "fouls": 1.368,
-     "hi_distance": 886.675,
-     "passes": 43.616,
-     "sprint_distance": 173.259,
-     "tackles_won": 2.401,
-     "take_ons": 1.543
+     "ball_losses": 18.134,
+     "carries": 8.718,
+     "distance": 9980.743,
+     "fouls": 1.744,
+     "hi_distance": 796.079,
+     "passes": 38.273,
+     "sprint_distance": 91.332,
+     "tackles_won": 3.101,
+     "take_ons": 1.632
     },
-    "pass_pct": 79.69,
-    "peak_speed_mean": 29.72,
+    "pass_pct": 69.28,
+    "peak_speed_mean": 26.74,
     "seasons": 1,
-    "team_goals_per90": 1.12,
-    "team_shots_per90": 10.201
+    "team_goals_per90": 1.991,
+    "team_shots_per90": 11.447
    },
    {
     "competitions": [
      "co_gha_u17"
     ],
-    "outfield_minutes": 7189.3,
+    "outfield_minutes": 7209.0,
     "outfield_per90": {
-     "ball_losses": 13.019,
-     "carries": 9.326,
-     "distance": 9910.907,
-     "fouls": 1.452,
-     "hi_distance": 899.415,
-     "passes": 43.953,
-     "sprint_distance": 171.399,
-     "tackles_won": 2.353,
-     "take_ons": 1.828
+     "ball_losses": 18.539,
+     "carries": 9.001,
+     "distance": 10034.52,
+     "fouls": 1.735,
+     "hi_distance": 811.286,
+     "passes": 37.453,
+     "sprint_distance": 88.217,
+     "tackles_won": 3.046,
+     "take_ons": 1.436
     },
-    "pass_pct": 79.78,
-    "peak_speed_mean": 29.66,
+    "pass_pct": 68.93,
+    "peak_speed_mean": 26.76,
     "seasons": 1,
-    "team_goals_per90": 0.623,
-    "team_shots_per90": 7.481
+    "team_goals_per90": 1.99,
+    "team_shots_per90": 11.068
    },
    {
     "competitions": [
      "co_gha_u17"
     ],
-    "outfield_minutes": 7210.6,
+    "outfield_minutes": 7229.1,
     "outfield_per90": {
-     "ball_losses": 12.806,
-     "carries": 9.037,
-     "distance": 9847.147,
-     "fouls": 1.485,
-     "hi_distance": 910.184,
-     "passes": 42.862,
-     "sprint_distance": 186.162,
-     "tackles_won": 2.097,
-     "take_ons": 1.623
+     "ball_losses": 17.903,
+     "carries": 8.752,
+     "distance": 9795.917,
+     "fouls": 1.78,
+     "hi_distance": 785.963,
+     "passes": 39.179,
+     "sprint_distance": 96.878,
+     "tackles_won": 2.776,
+     "take_ons": 1.469
     },
-    "pass_pct": 79.35,
-    "peak_speed_mean": 29.68,
+    "pass_pct": 70.61,
+    "peak_speed_mean": 26.81,
     "seasons": 1,
-    "team_goals_per90": 1.493,
-    "team_shots_per90": 9.705
+    "team_goals_per90": 2.49,
+    "team_shots_per90": 10.209
    }
   ],
   "academy/U18/men": [
@@ -770,133 +1047,133 @@
     "competitions": [
      "co_eng_u18"
     ],
-    "outfield_minutes": 7221.3,
+    "outfield_minutes": 7218.3,
     "outfield_per90": {
-     "ball_losses": 12.426,
-     "carries": 9.297,
-     "distance": 10004.264,
-     "fouls": 1.184,
-     "hi_distance": 927.693,
-     "passes": 43.21,
-     "sprint_distance": 196.356,
-     "tackles_won": 1.982,
-     "take_ons": 1.62
+     "ball_losses": 17.568,
+     "carries": 9.788,
+     "distance": 10088.314,
+     "fouls": 1.571,
+     "hi_distance": 864.527,
+     "passes": 39.749,
+     "sprint_distance": 122.107,
+     "tackles_won": 2.668,
+     "take_ons": 1.372
     },
-    "pass_pct": 80.36,
-    "peak_speed_mean": 30.22,
+    "pass_pct": 70.86,
+    "peak_speed_mean": 27.67,
     "seasons": 1,
-    "team_goals_per90": 1.496,
-    "team_shots_per90": 9.472
+    "team_goals_per90": 1.121,
+    "team_shots_per90": 11.331
    },
    {
     "competitions": [
      "co_eng_u18"
     ],
-    "outfield_minutes": 7238.1,
+    "outfield_minutes": 7209.2,
     "outfield_per90": {
-     "ball_losses": 13.18,
-     "carries": 10.296,
-     "distance": 10102.564,
-     "fouls": 1.442,
-     "hi_distance": 923.618,
-     "passes": 42.712,
-     "sprint_distance": 182.322,
-     "tackles_won": 2.313,
-     "take_ons": 1.915
+     "ball_losses": 17.016,
+     "carries": 9.525,
+     "distance": 10154.841,
+     "fouls": 1.436,
+     "hi_distance": 917.125,
+     "passes": 40.099,
+     "sprint_distance": 126.001,
+     "tackles_won": 2.659,
+     "take_ons": 1.585
     },
-    "pass_pct": 79.85,
-    "peak_speed_mean": 30.05,
+    "pass_pct": 72.54,
+    "peak_speed_mean": 27.72,
     "seasons": 1,
-    "team_goals_per90": 0.746,
-    "team_shots_per90": 11.066
+    "team_goals_per90": 1.245,
+    "team_shots_per90": 12.329
    },
    {
     "competitions": [
      "co_eng_u18"
     ],
-    "outfield_minutes": 7237.4,
+    "outfield_minutes": 7223.6,
     "outfield_per90": {
-     "ball_losses": 12.92,
-     "carries": 9.55,
-     "distance": 10086.549,
-     "fouls": 1.442,
-     "hi_distance": 922.978,
-     "passes": 43.549,
-     "sprint_distance": 196.835,
-     "tackles_won": 2.189,
-     "take_ons": 1.865
+     "ball_losses": 17.368,
+     "carries": 9.606,
+     "distance": 10206.596,
+     "fouls": 1.794,
+     "hi_distance": 927.775,
+     "passes": 37.514,
+     "sprint_distance": 128.502,
+     "tackles_won": 2.816,
+     "take_ons": 1.894
     },
-    "pass_pct": 80.27,
-    "peak_speed_mean": 30.34,
+    "pass_pct": 71.11,
+    "peak_speed_mean": 27.74,
     "seasons": 1,
-    "team_goals_per90": 0.497,
-    "team_shots_per90": 9.948
+    "team_goals_per90": 2.863,
+    "team_shots_per90": 11.95
    },
    {
     "competitions": [
      "co_eng_u18"
     ],
-    "outfield_minutes": 7241.0,
+    "outfield_minutes": 7227.9,
     "outfield_per90": {
-     "ball_losses": 13.473,
-     "carries": 9.633,
-     "distance": 9945.93,
-     "fouls": 1.293,
-     "hi_distance": 892.837,
-     "passes": 43.639,
-     "sprint_distance": 188.583,
-     "tackles_won": 2.486,
-     "take_ons": 1.591
+     "ball_losses": 17.071,
+     "carries": 9.239,
+     "distance": 10027.465,
+     "fouls": 1.743,
+     "hi_distance": 871.195,
+     "passes": 39.46,
+     "sprint_distance": 123.452,
+     "tackles_won": 2.839,
+     "take_ons": 1.594
     },
-    "pass_pct": 78.87,
-    "peak_speed_mean": 30.21,
+    "pass_pct": 72.93,
+    "peak_speed_mean": 27.64,
     "seasons": 1,
-    "team_goals_per90": 1.367,
-    "team_shots_per90": 9.571
+    "team_goals_per90": 2.237,
+    "team_shots_per90": 12.053
    },
    {
     "competitions": [
      "co_eng_u18"
     ],
-    "outfield_minutes": 7231.4,
+    "outfield_minutes": 7234.4,
     "outfield_per90": {
-     "ball_losses": 13.342,
-     "carries": 9.571,
-     "distance": 10086.087,
-     "fouls": 1.145,
-     "hi_distance": 952.453,
-     "passes": 43.623,
-     "sprint_distance": 203.789,
-     "tackles_won": 2.713,
-     "take_ons": 1.518
+     "ball_losses": 17.74,
+     "carries": 9.343,
+     "distance": 10133.46,
+     "fouls": 1.418,
+     "hi_distance": 895.934,
+     "passes": 37.732,
+     "sprint_distance": 124.067,
+     "tackles_won": 3.035,
+     "take_ons": 1.679
     },
-    "pass_pct": 79.91,
-    "peak_speed_mean": 30.4,
+    "pass_pct": 71.41,
+    "peak_speed_mean": 27.63,
     "seasons": 1,
-    "team_goals_per90": 0.871,
-    "team_shots_per90": 11.077
+    "team_goals_per90": 1.99,
+    "team_shots_per90": 13.555
    },
    {
     "competitions": [
      "co_eng_u18"
     ],
-    "outfield_minutes": 7231.3,
+    "outfield_minutes": 7230.3,
     "outfield_per90": {
-     "ball_losses": 12.645,
-     "carries": 9.683,
-     "distance": 9979.789,
-     "fouls": 1.481,
-     "hi_distance": 932.042,
-     "passes": 42.864,
-     "sprint_distance": 192.933,
-     "tackles_won": 2.19,
-     "take_ons": 1.767
+     "ball_losses": 17.7,
+     "carries": 9.41,
+     "distance": 10154.84,
+     "fouls": 1.543,
+     "hi_distance": 882.353,
+     "passes": 38.749,
+     "sprint_distance": 127.219,
+     "tackles_won": 2.95,
+     "take_ons": 1.656
     },
-    "pass_pct": 79.97,
-    "peak_speed_mean": 30.33,
+    "pass_pct": 71.28,
+    "peak_speed_mean": 27.7,
     "seasons": 1,
-    "team_goals_per90": 1.369,
-    "team_shots_per90": 10.33
+    "team_goals_per90": 1.494,
+    "team_shots_per90": 11.825
    }
   ],
   "academy/U19/men": [
@@ -905,138 +1182,138 @@
      "co_esp_u19",
      "co_mar_u19"
     ],
-    "outfield_minutes": 19273.2,
+    "outfield_minutes": 19243.1,
     "outfield_per90": {
-     "ball_losses": 13.173,
-     "carries": 10.259,
-     "distance": 10063.344,
-     "fouls": 1.406,
-     "hi_distance": 958.282,
-     "passes": 41.962,
-     "sprint_distance": 206.361,
-     "tackles_won": 2.47,
-     "take_ons": 1.793
+     "ball_losses": 16.421,
+     "carries": 9.901,
+     "distance": 10056.197,
+     "fouls": 1.506,
+     "hi_distance": 891.023,
+     "passes": 41.237,
+     "sprint_distance": 148.449,
+     "tackles_won": 2.787,
+     "take_ons": 1.684
     },
-    "pass_pct": 79.4,
-    "peak_speed_mean": 30.55,
+    "pass_pct": 73.99,
+    "peak_speed_mean": 28.54,
+    "seasons": 2,
+    "team_goals_per90": 1.027,
+    "team_shots_per90": 10.129
+   },
+   {
+    "competitions": [
+     "co_esp_u19",
+     "co_mar_u19"
+    ],
+    "outfield_minutes": 19274.3,
+    "outfield_per90": {
+     "ball_losses": 16.096,
+     "carries": 10.165,
+     "distance": 10017.757,
+     "fouls": 1.382,
+     "hi_distance": 885.582,
+     "passes": 41.525,
+     "sprint_distance": 148.812,
+     "tackles_won": 2.475,
+     "take_ons": 1.578
+    },
+    "pass_pct": 74.06,
+    "peak_speed_mean": 28.62,
+    "seasons": 2,
+    "team_goals_per90": 1.307,
+    "team_shots_per90": 10.548
+   },
+   {
+    "competitions": [
+     "co_esp_u19",
+     "co_mar_u19"
+    ],
+    "outfield_minutes": 19272.6,
+    "outfield_per90": {
+     "ball_losses": 16.05,
+     "carries": 9.961,
+     "distance": 10053.18,
+     "fouls": 1.471,
+     "hi_distance": 894.252,
+     "passes": 40.805,
+     "sprint_distance": 147.031,
+     "tackles_won": 2.783,
+     "take_ons": 1.508
+    },
+    "pass_pct": 74.75,
+    "peak_speed_mean": 28.57,
+    "seasons": 2,
+    "team_goals_per90": 0.841,
+    "team_shots_per90": 11.161
+   },
+   {
+    "competitions": [
+     "co_esp_u19",
+     "co_mar_u19"
+    ],
+    "outfield_minutes": 19257.7,
+    "outfield_per90": {
+     "ball_losses": 16.455,
+     "carries": 9.557,
+     "distance": 9981.467,
+     "fouls": 1.341,
+     "hi_distance": 889.011,
+     "passes": 41.911,
+     "sprint_distance": 147.602,
+     "tackles_won": 2.678,
+     "take_ons": 1.519
+    },
+    "pass_pct": 74.01,
+    "peak_speed_mean": 28.5,
+    "seasons": 2,
+    "team_goals_per90": 0.981,
+    "team_shots_per90": 10.133
+   },
+   {
+    "competitions": [
+     "co_esp_u19",
+     "co_mar_u19"
+    ],
+    "outfield_minutes": 19285.9,
+    "outfield_per90": {
+     "ball_losses": 16.077,
+     "carries": 9.865,
+     "distance": 10133.597,
+     "fouls": 1.535,
+     "hi_distance": 921.816,
+     "passes": 40.184,
+     "sprint_distance": 148.426,
+     "tackles_won": 2.492,
+     "take_ons": 1.731
+    },
+    "pass_pct": 73.71,
+    "peak_speed_mean": 28.52,
     "seasons": 2,
     "team_goals_per90": 1.073,
-    "team_shots_per90": 10.827
+    "team_shots_per90": 9.66
    },
    {
     "competitions": [
      "co_esp_u19",
      "co_mar_u19"
     ],
-    "outfield_minutes": 19284.2,
+    "outfield_minutes": 19258.3,
     "outfield_per90": {
-     "ball_losses": 13.348,
-     "carries": 9.941,
-     "distance": 10058.979,
-     "fouls": 1.213,
-     "hi_distance": 950.447,
-     "passes": 42.694,
-     "sprint_distance": 207.208,
-     "tackles_won": 2.446,
-     "take_ons": 1.68
+     "ball_losses": 16.212,
+     "carries": 10.006,
+     "distance": 10062.968,
+     "fouls": 1.5,
+     "hi_distance": 914.301,
+     "passes": 40.863,
+     "sprint_distance": 155.883,
+     "tackles_won": 2.715,
+     "take_ons": 1.617
     },
-    "pass_pct": 79.0,
-    "peak_speed_mean": 30.6,
+    "pass_pct": 74.27,
+    "peak_speed_mean": 28.57,
     "seasons": 2,
-    "team_goals_per90": 1.167,
-    "team_shots_per90": 11.248
-   },
-   {
-    "competitions": [
-     "co_esp_u19",
-     "co_mar_u19"
-    ],
-    "outfield_minutes": 19208.1,
-    "outfield_per90": {
-     "ball_losses": 13.438,
-     "carries": 10.383,
-     "distance": 10078.328,
-     "fouls": 1.312,
-     "hi_distance": 943.205,
-     "passes": 43.313,
-     "sprint_distance": 201.903,
-     "tackles_won": 2.497,
-     "take_ons": 1.72
-    },
-    "pass_pct": 78.93,
-    "peak_speed_mean": 30.56,
-    "seasons": 2,
-    "team_goals_per90": 0.98,
-    "team_shots_per90": 10.032
-   },
-   {
-    "competitions": [
-     "co_esp_u19",
-     "co_mar_u19"
-    ],
-    "outfield_minutes": 19245.9,
-    "outfield_per90": {
-     "ball_losses": 13.468,
-     "carries": 10.148,
-     "distance": 10034.882,
-     "fouls": 1.361,
-     "hi_distance": 934.86,
-     "passes": 42.269,
-     "sprint_distance": 201.946,
-     "tackles_won": 2.474,
-     "take_ons": 1.618
-    },
-    "pass_pct": 78.42,
-    "peak_speed_mean": 30.54,
-    "seasons": 2,
-    "team_goals_per90": 1.308,
-    "team_shots_per90": 9.669
-   },
-   {
-    "competitions": [
-     "co_esp_u19",
-     "co_mar_u19"
-    ],
-    "outfield_minutes": 19272.2,
-    "outfield_per90": {
-     "ball_losses": 13.505,
-     "carries": 10.615,
-     "distance": 9992.88,
-     "fouls": 1.448,
-     "hi_distance": 943.032,
-     "passes": 43.36,
-     "sprint_distance": 202.119,
-     "tackles_won": 2.4,
-     "take_ons": 1.723
-    },
-    "pass_pct": 78.94,
-    "peak_speed_mean": 30.5,
-    "seasons": 2,
-    "team_goals_per90": 1.025,
-    "team_shots_per90": 8.668
-   },
-   {
-    "competitions": [
-     "co_esp_u19",
-     "co_mar_u19"
-    ],
-    "outfield_minutes": 19225.9,
-    "outfield_per90": {
-     "ball_losses": 13.472,
-     "carries": 10.317,
-     "distance": 10013.811,
-     "fouls": 1.273,
-     "hi_distance": 934.879,
-     "passes": 43.455,
-     "sprint_distance": 202.489,
-     "tackles_won": 2.28,
-     "take_ons": 1.769
-    },
-    "pass_pct": 79.2,
-    "peak_speed_mean": 30.64,
-    "seasons": 2,
-    "team_goals_per90": 0.888,
-    "team_shots_per90": 8.597
+    "team_goals_per90": 1.074,
+    "team_shots_per90": 10.597
    }
   ],
   "academy/U20/men": [
@@ -1044,23 +1321,89 @@
     "competitions": [
      "co_bra_u20"
     ],
-    "outfield_minutes": 7231.3,
+    "outfield_minutes": 7224.5,
     "outfield_per90": {
-     "ball_losses": 12.62,
-     "carries": 11.463,
-     "distance": 10211.97,
-     "fouls": 1.033,
-     "hi_distance": 967.933,
-     "passes": 43.822,
-     "sprint_distance": 194.134,
-     "tackles_won": 2.141,
-     "take_ons": 2.066
+     "ball_losses": 15.136,
+     "carries": 10.365,
+     "distance": 10268.11,
+     "fouls": 1.271,
+     "hi_distance": 978.871,
+     "passes": 41.322,
+     "sprint_distance": 174.93,
+     "tackles_won": 2.13,
+     "take_ons": 1.906
     },
-    "pass_pct": 80.97,
-    "peak_speed_mean": 30.61,
+    "pass_pct": 76.58,
+    "peak_speed_mean": 29.41,
     "seasons": 1,
-    "team_goals_per90": 0.498,
-    "team_shots_per90": 10.703
+    "team_goals_per90": 0.872,
+    "team_shots_per90": 11.336
+   },
+   {
+    "competitions": [
+     "co_bra_u20"
+    ],
+    "outfield_minutes": 7235.2,
+    "outfield_per90": {
+     "ball_losses": 15.014,
+     "carries": 11.593,
+     "distance": 10134.969,
+     "fouls": 1.02,
+     "hi_distance": 948.85,
+     "passes": 42.803,
+     "sprint_distance": 181.519,
+     "tackles_won": 2.264,
+     "take_ons": 1.779
+    },
+    "pass_pct": 77.13,
+    "peak_speed_mean": 29.53,
+    "seasons": 1,
+    "team_goals_per90": 1.12,
+    "team_shots_per90": 11.693
+   },
+   {
+    "competitions": [
+     "co_bra_u20"
+    ],
+    "outfield_minutes": 7225.1,
+    "outfield_per90": {
+     "ball_losses": 14.574,
+     "carries": 10.302,
+     "distance": 10150.031,
+     "fouls": 1.109,
+     "hi_distance": 929.172,
+     "passes": 41.393,
+     "sprint_distance": 172.049,
+     "tackles_won": 2.08,
+     "take_ons": 1.943
+    },
+    "pass_pct": 77.22,
+    "peak_speed_mean": 29.58,
+    "seasons": 1,
+    "team_goals_per90": 1.121,
+    "team_shots_per90": 13.329
+   },
+   {
+    "competitions": [
+     "co_bra_u20"
+    ],
+    "outfield_minutes": 7219.9,
+    "outfield_per90": {
+     "ball_losses": 14.049,
+     "carries": 10.82,
+     "distance": 10096.205,
+     "fouls": 1.259,
+     "hi_distance": 975.986,
+     "passes": 42.046,
+     "sprint_distance": 184.751,
+     "tackles_won": 2.144,
+     "take_ons": 1.733
+    },
+    "pass_pct": 78.8,
+    "peak_speed_mean": 29.45,
+    "seasons": 1,
+    "team_goals_per90": 1.496,
+    "team_shots_per90": 12.341
    },
    {
     "competitions": [
@@ -1068,109 +1411,43 @@
     ],
     "outfield_minutes": 7226.6,
     "outfield_per90": {
-     "ball_losses": 12.043,
-     "carries": 10.773,
-     "distance": 9979.616,
-     "fouls": 1.071,
-     "hi_distance": 942.442,
-     "passes": 44.436,
-     "sprint_distance": 201.996,
-     "tackles_won": 2.067,
-     "take_ons": 1.918
+     "ball_losses": 14.758,
+     "carries": 10.735,
+     "distance": 10162.732,
+     "fouls": 1.146,
+     "hi_distance": 943.066,
+     "passes": 41.995,
+     "sprint_distance": 174.884,
+     "tackles_won": 2.179,
+     "take_ons": 2.03
     },
-    "pass_pct": 81.98,
-    "peak_speed_mean": 30.55,
-    "seasons": 1,
-    "team_goals_per90": 0.996,
-    "team_shots_per90": 11.956
-   },
-   {
-    "competitions": [
-     "co_bra_u20"
-    ],
-    "outfield_minutes": 7224.2,
-    "outfield_per90": {
-     "ball_losses": 12.147,
-     "carries": 11.698,
-     "distance": 10201.26,
-     "fouls": 0.959,
-     "hi_distance": 983.585,
-     "passes": 43.329,
-     "sprint_distance": 203.459,
-     "tackles_won": 1.57,
-     "take_ons": 1.644
-    },
-    "pass_pct": 80.71,
-    "peak_speed_mean": 30.63,
+    "pass_pct": 77.02,
+    "peak_speed_mean": 29.41,
     "seasons": 1,
     "team_goals_per90": 0.747,
-    "team_shots_per90": 11.461
+    "team_shots_per90": 12.454
    },
    {
     "competitions": [
      "co_bra_u20"
     ],
-    "outfield_minutes": 7236.9,
+    "outfield_minutes": 7223.9,
     "outfield_per90": {
-     "ball_losses": 11.939,
-     "carries": 11.715,
-     "distance": 10167.245,
-     "fouls": 1.032,
-     "hi_distance": 984.158,
-     "passes": 44.36,
-     "sprint_distance": 205.841,
-     "tackles_won": 1.729,
-     "take_ons": 1.691
+     "ball_losses": 14.564,
+     "carries": 11.138,
+     "distance": 10120.616,
+     "fouls": 1.346,
+     "hi_distance": 943.729,
+     "passes": 41.973,
+     "sprint_distance": 173.933,
+     "tackles_won": 2.417,
+     "take_ons": 2.043
     },
-    "pass_pct": 81.78,
-    "peak_speed_mean": 30.72,
+    "pass_pct": 78.27,
+    "peak_speed_mean": 29.42,
     "seasons": 1,
-    "team_goals_per90": 0.871,
-    "team_shots_per90": 12.063
-   },
-   {
-    "competitions": [
-     "co_bra_u20"
-    ],
-    "outfield_minutes": 7237.4,
-    "outfield_per90": {
-     "ball_losses": 12.075,
-     "carries": 11.739,
-     "distance": 10036.226,
-     "fouls": 1.219,
-     "hi_distance": 945.799,
-     "passes": 44.295,
-     "sprint_distance": 200.696,
-     "tackles_won": 1.915,
-     "take_ons": 1.99
-    },
-    "pass_pct": 81.64,
-    "peak_speed_mean": 30.52,
-    "seasons": 1,
-    "team_goals_per90": 0.87,
-    "team_shots_per90": 11.565
-   },
-   {
-    "competitions": [
-     "co_bra_u20"
-    ],
-    "outfield_minutes": 7204.1,
-    "outfield_per90": {
-     "ball_losses": 12.306,
-     "carries": 10.656,
-     "distance": 10138.201,
-     "fouls": 0.962,
-     "hi_distance": 983.659,
-     "passes": 43.95,
-     "sprint_distance": 211.961,
-     "tackles_won": 1.874,
-     "take_ons": 1.786
-    },
-    "pass_pct": 80.9,
-    "peak_speed_mean": 30.76,
-    "seasons": 1,
-    "team_goals_per90": 0.747,
-    "team_shots_per90": 11.087
+    "team_goals_per90": 1.246,
+    "team_shots_per90": 12.085
    }
   ],
   "amateur/senior/men": [
@@ -1180,47 +1457,23 @@
      "co_mex_am_men",
      "co_nga_am_men"
     ],
-    "outfield_minutes": 26437.8,
+    "outfield_minutes": 26461.9,
     "outfield_per90": {
-     "ball_losses": 11.986,
-     "carries": 9.961,
-     "distance": 9915.094,
-     "fouls": 1.341,
-     "hi_distance": 932.357,
-     "passes": 43.121,
-     "sprint_distance": 210.261,
-     "tackles_won": 1.971,
-     "take_ons": 1.671
+     "ball_losses": 17.798,
+     "carries": 9.656,
+     "distance": 10068.055,
+     "fouls": 1.568,
+     "hi_distance": 951.073,
+     "passes": 39.694,
+     "sprint_distance": 210.069,
+     "tackles_won": 2.534,
+     "take_ons": 1.602
     },
-    "pass_pct": 81.42,
-    "peak_speed_mean": 30.79,
-    "seasons": 3,
-    "team_goals_per90": 1.562,
-    "team_shots_per90": 11.14
-   },
-   {
-    "competitions": [
-     "co_esp_am_men",
-     "co_mex_am_men",
-     "co_nga_am_men"
-    ],
-    "outfield_minutes": 26517.8,
-    "outfield_per90": {
-     "ball_losses": 12.167,
-     "carries": 10.158,
-     "distance": 9858.279,
-     "fouls": 1.3,
-     "hi_distance": 901.035,
-     "passes": 43.986,
-     "sprint_distance": 205.048,
-     "tackles_won": 2.047,
-     "take_ons": 1.707
-    },
-    "pass_pct": 81.37,
+    "pass_pct": 71.6,
     "peak_speed_mean": 30.65,
     "seasons": 3,
-    "team_goals_per90": 1.052,
-    "team_shots_per90": 10.453
+    "team_goals_per90": 1.765,
+    "team_shots_per90": 11.948
    },
    {
     "competitions": [
@@ -1228,23 +1481,23 @@
      "co_mex_am_men",
      "co_nga_am_men"
     ],
-    "outfield_minutes": 26507.7,
+    "outfield_minutes": 26457.6,
     "outfield_per90": {
-     "ball_losses": 11.917,
-     "carries": 9.873,
-     "distance": 9916.508,
-     "fouls": 1.294,
-     "hi_distance": 942.453,
-     "passes": 43.469,
-     "sprint_distance": 215.907,
-     "tackles_won": 1.983,
-     "take_ons": 1.721
+     "ball_losses": 17.434,
+     "carries": 9.402,
+     "distance": 10083.342,
+     "fouls": 1.575,
+     "hi_distance": 943.808,
+     "passes": 39.49,
+     "sprint_distance": 204.763,
+     "tackles_won": 2.425,
+     "take_ons": 1.541
     },
-    "pass_pct": 81.86,
-    "peak_speed_mean": 30.86,
+    "pass_pct": 72.06,
+    "peak_speed_mean": 30.58,
     "seasons": 3,
-    "team_goals_per90": 1.459,
-    "team_shots_per90": 11.471
+    "team_goals_per90": 1.492,
+    "team_shots_per90": 12.549
    },
    {
     "competitions": [
@@ -1252,23 +1505,23 @@
      "co_mex_am_men",
      "co_nga_am_men"
     ],
-    "outfield_minutes": 26478.0,
+    "outfield_minutes": 26465.9,
     "outfield_per90": {
-     "ball_losses": 12.305,
-     "carries": 9.782,
-     "distance": 9937.962,
-     "fouls": 1.292,
-     "hi_distance": 927.928,
-     "passes": 43.957,
-     "sprint_distance": 209.775,
-     "tackles_won": 2.026,
-     "take_ons": 1.815
+     "ball_losses": 17.571,
+     "carries": 9.488,
+     "distance": 10090.356,
+     "fouls": 1.608,
+     "hi_distance": 930.689,
+     "passes": 39.005,
+     "sprint_distance": 205.365,
+     "tackles_won": 2.666,
+     "take_ons": 1.649
     },
-    "pass_pct": 80.87,
-    "peak_speed_mean": 30.76,
+    "pass_pct": 71.53,
+    "peak_speed_mean": 30.73,
     "seasons": 3,
-    "team_goals_per90": 0.679,
-    "team_shots_per90": 10.925
+    "team_goals_per90": 1.63,
+    "team_shots_per90": 11.885
    },
    {
     "competitions": [
@@ -1276,23 +1529,23 @@
      "co_mex_am_men",
      "co_nga_am_men"
     ],
-    "outfield_minutes": 26519.7,
+    "outfield_minutes": 26453.9,
     "outfield_per90": {
-     "ball_losses": 12.051,
-     "carries": 9.984,
-     "distance": 9856.286,
-     "fouls": 1.212,
-     "hi_distance": 924.037,
-     "passes": 43.687,
-     "sprint_distance": 209.299,
-     "tackles_won": 1.941,
-     "take_ons": 1.765
+     "ball_losses": 17.235,
+     "carries": 9.431,
+     "distance": 10058.951,
+     "fouls": 1.48,
+     "hi_distance": 945.939,
+     "passes": 39.108,
+     "sprint_distance": 205.681,
+     "tackles_won": 2.654,
+     "take_ons": 1.616
     },
-    "pass_pct": 81.45,
-    "peak_speed_mean": 30.79,
+    "pass_pct": 72.03,
+    "peak_speed_mean": 30.64,
     "seasons": 3,
-    "team_goals_per90": 1.255,
-    "team_shots_per90": 9.666
+    "team_goals_per90": 2.106,
+    "team_shots_per90": 13.755
    },
    {
     "competitions": [
@@ -1300,23 +1553,47 @@
      "co_mex_am_men",
      "co_nga_am_men"
     ],
-    "outfield_minutes": 26492.9,
+    "outfield_minutes": 26494.6,
     "outfield_per90": {
-     "ball_losses": 11.944,
-     "carries": 9.964,
-     "distance": 9940.295,
-     "fouls": 1.301,
-     "hi_distance": 930.475,
-     "passes": 43.398,
-     "sprint_distance": 205.792,
-     "tackles_won": 1.882,
-     "take_ons": 1.682
+     "ball_losses": 17.202,
+     "carries": 9.359,
+     "distance": 10014.309,
+     "fouls": 1.651,
+     "hi_distance": 954.464,
+     "passes": 39.574,
+     "sprint_distance": 212.21,
+     "tackles_won": 2.561,
+     "take_ons": 1.631
     },
-    "pass_pct": 81.3,
-    "peak_speed_mean": 30.71,
+    "pass_pct": 73.0,
+    "peak_speed_mean": 30.75,
     "seasons": 3,
-    "team_goals_per90": 1.222,
-    "team_shots_per90": 11.474
+    "team_goals_per90": 1.458,
+    "team_shots_per90": 12.923
+   },
+   {
+    "competitions": [
+     "co_esp_am_men",
+     "co_mex_am_men",
+     "co_nga_am_men"
+    ],
+    "outfield_minutes": 26507.2,
+    "outfield_per90": {
+     "ball_losses": 17.69,
+     "carries": 9.188,
+     "distance": 10075.919,
+     "fouls": 1.395,
+     "hi_distance": 946.007,
+     "passes": 39.25,
+     "sprint_distance": 207.746,
+     "tackles_won": 2.784,
+     "take_ons": 1.552
+    },
+    "pass_pct": 72.26,
+    "peak_speed_mean": 30.74,
+    "seasons": 3,
+    "team_goals_per90": 1.494,
+    "team_shots_per90": 12.8
    }
   ],
   "college/college/men": [
@@ -1325,46 +1602,69 @@
      "co_jpn_uni_men",
      "co_usa_col_men"
     ],
-    "outfield_minutes": 25284.0,
+    "outfield_minutes": 25249.4,
     "outfield_per90": {
-     "ball_losses": 12.124,
-     "carries": 11.508,
-     "distance": 10165.498,
-     "fouls": 1.192,
-     "hi_distance": 978.395,
-     "passes": 43.213,
-     "sprint_distance": 216.948,
-     "tackles_won": 1.837,
-     "take_ons": 1.954
+     "ball_losses": 15.423,
+     "carries": 10.9,
+     "distance": 10276.394,
+     "fouls": 1.173,
+     "hi_distance": 1006.064,
+     "passes": 41.219,
+     "sprint_distance": 224.405,
+     "tackles_won": 2.349,
+     "take_ons": 1.761
     },
-    "pass_pct": 81.02,
-    "peak_speed_mean": 31.24,
+    "pass_pct": 76.25,
+    "peak_speed_mean": 31.27,
     "seasons": 2,
-    "team_goals_per90": 1.245,
-    "team_shots_per90": 12.375
+    "team_goals_per90": 1.566,
+    "team_shots_per90": 12.492
    },
    {
     "competitions": [
      "co_jpn_uni_men",
      "co_usa_col_men"
     ],
-    "outfield_minutes": 25311.6,
+    "outfield_minutes": 25250.1,
     "outfield_per90": {
-     "ball_losses": 12.441,
-     "carries": 11.307,
-     "distance": 10182.25,
-     "fouls": 1.17,
-     "hi_distance": 972.223,
-     "passes": 43.287,
-     "sprint_distance": 220.607,
-     "tackles_won": 2.037,
-     "take_ons": 1.97
+     "ball_losses": 14.813,
+     "carries": 10.992,
+     "distance": 10231.278,
+     "fouls": 1.272,
+     "hi_distance": 996.3,
+     "passes": 41.824,
+     "sprint_distance": 225.516,
+     "tackles_won": 2.131,
+     "take_ons": 2.0
     },
-    "pass_pct": 80.81,
-    "peak_speed_mean": 31.32,
+    "pass_pct": 77.08,
+    "peak_speed_mean": 31.33,
     "seasons": 2,
-    "team_goals_per90": 0.995,
-    "team_shots_per90": 11.731
+    "team_goals_per90": 1.494,
+    "team_shots_per90": 11.848
+   },
+   {
+    "competitions": [
+     "co_jpn_uni_men",
+     "co_usa_col_men"
+    ],
+    "outfield_minutes": 25314.9,
+    "outfield_per90": {
+     "ball_losses": 14.886,
+     "carries": 10.854,
+     "distance": 10225.535,
+     "fouls": 1.155,
+     "hi_distance": 980.082,
+     "passes": 41.162,
+     "sprint_distance": 219.229,
+     "tackles_won": 2.29,
+     "take_ons": 1.962
+    },
+    "pass_pct": 77.66,
+    "peak_speed_mean": 31.2,
+    "seasons": 2,
+    "team_goals_per90": 1.707,
+    "team_shots_per90": 13.439
    },
    {
     "competitions": [
@@ -1373,90 +1673,67 @@
     ],
     "outfield_minutes": 25280.8,
     "outfield_per90": {
-     "ball_losses": 12.492,
-     "carries": 11.339,
-     "distance": 10225.661,
-     "fouls": 1.082,
-     "hi_distance": 995.71,
-     "passes": 43.429,
-     "sprint_distance": 225.256,
-     "tackles_won": 2.083,
-     "take_ons": 1.897
+     "ball_losses": 14.77,
+     "carries": 11.239,
+     "distance": 10229.052,
+     "fouls": 1.203,
+     "hi_distance": 996.745,
+     "passes": 41.948,
+     "sprint_distance": 220.297,
+     "tackles_won": 2.239,
+     "take_ons": 1.951
     },
-    "pass_pct": 80.52,
-    "peak_speed_mean": 31.27,
-    "seasons": 2,
-    "team_goals_per90": 1.137,
-    "team_shots_per90": 12.619
-   },
-   {
-    "competitions": [
-     "co_jpn_uni_men",
-     "co_usa_col_men"
-    ],
-    "outfield_minutes": 25294.9,
-    "outfield_per90": {
-     "ball_losses": 11.927,
-     "carries": 11.222,
-     "distance": 10139.047,
-     "fouls": 1.178,
-     "hi_distance": 979.932,
-     "passes": 43.376,
-     "sprint_distance": 221.042,
-     "tackles_won": 1.868,
-     "take_ons": 2.103
-    },
-    "pass_pct": 81.4,
-    "peak_speed_mean": 31.28,
+    "pass_pct": 77.67,
+    "peak_speed_mean": 31.33,
     "seasons": 2,
     "team_goals_per90": 1.387,
-    "team_shots_per90": 12.265
+    "team_shots_per90": 11.841
    },
    {
     "competitions": [
      "co_jpn_uni_men",
      "co_usa_col_men"
     ],
-    "outfield_minutes": 25274.3,
+    "outfield_minutes": 25275.3,
     "outfield_per90": {
-     "ball_losses": 11.844,
-     "carries": 11.459,
-     "distance": 10151.628,
-     "fouls": 1.157,
-     "hi_distance": 992.578,
-     "passes": 43.408,
-     "sprint_distance": 225.364,
-     "tackles_won": 1.852,
-     "take_ons": 2.072
+     "ball_losses": 14.72,
+     "carries": 11.092,
+     "distance": 10273.45,
+     "fouls": 1.2,
+     "hi_distance": 1023.888,
+     "passes": 41.465,
+     "sprint_distance": 230.37,
+     "tackles_won": 2.24,
+     "take_ons": 1.82
     },
-    "pass_pct": 81.55,
-    "peak_speed_mean": 31.28,
+    "pass_pct": 77.54,
+    "peak_speed_mean": 31.37,
     "seasons": 2,
     "team_goals_per90": 1.637,
-    "team_shots_per90": 12.346
+    "team_shots_per90": 13.705
    },
    {
     "competitions": [
      "co_jpn_uni_men",
      "co_usa_col_men"
     ],
-    "outfield_minutes": 25249.6,
+    "outfield_minutes": 25282.4,
     "outfield_per90": {
-     "ball_losses": 12.247,
-     "carries": 11.513,
-     "distance": 10216.49,
-     "fouls": 1.173,
-     "hi_distance": 992.35,
-     "passes": 43.151,
-     "sprint_distance": 223.199,
-     "tackles_won": 2.014,
-     "take_ons": 2.078
+     "ball_losses": 15.09,
+     "carries": 11.092,
+     "distance": 10241.202,
+     "fouls": 1.164,
+     "hi_distance": 1006.802,
+     "passes": 42.344,
+     "sprint_distance": 225.018,
+     "tackles_won": 2.257,
+     "take_ons": 1.791
     },
-    "pass_pct": 80.94,
-    "peak_speed_mean": 31.31,
+    "pass_pct": 77.05,
+    "peak_speed_mean": 31.34,
     "seasons": 2,
-    "team_goals_per90": 1.209,
-    "team_shots_per90": 12.23
+    "team_goals_per90": 1.387,
+    "team_shots_per90": 11.808
    }
   ],
   "college/college/women": [
@@ -1464,133 +1741,133 @@
     "competitions": [
      "co_usa_col_women"
     ],
-    "outfield_minutes": 12001.2,
+    "outfield_minutes": 12048.1,
     "outfield_per90": {
-     "ball_losses": 13.191,
-     "carries": 10.371,
-     "distance": 10005.76,
-     "fouls": 1.372,
-     "hi_distance": 829.464,
-     "passes": 42.873,
-     "sprint_distance": 84.914,
-     "tackles_won": 2.092,
-     "take_ons": 1.762
+     "ball_losses": 18.84,
+     "carries": 9.666,
+     "distance": 10072.191,
+     "fouls": 1.643,
+     "hi_distance": 832.509,
+     "passes": 38.195,
+     "sprint_distance": 83.804,
+     "tackles_won": 3.22,
+     "take_ons": 1.561
     },
-    "pass_pct": 78.85,
+    "pass_pct": 69.39,
     "peak_speed_mean": 26.77,
     "seasons": 1,
-    "team_goals_per90": 0.822,
-    "team_shots_per90": 9.196
+    "team_goals_per90": 1.419,
+    "team_shots_per90": 11.352
    },
    {
     "competitions": [
      "co_usa_col_women"
     ],
-    "outfield_minutes": 12019.6,
+    "outfield_minutes": 12040.6,
     "outfield_per90": {
-     "ball_losses": 13.148,
-     "carries": 10.588,
-     "distance": 9959.944,
-     "fouls": 1.445,
-     "hi_distance": 824.103,
-     "passes": 42.411,
-     "sprint_distance": 84.95,
-     "tackles_won": 2.366,
-     "take_ons": 1.797
+     "ball_losses": 18.463,
+     "carries": 10.061,
+     "distance": 10062.019,
+     "fouls": 1.517,
+     "hi_distance": 821.319,
+     "passes": 38.248,
+     "sprint_distance": 81.248,
+     "tackles_won": 2.997,
+     "take_ons": 1.502
     },
-    "pass_pct": 79.29,
-    "peak_speed_mean": 26.73,
+    "pass_pct": 69.04,
+    "peak_speed_mean": 26.78,
+    "seasons": 1,
+    "team_goals_per90": 1.42,
+    "team_shots_per90": 10.614
+   },
+   {
+    "competitions": [
+     "co_usa_col_women"
+    ],
+    "outfield_minutes": 12062.9,
+    "outfield_per90": {
+     "ball_losses": 18.219,
+     "carries": 9.841,
+     "distance": 10036.067,
+     "fouls": 1.447,
+     "hi_distance": 799.17,
+     "passes": 39.155,
+     "sprint_distance": 79.789,
+     "tackles_won": 2.947,
+     "take_ons": 1.731
+    },
+    "pass_pct": 70.45,
+    "peak_speed_mean": 26.74,
+    "seasons": 1,
+    "team_goals_per90": 1.418,
+    "team_shots_per90": 10.968
+   },
+   {
+    "competitions": [
+     "co_usa_col_women"
+    ],
+    "outfield_minutes": 12041.8,
+    "outfield_per90": {
+     "ball_losses": 18.872,
+     "carries": 10.0,
+     "distance": 10130.445,
+     "fouls": 1.637,
+     "hi_distance": 867.367,
+     "passes": 38.431,
+     "sprint_distance": 86.967,
+     "tackles_won": 2.945,
+     "take_ons": 1.502
+    },
+    "pass_pct": 69.18,
+    "peak_speed_mean": 26.84,
     "seasons": 1,
     "team_goals_per90": 1.12,
-    "team_shots_per90": 10.303
+    "team_shots_per90": 11.195
    },
    {
     "competitions": [
      "co_usa_col_women"
     ],
-    "outfield_minutes": 12052.9,
+    "outfield_minutes": 12050.5,
     "outfield_per90": {
-     "ball_losses": 12.776,
-     "carries": 10.775,
-     "distance": 9847.785,
-     "fouls": 1.322,
-     "hi_distance": 818.955,
-     "passes": 43.063,
-     "sprint_distance": 83.972,
-     "tackles_won": 2.158,
-     "take_ons": 1.777
+     "ball_losses": 19.269,
+     "carries": 9.933,
+     "distance": 10104.786,
+     "fouls": 1.441,
+     "hi_distance": 838.883,
+     "passes": 38.03,
+     "sprint_distance": 86.933,
+     "tackles_won": 3.085,
+     "take_ons": 1.636
     },
-    "pass_pct": 80.09,
-    "peak_speed_mean": 26.66,
+    "pass_pct": 68.48,
+    "peak_speed_mean": 26.81,
     "seasons": 1,
-    "team_goals_per90": 0.821,
-    "team_shots_per90": 10.081
+    "team_goals_per90": 1.27,
+    "team_shots_per90": 10.605
    },
    {
     "competitions": [
      "co_usa_col_women"
     ],
-    "outfield_minutes": 12028.2,
+    "outfield_minutes": 11975.0,
     "outfield_per90": {
-     "ball_losses": 12.997,
-     "carries": 10.558,
-     "distance": 9909.595,
-     "fouls": 1.302,
-     "hi_distance": 807.009,
-     "passes": 43.226,
-     "sprint_distance": 82.011,
-     "tackles_won": 2.14,
-     "take_ons": 1.699
+     "ball_losses": 18.812,
+     "carries": 10.139,
+     "distance": 10114.426,
+     "fouls": 1.563,
+     "hi_distance": 820.673,
+     "passes": 38.495,
+     "sprint_distance": 85.785,
+     "tackles_won": 3.014,
+     "take_ons": 1.556
     },
-    "pass_pct": 79.4,
-    "peak_speed_mean": 26.72,
-    "seasons": 1,
-    "team_goals_per90": 0.747,
-    "team_shots_per90": 10.081
-   },
-   {
-    "competitions": [
-     "co_usa_col_women"
-    ],
-    "outfield_minutes": 12044.5,
-    "outfield_per90": {
-     "ball_losses": 13.002,
-     "carries": 10.439,
-     "distance": 9911.186,
-     "fouls": 1.308,
-     "hi_distance": 814.08,
-     "passes": 43.137,
-     "sprint_distance": 85.321,
-     "tackles_won": 2.257,
-     "take_ons": 1.771
-    },
-    "pass_pct": 79.37,
+    "pass_pct": 69.25,
     "peak_speed_mean": 26.73,
     "seasons": 1,
-    "team_goals_per90": 1.046,
-    "team_shots_per90": 8.892
-   },
-   {
-    "competitions": [
-     "co_usa_col_women"
-    ],
-    "outfield_minutes": 12045.0,
-    "outfield_per90": {
-     "ball_losses": 13.592,
-     "carries": 10.289,
-     "distance": 9893.582,
-     "fouls": 1.397,
-     "hi_distance": 811.373,
-     "passes": 42.912,
-     "sprint_distance": 87.352,
-     "tackles_won": 2.496,
-     "take_ons": 1.577
-    },
-    "pass_pct": 78.06,
-    "peak_speed_mean": 26.66,
-    "seasons": 1,
-    "team_goals_per90": 1.121,
-    "team_shots_per90": 9.564
+    "team_goals_per90": 1.271,
+    "team_shots_per90": 13.081
    }
   ],
   "semi_pro/senior/men": [
@@ -1738,149 +2015,152 @@
     "competitions": [
      "co_eng_sp_women"
     ],
-    "outfield_minutes": 12058.0,
+    "outfield_minutes": 12036.8,
     "outfield_per90": {
-     "ball_losses": 12.92,
-     "carries": 11.166,
-     "distance": 9944.252,
-     "fouls": 1.239,
-     "hi_distance": 784.287,
-     "passes": 43.291,
-     "sprint_distance": 87.523,
-     "tackles_won": 2.165,
-     "take_ons": 1.814
+     "ball_losses": 17.571,
+     "carries": 11.051,
+     "distance": 10200.19,
+     "fouls": 1.308,
+     "hi_distance": 844.909,
+     "passes": 38.963,
+     "sprint_distance": 90.896,
+     "tackles_won": 2.542,
+     "take_ons": 1.892
     },
-    "pass_pct": 79.52,
-    "peak_speed_mean": 26.75,
+    "pass_pct": 71.75,
+    "peak_speed_mean": 26.82,
     "seasons": 1,
-    "team_goals_per90": 0.97,
-    "team_shots_per90": 10.375
+    "team_goals_per90": 1.793,
+    "team_shots_per90": 11.881
    },
    {
     "competitions": [
      "co_eng_sp_women"
     ],
-    "outfield_minutes": 12019.4,
+    "outfield_minutes": 12045.1,
     "outfield_per90": {
-     "ball_losses": 12.872,
-     "carries": 11.359,
-     "distance": 10048.344,
-     "fouls": 1.236,
-     "hi_distance": 832.732,
-     "passes": 42.748,
-     "sprint_distance": 98.398,
-     "tackles_won": 2.209,
-     "take_ons": 2.037
+     "ball_losses": 17.215,
+     "carries": 10.237,
+     "distance": 10113.671,
+     "fouls": 1.405,
+     "hi_distance": 845.08,
+     "passes": 39.878,
+     "sprint_distance": 94.977,
+     "tackles_won": 2.473,
+     "take_ons": 1.629
     },
-    "pass_pct": 79.73,
+    "pass_pct": 72.33,
     "peak_speed_mean": 26.9,
     "seasons": 1,
-    "team_goals_per90": 1.42,
-    "team_shots_per90": 10.911
-   },
-   {
-    "competitions": [
-     "co_eng_sp_women"
-    ],
-    "outfield_minutes": 12052.3,
-    "outfield_per90": {
-     "ball_losses": 12.672,
-     "carries": 11.41,
-     "distance": 10027.895,
-     "fouls": 1.225,
-     "hi_distance": 813.716,
-     "passes": 42.923,
-     "sprint_distance": 92.371,
-     "tackles_won": 1.844,
-     "take_ons": 1.956
-    },
-    "pass_pct": 79.23,
-    "peak_speed_mean": 26.81,
-    "seasons": 1,
-    "team_goals_per90": 1.195,
-    "team_shots_per90": 10.529
-   },
-   {
-    "competitions": [
-     "co_eng_sp_women"
-    ],
-    "outfield_minutes": 12050.0,
-    "outfield_per90": {
-     "ball_losses": 12.891,
-     "carries": 11.629,
-     "distance": 10045.524,
-     "fouls": 1.247,
-     "hi_distance": 835.699,
-     "passes": 42.289,
-     "sprint_distance": 99.377,
-     "tackles_won": 2.256,
-     "take_ons": 2.114
-    },
-    "pass_pct": 79.64,
-    "peak_speed_mean": 26.92,
-    "seasons": 1,
-    "team_goals_per90": 1.568,
-    "team_shots_per90": 11.278
-   },
-   {
-    "competitions": [
-     "co_eng_sp_women"
-    ],
-    "outfield_minutes": 12048.7,
-    "outfield_per90": {
-     "ball_losses": 12.676,
-     "carries": 11.025,
-     "distance": 10034.609,
-     "fouls": 1.389,
-     "hi_distance": 829.411,
-     "passes": 42.585,
-     "sprint_distance": 93.38,
-     "tackles_won": 2.136,
-     "take_ons": 2.099
-    },
-    "pass_pct": 79.79,
-    "peak_speed_mean": 26.91,
-    "seasons": 1,
     "team_goals_per90": 1.046,
-    "team_shots_per90": 11.354
+    "team_shots_per90": 10.535
    },
    {
     "competitions": [
      "co_eng_sp_women"
     ],
-    "outfield_minutes": 12037.0,
+    "outfield_minutes": 12018.0,
     "outfield_per90": {
-     "ball_losses": 12.352,
-     "carries": 11.791,
-     "distance": 10130.026,
-     "fouls": 1.308,
-     "hi_distance": 852.795,
-     "passes": 41.968,
-     "sprint_distance": 95.413,
-     "tackles_won": 2.034,
-     "take_ons": 1.884
+     "ball_losses": 17.164,
+     "carries": 10.597,
+     "distance": 10102.959,
+     "fouls": 1.453,
+     "hi_distance": 821.813,
+     "passes": 39.346,
+     "sprint_distance": 87.077,
+     "tackles_won": 2.524,
+     "take_ons": 1.88
     },
-    "pass_pct": 80.21,
-    "peak_speed_mean": 26.84,
+    "pass_pct": 72.27,
+    "peak_speed_mean": 26.74,
     "seasons": 1,
-    "team_goals_per90": 1.12,
-    "team_shots_per90": 12.317
+    "team_goals_per90": 1.868,
+    "team_shots_per90": 12.925
+   },
+   {
+    "competitions": [
+     "co_eng_sp_women"
+    ],
+    "outfield_minutes": 12016.1,
+    "outfield_per90": {
+     "ball_losses": 17.983,
+     "carries": 11.325,
+     "distance": 10206.347,
+     "fouls": 1.363,
+     "hi_distance": 887.931,
+     "passes": 39.225,
+     "sprint_distance": 100.292,
+     "tackles_won": 3.101,
+     "take_ons": 1.783
+    },
+    "pass_pct": 71.09,
+    "peak_speed_mean": 26.9,
+    "seasons": 1,
+    "team_goals_per90": 1.345,
+    "team_shots_per90": 12.406
+   },
+   {
+    "competitions": [
+     "co_eng_sp_women"
+    ],
+    "outfield_minutes": 12033.0,
+    "outfield_per90": {
+     "ball_losses": 17.016,
+     "carries": 10.86,
+     "distance": 10161.549,
+     "fouls": 1.503,
+     "hi_distance": 850.975,
+     "passes": 39.162,
+     "sprint_distance": 91.183,
+     "tackles_won": 2.543,
+     "take_ons": 1.818
+    },
+    "pass_pct": 72.15,
+    "peak_speed_mean": 26.73,
+    "seasons": 1,
+    "team_goals_per90": 1.717,
+    "team_shots_per90": 13.958
+   },
+   {
+    "competitions": [
+     "co_eng_sp_women"
+    ],
+    "outfield_minutes": 12040.2,
+    "outfield_per90": {
+     "ball_losses": 17.073,
+     "carries": 10.884,
+     "distance": 10165.619,
+     "fouls": 1.405,
+     "hi_distance": 833.569,
+     "passes": 39.116,
+     "sprint_distance": 89.504,
+     "tackles_won": 2.534,
+     "take_ons": 1.801
+    },
+    "pass_pct": 72.39,
+    "peak_speed_mean": 26.76,
+    "seasons": 1,
+    "team_goals_per90": 1.344,
+    "team_shots_per90": 12.996
    }
   ]
  },
  "seasons": 6,
  "separation_se": 2.0,
  "sources": {
-  "S1": "Bradley et al. 2014, Hum Mov Sci 33:159-171 (UEFA Champions League, women vs men)",
-  "S10": "Professional vs amateur players in small-sided games (as summarised in PMC6815094; direction only)",
-  "S11": "FIFA Training Centre, Women's World Cup 2023 physical analysis, part 2",
-  "S2": "Datson et al. 2017, J Strength Cond Res 31(9):2379-2387 (elite women's internationals)",
-  "S3": "Vescovi 2012, FAiM study (high-level American female players' sprint speed)",
-  "S4": "Match demands of NCAA Division I men's soccer, J Strength Cond Res 2018",
-  "S5": "Peak match speed and maximal sprinting speed in young soccer players, IJSPP 2015;10(7):888-896",
-  "S6": "Age-related differences in peak match running speed in highly-trained young soccer players",
-  "S8": "Buchheit et al. 2010, Int J Sports Med 31(11):818-825 (youth match running, U13-U18)",
-  "S9": "Match running performance on three competitive standards in Norwegian soccer"
+  "S1": "Bradley PS, Dellal A, Mohr M, Castellano J, Wilkie A. Gender differences in match performance characteristics of soccer players competing in the UEFA Champions League. Hum Mov Sci 2014;33:159-171. doi:10.1016/j.humov.2013.07.024",
+  "S10": "Dellal A, Hill-Haas S, Lago-Penas C, Chamari K. Small-sided games in soccer: amateur vs. professional players' physiological responses, physical, and technical activities. J Strength Cond Res 2011;25(9):2371-2381. doi:10.1519/JSC.0b013e3181fb4296 (small-sided games, not full matches: direction only)",
+  "S11": "Bradley PS. Setting the benchmark, part 2: setting physical benchmarks across teams. FIFA Training Centre, FIFA Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-2-setting-physical-benchmarks-across-teams.php",
+  "S12": "Pappalardo L, Rossi A, Natilli M, Cintia P. Explaining the difference between men's and women's football. PLoS One 2021;16(8):e0255407. doi:10.1371/journal.pone.0255407 (2018 men's and 2019 women's World Cups, Wyscout events)",
+  "S13": "Bradley PS, Carling C, Gomez Diaz A, Hood P, Barnes C, Ade J, Boddy M, Krustrup P, Mohr M. Match performance and physical capacity of players in the top three competitive standards of English professional soccer. Hum Mov Sci 2013;32(4):808-821. doi:10.1016/j.humov.2013.06.002",
+  "S14": "Bradley PS. Setting the benchmark, part 3: setting physical benchmarks across positions. FIFA Training Centre, FIFA Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-3-setting-physical-benchmarks-across-positions.php",
+  "S2": "Datson N, Drust B, Weston M, Jarman IH, Lisboa PJ, Gregson W. Match physical performance of elite female soccer players during international competition. J Strength Cond Res 2017;31(9):2379-2387. doi:10.1519/JSC.0000000000001575",
+  "S3": "Vescovi JD. Sprint speed characteristics of high-level American female soccer players: Female Athletes in Motion (FAiM) study. J Sci Med Sport 2012;15(5):474-478. doi:10.1016/j.jsams.2012.03.006",
+  "S4": "Curtis RM, Huggins RA, Looney DP, West CA, Fortunati A, Fontaine GJ, Casa DJ. Match demands of National Collegiate Athletic Association Division I men's soccer. J Strength Cond Res 2018;32(10):2907-2917. doi:10.1519/JSC.0000000000002719",
+  "S5": "Al Haddad H, Simpson BM, Buchheit M, Di Salvo V, Mendez-Villanueva A. Peak match speed and maximal sprinting speed in young soccer players: effect of age and playing position. Int J Sports Physiol Perform 2015;10(7):888-896. doi:10.1123/ijspp.2014-0539",
+  "S6": "Al Haddad H, Simpson BM, Buchheit M, Mendez-Villanueva A. Age-related differences in peak match running speed in highly-trained young soccer players. 17th Annual Congress of the ECSS, Bruges, 2012 (abstract); https://lida.sport-iat.de/ta/Record/4029276",
+  "S8": "Buchheit M, Mendez-Villanueva A, Simpson BM, Bourdon PC. Match running performance and fitness in youth soccer. Int J Sports Med 2010;31(11):818-825. doi:10.1055/s-0030-1262838",
+  "S9": "Saeterbakken A, Haug V, Fransson D, Grendstad HN, Gundersen HS, Moe VF, Ylvisaker E, Shaw M, Riiser A, Andersen V. Match running performance on three different competitive standards in Norwegian soccer. Sports Med Int Open 2019;3(3):E82-E88. doi:10.1055/a-0943-3682"
  },
  "synthetic": true
 }
