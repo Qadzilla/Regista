@@ -49,6 +49,11 @@ def css() -> str:
     return (SCOUT / "terminal.css").read_text()
 
 
+def _run(js: str) -> str:
+    """The search runner: run() reads place words, then runIntent() runs what the reader understood."""
+    return _fn(js, "run") + _fn(js, "runIntent")
+
+
 def _fn(js: str, name: str) -> str:
     """The source of one top-level function in terminal.js (up to the next function at the same indent)."""
     start = js.index(f"function {name}(")
@@ -183,11 +188,13 @@ def test_cmp_without_a_player_says_how_to_use_it(js):
     assert "rest ? `No player called" not in cmp
 
 
-def test_the_heat_map_reads_the_league_only_grid(js):
-    # every terminal number is league fixtures only; the profile's grid also counts claimed and uploaded matches
-    assert "/heatmap`" in js and "heatOf(p.id, 'heat')" in _fn(js, "renderHeat")
+def test_the_heat_map_reads_the_competitions_own_grid(js):
+    # every terminal number counts the row's competition's own matches only (England: the league fixtures); the
+    # profile's league grid also counts claimed and uploaded matches
+    assert "/heatmap?${rowQ(p)}`" in js and "heatOf(p.id, 'heat')" in _fn(js, "renderHeat")
     assert "R.api(`/api/players/${enc(pid)}`)" not in js
     assert "on-ball actions in league matches this season" in _fn(js, "renderHeat")
+    assert "uploaded matches" in _fn(js, "renderHeat")
 
 
 def test_the_terminal_only_reads(js, words):
@@ -196,7 +203,9 @@ def test_the_terminal_only_reads(js, words):
     assert "method:" not in js and "'POST'" not in js and "'PUT'" not in js and "'DELETE'" not in js
     assert "fetch(" not in js            # every request goes through Regista.api, a GET without a key
     used = set(re.findall(r"R\.api\(`?'?(/api/[a-z/]+)", js))
-    allowed = {"/api/metrics", "/api/season", "/api/teams", "/api/terminal/screen", "/api/terminal/scatter", "/api/players/", "/api/teams/"}
+    allowed = {"/api/metrics", "/api/season", "/api/teams", "/api/terminal/scatter", "/api/players/", "/api/teams/",
+               # the catalogue (port of the catalogue round): every read is public
+               "/api/catalogue", "/api/catalogue/players", "/api/catalogue/matches", "/api/catalogue/compare", "/api/competitions/"}
     assert used and used <= allowed, used - allowed
     assert "auth: true" not in js and "X-Regista-Token" not in js
 
@@ -246,9 +255,9 @@ def test_fix_3_alt_1_goes_straight_into_the_screeners_table(js):
 
 def test_fix_4_commands_bring_their_subject_into_view_after_the_output_line(js):
     rank = _fn(js, "cmdRank")
-    assert rank.index("out(`${cap1(posText(S.scr.pos))}") < rank.index("showPanel('scrn', true, scrollTable(m.key))")
+    assert rank.index("out(rankText(m, cl, why)") < rank.index("showPanel('scrn', true, scrollTable(m.key))")
     assert "trs[Math.min(2, trs.length - 1)]" in _fn(js, "scrollTable")   # the first rows of the ranking, not 60% of the box
-    run = _fn(js, "run")
+    run = _run(js)
     # a name brings the card and the Best table into view; panel commands load first, write the line, then scroll
     assert "showPanel('plyr', true, '.tx-best')" in run
     for cmd_out, cmd_show in (("out('', '', esc(line)", "showPanel(PANEL_CMD[head]"),):
@@ -262,7 +271,7 @@ def test_fix_4_commands_wait_for_every_shown_panel_before_they_scroll(js):
     settled = _fn(js, "panelsSettled")
     assert "c.panels" in settled and "visible" in settled and "colsPending" in settled and "nextFrame()" in settled
     assert "(c.panels || (c.panels = new Set())).add(panel)" in _fn(js, "want")
-    run = _fn(js, "run")
+    run = _run(js)
     for show in ("showPanel(PANEL_CMD[head], true", "showPanel('plyr', true, '.tx-best')"):
         i = run.index(show)
         assert run.rfind("await panelsSettled();", 0, i) > run.rfind("select(p.id, true);", 0, i)
@@ -280,11 +289,13 @@ def test_only_the_terminal_binds_cmd_k(js):
 def test_the_synthetic_data_is_said_once_and_numbers_say_where_they_come_from(js):
     # once, plainly, at the bottom of the section ("Synthetic data: invented players and clubs…", from the catalogue)
     foot = _fn(js, "paintFoot")
-    assert "$('txFoot').innerHTML" in foot and "CAT.note" in foot and "Synthetic data" in foot
+    assert "$('txFoot').innerHTML" in foot and "invented players, clubs and competitions" in foot and "Synthetic data" in foot
     assert "SYNTHETIC DATA" not in js and "Synthetic data" not in _fn(js, "paintMeta")
     # every metric's definition, rule and source on hover and focus; noisy marked as the engine marks it
     tip = _fn(js, "tipHtml")
-    assert "m.definition" in tip and "m.rule" in tip and "CAT.sources" in tip and "m.noisy" in tip and "m.min_attempts" in tip
+    assert "m.definition" in tip and "m.rule" in tip and "CAT.sources" in tip and "noisyAt(m)" in tip and "m.min_attempts" in tip
+    # ≈ follows each row's own level (the engine's cell), the league's flag only until the player's numbers are in
+    assert "c.noisy != null ? !!c.noisy : !!m.noisy" in js
     assert "rel.noisy" in js and "aria-describedby" in js
 
 
@@ -293,7 +304,7 @@ def test_a_stale_command_drops_its_line_and_scroll(js):
     # not replace the newer output line or scroll away from it (review B, round 3).
     assert "let gen = 0;" in js
     assert "if (!quiet) gen++;" in _fn(js, "select")  # a hand-picked player overrides a command still loading
-    run = _fn(js, "run")
+    run = _run(js)
     assert "const g = ++gen;" in run
     for show in ("showPanel(PANEL_CMD[head], true", "showPanel('plyr', true, '.tx-best')"):
         i = run.index(show)
@@ -489,10 +500,10 @@ def test_plain_questions_and_old_mnemonics_read_as_commands(league):
 
 
 def test_the_terminal_runs_the_readers_intents(js):
-    run = _fn(js, "run")
+    run = _run(js)
     for intent in ("help", "rank", "rankKey", "minutes", "cmp", "scat", "team", "club", "hl", "hlPlayer", "hlFocus", "stat", "many", "panel", "player"):
         assert f"'{intent}'" in run, intent
-    assert "const it = W.interpret(t);" in run
+    assert "return runIntent(W.interpret(t), t, g, '');" in run
     # a goalkeepers' stat ranks the goalkeepers unless a position is named; a failed search keeps its text, selected
     assert "if (!pos && gkOnly(m)) pos = 'GK';" in _fn(js, "cmdRank")
     assert "inp.value = t; inp.select();" in run
@@ -539,12 +550,17 @@ def test_plain_panel_names_and_their_shortcuts(js):
 
 
 def test_old_saved_layouts_still_load(js):
-    # v2 (the first port: Clips in the grid) loads into v3: an untouched v2 default takes the new default, a changed one
-    # keeps its order, sizes and hidden panels without Clips; players, comparison, columns and the rest carry over
+    # v2 (the first port: Clips in the grid) loads: an untouched v2 default takes the new default, a changed one keeps
+    # its order, sizes and hidden panels without Clips; players, comparison, columns and the rest carry over. v4 (the
+    # catalogue) adds the filters and the percentile scope: a v2 or v3 layout opens on the scout's own level, and a player
+    # saved by global id who now has two rows takes their first row.
     clean = _fn(js, "clean")
-    assert "![2, VER].includes(s.v)" in clean and "V2_DEFAULT" in clean and "!def.drawer" in clean
+    assert "![2, 3, VER].includes(s.v)" in clean and "V2_DEFAULT" in clean and "!def.drawer" in clean
     assert "const V2_DEFAULT = 'scrn:L,clips:S,plyr:S,radar:S,form:S,shot:S,heat:S,scat:S,team:XL';" in js
-    assert "const VER = 3;" in js and "v: VER" in _fn(js, "defaults")
+    assert "const VER = 4;" in js and "v: VER" in _fn(js, "defaults")
+    assert "where: mineWhere()" in _fn(js, "defaults") and "scope: 'level'" in _fn(js, "defaults")
+    assert "if (s.v === VER && sc.where && typeof sc.where === 'object')" in clean and "s.v === VER && SCOPES.includes(s.scope)" in clean
+    assert "GID1.get(id)" in clean
 
 
 def test_the_header_selection_examples_and_profile_link(js):
@@ -555,9 +571,9 @@ def test_the_header_selection_examples_and_profile_link(js):
     meta = _fn(js, "paintMeta")
     assert "Saved layouts:" in meta and "Reset layout" in meta and "small sample, read with care" in meta
     # every player's card opens their profile on this app
-    assert '<a href="/players/${esc(enc(p.id))}">Open profile &rarr;</a>' in _fn(js, "renderPlyr")
+    assert '<a href="/players/${esc(enc(p.gid))}">Open profile &rarr;</a>' in _fn(js, "renderPlyr")
     scrn = _fn(js, "renderScrn")
-    assert "Regulars only (" in scrn and ">Percentile</button>" in scrn and "Columns (${cols.length})" in scrn and "values per 90 minutes" in scrn
+    assert "Regulars only</label>" in scrn and ">Percentile</button>" in scrn and "Columns (${cols.length})" in scrn and "values per 90 minutes" in scrn
     assert "shortLabel(m)" in scrn and 'data-row="${esc(p.id)}"' in scrn
 
 
@@ -650,7 +666,7 @@ def test_most_of_a_stat_where_lower_is_better_lists_the_most_first(league, js):
         assert q[k]["do"] == "rankKey" and q[k]["most"], k
     for k in ("best goals conceded", "top yellow cards", "yellow cards"):
         assert q[k]["do"] == "rankKey" and not q[k]["most"], k
-    assert "{ m: MK.get(it.key), pos: it.pos, most: it.most, fewest: it.fewest, worst: it.worst }" in _fn(js, "run")
+    assert "{ m: MK.get(it.key), pos: it.pos, most: it.most, fewest: it.fewest, worst: it.worst, note }" in _run(js)
     rank = _fn(js, "cmdRank")
     assert "const low = end === 'most' ? false : end === 'fewest' ? true : end === 'worst' ? !lowerBetter : lowerBetter;" in rank
     assert "S.scr.sort = { k: m.key, dir: low ? 1 : -1 };" in rank and "(most first; fewer is better)" in rank
@@ -697,3 +713,196 @@ def test_plural_verbs_and_best_roles_after_a_position(league):
     bad = {q: (got[q]["do"], got[q]["key"]) for q, key in qs.items() if (got[q]["do"], got[q]["key"]) != ("rankKey", key)}
     assert not bad, bad
     assert got["which forwards are the best finishers"]["pos"] == "FW" and got["which midfielders are the best creators"]["pos"] == "MF"
+
+
+# ---------------------------------------------------------------------- the catalogue (the catalogue round's port)
+
+PLACE_HARNESS = r"""
+const fs = require('fs');
+globalThis.window = globalThis;
+eval(fs.readFileSync(process.argv[1], 'utf8'));
+const L = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+const P = window.Regista.terminalPlace;
+// the vocabulary as terminal.js builds it (placeIndex) from /api/catalogue and the players' directory
+const countries = []; for (const c of L.cat.competitions) if (!countries.some(x => x.country === c.country)) countries.push({ country: c.country });
+const V = P.vocab({ countries, competitions: L.cat.competitions, levels: L.cat.levels, clubs: L.cat.clubs, players: L.players,
+  scout_level: { filters: { tier: 'semi_pro', age_group: 'senior', gender: 'men' } } });
+const comp = new Map(L.cat.competitions.map(c => [c.competition_id, c]));
+const out = { q: {}, words: [...V.words.keys()], admits: {} };
+for (const q of JSON.parse(fs.readFileSync(0, 'utf8'))) out.q[q] = P.parse(q, V);   // the questions come on stdin
+for (const l of L.cat.levels.pools) out.admits[l.key] = l.competitions.map(c => P.admits({ tier: l.tier, age_group: l.age_group, gender: l.gender }, comp.get(c)) && P.admits({}, comp.get(c)));
+console.log(JSON.stringify(out));
+"""
+
+
+@pytest.fixture(scope="module")
+def catalogue(tmp_path_factory) -> Path:
+    from regista import api
+
+    c = TestClient(api.app)
+    cat = c.get("/api/catalogue").json()
+    players, offset = [], 0
+    while True:
+        page = c.get("/api/catalogue/players", params={"min_minutes": 0, "sort": "name", "metrics": "goals", "limit": 200, "offset": offset}).json()
+        players += [{"name": p["name"], "global_id": p["global_id"], "competition_id": p["competition_id"]} for p in page["players"]]
+        offset += len(page["players"])
+        if not page["players"] or offset >= page["total"]:
+            break
+    f = tmp_path_factory.mktemp("terminal_place") / "catalogue.json"
+    f.write_text(json.dumps({"cat": cat, "players": players}))
+    return f
+
+
+def place(catalogue: Path, queries: list[str]) -> dict:
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node is not installed")
+    res = subprocess.run([node, "-e", PLACE_HARNESS, str(SCOUT / "terminal-place.js"), str(catalogue)], input=json.dumps(queries),
+                         capture_output=True, text=True, timeout=60)
+    assert res.returncode == 0, res.stderr
+    return json.loads(res.stdout)
+
+
+# The sandbox's checks (sandbox/tools/test_terminal_place.js, 80 of them with the two below), on the API's catalogue:
+# (question, where, rest, reset, unknown, found)
+PLACE_CASES = [
+    ("U19 midfielders in Spain", {"country": "Spain", "age_group": "U19"}, "midfielders", None, [], True),
+    ("best dribblers in academy", {"tier": "academy"}, "best dribblers", None, [], True),
+    ("women forwards", {"gender": "women"}, "forwards", None, [], True),
+    ("players in Nigeria", {"country": "Nigeria"}, "players", None, [], True),
+    ("my level forwards", {"tier": "semi_pro", "age_group": "senior", "gender": "men"}, "forwards", "mine", [], True),
+    ("rank forwards non-penalty goals across the whole catalogue", {}, "rank forwards non-penalty goals", "all", [], True),
+    ("rank forwards npxg women across the whole catalogue", {"gender": "women"}, "rank forwards npxg", "all", [], True),
+    ("under 17 midfielders in ghana", {"country": "Ghana", "age_group": "U17"}, "midfielders", None, [], True),
+    ("u-18 keepers", {"age_group": "U18"}, "keepers", None, [], True),
+    ("college women keepers", {"tier": "college", "age_group": "college", "gender": "women"}, "keepers", None, [], True),
+    ("semi pro women", {"tier": "semi_pro", "gender": "women"}, "", None, [], True),
+    ("best finishers in women's football", {"gender": "women"}, "best finishers", None, [], True),
+    ("goals in the Regista League", {"competition": "co_eng_sp_men"}, "goals", None, [], True),
+    ("Weserland strikers", {"competition": "co_ger_sp_men"}, "strikers", None, [], True),
+    ("amateur players in the united states", {"country": "USA", "tier": "amateur"}, "players", None, [], True),
+    ("defenders at academy level", {"tier": "academy"}, "defenders", None, [], True),
+    ("U21 forwards", {}, "forwards", None, ["U21"], True),
+    ("everywhere", {}, "", "all", [], True),
+    ("best young defenders in Ghana", {"country": "Ghana", "tier": "academy"}, "best defenders", None, [], True),
+    ("young players", {"tier": "academy"}, "players", None, [], True),
+    ("youngsters in Spain", {"country": "Spain", "tier": "academy"}, "", None, [], True),
+    ("young semi-pro forwards", {"tier": "semi_pro"}, "forwards", None, [], True),
+    ("Taylor Young goals", {}, "taylor young goals", None, [], False),
+    ("Ashley Young", {}, "ashley young", None, [], False),
+    ("most goals in England", {"country": "England"}, "most goals", None, [], True),
+]
+# The terminal's existing questions hold no place words: they reach the search unchanged.
+OLD_QUESTIONS = ["Femi Toure", "Toure", "goals", "rank forwards non-penalty xG", "RANK FW npxg", "rank midfielders by key passes",
+                 "compare Femi Toure and Amari Ustinov", "CMP TOURE USTINOV", "Toure vs Ustinov", "plot npxG against xA forwards",
+                 "plot progressive passes against key passes midfielders", "SCAT npxg xa FW", "similar to Femi Toure", "who plays like Toure",
+                 "touch map Toure", "shots Femi Toure", "form Femi Toure", "radar Femi Toure", "team Brookfield Rovers", "team Calder Town", "BRO",
+                 "best finishers", "who has the most assists", "best finishers at Brookfield", "best dribblers in midfield", "Toure highlights",
+                 "Toure goals", "top scorers", "strikers", "fastest players", "who scores the most", "help", "highlights Femi Toure",
+                 "who has the most xG?", "most yellow cards", "which forwards dribble the most", "fewest goals conceded", "most minutes"]
+
+
+def test_place_words_set_the_filters_and_leave_the_rest_for_the_search(catalogue):
+    got = place(catalogue, [q for q, *_ in PLACE_CASES] + OLD_QUESTIONS)
+    bad = []
+    for q, where, rest, reset, unknown, found in PLACE_CASES:
+        r = got["q"][q]
+        if (r["where"], r["rest"], r["reset"], r["unknown"], r["found"]) != (where, rest, reset, unknown, found):
+            bad.append(f"{q}: {r}")
+    from regista.catalogue.place import norm
+    for q in OLD_QUESTIONS:
+        r = got["q"][q]
+        if r["found"] or r["rest"] != norm(q):
+            bad.append(f"{q}: {r}")
+    assert not bad, bad
+    # a competition word never collides with a player's or a club's name, and every level's competitions are admitted by
+    # its own filters and by "whole catalogue"
+    data = json.loads(catalogue.read_text())
+    names = {w for p in data["players"] for w in norm(p["name"]).split(" ")}
+    assert got["words"] and not (set(got["words"]) & names)
+    assert all(all(v) for v in got["admits"].values()) and len(got["admits"]) == len(data["cat"]["levels"]["pools"])
+
+
+def test_the_browser_and_the_scout_agent_read_place_words_alike(catalogue):
+    # regista.catalogue.place is the Python port the Scout agent reads; the same questions give the same filters
+    from regista.catalogue_api import catalogue_metrics
+    from regista.catalogue.place import parse
+    from regista.catalogue.scout import place_vocab
+
+    v = place_vocab(catalogue_metrics())
+    qs = [q for q, *_ in PLACE_CASES if "Young" not in q] + OLD_QUESTIONS
+    got = place(catalogue, qs)["q"]
+    bad = {q: (got[q]["where"], parse(q, v)["where"]) for q in qs if got[q]["where"] != parse(q, v)["where"] or got[q]["rest"] != parse(q, v)["rest"]}
+    assert not bad, bad
+
+
+def test_the_terminal_ships_and_loads_its_place_words(page):
+    patterns = re.search(r'regista = \[(.*?)\]', (ROOT / "pyproject.toml").read_text()).group(1)
+    globs = [g.strip().strip('"') for g in patterns.split(",")]
+    assert any(fnmatch.fnmatch("static/scout/terminal-place.js", g) for g in globs)
+    from regista.cloud.smoke import STATIC_FILES
+    assert "scout/terminal-place.js" in STATIC_FILES and "scout/terminal-words.js" in STATIC_FILES
+    place_at = page.index('<script src="/static/scout/terminal-place.js" defer></script>')
+    assert place_at < page.index('<script src="/static/scout/terminal-words.js" defer></script>') < page.index('<script src="/static/scout/terminal.js" defer></script>')
+    src = (SCOUT / "terminal-place.js").read_text()
+    assert "innerHTML" not in src and "style=" not in src and "R.api" not in src and "fetch(" not in src and "localStorage" not in src
+    node = shutil.which("node")
+    if node:
+        assert subprocess.run([node, "--check", str(SCOUT / "terminal-place.js")], capture_output=True).returncode == 0
+
+
+def test_the_engine_ranks_the_table_and_the_browser_never_does(js):
+    # The order, the places and the lists come from GET /api/catalogue/players with the table's sort (the rule of
+    # /api/catalogue/rank); the browser only moves the unplaced rows after the placed ones, as the rank endpoint lists
+    # them, and puts the engine's names list in club order for a club sort.
+    td = _fn(js, "tableData")
+    assert "/api/catalogue/players?${base}&sort=${enc(sp.sort)}" in td and "o.rank.set(id, r.rank)" in td and "o.board.set(id, r.board)" in td
+    boards = _fn(js, "screenBoards")
+    assert "o.rank.get(p.id) != null" in boards and "o.rank.get(p.id) == null" in boards
+    sorts = re.findall(r"\.sort\(", boards)
+    assert len(sorts) == 1 and "S.scr.sort.k === 'club'" in boards     # the club order, never a ranking
+    for gone in ("function poolCmp", "function valueCmp", "function ranksOf", "function screenRanks", "function rankable", "rankable("):
+        assert gone not in js, gone
+    # the engine's pool rules, as the about note says them
+    from regista.catalogue.metrics import FLOOR, MIN_POOL, SMALL_POOL
+    assert f"const FLOOR = {int(FLOOR)}, MIN_POOL = {MIN_POOL}, SMALL_POOL = {SMALL_POOL};" in js
+
+
+def test_the_table_shows_pools_none_yet_lists_and_the_where_bar(js, css):
+    scrn = _fn(js, "renderScrn")
+    for part in ('data-act="wmine"', 'data-act="wall"', 'data-act="scope"', "Percentiles within", "Where: <b>", ">Percentile</th>",
+                 "tx-board", "tx-bnone", "none yet", "ranked by their percentile for", "your level", ">Level</th>"):
+        assert part in scrn, part
+    # pool lines in the engine's words: "98th percentile among 33 semi-pro men forwards"
+    assert "percentile among ${poolSize(c)} ${poolOf(c).words" in _fn(js, "poolLine")
+    assert "have none" in _fn(js, "noneText")
+    # compare across levels says how to read it, with the engine's warning and best marks
+    assert "Different levels (" in _fn(js, "crossWarn") and "/api/catalogue/compare?" in _fn(js, "compareOf")
+    # the phone fix: the search block never lifts over the sticky header and nav
+    phone = css[css.index("@media (max-width: 720px)"):]
+    assert ".pf .tx-top { position: static; z-index: auto; }" in phone
+    # one level at a time on the scatter
+    assert "function scatLevel()" in js and "One level at a time" in _fn(js, "renderScat")
+
+
+def test_the_terminal_table_matches_the_engine_row_for_row():
+    # what the table asks for "most goals in England" (regulars, every position): the same places as /api/catalogue/rank,
+    # 25 ranked and 116 none yet, Femi Toure first
+    from regista import api
+
+    c = TestClient(api.app)
+    rows, offset = [], 0
+    while True:
+        page = c.get("/api/catalogue/players", params={"country": "England", "scope": "level", "sort": "goals", "metrics": "goals",
+                                                        "limit": 200, "offset": offset}).json()
+        rows += page["players"]
+        offset += len(page["players"])
+        if not page["players"] or offset >= page["total"]:
+            break
+    placed = [(r["global_id"], r["rank"]) for r in rows if r["rank"] is not None]
+    rank = c.get("/api/catalogue/rank", params={"metric": "goals", "country": "England", "limit": 200}).json()
+    assert placed == [(r["global_id"], r["rank"]) for r in rank["players"]]
+    assert len(placed) == 25 and rank["none_yet"] == 116 and placed[0] == ("pl_bro_09", 1)
+    assert sum(1 for r in rows if r["values"]["goals"]["none_yet"]) == 116
+    toure = next(r for r in rows if r["global_id"] == "pl_bro_09")["values"]["goals"]
+    assert (toure["value"], toure["percentile"], toure["pool"]["size"], toure["pool"]["words"]) == (1.64, 98, 33, "semi-pro men forwards")

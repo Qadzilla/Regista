@@ -417,3 +417,49 @@ def test_the_realism_report_is_offered_only_in_the_match_view(page, script):
 def test_other_pages_call_the_first_view_home(page_file, words):
     text = (PRODUCT.parent / page_file).read_text()
     assert words in text and "in Clips" not in text and '<a href="/">Clips</a>' not in text and "the Product</a>" not in text
+
+
+# ---------------------------------------------------------------------------- the catalogue (the catalogue round's port)
+
+def test_every_uploaded_match_joins_the_pickers_grouped_by_competition(page, script):
+    init = script[script.index("async function init()"):script.index("async function loadSeason()")]
+    assert "catalogueReady = loadCatalogue();" in init and "await loadCatalogue" not in init   # never awaited for the first paint
+    cat = script[script.index("async function loadCatalogue()"):script.index("// A match opened by a link before")]
+    assert "R.api('/api/catalogue')" in cat and "/api/catalogue/matches?limit=200&offset=${offset}" in cat
+    assert "catch (e) { return; }" in cat                                  # no catalogue: the picker keeps its matches
+    assert "c.competition_id === 'co_eng_sp_men' && state.season.length ? seasonGroup()" in cat   # the league once
+    assert "`${c.country} · ${c.name} (${c.level_words})`" in cat and "uploaded by a player" in cat and "uploaded by a team account" in cat
+    assert "R.api('/api/matches')" in script                               # /api/matches keeps its shape and its place
+    # Home: "Or open a match", the same list
+    assert '<select id="homeMatch"></select>' in page and "Or open a match" in page
+    assert "$('homeMatch').innerHTML" in cat and "$('homeMatch').onchange" in script
+
+
+def test_a_catalogue_match_says_where_it_comes_from_who_uploaded_it_and_the_camera(page, script):
+    assert 'id="matchMeta"' in page
+    line = script[script.index("function showMatchLine(m)"):script.index("// Players with moments first")]
+    assert "state.catalogue.get(state.match)" in line and "upWords(cm.uploader)" in line and "(the uploader's label)" in line
+    assert "textContent" in line and "innerHTML" not in line
+    assert "uploaded by ${u.name}, a player at ${u.club}" in script and "uploaded by the ${u.club} team account" in script
+
+
+def test_home_searches_every_catalogue_match_and_groups_the_results_by_competition(page, script):
+    listing = script[script.index("function searchList()"):script.index("const nameOf")]
+    assert "...state.catalogue.values()" in listing and "seen.has(m.match_id)" in listing   # the league's matches once
+    every = script[script.index("async function searchEvery("):script.index("function resetSearch()")]
+    assert "await seasonReady; await catalogueReady;" in every
+    groups = script[script.index("function resultGroups(rows)"):script.index("function paintCompFilter(")]
+    assert "[...state.comps.keys(), OTHER]" in groups and "'Other matches'" in groups
+    render = script[script.index("  function render(emptyHtml)"):script.index("const visionOf")]
+    assert "gr.rows.slice(0, RESULTS_PER)" in render and "Show all ${esc(gr.rows.length)}" in render and "const RESULTS_PER = 8;" in script
+    assert 'id="rcomp"' in page and "$('rcomp').onchange" in script
+    # the card's match and upload lines, and the match clock the clip's scoreboard draws
+    assert "`${matchWords(cm)} · ${cm.competition}`" in script and '<span class="uline">' in render
+    assert "clockOf(info(r), r.t)" in render and "clockOf(state.info, r.t)" in script
+    assert "const START_MIN = { 1: 0, 2: 45, 3: 90, 4: 105, 5: 120 };" in script   # the engine's count (render/scene.py)
+
+
+def test_the_clock_matches_the_renderers():
+    # app.js clockOf follows render/scene.py clock_at: MM:SS inside a period (period 2 from 45:00), HT between, FT after
+    src = (PRODUCT.parent.parent / "render/scene.py").read_text()
+    assert "{1: 0, 2: 45, 3: 90, 4: 105, 5: 120}" in src

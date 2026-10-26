@@ -1,31 +1,45 @@
 // The Scout terminal: the Terminal section of /scout (#terminal), ported from the sandbox design Zaid approved
-// (ux/sandbox, sandbox/terminal.js, its "intuitive" round). A search box on top (a name, a club, a stat, a plain command
-// such as "rank forwards goals", "compare Toure and Ustinov", "plot npxG against xA", "similar to Toure", or a plain
-// question such as "who has the most xG?"; the old mnemonics RANK, CMP, SCAT, SIM, HL, SHOT, FORM, HEAT, RDR, TEAM and
-// HELP still work; terminal-words.js reads it) over linked panels: players table, player card, radar vs position peers,
-// shots, touch map, form, scatter and team. Selecting a player in any panel updates the others; every underlined number
-// plays the moments behind it, all of them (the API's evidence, paged until complete), in the clips drawer (a bottom
-// sheet on phones).
+// (ux/sandbox, sandbox/terminal.js: its "intuitive" round, then its catalogue round). A search box on top (a name, a club,
+// a stat, a place or level such as "U19 midfielders in Spain", "women forwards", "players in Nigeria", "my level", a plain
+// command such as "rank forwards goals", "compare Toure and Ustinov", "plot npxG against xA", "similar to Toure", or a
+// plain question such as "who has the most xG?"; the old mnemonics RANK, CMP, SCAT, SIM, HL, SHOT, FORM, HEAT, RDR, TEAM and
+// HELP still work; terminal-place.js reads the place words, terminal-words.js the rest) over linked panels: players table,
+// player card, radar vs the player's pool, shots, touch map, form, scatter and team. Selecting a player in any panel
+// updates the others; every underlined number plays the moments behind it, all of them (the API's evidence, paged until
+// complete), in the clips drawer (a bottom sheet on phones).
 //
-// LIVE, from the API (regista.terminal_api and the season API), read only: the metric catalogue (/api/metrics), the
-// players table's columns (/api/terminal/screen), one player's every metric (/api/players/{id}/metrics), the evidence
-// behind a number (?evidence=KEY&evidence_offset=N), form, similar players, shots, the league-only touch grid (/heatmap),
-// the scatter, team style and team shots, the league (/api/season). The terminal writes nothing to the server.
-// PER VISITOR, in this browser only: three saved layouts (panels, players, columns, axes) and the search history, through
-// Regista.store (shared/regista.js), never storage directly; "Reset layout" puts the current one back to the default.
+// THE CATALOGUE: 14 competitions in 10 countries, one row per player and competition (a player with one competition keeps
+// their global id as the row id; a career player's rows are "<global id>~<competition>"). Percentiles are within each
+// player's level by default (the same tier, age group and gender), or their competition, or all levels of their gender.
+// The browser never ranks: the order, the places, the lists per level or gender, and "none yet" come from the engine
+// (GET /api/catalogue/players with the table's sort, the same rule as /api/catalogue/rank); the table only moves the rows
+// the engine left without a place after the ranked ones, as /api/catalogue/rank lists them.
 //
-// Plain script on window.Regista, loaded after scout.js and terminal-words.js. The page runs under a Content Security
-// Policy: no inline handlers and no style attributes in markup, so shading, colours and widths are data attributes applied
-// through element.style after rendering (styleUp). Every API value that reaches innerHTML goes through esc().
+// LIVE, from the API, read only: the catalogue (/api/catalogue, /api/catalogue/matches, the players' directory and the
+// table from /api/catalogue/players), the metric definitions (/api/metrics), one player's every metric in their
+// competition (/api/players/{id}/metrics?competition=&scope=), the evidence behind a number (?evidence=KEY&evidence_offset=N),
+// form, similar players, shots and the touch grid (each with competition=), the scatter (/api/terminal/scatter, one level
+// at a time), compare (/api/catalogue/compare: its warning and best marks), team style (/api/teams, a catalogue club with
+// competition=, and /api/competitions/{id} for its uploaded matches' record and squad), the league (/api/season). The
+// terminal writes nothing to the server.
+// PER VISITOR, in this browser only: three saved layouts (panels, players, columns, axes, filters and the percentile scope)
+// and the search history, through Regista.store (shared/regista.js), never storage directly; "Reset layout" puts the
+// current one back to the default.
+//
+// Plain script on window.Regista, loaded after scout.js, terminal-place.js and terminal-words.js. The page runs under a
+// Content Security Policy: no inline handlers and no style attributes in markup, so shading, colours and widths are data
+// attributes applied through element.style after rendering (styleUp). Every API value that reaches innerHTML goes through
+// esc(). Everything shown is synthetic: invented players, clubs and competitions; countries and levels are labels.
 (function () {
   'use strict';
   const R = window.Regista;
   const esc = R.esc;
   const PV = R.profileView;
   const TW = R.terminalWords;
+  const TP = R.terminalPlace;
   const $ = (id) => document.getElementById(id);
   const enc = encodeURIComponent;
-  if (!$('txForm') || !TW) return;
+  if (!$('txForm') || !TW || !TP) return;
 
   const norm = TW.norm;
   const ord = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
@@ -38,11 +52,13 @@
   const GROUP_COL = { shooting: '#ffcd28', creation: '#ff9f43', passes: '#4cc9f0', carrying: '#5ad17a', defence: '#ff6b6b',
     goalkeeping: '#2dd4bf', physical: '#a3a9b8', value: '#c084fc' };
   const GID = /^pl_[a-z0-9_]{1,40}$/;
+  const ROW = /^pl_[a-z0-9_]{1,40}(?:~co_[a-z0-9_]{1,40})?$/;   // a table row: a global id, or "<global id>~<competition>"
+  const COMPID = /^co_[a-z0-9_]{1,40}$/;
   const CLUBID = /^cl_[a-z0-9_]{1,40}$/;
   const KEY = /^[a-z0-9_]{1,40}$/;
   const HEX = /^#[0-9a-f]{6}$/i;
   const VIDEO = /^\/api\/[A-Za-z0-9_./?=&%-]+$/;     // video urls from the API are relative; anything else is not played
-  const COLS_PER_CALL = 16;                          // what /api/terminal/screen takes in one call
+  const COLS_PER_CALL = 16;                          // what /api/catalogue/players takes in one call
   const SCREEN_PAGE = 200;                           // and how many rows a page
   const EVIDENCE_PAGE = 500;                         // and /api/players/{id}/metrics?evidence=KEY a page
   const MAX_COLS = 40;
@@ -68,20 +84,33 @@
   const SIZE_NAME = { S: 'small', M: 'medium', L: 'large', XL: 'full width' };
   const COMMANDS = TW.COMMANDS;
   const STORE_KEY = 'terminal';      // Regista.store: regista.demo.v1.terminal, this browser only
-  const VER = 3;                     // saved layouts: v2 kept Clips in the grid; v3 opens it as a drawer (clean() migrates)
+  const VER = 4;                     // saved layouts: v2 kept Clips in the grid; v3 opens it as a drawer; v4 adds the filters
+                                     // (where) and the percentile scope (clean() migrates: v2 and v3 open on My level)
+  const ENG = 'co_eng_sp_men';       // the Regista League: every league fixture is uploaded
+  const SCOUT_CLUB = 'cl_fairhaven'; // Maya Lindqvist's club: "My level" is its level (semi-pro men)
+  const SCOPES = ['level', 'competition', 'all'];
+  const SCOPE_WORD = { level: 'level', competition: 'competition', all: 'all levels' };
+  const W_FIELDS = [['country', 'Country'], ['tier', 'Level'], ['age_group', 'Age group'], ['gender', 'Gender'], ['competition', 'Competition']];
+  const TIER_WORD = { semi_pro: 'semi-pro', amateur: 'amateur', college: 'college', academy: 'academy' };
+  // The engine's pool rules (regista.catalogue.metrics FLOOR, MIN_POOL, SMALL_POOL; the cells' pools carry them too).
+  const FLOOR = 45, MIN_POOL = 5, SMALL_POOL = 15;
 
   // ------------------------------------------------------------------ the data, from the API
-  let CAT = null, SEASON = null, TEAMS_ALL = null, METRICS = [];
+  let CAT = null, SEASON = null, TEAMS_ALL = null, IX = null, V = null, METRICS = [];
   let loading = false, ready = false, wantFocus = false;
   const MK = new Map(), TK = new Map(), PID = new Map(), CID = new Map(), TEAMS = new Map(), MATCH = new Map();
+  // The catalogue: competitions, levels (pools: key "semi_pro/senior/men" -> words "semi-pro men"), a player's number of
+  // rows and first row by global id, the counts that read "none yet" at 0, the countries in the catalogue's order.
+  const COMP = new Map(), LVL = new Map(), GIDN = new Map(), GID1 = new Map(), COUNT = new Set(), STORY = new Map();
+  let COUNTRIES = [], MINE = { tier: 'semi_pro', age_group: 'senior', gender: 'men' }, MINE_CLUB = 'Fairhaven FC';
   let PLAYERS = [];
-  const CELLS = new Map();           // player id -> { metric key: cell } (table columns, and every metric once loaded)
-  const COLS = new Set(), colsPending = new Set();
-  let colsErr = null;
+  // Cells per percentile scope: "<scope>|<row id>" -> { metric key: cell } (table columns, and every metric once loaded).
+  const CELLS = new Map();
+  const colsPending = new Set();     // table requests in flight (the order and its extra columns), for panelsSettled
   const C = new Map();               // request cache: key -> { st: wait | ok | err, v, e, p }
   let store = { cur: 0, ws: [null, null, null], hist: [] }, S = null, storageOK = true, saveT = 0;
   let reel = null, histAt = -1, histDraft = '', acItems = [], acAt = -1, scatCur = null, scrAct = null, tipFor = null;
-  let colMenuOpen = false, actFrom = null, drawerFrom = null, keyAt = 0;
+  let colMenuOpen = false, whereMenuOpen = false, actFrom = null, drawerFrom = null, keyAt = 0;
 
   function fetchOnce(key, fn) {
     let c = C.get(key);
@@ -142,67 +171,138 @@
   }
   const keyOf = (c) => { for (const [k, v] of C) if (v === c) return k; return ''; };
 
-  function addPlayers(rows) {
-    for (const r of rows) {
-      if (!r || !GID.test(String(r.global_id || ''))) continue;
-      const id = r.global_id;
-      let p = PID.get(id);
-      if (!p) { p = { id }; PID.set(id, p); PLAYERS.push(p); }
-      for (const k of ['name', 'club_id', 'club', 'short_name', 'kit', 'kit_number', 'position', 'role', 'age', 'height_cm',
-        'preferred_foot', 'nationality', 'minutes', 'appearances', 'qualified', 'profile_url']) if (r[k] !== undefined) p[k] = r[k];
-      if (r.values) { const cs = CELLS.get(id) || {}; Object.assign(cs, r.values); CELLS.set(id, cs); }
-    }
+  // A row's id: the global id, or "<global id>~<competition>" for a player with rows in two competitions (so a link or a
+  // saved layout from before the catalogue keeps working for everyone else).
+  const rowIdOf = (gid, cid) => (GIDN.get(gid) || 0) > 1 ? `${gid}~${cid}` : gid;
+  const levelKey = (x) => `${x.tier}/${x.age_group}/${x.gender}`;
+  // Rows from the catalogue API (one per player and competition), with their cells for the scope they were asked in.
+  function addRow(r, scope) {
+    if (!r || !GID.test(String(r.global_id || '')) || !COMPID.test(String(r.competition_id || ''))) return null;
+    const id = rowIdOf(r.global_id, r.competition_id);
+    let p = PID.get(id);
+    if (!p) { p = { id, gid: r.global_id, cid: r.competition_id }; PID.set(id, p); PLAYERS.push(p); if (!GID1.has(p.gid)) GID1.set(p.gid, id); }
+    for (const k of ['name', 'club_id', 'club', 'short_name', 'kit', 'kit_number', 'position', 'role', 'age', 'height_cm',
+      'preferred_foot', 'nationality', 'minutes', 'appearances', 'qualified', 'profile_url', 'competition', 'country', 'tier',
+      'age_group', 'gender', 'career', 'also_in']) if (r[k] !== undefined) p[k] = r[k];
+    p.level = levelKey(p); p.comp = COMP.get(p.cid) || { competition_id: p.cid, name: p.competition || p.cid, country: p.country };
+    if (r.values && scope) { const key = `${scope}|${id}`, cs = CELLS.get(key) || {}; Object.assign(cs, r.values); CELLS.set(key, cs); }
+    return id;
   }
-  // Table columns for every player who played, paged and in calls of 16 metrics, cached per metric. Each cell carries
-  // evidence_total: how many moments are behind the number (a number with none is plain text, not a play link).
-  async function screenCols(keys) {
-    let offset = 0, total = Infinity;
-    while (offset < total) {
-      const q = `/api/terminal/screen?min_minutes=0&limit=${SCREEN_PAGE}&offset=${offset}&sort=${enc(keys[0])}&metrics=${keys.map(enc).join(',')}`;
-      const j = await R.api(q);
-      addPlayers(j.players || []);
+  // Every player row of the catalogue, once: names for the search, row ids and playing time (one stat's cells come along).
+  async function directory() {
+    const all = [];
+    for (let offset = 0, total = Infinity; offset < total;) {
+      const j = await R.api(`/api/catalogue/players?min_minutes=0&sort=name&metrics=goals&limit=${SCREEN_PAGE}&offset=${offset}`);
+      all.push(...(j.players || []));
       total = j.total;
-      if (!j.players || !j.players.length) break;
+      if (!(j.players || []).length) break;
       offset += j.players.length;
     }
+    for (const r of all) GIDN.set(r.global_id, (GIDN.get(r.global_id) || 0) + 1);
+    for (const r of all) addRow(r, 'level');
   }
-  // Whether every key has its column loaded; loads the missing ones and repaints the table when they land.
-  function ensureCols(keys) {
-    const missing = keys.filter(k => MK.has(k) && !COLS.has(k) && !colsPending.has(k));
-    for (let i = 0; i < missing.length; i += COLS_PER_CALL) {
-      const chunk = missing.slice(i, i + COLS_PER_CALL);
-      chunk.forEach(k => colsPending.add(k));
-      screenCols(chunk).then(() => { chunk.forEach(k => { colsPending.delete(k); COLS.add(k); }); colsErr = null; repaintSoon('scrn'); },
-        (e) => { chunk.forEach(k => colsPending.delete(k)); colsErr = e; repaintSoon('scrn'); });
+
+  // ------------------------------------------------------------------ the players table, from the engine
+  // The table asks the engine for its rows in order: the filters (where), the percentile scope, the position, regulars
+  // only (the engine's own qualifying minutes per competition) or everyone, and the sort. The same call brings the first
+  // 16 columns; more columns come in more calls with the same filters. Each call is paged (200 rows) until complete.
+  const whereQS = (w) => W_FIELDS.map(([k]) => k).filter(k => w && w[k]).map(k => `${k}=${enc(w[k])}`).join('&');
+  function tableBase() {
+    const q = [whereQS(S.scr.where), `scope=${enc(S.scope)}`];
+    if (S.scr.pos) q.push(`position=${enc(S.scr.pos)}`);
+    if (!S.scr.qual) q.push('min_minutes=0');
+    return q.filter(Boolean).join('&');
+  }
+  // The engine's sort for the table's: a metric (best first unless the other way was asked), minutes, or the name (a club
+  // sort is the names list, put in club order here: an order, not a ranking).
+  function sortParams() {
+    const k = S.scr.sort.k, dir = S.scr.sort.dir;
+    if (k === 'name') return { sort: 'name', order: dir === -1 ? 'desc' : null };
+    if (k === 'club') return { sort: 'name', order: null };
+    if (k === 'min') return { sort: 'minutes', order: dir === 1 ? 'asc' : null };
+    const m = MK.get(k), best = m && m.higher_is_better === false ? 1 : -1;
+    return { sort: k, order: dir === best ? null : (dir === -1 ? 'desc' : 'asc') };
+  }
+  async function pages(url, scope, each) {
+    let first = null;
+    for (let offset = 0, total = Infinity; offset < total;) {
+      const j = await R.api(`${url}&limit=${SCREEN_PAGE}&offset=${offset}`);
+      if (!first) first = j;
+      for (const r of j.players || []) { const id = addRow(r, scope); if (id && each) each(id, r); }
+      total = j.total;
+      if (!(j.players || []).length) break;
+      offset += j.players.length;
     }
-    return keys.every(k => COLS.has(k) || !MK.has(k));
+    return first || {};
   }
-  // One player's every metric (the cells, each with how many moments are behind it: `moments` counts each event once, as
-  // the drawer lists it, where `total` counts a ratio's pass and its completion twice), merged into the table of cells.
-  const fullKey = (pid) => 'full|' + pid;
-  const fullFn = (pid) => () => R.api(`/api/players/${enc(pid)}/metrics?evidence_limit=0`).then(j => {
-    const cs = CELLS.get(pid) || {};
+  function tracked(key, fn) { colsPending.add(key); return fn().finally(() => colsPending.delete(key)); }
+  // What the table needs now: the order (with the first columns) and the cells of any further columns.
+  function tableData(cols) {
+    const base = tableBase(), sp = sortParams(), scope = S.scope;
+    const first = [...new Set([...(MK.has(sp.sort) ? [sp.sort] : []), ...cols])].slice(0, COLS_PER_CALL);
+    const okey = `ord|${base}|${sp.sort}|${sp.order || ''}`;
+    const ord = want(okey, () => tracked(okey, async () => {
+      const o = { ids: [], rank: new Map(), board: new Map(), keys: new Set(first) };
+      const j = await pages(`/api/catalogue/players?${base}&sort=${enc(sp.sort)}${sp.order ? `&order=${sp.order}` : ''}&metrics=${first.map(enc).join(',')}`,
+        scope, (id, r) => { o.ids.push(id); o.rank.set(id, r.rank); o.board.set(id, r.board); });
+      return Object.assign(o, { boards: j.boards || null, rank_by: j.rank_by || null, warning: j.warning || null, competitions: j.competitions || [] });
+    }), 'scrn');
+    const rest = cols.filter(k => MK.has(k) && !first.includes(k)), extra = [];
+    for (let i = 0; i < rest.length; i += COLS_PER_CALL) {
+      const chunk = rest.slice(i, i + COLS_PER_CALL), ckey = `cells|${base}|${chunk.join(',')}`;
+      extra.push(want(ckey, () => tracked(ckey, () => pages(`/api/catalogue/players?${base}&sort=name&metrics=${chunk.map(enc).join(',')}`, scope)), 'scrn'));
+    }
+    return { ord, extra };
+  }
+
+  // One player's every metric in their competition and the scope shown (the cells, each with how many moments are behind
+  // it: `moments` counts each event once, as the drawer lists it, where `total` counts a ratio's pass and its completion
+  // twice), merged into the table of cells; the competition's own minimum attempts come with it.
+  const rowQ = (p, scope) => `competition=${enc(p.cid)}${scope ? `&scope=${enc(scope)}` : ''}`;
+  const fullKey = (pid) => `full|${S.scope}|${pid}`;
+  const fullFn = (pid, scope) => () => { const p = PID.get(pid); return R.api(`/api/players/${enc(p.gid)}/metrics?${rowQ(p, scope)}&evidence_limit=0`).then(j => {
+    const key = `${scope}|${pid}`, cs = CELLS.get(key) || {};
     for (const [k, c] of Object.entries(j.metrics || {})) { const { evidence, ...cell } = c; cs[k] = { ...cell, evidence_total: evidence ? (evidence.moments ?? evidence.total) : null }; }
-    CELLS.set(pid, cs); addPlayers([j]); return true;
-  });
-  const full = (pid, panel) => want(fullKey(pid), fullFn(pid), panel);
-  const similar = (pid, panel) => want('sim|' + pid, () => R.api(`/api/players/${enc(pid)}/similar`), panel);
-  const shotsOf = (pid, panel) => want('shots|' + pid, () => R.api(`/api/players/${enc(pid)}/shots`), panel);
-  // The touch map's grid counts league fixtures only, like every other terminal number (the profile's grid adds uploads).
-  const heatOf = (pid, panel) => want('heat|' + pid, () => R.api(`/api/players/${enc(pid)}/heatmap`), panel);
+    CELLS.set(key, cs);
+    const { metrics, catalogue, season, ...info } = j; addRow({ ...info, competition_id: p.cid });
+    p.desc = catalogue || p.desc || {};
+    return true;
+  }); };
+  const full = (pid, panel) => want(fullKey(pid), fullFn(pid, S.scope), panel);
+  const similar = (pid, panel) => { const p = PID.get(pid); return want(`sim|${S.scope}|${pid}`, () => R.api(`/api/players/${enc(p.gid)}/similar?${rowQ(p, S.scope)}`).then(j => {
+    for (const s of j.similar || []) { addRow(s); s.row = rowIdOf(s.global_id, s.competition_id); }
+    return j;
+  }), panel); };
+  const shotsOf = (pid, panel) => { const p = PID.get(pid); return want('shots|' + pid, () => R.api(`/api/players/${enc(p.gid)}/shots?${rowQ(p)}`), panel); };
+  // The touch map's grid counts the competition's own matches only, like every other terminal number (the league
+  // fixtures in England; the profile's league grid adds uploads).
+  const heatOf = (pid, panel) => { const p = PID.get(pid); return want('heat|' + pid, () => R.api(`/api/players/${enc(p.gid)}/heatmap?${rowQ(p)}`), panel); };
   function formOf(pid, keys, panel) {
-    const ks = [...new Set(keys)].filter(k => MK.has(k)).slice(0, COLS_PER_CALL);
-    return want('form|' + pid + '|' + ks.join(','), () => R.api(`/api/players/${enc(pid)}/form?metrics=${ks.map(enc).join(',')}`), panel);
+    const p = PID.get(pid), ks = [...new Set(keys)].filter(k => MK.has(k)).slice(0, COLS_PER_CALL);
+    return want(`form|${S.scope}|${pid}|${ks.join(',')}`, () => R.api(`/api/players/${enc(p.gid)}/form?metrics=${ks.map(enc).join(',')}&${rowQ(p, S.scope)}`), panel);
   }
-  const scatOf = (x, y, pos, panel) => want(`scat|${x}|${y}|${pos || ''}`,
-    () => R.api(`/api/terminal/scatter?x=${enc(x)}&y=${enc(y)}&min_minutes=0${pos ? `&position=${enc(pos)}` : ''}`), panel);
-  const styleOf = (cid, panel) => want('style|' + cid, () => R.api(`/api/teams/${enc(cid)}/style`), panel);
-  const teamShotsOf = (cid, side) => fetchOnce(`tshots|${cid}|${side}`, () => R.api(`/api/teams/${enc(cid)}/shots?side=${enc(side)}`));
+  // The scatter: one level at a time (raw numbers compare only within a level), inside the table's country or competition.
+  function scatOf(x, y, pos, lv, panel) {
+    const l = LVL.get(lv) || {}, w = S.scr.where || {};
+    const q = [`x=${enc(x)}`, `y=${enc(y)}`, 'min_minutes=0', `scope=${enc(S.scope)}`, pos ? `position=${enc(pos)}` : '',
+      l.tier ? `tier=${enc(l.tier)}&age_group=${enc(l.age_group)}&gender=${enc(l.gender)}` : '',
+      w.country ? `country=${enc(w.country)}` : '', w.competition ? `competition=${enc(w.competition)}` : ''].filter(Boolean).join('&');
+    return want(`scat|${q}`, () => R.api(`/api/terminal/scatter?${q}`).then(j => { for (const pt of j.points || []) addRow(pt); return j; }), panel);
+  }
+  // A club's competition for the team endpoints: none for the Regista League's clubs (the league's own answers), else its
+  // catalogue competition.
+  const teamComp = (cid) => TEAMS.has(cid) ? null : (club(cid).competition_id || null);
+  const cq = (comp, pre = '?') => comp ? `${pre}competition=${enc(comp)}` : '';
+  const styleOf = (cid, panel) => { const comp = teamComp(cid); return want(`style|${cid}`, () => R.api(`/api/teams/${enc(cid)}/style${cq(comp)}`), panel); };
+  const teamShotsOf = (cid, side) => { const comp = teamComp(cid); return fetchOnce(`tshots|${cid}|${side}`, () => R.api(`/api/teams/${enc(cid)}/shots?side=${enc(side)}${cq(comp, '&')}`)); };
+  const teamsIn = (comp, panel) => want(`teams|${comp}`, () => R.api(`/api/teams?competition=${enc(comp)}`), panel);
+  const compOf = (comp, panel) => want(`comp|${comp}`, () => R.api(`/api/competitions/${enc(comp)}`), panel);
   // Every moment behind one number: the API pages its evidence (500 a page); read page after page until all are in.
   const evidenceOf = (pid, mk) => fetchOnce(`ev|${pid}|${mk}`, async () => {
+    const p = PID.get(pid);
     let offset = 0, out = null;
     for (;;) {
-      const j = await R.api(`/api/players/${enc(pid)}/metrics?evidence=${enc(mk)}&evidence_limit=${EVIDENCE_PAGE}&evidence_offset=${offset}`);
+      const j = await R.api(`/api/players/${enc(p.gid)}/metrics?evidence=${enc(mk)}&${rowQ(p)}&evidence_limit=${EVIDENCE_PAGE}&evidence_offset=${offset}`);
       const ev = j.evidence || { items: [], total: 0 };
       if (!out) out = { ...ev, items: [] };
       out.items.push(...(ev.items || []));
@@ -217,17 +317,19 @@
   // ------------------------------------------------------------------ reading the search box (terminal-words.js)
   // Synthetic names repeat (seven Toures, five Ustinovs), so a bare surname picks the namesake the scout most likely means:
   // the selected player themselves, or one they play like, then, when comparing, one in the same position, then one in
-  // the players table as it stands, then the most minutes. The other namesakes are offered beside the answer.
+  // the players table as it stands, then one at the selected player's level, then the most minutes. The other namesakes
+  // are offered beside the answer.
   function namesakeOrder(hits, ctx = {}) {
-    const cp = ctx.p || (S && PID.get(S.focus)), sm = cp && (C.get('sim|' + cp.id) || {}).v;
-    const sim = new Set(((sm && sm.similar) || []).map(s => s.global_id));
+    const cp = ctx.p || (S && PID.get(S.focus)), sm = cp && S && (C.get(`sim|${S.scope}|${cp.id}`) || {}).v;
+    const sim = new Set(((sm && sm.similar) || []).map(s => s.row));
     let table = null;
     const inTable = (p) => { if (!table) table = new Set(S ? screenRows().map(x => x.id) : []); return table.has(p.id); };
-    const key = (p) => [!ctx.pos && cp && p.id === cp.id ? 0 : 1, sim.has(p.id) ? 0 : 1, ctx.pos && cp && p.position === cp.position ? 0 : 1, inTable(p) ? 0 : 1];
+    const key = (p) => [!ctx.pos && cp && p.id === cp.id ? 0 : 1, sim.has(p.id) ? 0 : 1, ctx.pos && cp && p.position === cp.position ? 0 : 1, inTable(p) ? 0 : 1,
+      cp && p.level === cp.level ? 0 : 1];
     const byKey = (a, b) => { for (let i = 0; i < a.k.length; i++) if (a.k[i] !== b.k[i]) return a.k[i] - b.k[i]; return 0; };
     return hits.map(p => ({ p, k: key(p) })).sort((a, b) => byKey(a, b) || (b.p.minutes || 0) - (a.p.minutes || 0) || a.p.name.localeCompare(b.p.name)).map(o => o.p);
   }
-  const W = TW.create({ metrics: () => METRICS, defaults: () => (CAT ? CAT.default_columns : {}), clubs: () => (SEASON ? SEASON.clubs : []),
+  const W = TW.create({ metrics: () => METRICS, defaults: () => (CAT ? CAT.default_columns : {}), clubs: () => [...CID.values()],
     players: () => PLAYERS.filter(p => p.name), byId: (id) => PID.get(id), focus: () => S && PID.get(S.focus), order: namesakeOrder });
 
   // ------------------------------------------------------------------ loading (the first time the section opens)
@@ -237,12 +339,17 @@
     if (!ready && !loading) load();
     else if (ready) { renderLayout(); renderAll(); }
   }
+  // The place words' vocabulary (terminal-place.js) from the catalogue: countries, competitions, levels, every club and
+  // player name (a competition word that is also a name is never read alone), and the scout's own level.
+  const placeIndex = () => ({ countries: COUNTRIES.map(country => ({ country })), competitions: [...COMP.values()], levels: IX.levels,
+    clubs: [...CID.values()], players: PLAYERS, scout_level: { filters: { ...MINE } } });
   async function load() {
     loading = true;
-    out('Loading the Regista League…');
+    out('Loading the catalogue…');
     try {
-      const [cat, season, teams] = await Promise.all([R.api('/api/metrics'), R.api('/api/season'), R.api('/api/teams')]);
-      CAT = cat; SEASON = season; TEAMS_ALL = teams;
+      const [cat, season, teams, ix, cms] = await Promise.all([R.api('/api/metrics'), R.api('/api/season'), R.api('/api/teams'),
+        R.api('/api/catalogue'), R.api('/api/catalogue/matches?limit=200')]);
+      CAT = cat; SEASON = season; TEAMS_ALL = teams; IX = ix;
       for (const m of cat.metrics || []) {
         if (MK.has(m.key)) continue;
         const rel = m.reliability || {};
@@ -250,42 +357,121 @@
         MK.set(m.key, x); METRICS.push(x);
       }
       for (const m of cat.team_metrics || []) TK.set(m.key, m);
-      for (const c of season.clubs || []) CID.set(c.club_id, c);
+      for (const l of (ix.levels || {}).pools || []) LVL.set(l.key, l);
+      for (const c of ix.competitions || []) {
+        const level = levelKey(c);
+        COMP.set(c.competition_id, { ...c, level, level_words: (LVL.get(level) || {}).words || level });
+        if (!COUNTRIES.includes(c.country)) COUNTRIES.push(c.country);
+      }
+      for (const k of ix.count_metrics || []) COUNT.add(k);
+      for (const c of ix.careers || []) if (c.story) STORY.set(c.global_id, c.story);
+      for (const c of ix.clubs || []) CID.set(c.club_id, { ...c });
+      for (const c of season.clubs || []) CID.set(c.club_id, { ...(CID.get(c.club_id) || {}), ...c, competition_id: ENG });
+      const fh = CID.get(SCOUT_CLUB), fc = fh && COMP.get(fh.competition_id);
+      if (fc) { MINE = { tier: fc.tier, age_group: fc.age_group, gender: fc.gender }; MINE_CLUB = fh.name; }
       for (const t of teams.teams || []) TEAMS.set(t.club_id, t);
       for (const r of season.rounds || []) for (const m of r.matches || []) MATCH.set(m.match_id, { ...m, round: r.round });
-      const base = ((cat.default_columns || {}).all || []).filter(k => MK.has(k));
-      await screenCols(base);
-      base.forEach(k => COLS.add(k));
+      for (const m of cms.matches || []) if (!MATCH.has(m.match_id)) MATCH.set(m.match_id, m);
+      await directory();
+      V = TP.vocab(placeIndex());
     } catch (e) {
       loading = false;
-      out(`The league did not load (${errText(e)}).`, 'err', `${esc(`The league did not load (${errText(e)}).`)} <button type="button" class="tx-mini" data-act="reload">Retry</button>`);
+      out(`The catalogue did not load (${errText(e)}).`, 'err', `${esc(`The catalogue did not load (${errText(e)}).`)} <button type="button" class="tx-mini" data-act="reload">Retry</button>`);
       return;
     }
     readStore();
     if (!$('txClipBody')) $('txDrawerBody').appendChild(buildClipBody());
     loading = false; ready = true;
     paintMeta(); paintExamples(); paintFoot(); renderLayout(); renderAll();
-    out(`Ready: ${PLAYERS.length} players, ${METRICS.length} stats, ${MATCH.size} matches. Search a name, a club or a stat, or try an example.`);
+    const t0 = IX.totals || {};
+    out(`Ready: ${PLAYERS.length} player rows in ${t0.competitions || COMP.size} competitions and ${t0.countries || COUNTRIES.length} countries, ${METRICS.length} stats, ${MATCH.size} uploaded matches. The table opens on ${whereWords(S.scr.where)}. Search a name, a club, a stat or a place, or try an example.`);
     if (onTerminal() && wantFocus) $('txIn').focus();
-    if (document.activeElement === $('txIn') && $('txIn').value) suggest();   // typed while the league loaded
+    if (document.activeElement === $('txIn') && $('txIn').value) suggest();   // typed while the catalogue loaded
   }
+
+  // ------------------------------------------------------------------ levels, places and pools in plain words
+  const levelWords = (key) => (LVL.get(key) || {}).words || String(key || '');
+  const mineWhere = () => ({ ...MINE });
+  const MINE_KEY = () => levelKey(MINE);
+  const isMine = (lv) => lv === MINE_KEY();
+  const sameWhere = (a, b) => W_FIELDS.every(([k]) => ((a || {})[k] || null) === ((b || {})[k] || null));
+  const inWhere = (comp, w = S.scr.where) => TP.admits(w || {}, comp);
+  // "semi-pro men", "U19 in Spain", "Weserland-Liga (Germany, semi-pro men)", "the whole catalogue".
+  function whereWords(w) {
+    w = w || {};
+    if (w.competition && COMP.has(w.competition)) { const c = COMP.get(w.competition); return `${c.name} (${c.country}, ${c.level_words})`; }
+    const parts = [];
+    if (w.tier) parts.push(TIER_WORD[w.tier] || w.tier);
+    if (w.age_group && w.age_group !== 'college' && !(w.age_group === 'senior' && w.tier)) parts.push(w.age_group);
+    if (w.gender) parts.push(w.gender);
+    let t = parts.join(' ');
+    if (w.country) t = `${t ? t + ' ' : 'players '}in ${w.country}`;
+    return t || 'the whole catalogue';
+  }
+  // "semi-pro men forwards", "U19 midfielders in Spain", "forwards in Weserland-Liga", "forwards across the whole catalogue".
+  function whoWords(w, pos) {
+    w = w || {};
+    if (w.competition && COMP.has(w.competition)) return `${pos} in ${COMP.get(w.competition).name}`;
+    const parts = [];
+    if (w.tier) parts.push(TIER_WORD[w.tier] || w.tier);
+    if (w.age_group && w.age_group !== 'college' && !(w.age_group === 'senior' && w.tier)) parts.push(w.age_group);
+    if (w.gender) parts.push(w.gender);
+    let t = parts.length ? `${parts.join(' ')} ${pos}` : pos;
+    if (w.country) t += ` in ${w.country}`;
+    else if (!parts.length) t += ' across the whole catalogue';
+    return t;
+  }
+  // The levels the filters cover, in the catalogue's order.
+  const levelsIn = (w) => [...LVL.keys()].filter(k => [...COMP.values()].some(c => c.level === k && inWhere(c, w)));
+  // "98th percentile among 33 semi-pro men forwards" (level), "97th percentile among 18 forwards in Regista League"
+  // (competition), "96th percentile among 123 men forwards at every level" (all levels): the engine's pool words. Never
+  // "98th of 33": a percentile above the pool's size read as a rank bigger than the field.
+  const poolOf = (c) => (c && c.pool) || {};
+  const poolSize = (c) => poolOf(c).size ?? (c ? c.peers : null);
+  function poolLine(p, c) {
+    if (!c || c.percentile == null) return '';
+    return `${ord(c.percentile)} percentile among ${poolSize(c)} ${poolOf(c).words || POSN[p.position]}`;
+  }
+  const smallPool = (c) => !!(c && c.percentile != null && poolOf(c).small);
+  // A count where more is better at 0 (the engine's none yet): no percentile and no place.
+  const isNone = (c) => !!(c && c.none_yet);
+  // "none yet · 25 of the 33 semi-pro men forwards have none"
+  function noneText(p, c) {
+    const z = c && c.zeros, words = poolOf(c).words || POSN[p.position];
+    if (!z || !z.of) return 'none yet';
+    return `none yet · ${z.none === z.of ? `all ${z.of}` : `${z.none} of the ${z.of}`} ${words} have none`;
+  }
+  // The pool a player's percentiles are read against, said once: "semi-pro men forwards", "forwards in Regista League".
+  const poolWordsFor = (p) => S.scope === 'competition' ? `${POSN[p.position]} in ${p.comp.name}` : S.scope === 'all' ? `${p.gender} ${POSN[p.position]} at every level` : `${levelWords(p.level)} ${POSN[p.position]}`;
+  // The qualifying minutes of a row's competition, as people say them ("101 minutes" in England, "45" elsewhere).
+  function minMin(p) {
+    const cs = p && CELLS.get(`${S.scope}|${p.id}`), any = cs && Object.values(cs).find(c => c && c.sample);
+    const q = any ? any.sample.qualifying_minutes : (p && p.cid === ENG ? CAT.season.min_minutes : null);
+    return q == null ? null : Math.ceil(Number(q) || 0);
+  }
+  const sampleOf = (p) => { const cs = p && CELLS.get(`${S.scope}|${p.id}`), any = cs && Object.values(cs).find(c => c && c.sample); return any ? any.sample : null; };
+  // "Femi Toure · Brookfield Rovers · Forward (ST) #9 · Regista League, England, semi-pro men"
+  const rowLine = (p) => `${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number} · ${p.comp.name}, ${p.country}, ${levelWords(p.level)}`;
+  const compLine = (cid) => { const c = COMP.get(cid); return c ? `${c.name} · ${c.country} · ${c.level_words}` : ''; };
 
   // ------------------------------------------------------------------ saved layouts, per visitor (Regista.store)
   function defaults() {
     const f = PID.has('pl_bro_09') ? 'pl_bro_09' : (PLAYERS.find(p => p.minutes > 0) || PLAYERS[0]).id, fp = PID.get(f);
     const cols = (CAT.default_columns[fp.position] || CAT.default_columns.all).filter(k => MK.has(k));
     return { v: VER, panels: DEFAULT_ORDER.map(id => PANELS.find(p => p.id === id)).map(p => ({ id: p.id, on: true, size: p.size })), focus: f, compare: [], club: fp.club_id,
-      scr: { pos: fp.position, cols, sort: { k: cols[0], dir: -1 }, qual: true, mode: 'val', q: '' },
+      scope: 'level', scr: { pos: fp.position, cols, sort: { k: cols[0], dir: -1 }, qual: true, mode: 'val', q: '', where: mineWhere() },
       scat: { x: 'npxg', y: 'xa', pos: fp.position, all: false }, form: { k: null }, radar: { tpl: 'pos' } };
   }
   // A saved layout is checked before use: unknown players, metrics and panels are dropped. Version 2 (the first port) kept
   // Clips in the grid; version 3 opens it as a drawer. A v2 layout that is still the v2 default takes the new default (the
   // table with the player card and radar beside it); a changed one keeps its order, sizes and hidden panels, minus Clips.
-  // Its players, comparison, columns, sort, filters and axes carry over.
+  // Its players, comparison, columns, sort, filters and axes carry over. Version 4 (the catalogue) adds the table's place
+  // filters (where) and the percentile scope; a v2 or v3 layout opens on the scout's own level, and a player saved by
+  // global id who now has two rows (a career player) takes their first row.
   const V2_DEFAULT = 'scrn:L,clips:S,plyr:S,radar:S,form:S,shot:S,heat:S,scat:S,team:XL';
   function clean(s) {
     const o = defaults();
-    if (!s || typeof s !== 'object' || ![2, VER].includes(s.v)) return o;
+    if (!s || typeof s !== 'object' || ![2, 3, VER].includes(s.v)) return o;
     let panels = Array.isArray(s.panels) ? s.panels : null;
     if (s.v === 2 && panels && panels.map(p => p && `${p.id}:${p.size}`).join(',') === V2_DEFAULT && panels.every(p => p && p.on !== false)) panels = null;
     if (panels) {
@@ -297,8 +483,10 @@
       for (const p of o.panels) if (!seen.has(p.id)) ps.push(p);
       o.panels = ps;
     }
-    if (PID.has(s.focus)) o.focus = s.focus;
-    if (Array.isArray(s.compare)) o.compare = [...new Set(s.compare.filter(id => PID.has(id)))].slice(0, 3);
+    const asRow = (id) => typeof id === 'string' ? (PID.has(id) ? id : GID1.get(id) || null) : null;
+    if (asRow(s.focus)) o.focus = asRow(s.focus);
+    if (Array.isArray(s.compare)) o.compare = [...new Set(s.compare.map(asRow).filter(Boolean))].slice(0, 3);
+    if (s.v === VER && SCOPES.includes(s.scope)) o.scope = s.scope;
     if (CID.has(s.club)) o.club = s.club;
     const sc = s.scr || {};
     if (sc.pos === null || POS.includes(sc.pos)) o.scr.pos = sc.pos;
@@ -306,6 +494,13 @@
     if (sc.sort && (MK.has(sc.sort.k) || ['name', 'club', 'min'].includes(sc.sort.k))) o.scr.sort = { k: sc.sort.k, dir: sc.sort.dir === 1 ? 1 : -1 };
     o.scr.qual = sc.qual !== false; o.scr.mode = sc.mode === 'pct' ? 'pct' : 'val';
     o.scr.q = typeof sc.q === 'string' ? sc.q.slice(0, 40) : '';
+    if (s.v === VER && sc.where && typeof sc.where === 'object') {
+      const lv = IX.levels || {}, ok = { country: (v) => COUNTRIES.includes(v), tier: (v) => (lv.tiers || []).some(t => t.key === v),
+        age_group: (v) => (lv.age_groups || []).some(a => a.key === v), gender: (v) => v === 'men' || v === 'women', competition: (v) => COMP.has(v) };
+      const w = {};
+      for (const k of Object.keys(ok)) if (typeof sc.where[k] === 'string' && ok[k](sc.where[k])) w[k] = sc.where[k];
+      o.scr.where = w;
+    }
     const sp = s.scat || {};
     if (MK.has(sp.x)) o.scat.x = sp.x;
     if (MK.has(sp.y)) o.scat.y = sp.y;
@@ -359,7 +554,11 @@
   const unitText = (m) => m.kind === 'per90' ? `${m.unit} per 90` : m.kind === 'padj' ? `${m.unit} per 90, possession-adjusted`
     : m.kind === 'ratio' ? (m.unit === '%' ? 'percentage' : `${m.unit}, average`) : m.kind === 'max' ? `${m.unit}, season peak`
     : m.kind === 'mean' ? `${m.unit}, mean of matches` : `${m.unit}, season total`;
-  const noisy = (m) => m.noisy ? '<span class="tx-noisy" role="img" aria-label="small sample, read with care">≈</span>' : '';
+  // ≈ for one row (its own level's flag, from the engine's cell) or, without a row, at the selected player's level (the
+  // league's flag until their numbers are in).
+  const noisyAt = (m, p) => { const c = cellOf(p || (S && PID.get(S.focus)), m.key); return c && c.noisy != null ? !!c.noisy : !!m.noisy; };
+  const NOISY = '<span class="tx-noisy" role="img" aria-label="small sample, read with care">≈</span>';
+  const noisy = (m, p) => noisyAt(m, p) ? NOISY : '';
   // A value with its unit as people read it: "1.64 per 90", "5 this season", "71.4%".
   function withUnit(m, v) {
     const s = fmt(m, v); if (s === '–') return s;
@@ -398,20 +597,28 @@
     for (const el of root.querySelectorAll('[data-w]')) el.style.width = `${clamp(el.dataset.w, 0, 100)}%`;
     for (const el of root.querySelectorAll('[data-l]')) el.style.left = `${clamp(el.dataset.l, 0, 100)}%`;
   }
-  const cellOf = (p, k) => (p && CELLS.get(p.id) && CELLS.get(p.id)[k]) || null;
+  // A row's cell in the percentile scope shown (the table's calls and the player's own numbers fill them).
+  const cellOf = (p, k) => (p && S && (CELLS.get(`${S.scope}|${p.id}`) || {})[k]) || null;
   const pctOf = (p, k) => { const c = cellOf(p, k); return c ? c.percentile : null; };
-  // The qualifying minutes as people say them ("101+ minutes"; the engine's threshold is a third of a club's minutes).
+  // The Regista League's qualifying minutes as people say them ("101 minutes"; the engine's threshold is a third of a
+  // club's minutes); every other competition has its own (minMin).
   const minMinutes = () => Math.ceil(Number(CAT.season.min_minutes) || 0);
-  // Why a value has no percentile, as the engine decides it (metrics.py _percentiles): the metric has no percentiles at all
-  // (a season count), it is not scored for the player's position, the player is under the qualifying minutes, a ratio has
-  // too few attempts, or the player is the only regular peer. `small` marks a small sample (the table's italics).
+  // Why a value has no percentile, as the engine decides it, in the catalogue's order: none yet (a count of 0); the metric
+  // has no percentiles at all (a season count); it is not scored for the player's position; the player is under their
+  // competition's qualifying minutes; a ratio has too few attempts; the pool is under its minimum size (5, or 2 in the
+  // Regista League's own competition scope). `small` marks a small sample (the table's italics).
   function noPct(p, m, c) {
     if (!c || c.value == null || c.percentile != null) return null;
+    if (isNone(c)) return { text: noneText(p, c), small: false };
     if (!m.has_percentile) return { text: 'no percentile: a season count, ranked by value only', small: false };
     if (!m.positions.includes(p.position)) return { text: `no percentile: not scored for ${POSN[p.position]} (scored for ${m.positions.join(' ')})`, small: false };
-    if (!p.qualified) return { text: `no percentile: under ${minMinutes()} minutes`, small: true };
-    if (!c.qualified) return { text: `no percentile: below the minimum attempts${c.den != null && m.min_attempts ? ` (${c.den} attempts, needs ${m.min_attempts})` : ''}`, small: true };
-    return { text: `no percentile: the only regular ${POS1[p.position].toLowerCase()} on this metric, so no peers to rank against`, small: false };
+    const mm = minMin(p);
+    if (!p.qualified) return { text: `no percentile: ${Math.round(p.minutes || 0)} minutes, under the ${mm == null ? 'minutes' : mm} a regular needs in ${p.comp.name}`, small: true };
+    const att = ((p.desc || {})[m.key] || {}).min_attempts ?? (p.cid === ENG ? m.min_attempts : null);
+    if (!c.qualified) return { text: `no percentile: below the minimum attempts${c.den != null && att ? ` (${c.den} attempts, needs ${att})` : ''}`, small: true };
+    const pl = poolOf(c);
+    if (pl.size != null && pl.min_size != null && pl.size < pl.min_size) return { text: `no percentile: only ${pl.size} regular ${POSN[p.position]} in this ${SCOPE_WORD[S.scope]} pool, and a percentile needs ${pl.min_size}`, small: false };
+    return { text: `no percentile${pl.reason ? `: ${pl.reason}` : ''}`, small: false };
   }
   const initials = (p) => { const w = String(p.name).split(' '); return w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(' ')}` : p.name; };
   const lastName = (p) => String(p.name).split(' ').slice(-1)[0];
@@ -427,7 +634,7 @@
     const s = Number.isInteger(n) ? String(n) : (Math.abs(n) < 1 ? n.toFixed(3) : n.toFixed(1));
     return ['xG', 'xT'].includes(m.unit) ? `${m.unit} ${s}` : ['m', 'km/h'].includes(m.unit) ? `${s} ${m.unit}` : s;
   }
-  // "R5 v ASH" / "R5 at ASH" for a club's match.
+  // "R5 v ASH" / "R5 at ASH" for a club's match (league fixtures and every catalogue upload).
   function matchFor(mid, cid) {
     const mt = MATCH.get(mid);
     if (!mt) return { when: '', opp: null, home: true, round: null };
@@ -453,29 +660,34 @@
   function paintMeta() {
     const sm = CAT.season.sample || {}, rel = CAT.season.reliability || {};
     $('txMeta').innerHTML = `<details class="tx-about"><summary><span class="tx-noisy" aria-hidden="true">≈</span> small sample, read with care</summary>
-        <div class="tx-aboutp"><p>${esc(plainSample(sm.note))}</p>
-        <p><span class="tx-noisy">≈</span> marks a stat that one season cannot yet use to tell players in the same role apart (its split-half reliability is below ${esc(rel.noise_r)}).</p>
-        <p>Percentiles compare a player with the regulars (at least ${esc(minMinutes())} minutes) in the same position: goalkeepers, defenders, midfielders or forwards. Where lower is better, the percentile is turned round.</p>
+        <div class="tx-aboutp"><p>Percentiles compare a player with the regulars in the same position at the same level by default: the same tier, age group and gender (for example semi-pro men, or academy U19 men). The players table can switch to their competition, or to all levels of one gender. Men and women never share a pool.</p>
+        <p>A regular has a third of the minutes of their competition's busiest club: at least ${esc(minMinutes())} minutes in the Regista League, at least ${esc(FLOOR)} elsewhere. A pool of fewer than ${esc(SMALL_POOL)} regulars is marked small; under ${esc(MIN_POOL)} there is no percentile. Where lower is better, the percentile is turned round.</p>
+        <p>Raw numbers are ranked only within one level, percentiles only within one position: a list that mixes levels splits into one list per level, or, for one position, ranks each player by their percentile in their own pool. A count of 0 (no goals yet) is "none yet": no percentile and no place.</p>
+        <p>${esc(plainSample(sm.note))} Outside England only the uploaded matches count, so a regular there has played one to three matches of about 30 minutes.</p>
+        <p><span class="tx-noisy">≈</span> marks a stat that one season cannot yet use to tell players in the same role apart at that level (its split-half reliability is below ${esc(rel.noise_r)}).</p>
         <p>Every underlined number plays every moment behind it in the clips drawer. Physical numbers list one value per match (no single clip).</p></div></details>
       <div class="tx-ws" role="group" aria-label="Saved layouts"><span class="tx-wsl">Saved layouts:</span>
-        ${[0, 1, 2].map(i => `<button type="button" data-act="ws" data-i="${i}" aria-pressed="${store.cur === i}" aria-label="Saved layout ${i + 1}" title="Saved layout ${i + 1}: panels, players and columns, kept in this browser">${i + 1}</button>`).join('')}
+        ${[0, 1, 2].map(i => `<button type="button" data-act="ws" data-i="${i}" aria-pressed="${store.cur === i}" aria-label="Saved layout ${i + 1}" title="Saved layout ${i + 1}: panels, players, columns and filters, kept in this browser">${i + 1}</button>`).join('')}
         <button type="button" data-act="reset" class="tx-reset" title="Put this layout back to the default">Reset layout</button>
         ${storageOK ? '' : '<span class="tx-warn" title="This browser blocks storage, so layouts last until you leave the page.">not saved: storage blocked</span>'}</div>`;
   }
-  // Example searches under the box, each running the command it stands for.
+  // Example searches under the box, each running the command it stands for: the league's three, then the catalogue's
+  // place and level questions.
   function paintExamples() {
     const f = PID.get('pl_bro_09') || PID.get(S.focus);
     const rival = PLAYERS.find(p => p.name === 'Amari Ustinov');
     const exs = [['Best finishers', 'rank forwards non-penalty goals'],
       ...(rival && rival !== f ? [[`Compare ${lastName(f)} and ${lastName(rival)}`, `compare ${f.name} and ${rival.name}`]] : []),
-      [`Who plays like ${lastName(f)}?`, `similar to ${f.name}`]];
+      [`Who plays like ${lastName(f)}?`, `similar to ${f.name}`],
+      ['U19 midfielders in Spain', 'U19 midfielders in Spain'], ['Best dribblers in academy', 'best dribblers in academy'],
+      ['Women forwards', 'women forwards'], ['Players in Nigeria', 'players in Nigeria'], ['My level', 'my level forwards']];
     $('txEx').innerHTML = `<span class="tx-exl">Try</span>${exs.map(([l, c]) => `<button type="button" class="tx-exb" data-act="run" data-cmd="${esc(c)}" title="Runs: ${esc(c)}">${esc(l)}</button>`).join('')}`;
   }
   // Synthetic data, said once and plainly, at the bottom of the section.
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmtDate = (iso) => { const [y, m, d] = String(iso || '').split('-').map(Number); return y && m && d ? `${d} ${MONTHS[m - 1]} ${y}` : String(iso || ''); };
   function paintFoot() {
-    const first = String(CAT.note || CAT.season.note || '').split('. ')[0].replace(/\.$/, ''), i = first.indexOf(': ');
-    const lead = i > 0 ? first.slice(0, i) : 'Synthetic data', rest = i > 0 ? first.slice(i + 2) : first;
-    $('txFoot').innerHTML = `<b>${esc(lead)}:</b> ${esc(rest)}.`;
+    $('txFoot').innerHTML = `<b>Synthetic data:</b> invented players, clubs and competitions, generated by Regista; countries and levels are labels.${IX.as_of ? ` Data as of ${esc(fmtDate(IX.as_of))}.` : ''}`;
   }
   function paintKeys() {
     const dOpen = drawerOpen();
@@ -672,7 +884,7 @@
     if (!quiet) gen++;  // a player picked by hand overrides any command still loading
     S.focus = pid; S.club = p.club_id; scatCur = null;
     save(); renderAll();
-    if (!quiet) out(`${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number}`);
+    if (!quiet) out(rowLine(p));
   }
   // Beside the search: the selected player, and the comparison when there is one.
   function renderSel() {
@@ -682,7 +894,7 @@
     let btn = '';
     if (!S.compare.length || (inCmp && S.compare.length < 3)) btn = '<button type="button" class="tx-mini tx-cmpw" data-act="cmpwith" title="Type a player to compare with">Compare with…</button>';
     else if (!inCmp) btn = `<button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(S.focus)}">Add ${esc(f.name)} to the comparison${S.compare.length >= 3 ? ` (replaces ${esc(PID.get(S.compare[0]).name)})` : ''}</button>`;
-    $('txSel').innerHTML = `<span class="tx-sl">Selected:</span><button type="button" class="tx-focus" data-act="pane" data-id="plyr" title="Go to the player card">${esc(f.name)} <span>${esc(f.short_name)} · ${esc(f.position)} · #${esc(f.kit_number)}</span></button>
+    $('txSel').innerHTML = `<span class="tx-sl">Selected:</span><button type="button" class="tx-focus" data-act="pane" data-id="plyr" title="Go to the player card">${esc(f.name)} <span>${esc(f.short_name)} · ${esc(f.position)} · #${esc(f.kit_number)} · ${esc(levelWords(f.level))}${f.country !== 'England' || !isMine(f.level) ? `, ${esc(f.country)}` : ''}</span></button>
       ${S.compare.length ? `<span class="tx-sl">Comparing:</span>${chips}` : ''}${btn}
       ${S.compare.length ? '<button type="button" class="tx-mini" data-act="cmpclear" title="Stop comparing">Clear</button>' : ''}`;
     styleUp($('txSel'));
@@ -717,13 +929,13 @@
     }
     return rows;
   }
-  function cellSub(m, c) {
-    if (!c) return 'No minutes this season';
-    return `${fmt(m, c.value)}${m.kind === 'ratio' && m.unit === '%' ? '' : ' ' + unitText(m)}${c.num != null ? ` · ${c.num} of ${c.den}` : c.total != null && m.kind !== 'total' ? ` · ${c.total} in total` : ''}${c.percentile != null ? ` · ${ord(c.percentile)} percentile` : ''}`;
+  function cellSub(p, m, c) {
+    if (!c) return `No minutes in ${p.comp.name}`;
+    return `${fmt(m, c.value)}${m.kind === 'ratio' && m.unit === '%' ? '' : ' ' + unitText(m)}${c.num != null ? ` · ${c.num} of ${c.den}` : c.total != null && m.kind !== 'total' ? ` · ${c.total} in total` : ''}${c.percentile != null ? ` · ${poolLine(p, c)}` : isNone(c) ? ` · ${noneText(p, c)}` : ''} · ${p.comp.name}`;
   }
   function evidenceReel(pid, mk, ev, match) {
     const p = PID.get(pid), m = MK.get(mk), c = cellOf(p, mk);
-    const r = { title: `${p.name} · ${m.label}${m.noisy ? ' ≈' : ''}`, sub: cellSub(m, c), items: [], i: -1, pid, mk, match: match || null, note: '' };
+    const r = { title: `${p.name} · ${m.label}${noisyAt(m, p) ? ' ≈' : ''}`, sub: cellSub(p, m, c), items: [], i: -1, pid, mk, match: match || null, note: '' };
     if (!ev) { r.note = 'The moments behind this number did not load. Pick the number again to retry.'; return r; }
     const when = (it) => matchFor(it.match_id, p.club_id).when;
     if (ev.per_match) {
@@ -941,64 +1153,55 @@
     msg(why === 'nolink' ? (reel && reel.note) || 'This moment has no video.' : '');
   }
 
-  // ------------------------------------------------------------------ Players: the players table
-  function screenRows() {
-    const sc = S.scr, q = norm(sc.q);
-    const rows = PLAYERS.filter(p => p.minutes > 0 && (!sc.pos || p.position === sc.pos) && (!sc.qual || p.qualified)
-      && (!q || norm(p.name).includes(q) || norm(p.club).includes(q) || norm(p.short_name) === q));
-    const k = sc.sort.k, dir = sc.sort.dir;
-    const m = MK.get(k);
-    rows.sort((a, b) => {
-      if (k === 'name') return dir * a.name.localeCompare(b.name);
-      if (k === 'club') return dir * a.club.localeCompare(b.club) || a.name.localeCompare(b.name);
-      if (k === 'min') return dir * (a.minutes - b.minutes);
-      const ca = cellOf(a, k), cb = cellOf(b, k);
-      const qa = rankable(m, ca), qb = rankable(m, cb);
-      if (qa !== qb) return qa ? -1 : 1;
-      const va = ca ? ca.value : null, vb = cb ? cb.value : null;
-      if (va == null || vb == null) return va == null ? (vb == null ? 0 : 1) : -1;
-      return dir * (va - vb) || tieBreak(m, dir, a, ca, b, cb) || a.name.localeCompare(b.name);
-    });
-    return rows;
-  }
-  // Values come rounded, so equal values may hide different true rates. Break the tie as the engine orders it (by the
-  // unrounded value), in the sort direction: the unrounded rate where the counts give it, else the percentile (which the
-  // engine computed from the unrounded values; it runs the metric's better way, so it flips for lower-is-better).
-  function rawOf(m, p, c) {
-    if (!c) return null;
-    if (m.kind === 'ratio' && c.num != null && c.den) return c.num / c.den;
-    if (m.kind === 'per90' && c.total != null && p.minutes > 0) return c.total / p.minutes;
-    return null;
-  }
-  function tieBreak(m, dir, a, ca, b, cb) {
-    const ra = rawOf(m, a, ca), rb = rawOf(m, b, cb);
-    if (ra != null && rb != null && ra !== rb) return dir * (ra - rb);
-    const pa = ca && ca.percentile, pb = cb && cb.percentile;
-    if (pa == null || pb == null || pa === pb || a.position !== b.position) return 0;   // percentiles compare only within one pool
-    return (m.higher_is_better === false ? -dir : dir) * (pa - pb);
-  }
-  // Ranked as the engine's /api/terminal/rank ranks: by value, every player in the metric's qualifying pool (enough
-  // minutes, and for a ratio enough attempts) whatever their position; season counts rank whenever they have a value. The
-  // percentile is a separate thing (position peers only) and only the shading and the Percentile view show it.
-  const rankable = (m, c) => !!(c && c.value != null && (c.qualified || m.kind === 'total'));
-  // Rows with the same shown value share a rank (1, 2, 2, 4); rows outside the pool are listed after, unranked.
-  function screenRanks(rows) {
-    const k = S.scr.sort.k, m = MK.get(k);
-    if (!m) return rows.map((_, i) => i + 1);
-    let prev = null, place = 0;
-    return rows.map((p, i) => {
-      const c = cellOf(p, k);
-      if (!rankable(m, c)) return null;
-      const v = fmt(m, c.value);
-      if (v !== prev) { place = i + 1; prev = v; }
-      return place;
+  // ------------------------------------------------------------------ Players: the players table, on the catalogue
+  // The rows as the engine ordered them, in its lists (one per level, or one per gender when one position spans levels):
+  // the rows the engine gave a place first, in its order, then the rest (too few minutes or attempts, no percentile, none
+  // yet), as /api/catalogue/rank lists them after its ranked rows. The browser computes no place: the name filter above the
+  // table only hides rows, and a club sort is the engine's names list put in club order (an order, not a ranking).
+  const orderKeyNow = () => { const sp = sortParams(); return `ord|${tableBase()}|${sp.sort}|${sp.order || ''}`; };
+  function screenBoards() {
+    const c = S && C.get(orderKeyNow());
+    if (!c || c.st !== 'ok') return [];
+    const o = c.v, q = norm(S.scr.q);
+    const keep = (p) => p && p.minutes > 0 && (!q || norm(p.name).includes(q) || norm(p.club).includes(q) || norm(p.short_name) === q);
+    let rows = o.ids.map(id => PID.get(id)).filter(keep);
+    if (S.scr.sort.k === 'club') rows = rows.slice().sort((a, b) => S.scr.sort.dir * String(a.club).localeCompare(String(b.club)) || String(a.name).localeCompare(String(b.name)));
+    // Pool mode is always one list per gender (one gender: one list, with its gender for a name).
+    const split = o.rank_by === 'pool' || !!(o.boards && o.boards.length > 1);
+    const groups = new Map((split && o.boards ? o.boards.map(b => b.board) : []).map(k => [k, []]));
+    for (const p of rows) { const k = !split ? '' : o.board.get(p.id) || (o.rank_by === 'pool' ? p.gender : ''); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(p); }
+    const mode = o.rank_by === 'pool' ? 'pool' : split ? 'level' : 'one';
+    return [...groups].filter(([, rs]) => rs.length).map(([key, rs]) => {
+      const all = [...rs.filter(p => o.rank.get(p.id) != null), ...rs.filter(p => o.rank.get(p.id) == null)];
+      return { key, mode, rows: all, ranks: all.map(p => o.rank.get(p.id) ?? null) };
     });
   }
+  const screenRows = () => screenBoards().flatMap(b => b.rows);
+  // A count where more is better (the engine's count_metrics): at 0 it reads "none yet".
+  const isCount = (m) => !!m && COUNT.has(m.key);
   function metricOptions(sel, filter) {
     return (CAT.groups || []).map(g => {
       const ms = METRICS.filter(m => m.group === g.key && (!filter || filter(m)));
-      return ms.length ? `<optgroup label="${esc(g.label)}">${ms.map(m => `<option value="${esc(m.key)}"${m.key === sel ? ' selected' : ''}>${esc(m.label)}${m.noisy ? ' ≈' : ''}</option>`).join('')}</optgroup>` : '';
+      return ms.length ? `<optgroup label="${esc(g.label)}">${ms.map(m => `<option value="${esc(m.key)}"${m.key === sel ? ' selected' : ''}>${esc(m.label)}${noisyAt(m) ? ' ≈' : ''}</option>`).join('')}</optgroup>` : '';
     }).join('');
+  }
+  // The filters: country, level, age group, gender and competition, each limited to what the others allow.
+  function whereOptions(field) {
+    const w = S.scr.where || {}, others = { ...w }; delete others[field];
+    const comps = [...COMP.values()].filter(c => inWhere(c, others)), lv = IX.levels || {};
+    const any = '<option value="">Any</option>';
+    const opt = (v, l) => `<option value="${esc(v)}"${w[field] === v ? ' selected' : ''}>${esc(l)}</option>`;
+    if (field === 'country') return any + COUNTRIES.filter(c => comps.some(x => x.country === c)).map(c => opt(c, c)).join('');
+    if (field === 'tier') return any + (lv.tiers || []).filter(t => comps.some(x => x.tier === t.key)).map(t => opt(t.key, t.label)).join('');
+    if (field === 'age_group') return any + (lv.age_groups || []).filter(t => comps.some(x => x.age_group === t.key)).map(t => opt(t.key, t.label)).join('');
+    if (field === 'gender') return any + (lv.genders || []).filter(t => comps.some(x => x.gender === t.key)).map(t => opt(t.key, t.label)).join('');
+    return any + COUNTRIES.map(co => { const cs = comps.filter(x => x.country === co); return cs.length ? `<optgroup label="${esc(co)}">${cs.map(x => opt(x.competition_id, x.name + ' (' + x.level_words + ')')).join('')}</optgroup>` : ''; }).join('');
+  }
+  // How the list is ranked, in words: "goals per 90", "take-ons won per 90", "minutes played".
+  function statWordsOf(sm) {
+    if (!sm) return { name: 'name', club: 'club', min: 'minutes played' }[S.scr.sort.k] || 'minutes played';
+    const l = shortLabel(sm), low = /^[A-Z][a-z]/.test(l) ? l.charAt(0).toLowerCase() + l.slice(1) : l;
+    return `${low}${sm.kind === 'per90' || sm.kind === 'padj' ? ' per 90' : sm.kind === 'total' ? ' this season' : ''}`;
   }
   function renderScrn() {
     const sc = S.scr, cols = sc.cols.filter(k => MK.has(k));
@@ -1009,52 +1212,122 @@
       sc.sort = k ? { k, dir: MK.get(k).higher_is_better === false ? 1 : -1 } : { k: 'min', dir: -1 };
       save();
     }
-    const all = ensureCols(cols);
-    const rows = screenRows();
+    const td = tableData(cols), waits = [td.ord, ...td.extra];
+    const failed = waits.find(c => c.st === 'err'), busyNow = waits.some(c => c.st === 'wait');
+    const boards = td.ord.st === 'ok' ? screenBoards() : [], rows = boards.flatMap(b => b.rows), mode = boards.length ? boards[0].mode : 'one';
+    const sm = MK.get(sc.sort.k), heads = boards.length > 1 || mode === 'pool';
     const sortAttr = (k) => sc.sort.k === k ? (sc.sort.dir === -1 ? 'descending' : 'ascending') : 'none';
     if (!scrAct || !rows.some(p => p.id === scrAct.pid)) scrAct = { pid: rows.some(p => p.id === S.focus) ? S.focus : (rows[0] && rows[0].id), c: 0 };
     if (scrAct.c > cols.length) scrAct.c = 0;
     const cell = (p, k, ci) => {
       const m = MK.get(k), act = scrAct.pid === p.id && scrAct.c === ci + 1, c = cellOf(p, k);
-      if (!COLS.has(k) && !c) return '<td class="num"><span class="tx-dim" aria-label="loading">…</span></td>';
-      if (!c) return '<td class="num"><span class="tx-dim">–</span></td>';
-      const txt = sc.mode === 'pct' ? (c.percentile == null ? '–' : c.percentile) : fmt(m, c.value);
+      if (!c) return busyNow ? '<td class="num"><span class="tx-dim" aria-label="loading">…</span></td>' : '<td class="num"><span class="tx-dim">–</span></td>';
+      const txt = sc.mode === 'pct' ? (isNone(c) ? 'none' : c.percentile == null ? '–' : c.percentile) : fmt(m, c.value);
       const np = noPct(p, m, c);
-      const lab = `${p.name}, ${m.label} ${withUnit(m, c.value)}${c.percentile != null ? `, ${ord(c.percentile)} percentile` : np ? `, ${np.text}` : ''}. ${cap1(playTextC(m, c))}`;
+      const lab = `${p.name}, ${m.label} ${withUnit(m, c.value)}${c.percentile != null ? `, ${poolLine(p, c)}${smallPool(c) ? ', a small pool' : ''}` : np ? `, ${np.text}` : ''}. ${cap1(playTextC(m, c))}`;
       return `<td class="num"><button type="button" class="tx-n${np && np.small ? ' uq' : ''}${zcC(c)}"${shade(m, c.percentile)} data-act="ev" data-sel="1" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-nav data-fid="c-${esc(p.id)}-${esc(k)}" tabindex="${act ? 0 : -1}" aria-label="${esc(lab)}">${esc(txt)}</button></td>`;
+    };
+    // The Percentile column: the sorted stat's percentile with the size of its pool, the small-pool flag, none yet, or why
+    // there is none (in its tooltip).
+    const poolCell = (p) => {
+      if (!sm) return '';
+      const c = cellOf(p, sm.key), np = noPct(p, sm, c);
+      if (isNone(c)) return `<td class="num tx-pool" title="${esc(`${shortLabel(sm)}: ${noneText(p, c)}`)}"><span class="tx-nyet">none yet</span></td>`;
+      if (!c || c.percentile == null) return `<td class="num tx-pool"><span class="tx-dim" title="${esc(np ? cap1(np.text) : 'No value')}">–</span></td>`;
+      return `<td class="num tx-pool" title="${esc(`${shortLabel(sm)}: ${poolLine(p, c)}${smallPool(c) ? `. Small pool: fewer than ${SMALL_POOL} regulars` : ''}`)}">${esc(ord(c.percentile))} <span class="tx-dim">· <span class="tx-poolw">pool </span>${esc(poolSize(c))}</span>${smallPool(c) ? ' <span class="tx-small">small</span>' : ''}</td>`;
     };
     // A click on a header sorts (again: the other way); the sorted column is the yellow one, and the panel's header says
     // which way. Removing a column is in the Columns menu.
     const sortBtn = (k, label, extra = '') => `<button type="button" data-act="sort" data-k="${esc(k)}" data-fid="h-${esc(k)}"${extra}>${label}</button>`;
+    const colNoisy = (k) => rows.some(p => (cellOf(p, k) || {}).noisy);
     const head = `<tr><th class="tx-stk" aria-sort="${sortAttr('name')}">${sortBtn('name', 'Player')}</th>
-      <th class="tx-hc" aria-sort="${sortAttr('club')}">${sortBtn('club', 'Club')}</th><th class="tx-hc">Pos</th>
-      <th class="num" aria-sort="${sortAttr('min')}">${sortBtn('min', 'Mins', ' title="Minutes played"')}</th>
-      ${cols.map(k => { const m = MK.get(k); return `<th class="num" aria-sort="${sortAttr(k)}">${sortBtn(k, `${esc(shortLabel(m))}${m.kind === 'total' ? ' <span class="tx-u">(total)</span>' : ''}${noisy(m)}`, `${shortLabel(m).length <= 12 ? ' class="nw"' : ''} data-mk="${esc(k)}" aria-label="${esc(m.label)}${m.noisy ? ', small sample' : ''}, sort"`)}</th>`; }).join('')}</tr>`;
-    const ranks = all ? screenRanks(rows) : rows.map(() => null);
-    const body = rows.map((p, r) => {
-      const ci = S.compare.indexOf(p.id), act = scrAct.pid === p.id && scrAct.c === 0;
+      <th class="tx-hc" aria-sort="${sortAttr('club')}">${sortBtn('club', 'Club')}</th><th class="tx-hc">Level</th><th class="tx-hc">Pos</th>
+      <th class="num" aria-sort="${sortAttr('min')}">${sortBtn('min', 'Mins', ' title="Minutes played in this competition"')}</th>
+      ${sm ? `<th class="num tx-poolh" title="${esc(`${sm.label}: the percentile, then the size of the pool it is ranked in (each player's ${SCOPE_WORD[S.scope]}, same position)`)}">Percentile</th>` : ''}
+      ${cols.map(k => { const m = MK.get(k), nz = colNoisy(k); return `<th class="num" aria-sort="${sortAttr(k)}">${sortBtn(k, `${esc(shortLabel(m))}${m.kind === 'total' ? ' <span class="tx-u">(total)</span>' : ''}${nz ? NOISY : ''}`, `${shortLabel(m).length <= 12 ? ' class="nw"' : ''} data-mk="${esc(k)}" aria-label="${esc(m.label)}${nz ? ', small sample' : ''}, sort"`)}</th>`; }).join('')}</tr>`;
+    const ncol = 5 + (sm ? 1 : 0) + cols.length;
+    const statWords = statWordsOf(sm);
+    // Each list names its level (or gender) and the stat it is ranked by: "Semi-pro men · your level · 66 players · ranked
+    // by goals per 90".
+    const boardHead = (b) => {
+      const pos = sc.pos ? POSN[sc.pos] : 'players';
+      if (b.mode === 'pool') {
+        const lv = new Set(b.rows.map(p => p.level)).size;
+        return `${cap1(b.key)} · ${b.rows.length} ${pos} from ${plural(lv, 'level')} · ranked by their percentile for ${statWords} in their own ${SCOPE_WORD[S.scope]} pool`;
+      }
+      return `${cap1(levelWords(b.key))}${isMine(b.key) ? ' · your level' : ''} · ${b.rows.length} ${pos} · ranked by ${statWords}`;
+    };
+    // After a list sorted by a count: how many have none of it, listed after the rest with no place.
+    const noneRow = (b) => {
+      if (!sm || !isCount(sm)) return '';
+      const zero = b.rows.filter(p => isNone(cellOf(p, sm.key))).length;
+      if (!zero) return '';
+      const have = b.rows.filter(p => { const c = cellOf(p, sm.key); return c && c.value != null && !isNone(c); }).length;
+      const what = statWords.replace(/ (per 90|this season)$/, '');
+      return `<tr class="tx-bnone"><td colspan="${ncol}" class="tx-dim"><span class="tx-bnl">${esc(`${have} of the ${have + zero} players on this list ${have === 1 ? 'has' : 'have'} any ${what} so far. The ${zero === 1 ? 'one' : zero} with none ${zero === 1 ? 'is' : 'are'} listed after, with no place.`)}</span></td></tr>`;
+    };
+    const w = sc.where || {};
+    const body = boards.map((b, bi) => (heads ? `<tr class="tx-board"><th colspan="${ncol}" scope="colgroup" id="txb-${bi}"><span class="tx-bh">${esc(boardHead(b))}</span></th></tr>` : '') + b.rows.map((p, r) => {
+      const ci = S.compare.indexOf(p.id), act = scrAct.pid === p.id && scrAct.c === 0, rk = b.ranks[r];
       return `<tr class="${p.id === S.focus ? 'on' : ''}${ci >= 0 ? ' cmp' : ''}" data-row="${esc(p.id)}"${ci >= 0 ? ` data-c="${CMP_COL[ci]}"` : ''}>
-        <th class="tx-stk" scope="row"><span class="tx-rk">${ranks[r] == null ? '–' : ranks[r]}</span><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-nav data-fid="n-${esc(p.id)}" tabindex="${act ? 0 : -1}"${p.id === S.focus ? ' aria-current="true"' : ''}>${esc(p.name)}</button><span class="tx-sub">${esc(p.short_name)} · ${esc(p.position)} ${esc(p.role)}</span></th>
-        <td class="tx-hc">${esc(p.short_name)}</td><td class="tx-hc">${esc(p.position)} <span class="tx-dim">${esc(p.role)}</span></td><td class="num">${esc(Math.round(p.minutes))}</td>
-        ${cols.map((k, i) => cell(p, k, i)).join('')}</tr>`;
-    }).join('');
-    const status = colsErr ? ` · <span class="tx-bad">a column did not load (${esc(errText(colsErr))})</span> <button type="button" class="tx-mini" data-act="colsretry">Retry</button>`
-      : all ? '' : ' · <span class="tx-wait">loading columns…</span>';
-    const html = `<div class="tx-ctls">
+        <th class="tx-stk" scope="row"><span class="tx-rk">${rk == null ? '–' : esc(rk)}</span><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-nav data-fid="n-${esc(p.id)}" tabindex="${act ? 0 : -1}"${p.id === S.focus ? ' aria-current="true"' : ''}>${esc(p.name)}</button><span class="tx-sub">${esc(p.short_name)} · ${esc(p.position)} · ${esc(levelWords(p.level))}${w.country ? '' : `, ${esc(p.country)}`}</span></th>
+        <td class="tx-hc">${esc(p.short_name)}</td><td class="tx-hc tx-lvc" title="${esc(`${p.comp.name} · ${p.country}`)}">${esc(levelWords(p.level))} <span class="tx-dim">${esc(p.country)}</span></td><td class="tx-hc">${esc(p.position)} <span class="tx-dim">${esc(p.role)}</span></td><td class="num">${esc(Math.round(p.minutes))}</td>
+        ${poolCell(p)}${cols.map((k, i) => cell(p, k, i)).join('')}</tr>`;
+    }).join('') + noneRow(b)).join('');
+    const mine = sameWhere(w, mineWhere()), all = !W_FIELDS.some(([k]) => w[k]);
+    const levels = new Set(rows.map(p => p.level));
+    const mixed = mode === 'pool' ? `One position across ${plural(levels.size, 'level')}: each player is ranked by their percentile within their own pool, one list per gender. A raw number at one level is not better or worse than the same number at another, so read each percentile against its own pool.`
+      : mode === 'level' ? `This list mixes ${boards.length} levels, so it is split into one list per level: raw numbers are compared only within a level. Pick a position to rank everyone by their percentile in their own pool.` : '';
+    const allWarn = S.scope === 'all' && td.ord.st === 'ok' && td.ord.v.warning ? cap1(td.ord.v.warning) : '';
+    const status = failed ? ` · <span class="tx-bad">the table did not load (${esc(errText(failed.e))})</span> <button type="button" class="tx-mini" data-act="colsretry">Retry</button>`
+      : busyNow ? ' · <span class="tx-wait">loading…</span>' : '';
+    const html = `<div class="tx-ctls tx-wherebar">
+        <details class="tx-menu tx-wmenu" data-r="wmenu"${whereMenuOpen ? ' open' : ''}><summary class="tx-mini" data-fid="scr-where">Where: <b>${esc(whereWords(w))}</b></summary>
+          <div class="tx-menup tx-wherep" role="group" aria-label="Where">
+            ${W_FIELDS.map(([f, l]) => `<label class="tx-ctl"><span>${esc(l)}</span><select data-r="w-${f}" data-fid="w-${f}">${whereOptions(f)}</select></label>`).join('')}
+            <p class="tx-cap">Competitions and options narrow to what the other filters allow.</p></div></details>
+        <button type="button" class="tx-mini" data-act="wmine" aria-pressed="${mine}" title="${esc(`Your level: ${levelWords(MINE_KEY())} (${MINE_CLUB}'s level)`)}">My level</button>
+        <button type="button" class="tx-mini" data-act="wall" aria-pressed="${all}">Whole catalogue</button>
+        <div class="tx-seg" role="group" aria-label="Percentiles within"><span class="tx-segl"><span class="tx-seglw">Percentiles within</span><span class="tx-segln">Compare within</span></span>${SCOPES.map(v => `<button type="button" data-act="scope" data-v="${v}" aria-pressed="${S.scope === v}" title="${esc(v === 'level' ? 'Same tier, age group and gender (the default)' : v === 'competition' ? 'Their own competition only' : 'Every level of their gender: men and women never share a pool')}">${esc(cap1(SCOPE_WORD[v]))}</button>`).join('')}</div></div>
+      <div class="tx-ctls">
         <div class="tx-seg" role="group" aria-label="Position">${[null, ...POS].map(v => `<button type="button" data-act="scrpos" data-v="${v || ''}" aria-pressed="${sc.pos === v}" title="${v ? esc(POS1[v] + 's') : 'Every position'}">${v || 'All'}</button>`).join('')}</div>
         <label class="tx-ctl"><span class="sr">Filter by name or club</span><input type="search" data-r="scrq" data-fid="scr-q" value="${esc(sc.q)}" placeholder="Filter by name or club" autocomplete="off" maxlength="40"></label>
-        <label class="tx-chk"><input type="checkbox" data-r="scrqual" data-fid="scr-qual"${sc.qual ? ' checked' : ''}> Regulars only (${esc(minMinutes())}+ minutes)</label>
+        <label class="tx-chk" title="${esc(`A regular has a third of the minutes of their competition's busiest club: ${minMinutes()} in the Regista League, at least ${FLOOR} elsewhere`)}"><input type="checkbox" data-r="scrqual" data-fid="scr-qual"${sc.qual ? ' checked' : ''}> Regulars only</label>
         <div class="tx-seg" role="group" aria-label="Show"><button type="button" data-act="scrmode" data-v="val" aria-pressed="${sc.mode === 'val'}">Value</button><button type="button" data-act="scrmode" data-v="pct" aria-pressed="${sc.mode === 'pct'}">Percentile</button></div>
         <details class="tx-menu" data-r="colmenu"${colMenuOpen ? ' open' : ''}><summary class="tx-mini" data-fid="scr-cols">Columns (${cols.length})</summary>
           <div class="tx-menup" role="group" aria-label="Columns">
             ${cols.length ? `<ul class="tx-collist">${cols.map(k => { const m = MK.get(k); return `<li><span>${esc(m.label)}${noisy(m)}</span><button type="button" class="tx-x" data-act="rmcol" data-k="${esc(k)}" data-fid="rm-${esc(k)}" aria-label="Remove the ${esc(m.label)} column" title="Remove">&times;</button></li>`; }).join('')}</ul>` : '<p class="tx-dim">No stat columns.</p>'}
             <label class="tx-ctl tx-addcol"><span>Add</span><select data-r="addcol" data-fid="scr-add"${cols.length >= MAX_COLS ? ' disabled' : ''}><option value="">a stat…</option>${metricOptions(null, m => !cols.includes(m.key))}</select></label>
             <button type="button" class="tx-mini" data-act="scrdef">Default columns</button></div></details></div>
-      <p class="tx-cap">${rows.length} ${esc(sc.pos ? POSN[sc.pos] : 'players')}${sc.qual ? ', regulars only' : ''} · <b class="tx-capu">${sc.mode === 'pct' ? 'percentiles vs the same position' : `values per 90 minutes${cols.some(k => { const x = MK.get(k); return x.kind !== 'per90' && x.kind !== 'padj'; }) ? ' (except %, averages and totals)' : ''}`}</b><span class="tx-capx">${sc.mode === 'pct' ? '' : ' · shading = percentile vs the same position'}${ranks.some(x => x == null) && all ? ' · – = not ranked (too few minutes or attempts)' : ''} · click a row to select, an underlined number to play its moments</span>${status}</p>
-      <div class="tx-scroll tx-tablewrap"><table class="tx-table"><thead>${head}</thead><tbody data-r="grid">${body || `<tr><td colspan="${4 + cols.length}" class="tx-dim">No players match.</td></tr>`}</tbody></table></div>`;
-    const sm = MK.get(sc.sort.k), dirWord = sc.sort.dir === -1 ? (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'Z to A' : 'highest first') : (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'A to Z' : 'lowest first');
+      ${mixed ? `<p class="tx-warn tx-mixed">${esc(mixed)}</p>` : ''}${allWarn ? `<p class="tx-warn tx-mixed">All levels: ${esc(allWarn)}</p>` : ''}
+      <p class="tx-cap">${rows.length} ${esc(sc.pos ? POSN[sc.pos] : 'players')} · ${esc(whereWords(w))}${heads ? ` · ${plural(boards.length, 'list')}` : ''}${sc.qual ? ', regulars only' : ''} · <b class="tx-capu">${sc.mode === 'pct' ? `percentiles within each player's ${esc(SCOPE_WORD[S.scope])}` : `values per 90 minutes${cols.some(k => { const x = MK.get(k); return x.kind !== 'per90' && x.kind !== 'padj'; }) ? ' (except %, averages and totals)' : ''}`}</b><span class="tx-capx">${sc.mode === 'pct' ? '' : ` · shading = percentile within each player's ${esc(SCOPE_WORD[S.scope])}`}${boards.some(b => b.ranks.some(x => x == null)) ? ' · – = not ranked (too few minutes or attempts, no percentile, or none yet)' : ''} · click a row to select, an underlined number to play its moments</span>${status}</p>
+      <div class="tx-scroll tx-tablewrap"><table class="tx-table"><thead>${head}</thead><tbody data-r="grid">${body || `<tr><td colspan="${ncol}" class="tx-dim">${esc(td.ord.st === 'ok' ? emptyText() : td.ord.st === 'err' ? 'The players did not load.' : 'Loading the players…')}</td></tr>`}</tbody></table></div>`;
+    const dirWord = sc.sort.dir === -1 ? (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'Z to A' : 'highest first') : (sc.sort.k === 'name' || sc.sort.k === 'club' ? 'A to Z' : 'lowest first');
     const sortName = sm ? shortLabel(sm) : { name: 'name', club: 'club', min: 'minutes' }[sc.sort.k];
-    paint('scrn', html, sortName ? esc(`Sorted by ${sortName}, ${dirWord}`) : '');
+    paint('scrn', html, sortName ? esc(mode === 'pool' ? `Sorted by ${sortName}, percentile in own pool, ${sc.sort.dir === (sm && sm.higher_is_better === false ? 1 : -1) ? 'best first' : 'worst first'}` : `Sorted by ${sortName}, ${dirWord}`) : '');
+  }
+  // New filters: the table, the scatter (one level at a time) and the status line follow.
+  async function setWhere(w, quiet) {
+    const g = ++gen;
+    S.scr.where = w; scrAct = null; save();
+    renderScrn(); if (visible('scat')) renderScat();
+    if (quiet) return;
+    out(`Showing ${whereWords(w)}: loading…`);
+    await settle(tableData(S.scr.cols.filter(k => MK.has(k))).ord);
+    if (g !== gen) return;
+    const n = screenRows().length;
+    out(n ? `Showing ${whereWords(w)}: ${n} ${S.scr.pos ? POSN[S.scr.pos] : 'players'}${S.scr.qual ? ' (regulars)' : ''}.` : emptyText(), n ? '' : 'err');
+  }
+  function scopeText() {
+    return S.scope === 'level' ? 'Percentiles within each player\'s level: the same tier, age group and gender (the default).'
+      : S.scope === 'competition' ? 'Percentiles within each player\'s own competition.'
+      : 'Percentiles across all levels of each player\'s gender: rows from different levels, so read each percentile against its own pool. Men and women never share a pool.';
+  }
+  // No rows: say which filters leave nothing, and what the catalogue does have.
+  function emptyText() {
+    const w = S.scr.where || {};
+    if (![...COMP.values()].some(c => inWhere(c, w))) return `No competition in the catalogue matches ${whereWords(w)}. Try "Whole catalogue" or change a filter.`;
+    return `No ${S.scr.pos ? POSN[S.scr.pos] : 'players'} match${S.scr.qual ? ' (regulars only: untick it to see everyone)' : ''}${S.scr.q ? ` "${S.scr.q}"` : ''}.`;
   }
   // Alt+1: straight into the players table, on its active cell (one tab stop; arrows move from there).
   function focusGrid() {
@@ -1069,43 +1342,58 @@
     const fc = full(p.id, 'plyr'), sm = similar(p.id, 'plyr');
     const bio = [['Age', p.age], ['Height', p.height_cm ? p.height_cm + ' cm' : '–'], ['Foot', p.preferred_foot ? p.preferred_foot.charAt(0).toUpperCase() + p.preferred_foot.slice(1) : '–'], ['Nation', p.nationality],
       ['Minutes', Math.round(p.minutes)], ['Apps', p.appearances]];
-    let best;
+    const pw = poolWordsFor(p), mm = minMin(p);
+    let best, sample = '';
     if (fc.st !== 'ok') best = waitHtml(fc, `${p.name}'s numbers`);
     else {
+      // The player's own best numbers, by their percentile in the scope shown (a sort of one player's numbers, not a
+      // ranking of players).
       const strengths = METRICS.filter(m => m.positions.includes(p.position) && m.has_percentile && m.higher_is_better !== null && pctOf(p, m.key) != null)
         .sort((a, b) => pctOf(p, b.key) - pctOf(p, a.key)).slice(0, 6);
-      best = p.minutes > 0 ? `<h3 class="tx-h3">Best among ${esc(POSN[p.position])}</h3>
-        <table class="tx-mt tx-best"><tbody>${strengths.map(m => mrow(p, m)).join('') || '<tr><td class="tx-dim">No percentiles yet (too few minutes).</td></tr>'}</tbody></table>
-        <p class="tx-cap">/90 = per 90 minutes played. The bar and the last number are the percentile among regular ${esc(POSN[p.position])}.</p>` : '<p class="tx-dim">No minutes this season.</p>';
+      best = p.minutes > 0 ? `<h3 class="tx-h3">Best among ${esc(pw)}</h3>
+        ${strengths.length ? `<table class="tx-mt tx-best"><tbody>${strengths.map(m => mrow(p, m)).join('')}</tbody></table>
+        <p class="tx-cap">/90 = per 90 minutes played. The bar and the last number are the percentile among regular ${esc(pw)}, then the pool's size; "small" marks a pool under ${esc(SMALL_POOL)}.</p>`
+        : `<table class="tx-mt tx-best"><tbody><tr><td class="tx-dim">${esc(!p.qualified ? `No percentiles yet: ${Math.round(p.minutes)} minutes, under the ${mm == null ? 'minutes' : mm} a regular needs in ${p.comp.name}.` : `No percentiles: too few regular ${POSN[p.position]} in this ${SCOPE_WORD[S.scope]} pool.`)}</td></tr></tbody></table>`}`
+        : `<p class="tx-dim">No minutes in ${esc(p.comp.name)}.</p>`;
+      const sp = sampleOf(p);
+      if (sp) sample = `<p class="tx-cap tx-sample">Sample: ${esc(plural(p.appearances || 0, 'appearance'))} in ${esc(sp.club_matches != null ? `${sp.club_matches} uploaded ${sp.club_matches === 1 ? 'match' : 'matches'} of ${p.club}` : 'the uploaded matches')}${sp.competition_matches != null ? ` (${esc(sp.competition_matches)} uploaded in the competition)` : ''}, ${esc(Math.round(p.minutes || 0))} minutes; a regular needs ${esc(Math.ceil(Number(sp.qualifying_minutes) || 0))}.</p>`;
     }
+    // A career player: their other competition, each with its own numbers and percentiles (never merged).
+    const others = (p.also_in || []).filter(cid => cid !== p.cid && COMP.has(cid));
+    const career = others.length ? `<p class="tx-cap tx-career">Also plays in ${others.map(cid => { const id = rowIdOf(p.gid, cid), q = PID.get(id), c = COMP.get(cid);
+      return q ? `<button type="button" class="tx-lk" data-act="sel" data-pid="${esc(id)}" data-fid="car-${esc(id)}">${esc(c.name)} (${esc(c.level_words)}, ${esc(Math.round(q.minutes || 0))} min)</button>` : `${esc(c.name)} (${esc(c.level_words)}, no minutes yet)`; }).join(', ')}: numbers and percentiles stay per competition.${STORY.has(p.gid) ? ` ${esc(cap1(STORY.get(p.gid)))}.` : ''}</p>` : '';
     let sim;
     if (sm.st !== 'ok') sim = waitHtml(sm, 'similar players');
     else {
-      const list = sm.v.similar || [];
-      sim = list.length ? `<ol class="tx-sim">${list.map(s => `<li><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(s.global_id)}" data-fid="sim-${esc(s.global_id)}">${esc(s.name)}</button>
-        <span class="tx-dim">${esc(s.short_name)} ${esc(s.position)}</span><span class="tx-simbar" aria-label="similarity ${esc(s.similarity)}"><i data-w="${Math.max(2, Math.round(s.similarity * 100))}"></i></span><span class="num">${esc(Number(s.similarity).toFixed(2))}</span>
-        <span class="tx-shared">${(s.shared_strengths || []).filter(k => MK.has(k)).map(k => `<button type="button" class="tx-kchip" data-act="ev" data-pid="${esc(s.global_id)}" data-mk="${esc(k)}" data-fid="sim-${esc(s.global_id)}-${esc(k)}">${esc(MK.get(k).label)}</button>`).join('')}</span></li>`).join('')}</ol>
-        <p class="tx-cap">Similarity (1 = identical) on the ${esc(p.position === 'GK' ? 'goalkeeper' : 'outfield')} stats, among regular ${esc(POSN[p.position])}; the chips are strengths they share (each plays that player's moments).${list.every(s => s.similarity < 0.5) ? ' No close match: every similarity is under 0.50.' : ''}</p>` : '<p class="tx-dim">No similar players (too few minutes).</p>';
+      const list = (sm.v.similar || []).filter(s => PID.has(s.row));
+      sim = list.length ? `<ol class="tx-sim">${list.map(s => { const q = PID.get(s.row); return `<li><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(s.row)}" data-fid="sim-${esc(s.row)}">${esc(s.name)}</button>
+        <span class="tx-dim">${esc(s.short_name)} ${esc(s.position)}${q.level !== p.level ? ` · ${esc(levelWords(q.level))}` : ''}${q.country !== p.country ? `, ${esc(q.country)}` : ''}</span><span class="tx-simbar" aria-label="similarity ${esc(s.similarity)}"><i data-w="${Math.max(2, Math.round(s.similarity * 100))}"></i></span><span class="num">${esc(Number(s.similarity).toFixed(2))}</span>
+        <span class="tx-shared">${(s.shared_strengths || []).filter(k => MK.has(k)).map(k => `<button type="button" class="tx-kchip" data-act="ev" data-pid="${esc(s.row)}" data-mk="${esc(k)}" data-fid="sim-${esc(s.row)}-${esc(k)}">${esc(MK.get(k).label)}</button>`).join('')}</span></li>`; }).join('')}</ol>
+        <p class="tx-cap">Similarity (1 = identical) on the ${esc(p.position === 'GK' ? 'goalkeeper' : 'outfield')} stats, among ${esc(S.scope === 'competition' ? `players in ${p.comp.name}` : S.scope === 'all' ? `all ${p.gender} at every level` : levelWords(p.level))} (the percentile setting in the players table); the chips are strengths they share (each plays that player's moments).${list.every(s => s.similarity < 0.5) ? ' No close match: every similarity is under 0.50.' : ''}</p>` : '<p class="tx-dim">No similar players (too few minutes, or too few regulars in this pool).</p>';
     }
     const html = `<div class="tx-card"><span class="tx-shirt" aria-hidden="true">${shirt(p)}</span>
         <div><p class="tx-name">${esc(p.name)}</p><p class="tx-line">${esc(p.club)} · ${esc(POS1[p.position])} (${esc(p.role)}) · #${esc(p.kit_number)}
-          ${p.qualified ? `<span class="tx-tag" title="At least ${esc(minMinutes())} minutes, so the player has percentiles">Regular</span>` : `<span class="tx-tag dim">Under ${esc(minMinutes())} minutes</span>`}</p>
-          <p class="tx-prof"><a href="/players/${esc(enc(p.id))}">Open profile &rarr;</a></p></div></div>
+          ${p.qualified ? `<span class="tx-tag" title="${esc(`At least ${mm == null ? 'the qualifying' : mm} minutes in ${p.comp.name}, so the player has percentiles`)}">Regular</span>` : `<span class="tx-tag dim">${esc(mm == null ? 'Not a regular yet' : `Under ${mm} minutes`)}</span>`}</p>
+          <p class="tx-line tx-compl">${esc(p.comp.name)} · ${esc(p.country)} · <span class="tx-lv">${esc(levelWords(p.level))}</span>${isMine(p.level) ? ' <span class="tx-dim">· your level</span>' : ''}</p>
+          <p class="tx-prof"><a href="/players/${esc(enc(p.gid))}">Open profile &rarr;</a></p></div></div>
+      ${sample}${career}
       <dl class="tx-bio">${bio.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${esc(v ?? '–')}</dd></div>`).join('')}</dl>
       <div class="tx-acts"><button type="button" class="tx-mini" data-act="cmpwith" data-fid="card-cmp"${S.compare.length >= 3 && S.compare.includes(p.id) ? ' disabled' : ''}>Compare with…</button>
         <button type="button" class="tx-mini" data-act="run" data-cmd="highlights ${esc(p.name)}" title="Goals, shots, chances made, skills and defending in one reel">Highlights</button><button type="button" class="tx-mini" data-act="run" data-cmd="shots ${esc(p.name)}">Shots</button><button type="button" class="tx-mini" data-act="run" data-cmd="form ${esc(p.name)}">Form</button>
-        <button type="button" class="tx-mini" data-act="run" data-cmd="team ${esc(p.club)}">Team</button></div>
+        <button type="button" class="tx-mini" data-act="team" data-cid="${esc(p.club_id)}">Team</button></div>
       ${best}
       <h3 class="tx-h3" id="txSimHead" tabindex="-1">Plays like</h3>${sim}`;
     paint('plyr', html, esc(p.short_name));
   }
-  // One metric row: label (definition on hover), value button (evidence), percentile bar.
+  // One metric row: label (definition on hover), value button (evidence), percentile bar, and the percentile with the size
+  // of its pool (the small flag under 15, none yet for a count of 0).
   function mrow(p, m, opts = {}) {
     const c = cellOf(p, m.key);
-    const val = c ? `<button type="button" class="tx-n${zcC(c)}"${shade(m, c.percentile)} data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(m.key)}" data-fid="${esc((opts.fid || 'm') + '-' + p.id + '-' + m.key)}" aria-label="${esc(`${m.label} ${withUnit(m, c.value)}, ${playTextC(m, c)}`)}">${esc(fmt(m, c.value))}</button>` : '<span class="tx-dim">–</span>';
-    const pc = c ? c.percentile : null;
-    return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(m.key)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m)}</span>${unitMark(m)}</th><td class="num">${val}</td>
-      <td class="tx-pbar"><span class="tx-bar" data-g="${GROUP_COL[m.group] || '#ffcd28'}"><i data-w="${pc == null ? 0 : Math.max(2, pc)}"></i></span></td><td class="num tx-pc">${pc == null ? '–' : esc(pc)}</td></tr>`;
+    const val = c ? `<button type="button" class="tx-n${zcC(c)}"${shade(m, c.percentile)} data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(m.key)}" data-fid="${esc((opts.fid || 'm') + '-' + p.id + '-' + m.key)}" aria-label="${esc(`${m.label} ${withUnit(m, c.value)}${c.percentile != null ? `, ${poolLine(p, c)}` : ''}, ${playTextC(m, c)}`)}">${esc(fmt(m, c.value))}</button>` : '<span class="tx-dim">–</span>';
+    const pc = c ? c.percentile : null, np = c && noPct(p, m, c);
+    const pcHtml = isNone(c) ? '<span class="tx-nyet">none yet</span>' : pc == null ? '–' : `${esc(pc)}<span class="tx-of"> · pool ${esc(poolSize(c))}</span>${smallPool(c) ? ' <span class="tx-small">small</span>' : ''}`;
+    return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(m.key)}" data-pid="${esc(p.id)}">${esc(m.label)}${noisy(m, p)}</span>${unitMark(m)}</th><td class="num">${val}</td>
+      <td class="tx-pbar"><span class="tx-bar" data-g="${GROUP_COL[m.group] || '#ffcd28'}"><i data-w="${pc == null ? 0 : Math.max(2, pc)}"></i></span></td><td class="num tx-pc" title="${esc(pc == null ? (np ? cap1(np.text) : '') : poolLine(p, c) + (smallPool(c) ? `: a small pool (under ${SMALL_POOL})` : ''))}">${pcHtml}</td></tr>`;
   }
 
   // ------------------------------------------------------------------ Radar: pizza (one player) or radar (compare)
@@ -1146,9 +1434,13 @@
     const base = players[0], outsider = players.length > 1 && !S.compare.includes(f.id) ? f : null;
     const loads = [...players, ...(outsider ? [outsider] : [])].map(p => full(p.id, 'radar'));
     const waiting = loads.find(c => c.st !== 'ok');
-    const ctxText = players.length > 1 ? esc(`Comparing ${players.length}${outsider ? ` + ${lastName(outsider)}` : ''}`) : esc(`vs ${POSN[base.position]}`);
+    const ctxText = players.length > 1 ? esc(`Comparing ${players.length}${outsider ? ` + ${lastName(outsider)}` : ''}`) : esc(`vs ${poolWordsFor(base)}`);
     if (waiting) { paint('radar', waitHtml(waiting, 'the percentiles'), ctxText); return; }
     const keys = (S.radar.tpl === 'all' ? CAT.default_columns.all : (CAT.default_columns[base.position] || CAT.default_columns.all)).filter(k => MK.has(k));
+    // Compared players: the engine's warning and its best marks (one level: the best value; several levels and one
+    // position: the best percentile, each in its own pool; several levels and positions: none).
+    const cmp = players.length > 1 ? compareOf(players, keys, 'radar') : null, cv = cmp && cmp.st === 'ok' ? cmp.v : null;
+    const bestOf = (k, p) => !!(cv && ((cv.best || {})[k] || []).includes(p.gid));
     const n = keys.length, cx = 180, cy = 158, Rr = 96, r0 = 14;
     let svg = '<svg viewBox="0 0 360 316" class="tx-svg tx-radar" aria-hidden="true">';
     for (const q of [25, 50, 75, 100]) svg += `<circle cx="${cx}" cy="${cy}" r="${(r0 + (Rr - r0) * q / 100).toFixed(1)}" class="tx-ring"/>`;
@@ -1192,18 +1484,38 @@
       }
     }
     svg += axisLabels(keys, cx, cy, Rr) + '</svg>';
-    const legend = players.map((p, j) => `<button type="button" class="tx-leg" data-c="${CMP_COL[players.length > 1 ? j : 0]}" data-act="sel" data-pid="${esc(p.id)}" data-fid="rl-${esc(p.id)}">${esc(p.name)} <span class="tx-dim">${esc(p.short_name)} ${esc(p.position)}</span></button>`).join('')
+    const legend = players.map((p, j) => `<button type="button" class="tx-leg" data-c="${CMP_COL[players.length > 1 ? j : 0]}" data-act="sel" data-pid="${esc(p.id)}" data-fid="rl-${esc(p.id)}">${esc(p.name)} <span class="tx-dim">${esc(p.short_name)} ${esc(p.position)} · ${esc(levelWords(p.level))}</span></button>`).join('')
       + (outsider && !outsiderNote ? `<span class="tx-leg tx-legf">${esc(outsider.name)} <span class="tx-dim">${esc(outsider.short_name)} ${esc(outsider.position)} · selected, dashed</span></span>` : '');
     const outLine = outsider ? `<p class="tx-cap tx-rnote">${outsiderNote ? esc(outsiderNote) : `Comparing ${players.length}; ${esc(outsider.name)} (selected) is the dashed outline, not in the table.`} <button type="button" class="tx-mini" data-act="cmpadd" data-pid="${esc(outsider.id)}" data-fid="r-add">Add to the comparison${players.length >= 3 ? ` (replaces ${esc(lastName(players[0]))})` : ''}</button></p>` : '';
     const tbl = players.length === 1 ? `<table class="tx-mt"><tbody>${keys.map(k => mrow(base, MK.get(k), { fid: 'r' })).join('')}</tbody></table>`
       : `<div class="tx-scroll tx-tablewrap"><table class="tx-mt tx-cmp"><thead><tr><th>Stat</th>${players.map((p, j) => `<th class="num" data-fg="${CMP_COL[j]}">${esc(initials(p))}</th>`).join('')}</tr></thead><tbody>
-        ${keys.map(k => { const m = MK.get(k); return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(k)}">${esc(m.label)}${noisy(m)}</span>${unitMark(m)}</th>${players.map(p => { const c = cellOf(p, k); return `<td class="num">${c ? `<button type="button" class="tx-n${zcC(c)}"${shade(m, c.percentile)} data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="rc-${esc(p.id)}-${esc(k)}" aria-label="${esc(`${p.name}, ${m.label} ${withUnit(m, c.value)}, ${c.percentile == null ? (noPct(p, m, c) || { text: 'no percentile' }).text : ord(c.percentile) + ' percentile'}, ${playTextC(m, c)}`)}">${esc(fmt(m, c.value))}</button><span class="tx-pc"> ${c.percentile == null ? '–' : esc(c.percentile)}</span>` : '<span class="tx-dim">–</span>'}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>`;
+        ${keys.map(k => { const m = MK.get(k); return `<tr><th scope="row"><span class="tx-ml" data-mk="${esc(k)}">${esc(m.label)}${noisy(m)}</span>${unitMark(m)}</th>${players.map(p => { const c = cellOf(p, k), b = bestOf(k, p); return `<td class="num${b ? ' tx-best1' : ''}">${c ? `<button type="button" class="tx-n${zcC(c)}"${shade(m, c.percentile)} data-act="ev" data-pid="${esc(p.id)}" data-mk="${esc(k)}" data-fid="rc-${esc(p.id)}-${esc(k)}" aria-label="${esc(`${p.name}, ${m.label} ${withUnit(m, c.value)}, ${c.percentile == null ? (noPct(p, m, c) || { text: 'no percentile' }).text : poolLine(p, c)}${b ? ', the best of the comparison' : ''}, ${playTextC(m, c)}`)}">${esc(fmt(m, c.value))}</button><span class="tx-pc" title="${esc(c.percentile == null ? cap1((noPct(p, m, c) || { text: 'no percentile' }).text) : poolLine(p, c))}"> ${isNone(c) ? '<span class="tx-nyet">none yet</span>' : c.percentile == null ? '–' : `${esc(c.percentile)}<span class="tx-of"> · pool ${esc(poolSize(c))}</span>${smallPool(c) ? ' <span class="tx-small">small</span>' : ''}`}</span>${b ? '<span class="tx-bestm" title="The best of the comparison, by the engine\'s rule"> ★</span>' : ''}` : '<span class="tx-dim">–</span>'}</td>`; }).join('')}</tr>`; }).join('')}</tbody></table></div>
+        ${cv && Object.keys(cv.best || {}).length ? '<p class="tx-cap">★ the best of the comparison, by the engine\'s rule: the best value within one level, the best percentile (each in its own pool) across levels.</p>' : ''}`;
     const html = `<div class="tx-ctls"><div class="tx-seg" role="group" aria-label="Stats"><button type="button" data-act="rtpl" data-v="pos" aria-pressed="${S.radar.tpl === 'pos'}">${esc(POS1[base.position])} stats</button><button type="button" data-act="rtpl" data-v="all" aria-pressed="${S.radar.tpl === 'all'}">All-round</button></div></div>
-      <div class="tx-legs">${legend}</div>${outLine}${blank.map(p => `<p class="tx-cap tx-rnote">${esc(`${p.name} has no outline: ${whyBlank(p)}. The table has the values.`)}</p>`).join('')}${svg}
-      <p class="tx-cap">/90 = per 90 minutes. Percentile vs regular ${esc(players.length > 1 ? 'players in each one’s own position' : POSN[base.position])}${players.length > 1 ? '' : '; blue-grey wedges are style markers (ranked, not judged)'}.${gaps ? ` ${players.length > 1 ? 'A gap in an outline' : 'An empty wedge'} is a stat with no percentile for that player (the table and its tips say why), never the 0th.` : ''} Values play their moments.</p>${tbl}`;
+      <div class="tx-legs">${legend}</div>${outLine}${crossWarn(players, cv)}${blank.map(p => `<p class="tx-cap tx-rnote">${esc(`${p.name} has no outline: ${whyBlank(p)}. The table has the values.`)}</p>`).join('')}${svg}
+      <p class="tx-cap">/90 = per 90 minutes. ${players.length > 1 ? `Each percentile is against the player's own pool: regulars in their position ${S.scope === 'competition' ? 'in their competition' : S.scope === 'all' ? 'across every level of their gender' : 'at their level'}, with its size beside it` : `Percentile among regular ${esc(poolWordsFor(base))}; blue-grey wedges are style markers (ranked, not judged)`}.${gaps ? ` ${players.length > 1 ? 'A gap in an outline' : 'An empty wedge'} is a stat with no percentile for that player (the table and its tips say why), never the 0th.` : ''} Values play their moments.</p>${tbl}`;
     paint('radar', html, ctxText);
   }
 
+  // The engine's comparison of two or three rows (its warning and best marks), in their competitions and the scope shown.
+  function compareOf(players, keys, panel) {
+    const gids = players.map(p => p.gid);
+    if (new Set(gids).size !== gids.length) return null;          // one player's two rows: no comparison call
+    const q = `ids=${gids.map(enc).join(',')}&competitions=${players.map(p => enc(p.cid)).join(',')}&scope=${enc(S.scope)}&metrics=${keys.slice(0, COLS_PER_CALL).map(enc).join(',')}`;
+    return want(`cmp|${q}`, () => R.api(`/api/catalogue/compare?${q}`), panel);
+  }
+  // Comparing players from different levels (or genders, or positions): say how to read it, every time, with the engine's
+  // own warning.
+  function crossWarn(players, cv) {
+    if (players.length < 2) return '';
+    const lv = [...new Set(players.map(p => p.level))], gd = new Set(players.map(p => p.gender)), ps = new Set(players.map(p => p.position));
+    const parts = [];
+    if (lv.length > 1) parts.push(`Different levels (${listText(lv.map(levelWords))}): each percentile is against the player's own pool, and a raw number from one level is not better or worse than the same number from another.`);
+    if (gd.size > 1) parts.push('Men and women never share a pool.');
+    if (ps.size > 1) parts.push('Different positions: each is ranked against their own position.');
+    if (!parts.length && cv && cv.warning) parts.push(cap1(cv.warning) + '.');
+    return parts.length ? `<p class="tx-warn tx-mixed" role="note">${esc(parts.join(' '))}</p>` : '';
+  }
   // ------------------------------------------------------------------ Shots and Touch map: pitch charts
   const PL = '<g class="tx-lines">';
   function halfPitch() {
@@ -1242,14 +1554,14 @@
     const nps = shots.filter(s => !s.penalty);
     const html = shots.length || p.minutes ? `<div class="tx-stats">${['shots', 'goals', 'npxg', 'npxg_per_shot', 'shots_on_target'].map(k => numBtn(p, k, 'sh-')).join('')}</div>${svg}
       <p class="tx-legend"><span class="o-goal">● Goal</span> <span class="o-saved">● Saved</span> <span class="o-blocked">● Blocked</span> <span class="o-off_target">○ Off target</span> · size = xG · ${nps.length} non-penalty, ${shots.length - nps.length} penalty${shots.length - nps.length ? ' (on the map; Shots and npxG leave penalties out, Goals counts them)' : ''}</p>`
-      : '<p class="tx-dim">No minutes this season.</p>';
+      : `<p class="tx-dim">No minutes in ${esc(p.comp.name)}.</p>`;
     paint('shot', html, esc(`${p.name} · ${plural(shots.length, 'shot')}`));
   }
   function shotReel(p, start) {
     const c = shotsOf(p.id);
     if (c.st !== 'ok') return;
     const shots = c.v.shots || [];
-    const r = { kind: 'shots', pid: p.id, title: `${p.name} · Shots`, sub: `${shots.length} shots, penalties included`, i: -1, note: '',
+    const r = { kind: 'shots', pid: p.id, title: `${p.name} · Shots`, sub: `${plural(shots.length, 'shot')}, penalties included`, i: -1, note: '',
       items: shots.map(s => ({ when: matchFor(s.match_id, s.club_id).when, minute: s.minute, val: `xG ${Number(s.xg).toFixed(2)}`, note: `${OUTC[s.outcome] || 'Shot'}${s.penalty ? ' · pen' : ''} · ${bodyText(s.body_part)}`, video: s.video_url, match_id: s.match_id })) };
     openReel(r, start);
     if (visible('shot')) renderShot();
@@ -1267,7 +1579,7 @@
     const evs = ((CAT.pitch && CAT.pitch.heatmap_events) || []).map(e => EVN[e] || words(e).toLowerCase());
     const html = `<div class="tx-stats">${['touches', 'touches_in_box', 'progressive_passes_received'].map(k => numBtn(p, k, 'ht-')).join('')}</div>
       <svg viewBox="-1.5 -1.5 108 71" class="tx-svg tx-pitchsvg" role="img" aria-label="Touch map: ${total} on-ball actions, attacking left to right"><rect x="0" y="0" width="105" height="68" class="tx-turf"/>${cells}${fullPitch()}<path d="M44,70 L61,70" class="tx-dir"/></svg>
-      <p class="tx-cap">${esc(total)} on-ball actions in league matches this season (${esc(listText(evs))}), so more than the Touches count, which is touch records only. Attacking left to right, ${esc(cols)} by ${esc(rows)} cells. The map has no clip per cell; the numbers above play their moments.</p>`;
+      <p class="tx-cap">${esc(total)} ${p.cid === ENG ? 'on-ball actions in league matches this season' : `on-ball actions in ${esc(p.comp.name)}'s uploaded matches`} (${esc(listText(evs))}), so more than the Touches count, which is touch records only. Attacking left to right, ${esc(cols)} by ${esc(rows)} cells. The map has no clip per cell; the numbers above play their moments.</p>`;
     paint('heat', html, esc(p.name));
   }
 
@@ -1288,7 +1600,7 @@
     const fc = formOf(p.id, [...defs, k], 'form'), full0 = full(p.id, 'form');
     if (fc.st !== 'ok') { paint('form', waitHtml(fc, `${p.name}'s matches`), esc(p.name)); return; }
     const fm = fc.v, matches = fm.matches || [];
-    if (!matches.length) { paint('form', '<p class="tx-dim">No matches this season.</p>', esc(p.name)); return; }
+    if (!matches.length) { paint('form', `<p class="tx-dim">No matches in ${esc(p.comp.name)}.</p>`, esc(p.name)); return; }
     const fk = (fm.metrics || {})[k] || {}, vals = fk.values || [];
     // The dashed line is in the bars' unit: a season count (clean sheets, cards) is drawn as its average per match played,
     // never as the season total over bars that count one match each.
@@ -1337,20 +1649,28 @@
   }
 
   // ------------------------------------------------------------------ Scatter: one stat against another
+  // Raw numbers compare only within one level, so the scatter shows one level at a time: the table's level when it shows
+  // one, else the selected player's level when the filters include it, else the first level the filters include.
+  function scatLevel() {
+    const lv = levelsIn(S.scr.where), f = PID.get(S.focus);
+    return lv.length === 1 ? lv[0] : lv.includes(f.level) ? f.level : lv[0] || f.level;
+  }
   function scatPoints() {
     const { x, y, pos, all } = S.scat, mx = MK.get(x), my = MK.get(y);
-    const c = scatOf(x, y, pos, 'scat');
+    const c = scatOf(x, y, pos, scatLevel(), 'scat');
     if (c.st !== 'ok') return null;
-    const ok = (m, pct, p) => m.has_percentile ? pct != null : p.qualified;
-    return (c.v.points || []).map(pt => ({ p: PID.get(pt.global_id) || { ...pt, id: pt.global_id },
-      a: { value: pt.x, percentile: pt.x_percentile, evidence_total: pt.x_evidence_total }, b: { value: pt.y, percentile: pt.y_percentile, evidence_total: pt.y_evidence_total } }))
-      .filter(o => o.a.value != null && o.b.value != null && o.p.minutes > 0 && (all || (ok(mx, o.a.percentile, o.p) && ok(my, o.b.percentile, o.p))))
+    // A regular with a value on both: a percentile, or a count of 0 (none yet) for a regular the stat is scored for.
+    const ok = (m, pct, pool, p) => m.has_percentile ? (pct != null || (p.qualified && !(pool && pool.reason))) : p.qualified;
+    return (c.v.points || []).map(pt => ({ p: PID.get(rowIdOf(pt.global_id, pt.competition_id)) || { ...pt, id: pt.global_id },
+      a: { value: pt.x, percentile: pt.x_percentile, evidence_total: pt.x_evidence_total, pool: pt.x_pool }, b: { value: pt.y, percentile: pt.y_percentile, evidence_total: pt.y_evidence_total, pool: pt.y_pool } }))
+      .filter(o => o.a.value != null && o.b.value != null && o.p.minutes > 0 && (all || (ok(mx, o.a.percentile, o.a.pool, o.p) && ok(my, o.b.percentile, o.b.pool, o.p))))
       .sort((u, v) => u.a.value - v.a.value || u.b.value - v.b.value);
   }
   function renderScat() {
-    const { x, y, pos, all } = S.scat, mx = MK.get(x), my = MK.get(y), pts = scatPoints();
+    const { x, y, pos, all } = S.scat, mx = MK.get(x), my = MK.get(y), pts = scatPoints(), LV = scatLevel();
+    const many = levelsIn(S.scr.where).length > 1;
     const ctxText = esc(`${shortLabel(mx)} against ${shortLabel(my)}`);
-    if (!pts) { paint('scat', waitHtml(scatOf(x, y, pos, 'scat'), 'the scatter'), ctxText); return; }
+    if (!pts) { paint('scat', waitHtml(scatOf(x, y, pos, LV, 'scat'), 'the scatter'), ctxText); return; }
     const W2 = svgWidth('scat', 300), H = Math.round(Math.min(340, Math.max(250, W2 * 0.62))), L = 48, B = 38, T = 14, Rm = 14;
     const xs = pts.map(o => o.a.value), ys = pts.map(o => o.b.value);
     const ext = (a) => { let lo = Math.min(...a), hi = Math.max(...a); if (!a.length) { lo = 0; hi = 1; } if (lo === hi) { lo -= 1; hi += 1; } const pad = (hi - lo) * 0.06; return [lo >= 0 ? Math.max(0, lo - pad) : lo - pad, hi + pad]; };
@@ -1380,27 +1700,34 @@
     const read = cur ? `<p class="tx-read"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(cur.p.id)}" data-fid="scat-sel">${esc(cur.p.name)}</button> <span class="tx-dim">${esc(cur.p.short_name)} ${esc(cur.p.position)}</span>
         <span class="tx-ml" data-mk="${esc(x)}">${esc(mx.label)}</span><button type="button" class="tx-n${zcC(cur.a)}"${shade(mx, cur.a.percentile)} data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(x)}" data-fid="scat-x" aria-label="${esc(`${mx.label} ${withUnit(mx, cur.a.value)}, ${playTextC(mx, cur.a)}`)}">${esc(fmt(mx, cur.a.value))}</button>
         <span class="tx-ml" data-mk="${esc(y)}">${esc(my.label)}</span><button type="button" class="tx-n${zcC(cur.b)}"${shade(my, cur.b.percentile)} data-act="ev" data-sel="1" data-pid="${esc(cur.p.id)}" data-mk="${esc(y)}" data-fid="scat-y" aria-label="${esc(`${my.label} ${withUnit(my, cur.b.value)}, ${playTextC(my, cur.b)}`)}">${esc(fmt(my, cur.b.value))}</button></p>`
-      : '<p class="tx-read tx-dim">The selected player is not on this chart (position, or not a regular). Arrow keys in the chart pick a player.</p>';
+      : '<p class="tx-read tx-dim">The selected player is not on this chart (another level, position, or not a regular). Arrow keys in the chart pick a player.</p>';
     const html = `<div class="tx-ctls"><label class="tx-ctl"><span>X</span><select data-r="scx" data-fid="scat-xs">${metricOptions(x)}</select></label>
         <label class="tx-ctl"><span>Y</span><select data-r="scy" data-fid="scat-ys">${metricOptions(y)}</select></label>
         <div class="tx-seg" role="group" aria-label="Position">${[null, ...POS].map(v => `<button type="button" data-act="scpos" data-v="${v || ''}" aria-pressed="${pos === v}" title="${v ? esc(POS1[v] + 's') : 'Every position'}">${v || 'All'}</button>`).join('')}</div>
         <label class="tx-chk"><input type="checkbox" data-r="scall" data-fid="scat-all"${all ? ' checked' : ''}> Include non-regulars</label></div>${svg}${read}
-      <p class="tx-cap">${pts.length} ${esc(pos ? POSN[pos] : 'players')}${all ? '' : ', regulars with a value on both'} · dashed lines = medians · click a dot to select</p>`;
+      <p class="tx-cap">${pts.length} ${esc(pos ? POSN[pos] : 'players')} · ${esc(levelWords(LV))}${(S.scr.where || {}).country ? ` in ${esc(S.scr.where.country)}` : ''}${(S.scr.where || {}).competition && COMP.has(S.scr.where.competition) ? ` in ${esc(COMP.get(S.scr.where.competition).name)}` : ''}${all ? '' : ', regulars with a value on both'} · dashed lines = medians · click a dot to select</p>
+      ${many ? `<p class="tx-cap tx-dim">One level at a time: raw numbers compare only within a level. The filters in the players table cover more than one level, so this shows ${esc(levelWords(LV))}${LV === PID.get(S.focus).level ? ', the selected player\'s' : ''}.</p>` : ''}`;
     paint('scat', html, ctxText);
   }
 
   // ------------------------------------------------------------------ Team: team style
-  // The shots behind a team's shot-based numbers (GET /api/teams/{club}/shots): 'for' is the club's own players,
-  // 'against' their opponents in the club's matches.
+  // The shots behind a team's shot-based numbers (GET /api/teams/{club}/shots, with competition= for a catalogue club):
+  // 'for' is the club's own players, 'against' their opponents in the club's matches.
   const TEAM_SHOTS = {
     xg_for: { side: 'for', v: 'xg' }, npxg_for: { side: 'for', v: 'xg', keep: (s) => !s.penalty }, penalty_xg: { side: 'for', v: 'xg', keep: (s) => s.penalty },
     xg_against: { side: 'against', v: 'xg' }, goals_for: { side: 'for', v: 'n', keep: (s) => s.outcome === 'goal' },
     goals_against: { side: 'against', v: 'n', keep: (s) => s.outcome === 'goal' }, shots_for: { side: 'for', v: 'n' }, shots_against: { side: 'against', v: 'n' },
   };
+  // A club's team numbers: the Regista League's from /api/teams; a catalogue club's from its style, once loaded.
+  function teamOf(cid) {
+    if (TEAMS.has(cid)) return TEAMS.get(cid);
+    const st = C.get('style|' + cid);
+    return st && st.st === 'ok' ? st.v : null;
+  }
   // What a team number opens, when that is known without a request: { n, unit }, or null. Its shots once loaded (a
   // shot-based number with a season total of 0 opens nothing), its set-piece shots or its matches once the style is in.
   function teamCount(cid, tk) {
-    const t = TEAMS.get(cid), v = t && t.values[tk], spec = TEAM_SHOTS[tk];
+    const t = teamOf(cid), v = t && t.values[tk], spec = TEAM_SHOTS[tk];
     if (!v) return null;
     if (spec) {
       if (v.total != null && Number(v.total) === 0) return { n: 0, unit: 'moment' };
@@ -1412,9 +1739,20 @@
     if (tk === 'set_piece_xg' || tk === 'set_piece_shots') return { n: ((st.v.evidence || {}).set_piece_xg || []).length, unit: 'moment' };
     return { n: (st.v.per_match || []).length, unit: 'match' };
   }
+  // Every club in the catalogue, grouped by country and competition.
+  function clubSelect() {
+    const byComp = new Map();
+    for (const c of CID.values()) if (c.competition_id) { if (!byComp.has(c.competition_id)) byComp.set(c.competition_id, []); byComp.get(c.competition_id).push(c); }
+    return `<label class="tx-ctl tx-clubsel"><span>Club</span><select data-r="club" data-fid="team-club">${COUNTRIES.map(co => [...COMP.values()].filter(c => c.country === co).map(comp => {
+      const cl = (byComp.get(comp.competition_id) || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)));
+      return cl.length ? `<optgroup label="${esc(`${co} · ${comp.name} (${comp.level_words})`)}">${cl.map(x => `<option value="${esc(x.club_id)}"${x.club_id === S.club ? ' selected' : ''}>${esc(x.name)}</option>`).join('')}</optgroup>` : '';
+    }).join('')).join('')}</select></label>`;
+  }
+  const upl = (n) => `${n} uploaded ${n === 1 ? 'match' : 'matches'}`;
+  const squadHtml = (list) => `<div><h3 class="tx-h3">Squad by minutes</h3><ol class="tx-squad tx-scroll">${list}</ol></div>`;
   function renderTeam() {
+    if (!TEAMS.has(S.club)) { renderTeamCat(); return; }
     const t = TEAMS.get(S.club), c = club(S.club), row = (SEASON.table || []).find(r => r.club_id === S.club) || {};
-    if (!t) { paint('team', '<p class="tx-dim">No team.</p>'); return; }
     const vals = (k) => [...TEAMS.values()].map(x => x.values[k] && x.values[k].value).filter(v => v != null);
     const rows = (CAT.team_metrics || []).map(m => {
       const v = t.values[m.key]; if (!v) return '';
@@ -1427,21 +1765,61 @@
         <td class="tx-pbar"><span class="tx-range"><i data-l="${w.toFixed(1)}" class="${judged ? '' : 'style'}"></i><b data-l="${mean.toFixed(1)}"></b></span></td></tr>`;
     }).join('');
     const lowBest = (CAT.team_metrics || []).filter(m => m.higher_is_better === false).map(m => /^[A-Z][a-z]/.test(m.label) ? m.label[0].toLowerCase() + m.label.slice(1) : m.label);
-    const squad = PLAYERS.filter(p => p.club_id === S.club).sort((a, b) => b.minutes - a.minutes);
-    const unplayed = ((club(S.club).squad) || []).filter(s => !PID.has(s.global_id));
-    const html = `<div class="tx-seg tx-clubs" role="group" aria-label="Club">${(SEASON.clubs || []).map(k => `<button type="button" data-act="club" data-cid="${esc(k.club_id)}" aria-pressed="${k.club_id === S.club}" title="${esc(k.name)}">${esc(k.short_name)}</button>`).join('')}</div>
+    const squad = PLAYERS.filter(p => p.club_id === S.club && p.cid === ENG).sort((a, b) => b.minutes - a.minutes);
+    const unplayed = ((club(S.club).squad) || []).filter(s => !PID.has(rowIdOf(s.global_id, ENG)));
+    const html = `<div class="tx-ctls">${clubSelect()}</div>
       <p class="tx-name">${esc(c.name)} <span class="tx-dim">${esc(ord(row.position || 0))} · ${esc(row.points)} pts · ${esc(row.won)}-${esc(row.drawn)}-${esc(row.lost)} · ${esc(row.goals_for)}:${esc(row.goals_against)}</span></p>
+      <p class="tx-cap">${esc(compLine(ENG))} · every league match uploaded (${esc((SEASON.rounds || []).reduce((n, r) => n + (r.matches || []).length, 0))} fixtures)</p>
       <div class="tx-team"><div class="tx-scroll tx-tablewrap"><table class="tx-mt"><thead><tr><th>Style</th><th class="num">Value</th><th class="num">Rank</th><th class="num">League avg</th><th><span class="sr">Range</span></th></tr></thead><tbody>${rows}</tbody></table></div>
-        <div><h3 class="tx-h3">Squad by minutes</h3><ol class="tx-squad tx-scroll">${squad.map(p => `<li class="${p.id === S.focus ? 'on' : ''}"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-fid="sq-${esc(p.id)}">${esc(p.name)}</button><span class="tx-dim">${esc(p.position)} #${esc(p.kit_number)}</span><span class="num">${esc(Math.round(p.minutes))}′</span></li>`).join('')}${unplayed.map(s => `<li><span class="tx-dim">${esc(s.name)}</span><span class="tx-dim">${esc(s.position)} #${esc(s.kit_number)}</span><span class="num tx-dim">0′</span></li>`).join('')}</ol></div></div>
+        ${squadHtml(`${squad.map(p => `<li class="${p.id === S.focus ? 'on' : ''}"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(p.id)}" data-fid="sq-${esc(p.id)}">${esc(p.name)}</button><span class="tx-dim">${esc(p.position)} #${esc(p.kit_number)}</span><span class="num">${esc(Math.round(p.minutes))}′</span></li>`).join('')}${unplayed.map(s => `<li><span class="tx-dim">${esc(s.name)}</span><span class="tx-dim">${esc(s.position)} #${esc(s.kit_number)}</span><span class="num tx-dim">0′</span></li>`).join('')}`)}</div>
       <p class="tx-cap">Rank 1 = best${lowBest.length ? `: the lowest for ${esc(listText(lowBest))}` : ''}. Grey markers are style, ranked but not judged, and their rank 1 is the highest. The bar spans the league's clubs; the white tick is the league average. /90 = per 90 minutes; possession, PPDA and the other ratios are season values over every match (hover a name for its definition). Shot numbers (xG, goals, shots) play every shot behind them; the others list one value per match, without a clip.</p>`;
+    paint('team', html, esc(c.short_name));
+  }
+  // A club outside the Regista League: its team style in its uploaded matches (GET /api/teams/{club}/style?competition=),
+  // ranked by the engine within the competition's clubs with uploads and within the level; the bar spans the competition's
+  // clubs (GET /api/teams?competition=); the record and the squad's minutes are the uploaded matches' only, not a league
+  // table (GET /api/competitions/{id}).
+  function renderTeamCat() {
+    const c = club(S.club), cid = c.competition_id, comp = COMP.get(cid) || { name: cid, level_words: '' };
+    const st = styleOf(S.club, 'team'), tl = teamsIn(cid, 'team'), cp = compOf(cid, 'team');
+    const head = (res) => `<div class="tx-ctls">${clubSelect()}</div>
+      <p class="tx-name">${esc(c.name)} ${res ? `<span class="tx-dim">${esc(upl(res.played))} · ${esc(res.won)}-${esc(res.drawn)}-${esc(res.lost)} · ${esc(res.goals_for)}:${esc(res.goals_against)}</span>` : ''}</p>
+      <p class="tx-cap">${esc(compLine(cid))} · ${esc((cp.v && cp.v.results_note) || 'uploaded matches only, not a league table')}</p>`;
+    if (cp.st !== 'ok') { paint('team', head(null) + waitHtml(cp, `${c.name}'s competition`), esc(c.short_name)); return; }
+    const res = (cp.v.results || []).find(r => r.club_id === S.club);
+    const sq = (((cp.v.clubs || []).find(x => x.club_id === S.club) || {}).squad || []).slice().sort((a, b) => (b.minutes || 0) - (a.minutes || 0));
+    const squad = squadHtml(sq.map(s => { const id = rowIdOf(s.global_id, cid), q = PID.get(id); return q && s.minutes > 0
+      ? `<li class="${id === S.focus ? 'on' : ''}"><button type="button" class="tx-pn" data-act="sel" data-pid="${esc(id)}" data-fid="sq-${esc(id)}">${esc(s.name)}</button><span class="tx-dim">${esc(s.position)} #${esc(s.kit_number)}</span><span class="num">${esc(Math.round(s.minutes))}′</span></li>`
+      : `<li><span class="tx-dim">${esc(s.name)}</span><span class="tx-dim">${esc(s.position)} #${esc(s.kit_number)}</span><span class="num tx-dim">0′</span></li>`; }).join('') || '<li class="tx-dim">Nobody has played in an uploaded match.</li>');
+    if (st.st === 'err' && st.e && st.e.status === 404) { paint('team', `${head(res)}<p class="tx-dim">No team numbers: this club has no uploaded match yet.</p><div class="tx-team">${squad}</div>`, esc(c.short_name)); return; }
+    if (st.st !== 'ok' || tl.st !== 'ok') { paint('team', head(res) + waitHtml(st.st !== 'ok' ? st : tl, `${c.name}'s team numbers`), esc(c.short_name)); return; }
+    const t = st.v, all = tl.v.teams || [];
+    const vals = (k) => all.map(x => x.values && x.values[k] && x.values[k].value).filter(v => v != null);
+    const rows = (CAT.team_metrics || []).map(m => {
+      const v = t.values[m.key]; if (!v || v.value == null) return '';
+      const vs = vals(m.key), lo = Math.min(...vs, v.value), hi = Math.max(...vs, v.value), w = hi === lo ? 50 : 4 + 92 * (v.value - lo) / (hi - lo);
+      const mean = hi === lo ? 50 : 4 + 92 * (v.league_mean - lo) / (hi - lo);
+      const judged = m.higher_is_better !== null, good = judged && v.rank <= 2 && v.of > 2, tc = teamCount(S.club, m.key), zero = !!tc && tc.n === 0;
+      return `<tr><th scope="row"><span class="tx-ml" data-tk="${esc(m.key)}" data-cid="${esc(S.club)}">${esc(m.label)}</span>${m.kind === 'per90' ? '<span class="tx-dim tx-u"> /90</span>' : ''}</th>
+        <td class="num"><button type="button" class="tx-n${zero ? ' z' : ''}" data-act="tev" data-cid="${esc(S.club)}" data-tk="${esc(m.key)}" data-fid="tv-${esc(m.key)}" aria-label="${esc(`${c.name}, ${m.label} ${fmt(m, v.value)}, rank ${v.rank} of ${v.of} in ${comp.name}${v.level_rank ? `, ${v.level_rank} of ${v.level_of} at the level` : ''}. ${zero ? 'Nothing behind it to play' : 'Open what is behind it'}`)}">${esc(fmt(m, v.value))}</button></td>
+        <td class="num ${good ? 'up' : ''}">${esc(v.rank)}/${esc(v.of)}</td><td class="num tx-dim">${v.level_rank ? `${esc(v.level_rank)}/${esc(v.level_of)}` : '–'}</td><td class="num tx-dim">${esc(fmt(m, v.league_mean))}</td>
+        <td class="tx-pbar"><span class="tx-range"><i data-l="${w.toFixed(1)}" class="${judged ? '' : 'style'}"></i><b data-l="${mean.toFixed(1)}"></b></span></td></tr>`;
+    }).join('');
+    const smp = t.sample || {};
+    const html = `${head(res)}${smp.small ? `<p class="tx-warn">Small sample: ${esc(upl(smp.matches || 0))} of the ${esc(smp.competition_matches)} uploaded in ${esc(comp.name)}. Read these numbers with care.</p>` : `<p class="tx-cap">Sample: ${esc(upl(smp.matches || 0))} of the ${esc(smp.competition_matches)} uploaded in ${esc(comp.name)}.</p>`}
+      <div class="tx-team"><div class="tx-scroll tx-tablewrap"><table class="tx-mt"><thead><tr><th>Style</th><th class="num">Value</th><th class="num" title="${esc(`Rank among ${comp.name}'s clubs with uploads`)}">Rank</th><th class="num" title="${esc(`Rank among every club at ${comp.level_words} with uploads`)}">Level</th><th class="num" title="${esc(`${comp.name} average`)}">Avg</th><th><span class="sr">Range</span></th></tr></thead><tbody>${rows}</tbody></table></div>
+        ${squad}</div>
+      <p class="tx-cap">Rank 1 = best within ${esc(comp.name)}'s ${esc(all.length)} clubs with uploads; Level ranks it among every club at ${esc(comp.level_words)}. Grey markers are style, ranked but not judged. The bar spans the competition's clubs; the white tick is its average. Shot numbers (xG, goals, shots) play every shot behind them; the others list one value per uploaded match.</p>`;
     paint('team', html, esc(c.short_name));
   }
   const teamUnit = (m) => m.kind === 'per90' ? 'per 90' : m.unit === '%' ? '' : m.unit;
   async function teamReel(cid, tk) {
-    const t = TEAMS.get(cid), m = TK.get(tk), v = t && t.values[tk];
+    const m = TK.get(tk);
+    if (!TEAMS.has(cid)) await settle(styleOf(cid));
+    const t = teamOf(cid), v = t && t.values[tk];
     if (!t || !m || !v) return null;
-    const u = teamUnit(m);
-    const r = { title: `${t.club} · ${m.label}`, sub: `${fmt(m, v.value)}${u ? ' ' + u : ''} · rank ${v.rank} of ${v.of}${v.total != null ? ` · ${Number(Number(v.total).toFixed(2))} in total` : ''}`, i: -1, items: [], note: '' };
+    const u = teamUnit(m), comp = teamComp(cid), cname = comp && COMP.has(comp) ? COMP.get(comp).name : '';
+    const r = { title: `${t.club} · ${m.label}`, sub: `${fmt(m, v.value)}${u ? ' ' + u : ''} · rank ${v.rank} of ${v.of}${cname ? ` in ${cname}` : ''}${v.total != null ? ` · ${Number(Number(v.total).toFixed(2))} in total` : ''}`, i: -1, items: [], note: '' };
     // From the club's side: "R2 at EAS" when it played away, whoever took the shot.
     const shotRow = (s) => { const mf = matchFor(s.match_id, cid); return { when: mf.when, minute: s.minute, val: `xG ${Number(s.xg).toFixed(2)}`,
       note: `${s.name || 'Unknown player'}${s.club_id === cid ? '' : ' (' + short(s.club_id) + ')'} · ${OUTC[s.outcome] || 'Shot'}${s.penalty ? ' · pen' : ''}`, video: s.video_url, match_id: s.match_id }; };
@@ -1454,8 +1832,8 @@
       const sum = spec.v === 'xg' ? hits.reduce((a, s) => a + (Number(s.xg) || 0), 0) : hits.length;
       const match = v.total == null || Math.abs(sum - v.total) < 0.011, noun = /^goals_/.test(tk) ? 'goal' : tk === 'penalty_xg' ? 'penalty' : 'shot';
       const tot = (x) => spec.v === 'xg' ? `${Number(x).toFixed(2)} xG` : String(x);
-      r.note = !hits.length ? `No ${noun === 'penalty' ? 'penalties' : noun + 's'} behind this number this season.`
-        : `Every ${spec.side === 'for' ? '' : 'opponent '}${noun} behind this number, each with its clip${match ? `; they add up to the season total (${tot(v.total != null ? v.total : sum)})` : `; they add up to ${tot(sum)}, the engine's total is ${tot(v.total)}`}.`;
+      r.note = !hits.length ? `No ${noun === 'penalty' ? 'penalties' : noun + 's'} behind this number ${comp ? 'in the uploaded matches' : 'this season'}.`
+        : `Every ${spec.side === 'for' ? '' : 'opponent '}${noun} behind this number, each with its clip${match ? `; they add up to the ${comp ? 'total' : 'season total'} (${tot(v.total != null ? v.total : sum)})` : `; they add up to ${tot(sum)}, the engine's total is ${tot(v.total)}`}.`;
       return r;
     }
     if (tk === 'set_piece_xg' || tk === 'set_piece_shots') {
@@ -1463,7 +1841,7 @@
       if (!st) { C.delete('style|' + cid); r.note = 'The set-piece shots did not load. Pick the number again to retry.'; return r; }
       const ev = (st.evidence || {}).set_piece_xg || [];
       r.items = ev.map(e => ({ when: matchFor(e.match_id, cid).when, minute: e.minute, val: `xG ${Number(e.xg != null ? e.xg : e.value).toFixed(2)}`, note: [e.name, OUTC[e.outcome]].filter(Boolean).join(' · '), video: e.video_url || null, match_id: e.match_id }));
-      r.note = ev.length ? 'Every set-piece shot behind this number, each with its clip.' : 'No set-piece shots this season.';
+      r.note = ev.length ? 'Every set-piece shot behind this number, each with its clip.' : `No set-piece shots ${comp ? 'in the uploaded matches' : 'this season'}.`;
       return r;
     }
     const st = await settle(styleOf(cid));
@@ -1471,16 +1849,17 @@
     r.items = (st.per_match || []).map(pm => ({ when: `R${pm.round} ${pm.home ? 'v' : 'at'} ${short(pm.opponent)}`, minute: null, val: fmt(m, pm.values[tk]), note: m.kind === 'per90' ? 'per 90 of the match' : "the match's value", video: null, match_id: pm.match_id }));
     r.unit = 'match';
     r.note = m.kind === 'ratio' ? 'A team-style ratio is built from every possession of a match: one value per match, no single clip.'
-      : 'One value per match; the events behind this number are not listed here.';
+      : `One value per ${comp ? 'uploaded ' : ''}match; the events behind this number are not listed here.`;
     return r;
   }
   async function openTeamReel(cid, tk) {
-    const t = TEAMS.get(cid), m = TK.get(tk);
-    if (!t || !m) return;
+    const m = TK.get(tk), c = club(cid);
+    if (!m || !CID.has(cid)) return;
     const g = gen;
-    reelLoading(`${t.club} · ${m.label}`);
+    reelLoading(`${c.name} · ${m.label}`);
     const r = await teamReel(cid, tk);
     if (r) openReel(r, 0, g === gen);
+    else { reel = { title: `${c.name} · ${m.label}`, sub: '', items: [], i: -1, note: 'This number did not load. Pick it again to retry.' }; renderClips(); }
   }
 
   const RENDER = { scrn: renderScrn, plyr: renderPlyr, radar: renderRadar, clips: renderClips, shot: renderShot, heat: renderHeat, form: renderForm, scat: renderScat, team: renderTeam };
@@ -1493,18 +1872,20 @@
     if (compact) {
       const p = PID.get(el.dataset.pid), c = p && cellOf(p, mk); if (!c) return '';
       const np = noPct(p, m, c), n = countC(m, c);
-      return `<p class="tt-h">${esc(m.label)}${m.noisy ? ' <span class="tt-w">≈ small sample</span>' : ''}</p><p class="tt-p"><b>${esc(p.name)}</b> ${esc(withUnit(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : ''} · ${c.percentile == null ? esc(np ? np.text : 'no percentile') : `${esc(ord(c.percentile))} percentile vs ${esc(POSN[p.position])}`}</p>${zeroC(c) ? '<p class="tt-s">No moments behind this number</p>' : n ? `<p class="tt-play">&#9654; ${esc(n)} · Enter plays them</p>` : '<p class="tt-play">&#9654; Enter plays its moments</p>'}<p class="tt-s">The column header has the definition</p>`;
+      return `<p class="tt-h">${esc(m.label)}${c.noisy ? ' <span class="tt-w">≈ small sample</span>' : ''}</p><p class="tt-p"><b>${esc(p.name)}</b> ${esc(withUnit(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : ''} · ${c.percentile == null ? esc(np ? np.text : 'no percentile') : esc(poolLine(p, c) + (smallPool(c) ? ' (a small pool)' : ''))}</p>${zeroC(c) ? '<p class="tt-s">No moments behind this number</p>' : n ? `<p class="tt-play">&#9654; ${esc(n)} · Enter plays them</p>` : '<p class="tt-play">&#9654; Enter plays its moments</p>'}<p class="tt-s">The column header has the definition</p>`;
     }
     const src = (m.sources || []).map(s => ((CAT.sources || {})[s] || {}).title || s).join('; ');
     const judge = m.higher_is_better === null ? 'Style marker: ranked, not judged' : m.higher_is_better ? 'Higher is better' : 'Lower is better';
     let h = `<p class="tt-h">${esc(m.label)}</p><p>${esc(m.definition)}</p>
       <p class="tt-s"><b>Rule</b> ${esc(m.rule)}${src ? ` · <b>Source</b> ${esc(src)}` : ''}</p><p class="tt-s">${esc(mk ? unitText(m) : m.unit)} · ${esc(judge)}${mk && m.positions ? ` · matters for ${esc(m.positions.join(' '))}` : ''}</p>`;
-    if (mk && m.noisy) h += `<p class="tt-w">≈ Small sample, read with care: split-half r ${esc(m.reliability_r)} (below ${esc((CAT.season.reliability || {}).noise_r)}); one season cannot yet separate players in the same role.</p>`;
-    if (mk && m.min_attempts) h += `<p class="tt-s">Percentile needs at least ${esc(m.min_attempts)}: ${esc(m.min_attempts_rule)}</p>`;
-    const p = el.dataset.pid && PID.get(el.dataset.pid), c = p && mk ? cellOf(p, mk) : null;
-    if (c) h += `<p class="tt-p"><b>${esc(p.name)}</b> ${esc(withUnit(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : c.total != null && m.kind !== 'total' ? ` (${esc(c.total)} in total)` : ''} · ${c.percentile == null ? esc((noPct(p, m, c) || { text: 'no percentile' }).text) : `${esc(ord(c.percentile))} percentile among regular ${esc(POSN[p.position])}`}</p>`;
-    const tv = tk && el.dataset.cid ? TEAMS.get(el.dataset.cid) : null;
-    if (tv && tv.values[tk]) h += `<p class="tt-p">Rank ${esc(tv.values[tk].rank)} of ${esc(tv.values[tk].of)} · league average ${esc(fmt(m, tv.values[tk].league_mean))}</p>`;
+    const p = el.dataset.pid && PID.get(el.dataset.pid), c = p && mk ? cellOf(p, mk) : null, who = p || PID.get(S.focus);
+    // ≈ as the engine marks it for this row (or the selected player's level); the league's split-half r is shown only
+    // for the league's own flag.
+    if (mk && (c ? c.noisy : noisyAt(m))) h += `<p class="tt-w">≈ Small sample, read with care: at ${esc(who ? levelWords(who.level) : 'this level')} one season cannot yet separate players in the same role on this stat (split-half reliability below ${esc((CAT.season.reliability || {}).noise_r)}).</p>`;
+    if (mk && m.min_attempts) h += `<p class="tt-s">A percentile needs a minimum number of attempts, scaled to each competition's minutes (${esc(m.min_attempts)} in the Regista League: ${esc(m.min_attempts_rule)})</p>`;
+    if (c) h += `<p class="tt-p"><b>${esc(p.name)}</b> ${esc(withUnit(m, c.value))}${c.num != null ? ` (${esc(c.num)} of ${esc(c.den)})` : c.total != null && m.kind !== 'total' ? ` (${esc(c.total)} in total)` : ''} · ${c.percentile == null ? esc((noPct(p, m, c) || { text: 'no percentile' }).text) : esc(poolLine(p, c) + (smallPool(c) ? ' (a small pool)' : ''))} · ${esc(p.comp.name)}</p>`;
+    const tv = tk && el.dataset.cid ? teamOf(el.dataset.cid) : null;
+    if (tv && tv.values[tk]) h += `<p class="tt-p">Rank ${esc(tv.values[tk].rank)} of ${esc(tv.values[tk].of)}${tv.values[tk].level_rank ? ` · ${esc(tv.values[tk].level_rank)} of ${esc(tv.values[tk].level_of)} at the level` : ''} · ${TEAMS.has(el.dataset.cid) ? 'league' : 'competition'} average ${esc(fmt(m, tv.values[tk].league_mean))}</p>`;
     // A clickable number says what it opens.
     if (el.classList.contains('tx-n')) {
       if (el.classList.contains('z')) return h + '<p class="tt-s">No moments behind this number</p>';
@@ -1546,7 +1927,7 @@
   // ------------------------------------------------------------------ the search box: running what it asks for
   const runBtn = (cmd, label) => `<button type="button" class="tx-mini" data-act="run" data-cmd="${esc(cmd)}">${esc(label || cmd)}</button>`;
   const cmdWord = (head) => COMMANDS[head] ? COMMANDS[head].word : '';
-  const altsHtml = (alts, head) => alts && alts.length ? ` <span class="tx-dim">· also:</span> ${alts.slice(0, 6).map(p => runBtn(`${cmdWord(head) ? cmdWord(head) + ' ' : ''}${p.name}`, `${p.name} ${p.short_name}`)).join(' ')}` : '';
+  const altsHtml = (alts, head) => alts && alts.length ? ` <span class="tx-dim">· also:</span> ${alts.slice(0, 6).map(p => runBtn(`${cmdWord(head) ? cmdWord(head) + ' ' : ''}${p.name}`, `${p.name} ${p.short_name}${p.level ? ` · ${levelWords(p.level)}` : ''}`)).join(' ')}` : '';
   function onePlayer(arg) {
     if (!arg.trim()) return { p: PID.get(S.focus), alts: [] };
     const r = W.resolvePlayer(arg);
@@ -1556,22 +1937,37 @@
   }
   const posText = (pos) => pos ? POSN[pos] : 'players';
   const PANEL_CMD = { SIM: 'plyr', SHOT: 'shot', FORM: 'form', HEAT: 'heat', RDR: 'radar', PLYR: 'plyr' };
+  // Commands that read their own arguments: a place inside them is read there ("rank women forwards goals", "plot npxG
+  // against xA in academy"); the others name players or clubs.
+  const OWN_ARGS = new Set(['RANK', 'SCAT', 'CMP', 'TEAM', 'HELP', 'HL', ...TW.PANEL_HEADS]);
+  // True while a search's own place words set the filters (so a ranking after it does not call them carried over).
+  let placeFresh = false;
   async function run(text) {
     const t = String(text || '').trim().replace(/\s*<GO>$/i, '').replace(/[?!.]+$/, '').trim().slice(0, 200); if (!t) return;
     const g = ++gen;
+    placeFresh = false;
     if (store.hist[store.hist.length - 1] !== t) { store.hist.push(t); if (store.hist.length > 50) store.hist.shift(); save(); }
     histAt = -1;
-    const it = W.interpret(t);
+    // Place and level words ("U19 midfielders in Spain", "women forwards", "players in Nigeria", "my level") set the
+    // table's filters; what is left is searched as usual. A player's or club's exact name always wins.
+    if (!OWN_ARGS.has(TW.parseHead(t).head)) {
+      const pl = TP.parse(t, V);
+      const exactClub = [...CID.values()].some(c => norm(c.name) === norm(t) || norm(c.short_name) === norm(t));
+      if (pl.found && !exactClub && !W.resolvePlayer(t, true).p) return placeQuery(pl, g);
+    }
+    return runIntent(W.interpret(t), t, g, '');
+  }
+  async function runIntent(it, t, g, note) {
     if (it.do === 'help') { openHelp(); out('Help is open. Escape closes it.'); return; }
-    if (it.do === 'rank') return cmdRank(it.rest);
-    if (it.do === 'rankKey') return cmdRank('', it.club, { m: MK.get(it.key), pos: it.pos, most: it.most, fewest: it.fewest, worst: it.worst });
-    if (it.do === 'minutes') return rankMinutes(it.pos, it.club);
+    if (it.do === 'rank') return cmdRank(it.rest, null, { note });
+    if (it.do === 'rankKey') return cmdRank('', it.club, { m: MK.get(it.key), pos: it.pos, most: it.most, fewest: it.fewest, worst: it.worst, note });
+    if (it.do === 'minutes') return rankMinutes(it.pos, it.club, note);
     if (it.do === 'cmp') return cmdCmp(it.rest);
     if (it.do === 'scat') return cmdScat(it.rest);
     if (it.do === 'team' || it.do === 'club') {
       const c = it.club || W.resolveClub(it.rest) || (it.rest ? null : club(S.club));
-      if (!c || !c.club_id) { out(`No club called "${it.rest}". Clubs: ${(SEASON.clubs || []).map(x => x.name).join(', ')}.`, 'err'); return; }
-      return team(c, `${c.name}: how they play, ranked across the league's clubs.`);
+      if (!c || !c.club_id) { out(`No club called "${it.rest}". Type part of a club's name; suggestions appear as you type.`, 'err'); return; }
+      return team(c, teamText(c));
     }
     if (it.do === 'hl' || it.do === 'hlPlayer' || it.do === 'hlFocus') {
       const r = it.do === 'hl' ? onePlayer(it.rest) : it.do === 'hlPlayer' ? { p: it.p, alts: it.alts } : { p: PID.get(S.focus), alts: [] };
@@ -1582,7 +1978,7 @@
     if (it.do === 'many') {
       const ms = it.keys.map(k => MK.get(k)).filter(Boolean).slice(0, 6);
       const pw = (m) => it.pos && it.pos !== 'ALL' ? POSN[it.pos] : (gkOnly(m) && it.pos !== 'ALL' ? 'goalkeepers' : 'all');
-      out('', 'err', `"${esc(t)}" could be ${it.keys.length} stats: ${ms.map(m => it.p ? runBtn(`${it.p.name} ${m.label}`, m.label) : runBtn(`rank ${pw(m)} ${m.key}`, m.label)).join(' ')}`);
+      out('', 'err', `"${esc(t)}" could be ${it.keys.length} stats: ${ms.map(m => it.p ? runBtn(`${it.p.name} ${m.label}`, m.label) : runBtn(`rank ${pw(m)} ${m.key}`, m.label)).join(' ')}${esc(note)}`);
       return;
     }
     if (it.do === 'panel') {
@@ -1599,11 +1995,11 @@
       if (g !== gen) return;
       let line;
       if (head === 'SIM') { const sm = similar(p.id).v; line = `Plays like ${p.name}: ${((sm && sm.similar) || []).map(s => `${s.name} ${Number(s.similarity).toFixed(2)}`).join(', ') || 'nobody yet (too few minutes)'}.`; }
-      else if (head === 'SHOT') { const sh = (shotsOf(p.id).v || {}).shots || []; line = `${p.name}: ${plural(sh.length, 'shot')}, ${plural(sh.filter(s => s.outcome === 'goal').length, 'goal')}. Each shot plays its clip.`; }
-      else if (head === 'FORM') line = `${p.name}: ${plural(p.appearances || 0, 'match')}. Each bar plays that match's moments.`;
-      else if (head === 'HEAT') line = `${p.name}: where they have the ball in league matches, attacking left to right.`;
-      else if (head === 'RDR') line = `${p.name}: percentiles against regular ${POSN[p.position]}.`;
-      else line = `${p.name} · ${p.club}.`;
+      else if (head === 'SHOT') { const sh = (shotsOf(p.id).v || {}).shots || []; line = `${p.name}: ${plural(sh.length, 'shot')}, ${plural(sh.filter(s => s.outcome === 'goal').length, 'goal')} in ${p.comp.name}. Each shot plays its clip.`; }
+      else if (head === 'FORM') line = `${p.name}: ${plural(p.appearances || 0, 'match')} in ${p.comp.name}. Each bar plays that match's moments.`;
+      else if (head === 'HEAT') line = `${p.name}: where they have the ball in ${p.cid === ENG ? 'league matches' : `${p.comp.name}'s uploaded matches`}, attacking left to right.`;
+      else if (head === 'RDR') line = `${p.name}: percentiles against regular ${poolWordsFor(p)}.`;
+      else line = rowLine(p) + '.';
       out('', '', esc(line) + altsHtml(r.alts, head));
       showPanel(PANEL_CMD[head], true, head === 'SIM' ? '.tx-sim' : head === 'PLYR' ? '.tx-best' : null);
       return;
@@ -1616,15 +2012,54 @@
       select(p.id, true);
       await panelsSettled();
       if (g !== gen) return;
-      out('', '', esc(`${p.name} · ${p.club} · ${POS1[p.position]} (${p.role}) #${p.kit_number}`) + altsHtml(it.alts, ''));
+      out('', '', esc(rowLine(p)) + altsHtml(it.alts, ''));
       // Bring the card and the player's numbers into view, not just the card's top strip.
       showPanel('plyr', true, '.tx-best');
       return;
     }
-    out(`Nothing found for "${t}". Try a surname, a club, a stat such as "goals" or "most xG", "best finishers", "${lastName(PID.get(S.focus))} highlights" or "Toure vs Ustinov". Help lists everything.`, 'err');
+    out(`Nothing found for "${t}". Try a surname, a club, a stat such as "goals" or "most xG", "best finishers", a place such as "U19 midfielders in Spain", "${lastName(PID.get(S.focus))} highlights" or "Toure vs Ustinov". Help lists everything.${note}`, 'err');
     // Keep what was typed, selected, so a typo is one keystroke away from fixed.
     const inp = $('txIn');
     if (document.activeElement === inp && !inp.value) { inp.value = t; inp.select(); }
+  }
+  const teamText = (k) => TEAMS.has(k.club_id) ? `${k.name}: how they play, ranked across the Regista League's clubs.`
+    : `${k.name} (${compLine(k.competition_id)}): how they play in their uploaded matches, ranked within their competition and their level.`;
+  const unknownNote = (pl) => (pl.unknown.length ? ` The catalogue has no ${listText(pl.unknown)} competition, so that word was left out.` : '')
+    + (pl.young === 'academy' ? ` "Young" was read as the academy levels (${listText([...new Set([...COMP.values()].filter(c => c.tier === 'academy').map(c => c.age_group))].sort())}).` : '')
+    + (pl.young === 'dropped' ? ' "Young" was left out: the level you named sets the ages.' : '');
+  const FILLER = /^(best|top|the|all|show|me|find|list|who|are|is|good|great|leading|any|every|some|of)$/;
+  // A question with place words: set the filters, then search what is left (nothing, a position, a stat, a question).
+  async function placeQuery(pl, g) {
+    if (pl.unknown.length && !Object.keys(pl.where).length && !pl.reset) {
+      out(`The catalogue has no ${listText(pl.unknown)} competition. Its age groups: ${((IX.levels || {}).age_groups || []).map(a => a.key).join(', ')}.`, 'err'); return;
+    }
+    S.scr.where = { ...pl.where }; scrAct = null; save(); placeFresh = true;
+    const note = unknownNote(pl), rest = pl.rest.trim();
+    const toks = rest.split(' ').filter(w => w && !FILLER.test(w));
+    const firstCol = (pos) => { const key = pos === 'ALL' ? 'all' : pos; return (CAT.default_columns[key] || CAT.default_columns.all).find(x => MK.has(x)); };
+    if (!toks.length) {
+      if (!visible('scrn')) showPanel('scrn', false); else renderScrn();
+      if (visible('scat')) renderScat();
+      out(`Showing ${whereWords(S.scr.where)}: loading…`);
+      await settle(tableData(S.scr.cols.filter(k => MK.has(k))).ord);
+      if (g !== gen) return;
+      const n = screenRows().length;
+      out(n ? `Showing ${whereWords(S.scr.where)}: ${n} ${S.scr.pos ? POSN[S.scr.pos] : 'players'}${S.scr.qual ? ' (regulars)' : ''}.${note}` : emptyText() + note, n ? '' : 'err');
+      showPanel('scrn', true, scrollTable(null));
+      return;
+    }
+    // What is left, read as the search box reads it ("best defenders" ranks defenders on what defenders are judged by);
+    // a position alone ranks it on its first column.
+    const it = W.interpret(rest);
+    if (['rank', 'rankKey', 'minutes', 'many'].includes(it.do)) return runIntent(it, rest, g, note);
+    if (toks.length === 1 && posOf(toks[0])) { const pos = posOf(toks[0]); return cmdRank('', null, { m: MK.get(firstCol(pos)), pos, note }); }
+    // A position named among words the search does not know: rank that position and say what was left out, rather than
+    // keep the position from before ("best young defenders in Ghana" once listed forwards).
+    const pw = toks.find(w => posOf(w));
+    if (pw) { const pos = posOf(pw), left = toks.filter(w => w !== pw).join(' '); return cmdRank('', null, { m: MK.get(firstCol(pos)), pos, note: `${note}${left ? ` "${left}" was not understood, so it was left out.` : ''}` }); }
+    if (it.do !== 'none') return runIntent(it, rest, g, note);
+    if (!visible('scrn')) showPanel('scrn', false); else renderScrn();
+    out(`Showing ${whereWords(S.scr.where)}. Nothing found for "${rest}": try a position, a stat or a question, for example "best dribblers".${note}`, 'err');
   }
   // "Toure goals": the moments behind that player's number, or, for a number with nothing behind it, the reason.
   async function openStat(p, k, alts, g) {
@@ -1634,7 +2069,7 @@
     if (g !== gen) return;
     select(p.id, true);
     const c = cellOf(p, k);
-    if (zeroC(c)) { out('', '', esc(`${p.name}: ${m.label} ${c ? withUnit(m, c.value) : '–'}, so there are no moments to play.`) + altsHtml(alts, '')); return; }
+    if (zeroC(c)) { out('', '', esc(`${p.name}: ${m.label} ${c ? withUnit(m, c.value) : '–'} in ${p.comp.name}, so there are no moments to play.`) + altsHtml(alts, '')); return; }
     return openEvidence(p.id, k);
   }
   async function team(c, line) {
@@ -1648,10 +2083,21 @@
   }
   // A stat scored only for goalkeepers (save %, clean sheets) ranks the goalkeepers unless a position was named.
   const gkOnly = (m) => Array.isArray(m.positions) && m.positions.length === 1 && m.positions[0] === 'GK';
-  function cmdRank(rest, cl, given) {
+  // The filters said after a ranking: kept from an earlier search, or the scout's own level.
+  function carriedText(fresh) {
+    const w = S.scr.where || {};
+    if (fresh || !W_FIELDS.some(([k]) => w[k])) return '';
+    return sameWhere(w, mineWhere()) ? ` At your level, ${levelWords(MINE_KEY())}: Whole catalogue shows every level.` : ` Still ${whereWords(w)} from your last search · Whole catalogue to clear.`;
+  }
+  async function cmdRank(rest, cl, given) {
+    given = given || {};
+    let note = given.note || '', fresh = placeFresh;
     let pos = null, m = null;
-    if (given && given.m) { m = given.m; pos = given.pos || null; }
+    if (given.m) { m = given.m; pos = given.pos || null; }
     else {
+      // Place words inside a rank command ("rank women forwards goals", "rank forwards goals in academy").
+      const pl = TP.parse(rest, V);
+      if (pl.found) { S.scr.where = { ...pl.where }; rest = pl.rest; note += unknownNote(pl); fresh = true; }
       const toks = rest.split(/\s+/).filter(Boolean);
       if (toks.length && posOf(toks[0])) pos = posOf(toks.shift());
       else if (toks.length > 1 && posOf(toks[toks.length - 1])) pos = posOf(toks.pop());
@@ -1664,10 +2110,11 @@
       }
       m = r.m;
     }
+    if (!m) { out('Rank needs a stat.', 'err'); return; }
     if (!pos && gkOnly(m)) pos = 'GK';
     // "most yellow cards": the most first, though fewer is better; "fewest goals conceded", "lowest xG": the smallest
     // first; "worst finishers": the better way reversed; otherwise a stat ranks its better way first.
-    const lowerBetter = m.higher_is_better === false, end = given ? (given.most ? 'most' : given.fewest ? 'fewest' : given.worst ? 'worst' : null) : null;
+    const lowerBetter = m.higher_is_better === false, end = given.most ? 'most' : given.fewest ? 'fewest' : given.worst ? 'worst' : null;
     const low = end === 'most' ? false : end === 'fewest' ? true : end === 'worst' ? !lowerBetter : lowerBetter;
     const why = end === 'worst' ? ' (worst first)' : low ? (lowerBetter ? ' (lowest first: lower is better)' : ' (fewest first; more is better)')
       : lowerBetter ? ' (most first; fewer is better)' : '';
@@ -1677,28 +2124,51 @@
     // only one stat column fits).
     S.scr.cols = [m.key, ...S.scr.cols.filter(k => k !== m.key)].slice(0, MAX_COLS);
     S.scr.sort = { k: m.key, dir: low ? 1 : -1 };
-    // A club filter ("best finishers at Brookfield") goes in the table's own filter box, where it shows and clears.
-    S.scr.q = cl ? cl.name : ''; save();
-    const finish = () => {
-      if (g !== gen) return;    // a newer command or a picked player took over meanwhile
-      const rows = screenRows(), ranks = screenRanks(rows);
-      // The active cell is the leader's ranked number, so Alt+1 lands on rank 1 and the arrows walk down the ranking.
-      scrAct = rows.length ? { pid: rows[0].id, c: 1 } : null;
-      if (!visible('scrn')) showPanel('scrn', false); else renderScrn();
-      const tops = rows.filter((_, i) => ranks[i] === 1), c = tops[0] && cellOf(tops[0], m.key);
-      const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
-      const nr = ranks.filter(x => x != null).length, un = rows.length - nr;
-      // The line first, then the scroll: on a phone the line is in the page flow and pushes the table down.
-      out(`${cap1(posText(S.scr.pos))}${cl ? ` at ${cl.name}` : ''} ranked by ${m.label}${why}: ${rows.length}${un ? `, ${nr} ranked (${un} ${S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts'}, listed after)` : ''}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}` : ''}.`);
-      showPanel('scrn', true, scrollTable(m.key));
-    };
-    if (ensureCols([m.key, ...S.scr.cols])) finish();
-    else {
-      out(`Ranking by ${m.label}: loading the column…`);
-      if (!visible('scrn')) showPanel('scrn', false); else renderScrn();
-      const wait = () => { if (g !== gen) return; if (S.scr.cols.every(k => COLS.has(k) || !MK.has(k))) finish(); else if (colsErr) out(`The ${m.label} column did not load (${errText(colsErr)}).`, 'err'); else setTimeout(wait, 60); };
-      wait();
+    // A club filter ("best finishers at Brookfield") goes in the table's own filter box, where it shows and clears; when
+    // the filters leave the club out, they move to the club's level.
+    S.scr.q = cl ? cl.name : ''; scrAct = null;
+    if (cl && !inWhere(COMP.get(cl.competition_id))) { const cc = COMP.get(cl.competition_id); if (cc) { S.scr.where = { tier: cc.tier, age_group: cc.age_group, gender: cc.gender }; note += ` The filters moved to ${cc.level_words}, ${cl.name}'s level.`; fresh = true; } }
+    save();
+    if (!visible('scrn')) showPanel('scrn', false); else renderScrn();
+    if (visible('scat')) renderScat();
+    out(`Ranking by ${m.label}: loading…`);
+    const td = tableData(S.scr.cols.filter(k => MK.has(k)));
+    const got = await settle(td.ord);
+    await Promise.all(td.extra.map(settle));
+    if (g !== gen) return;    // a newer command or a picked player took over meanwhile
+    if (!got) { out(`The ranking by ${m.label} did not load (${errText(td.ord.e)}).`, 'err'); renderScrn(); return; }
+    const rows = screenRows();
+    // The active cell is the leader's ranked number, so Alt+1 lands on rank 1 and the arrows walk down the ranking.
+    scrAct = rows.length ? { pid: rows[0].id, c: 1 } : null;
+    renderScrn();
+    // The line first, then the scroll: on a phone the line is in the page flow and pushes the table down.
+    out(rankText(m, cl, why) + note + carriedText(fresh));
+    showPanel('scrn', true, scrollTable(m.key));
+  }
+  // The status line after a ranking, in the catalogue's terms: one list, one list per level, or by percentile per gender.
+  function rankText(m, cl, why = '') {
+    const boards = screenBoards(), rows = boards.flatMap(b => b.rows), mode = boards.length ? boards[0].mode : 'one';
+    const who = whoWords(S.scr.where, posText(S.scr.pos)) + (cl ? ` at ${cl.name}` : '');
+    if (!rows.length) return emptyText();
+    const unr = boards.reduce((n, b) => n + b.ranks.filter(x => x == null).length, 0);
+    const nz = rows.filter(p => isNone(cellOf(p, m.key))).length;
+    const reason = mode === 'pool' ? 'no percentile' : S.scr.qual ? 'below the minimum attempts' : 'under the minutes or the minimum attempts';
+    const whyAll = [nz ? `${nz} with none yet` : '', unr - nz > 0 ? `${unr - nz} ${reason}` : ''].filter(Boolean).join(', ');
+    const unText = !unr ? '' : unr === rows.length ? `, none ranked (${whyAll})` : `, ${rows.length - unr} ranked (${whyAll}, listed after)`;
+    if (mode === 'pool') {
+      const lv = new Set(rows.map(p => p.level)).size;
+      // Each list's first ranked player; a list with nobody ranked says so (no name with an empty percentile).
+      const firsts = boards.map(b => { const i = b.ranks.findIndex(x => x != null), p = b.rows[i], c = p && cellOf(p, m.key);
+        return p && c && c.percentile != null ? `${cap1(b.key)}: ${p.name} (${p.comp.name}), ${poolLine(p, c)}` : `${cap1(b.key)}: nobody ranked yet`; });
+      return `${cap1(who)} ranked by ${m.label}${why}, each by their percentile in their own pool, since they span ${plural(lv, 'level')}: ${rows.length}${unText}${unr === rows.length ? '' : `. ${firsts.join('; ')}`}.`;
     }
+    if (mode === 'level') {
+      const tops = boards.slice(0, 4).map(b => { const i = b.ranks.findIndex(x => x != null), p = b.rows[i >= 0 ? i : 0], c = cellOf(p, m.key); return `${levelWords(b.key)}: ${i >= 0 ? `${p.name}, ${c ? withUnit(m, c.value) : '–'}` : 'nobody ranked yet'}`; });
+      return `${cap1(who)} ranked by ${m.label}${why}, one list per level (raw numbers compare only within a level): ${plural(boards.length, 'list')}, ${rows.length} players${unText}. Top of each: ${tops.join('; ')}${boards.length > 4 ? ` and ${boards.length - 4} more` : ''}.`;
+    }
+    const b = boards[0], tops = b.rows.filter((_, i) => b.ranks[i] === 1), c = tops[0] && cellOf(tops[0], m.key);
+    const names = tops.length > 3 ? `${tops.slice(0, 3).map(p => p.name).join(', ')} and ${tops.length - 3} more` : tops.map(p => p.name).join(tops.length === 2 ? ' and ' : ', ');
+    return `${cap1(who)} ranked by ${m.label}${why}: ${rows.length}${unText}${c ? `. Top: ${names}, ${withUnit(m, c.value)}${tops.length > 1 ? ', tied' : ''}${c.percentile != null && tops.length === 1 ? ` (${poolLine(tops[0], c)})` : ''}` : ''}.`;
   }
   // The players table back to its top and left edge, with the sorted column in view; returns the row to scroll to.
   function scrollTable(key) {
@@ -1706,19 +2176,32 @@
     if (!tw) return null;
     tw.scrollLeft = 0; tw.scrollTop = 0;
     // On a phone the first stat column can still run past the table's edge: scroll the table, not the page, until the
-    // ranked column shows whole.
+    // ranked column shows whole; never so far that the Percentile column slides under the sticky name column (half
+    // hidden, "96th" read as "6th"), nor so little that Mins sits half under it.
     const th = key && tw.querySelector(`thead th [data-k="${CSS.escape(key)}"]`), cell = th && th.closest('th');
-    if (cell) { const over = cell.getBoundingClientRect().right - tw.getBoundingClientRect().right; if (over > 0) tw.scrollLeft = over + 4; }
-    const trs = tw.querySelectorAll('tbody[data-r="grid"] tr');
+    if (cell) {
+      const box = tw.getBoundingClientRect(), over = cell.getBoundingClientRect().right - box.right;
+      const stk = tw.querySelector('thead th.tx-stk'), pool = tw.querySelector('thead th.tx-poolh');
+      const room = pool && stk ? Math.max(0, pool.getBoundingClientRect().left - box.left - stk.getBoundingClientRect().width) : Infinity;
+      const minsTh = tw.querySelector('thead th [data-k="min"]'), minsW = minsTh ? minsTh.closest('th').getBoundingClientRect().width : 0;
+      let sl = over > 0 ? Math.min(over + 4, room) : 0;
+      if (sl > 0 && sl < minsW) sl = Math.min(minsW, room) >= minsW ? minsW : 0;
+      if (sl > 0) tw.scrollLeft = sl;
+    }
+    const trs = tw.querySelectorAll('tbody[data-r="grid"] tr[data-row]');
     return trs.length ? trs[Math.min(2, trs.length - 1)] : null;     // the first rows of the ranking, not just the box
   }
-  // "most minutes": the table sorted by minutes played.
-  function rankMinutes(pos, cl) {
+  // "most minutes": the table sorted by minutes played (the engine's places, one list per level).
+  async function rankMinutes(pos, cl, note = '') {
+    const g = gen;
     S.scr.pos = pos === 'ALL' ? null : pos || null;
     S.scr.sort = { k: 'min', dir: -1 }; S.scr.q = cl ? cl.name : ''; scrAct = null; save();
     if (!visible('scrn')) showPanel('scrn', false); else renderScrn();
+    await settle(tableData(S.scr.cols.filter(k => MK.has(k))).ord);
+    if (g !== gen) return;
+    renderScrn();
     const rows = screenRows();
-    out(`${cap1(posText(S.scr.pos))}${cl ? ` at ${cl.name}` : ''} by minutes played: ${rows.length}${rows[0] ? `. Most: ${rows[0].name}, ${Math.round(rows[0].minutes)} minutes` : ''}.`);
+    out(`${cap1(whoWords(S.scr.where, posText(S.scr.pos)))}${cl ? ` at ${cl.name}` : ''} by minutes played: ${rows.length}${rows[0] ? `. Most: ${rows[0].name}, ${Math.round(rows[0].minutes)} minutes` : ''}.${note}`);
     showPanel('scrn', true, scrollTable(null));
   }
   async function cmdCmp(rest) {
@@ -1738,12 +2221,16 @@
     await panelsSettled();
     if (g !== gen) return;
     const amb = rs.filter(r => r.alts && r.alts.length);
-    out('', '', esc(`Comparing ${listText(ids.map(id => PID.get(id).name))}: radar and table, each against their own position.`)
+    const cps = ids.map(id => PID.get(id)), lvs = new Set(cps.map(p => p.level));
+    out('', '', esc(`Comparing ${listText(cps.map(p => p.name))}: radar and table, each against their own pool.${lvs.size > 1 ? ` Different levels (${listText([...lvs].map(levelWords))}): read each percentile against its own pool; raw numbers do not compare across levels.` : ''}${new Set(cps.map(p => p.gender)).size > 1 ? ' Men and women never share a pool.' : ''}`)
       + (amb.length ? ` <span class="tx-dim">"${esc(amb[0].q)}" could also be:</span> ${amb[0].alts.slice(0, 5).map(p => runBtn(`compare ${ids.map(id => id === amb[0].p.id ? p.name : PID.get(id).name).join(', ')}`, `${p.name} ${p.short_name}`)).join(' ')}` : ''));
     showPanel('radar');
   }
   const AGAINST = /^(against|vs|v|versus)$/i;
   async function cmdScat(rest) {
+    // Place words inside the command ("plot npxG against xA in academy") set the table's filters; the scatter follows.
+    const pl = TP.parse(rest, V);
+    if (pl.found) { S.scr.where = { ...pl.where }; rest = pl.rest; scrAct = null; save(); if (visible('scrn')) renderScrn(); }
     const toks = rest.split(/\s+/).filter(Boolean);
     let pos;
     if (toks.length > 2 && posOf(toks[toks.length - 1])) { const p = posOf(toks.pop()); pos = p === 'ALL' ? null : p; }
@@ -1759,13 +2246,13 @@
     S.scat.x = mx.key; S.scat.y = my.key; if (pos !== undefined) S.scat.pos = pos; scatCur = null; save();
     const g = gen;
     out(`${mx.label} against ${my.label}: loading…`);
-    await settle(scatOf(mx.key, my.key, S.scat.pos));
+    await settle(scatOf(mx.key, my.key, S.scat.pos, scatLevel()));
     if (g !== gen) return;
     if (!visible('scat')) showPanel('scat', false); else renderScat();
     await panelsSettled();
     if (g !== gen) return;
-    const pts = scatPoints() || [];
-    out(`${mx.label} against ${my.label}${S.scat.pos ? `, ${POSN[S.scat.pos]}` : ''}: ${plural(pts.length, 'player')}.`);
+    const pts = scatPoints() || [], l = LVL.get(scatLevel()) || {};
+    out(`${mx.label} against ${my.label}, ${whoWords({ tier: l.tier, age_group: l.age_group, gender: l.gender, country: (S.scr.where || {}).country, competition: (S.scr.where || {}).competition }, S.scat.pos ? POSN[S.scat.pos] : 'players')}: ${plural(pts.length, 'player')} (one level at a time).`);
     showPanel('scat', true);
   }
 
@@ -1774,13 +2261,30 @@
     const n = norm(q);
     const score = (p) => { const nm = norm(p.name), sn = surname(p); if (!n) return 0; if (sn.startsWith(n)) return 0; if (nm.startsWith(n)) return 1; if (nm.split(' ').some(w => w.startsWith(n))) return 2; if (n.length >= 3 && nm.includes(n)) return 3; return 9; };
     let ps;
-    if (!n) { const f = PID.get(S.focus), sm = (C.get('sim|' + f.id) || {}).v; ps = [f, ...((sm && sm.similar) || []).map(s => PID.get(s.global_id)).filter(Boolean)]; }
+    if (!n) { const f = PID.get(S.focus), sm = (C.get(`sim|${S.scope}|${f.id}`) || {}).v; ps = [f, ...((sm && sm.similar) || []).map(s => PID.get(s.row)).filter(Boolean)]; }
     else {
       // Namesakes in the order a typed name would pick them (the selected player, who they play like, the table…).
       const hit = PLAYERS.filter(p => p.name && score(p) < 9), at = new Map(namesakeOrder(hit, ctx).map((p, i) => [p.id, i]));
       ps = hit.sort((a, b) => score(a) - score(b) || at.get(a.id) - at.get(b.id));
     }
-    return ps.slice(0, 7).map(p => ({ kind: 'Player', text: p.name, detail: `${p.short_name} · ${p.position} · #${p.kit_number}`, insert: p.name, k, run: runIt }));
+    return ps.slice(0, 7).map(p => ({ kind: 'Player', text: p.name, detail: `${p.short_name} · ${p.position} · #${p.kit_number} · ${levelWords(p.level)}, ${p.country}`, insert: p.name, k, run: runIt }));
+  }
+  // Places: countries, levels, age groups, genders, competitions, "my level" and "whole catalogue". Each sets the filters;
+  // the count beside it is how many regulars the filter holds (a count, not a ranking).
+  function placeSugs(q) {
+    const n = norm(q); if (n.length < 2) return [];
+    const lv = IX.levels || {};
+    const count = (w) => PLAYERS.filter(p => p.qualified && inWhere(p.comp, w)).length;
+    const opts = [
+      ...COUNTRIES.map(c => ({ text: c, w: { country: c }, ins: `players in ${c}` })),
+      ...(lv.tiers || []).map(t => ({ text: TIER_WORD[t.key] || t.key, w: { tier: t.key, ...(t.key === 'college' ? { age_group: 'college' } : {}) }, ins: `${TIER_WORD[t.key] || t.key} players` })),
+      ...(lv.age_groups || []).filter(a => /^U\d/.test(a.key)).map(a => ({ text: a.key, w: { age_group: a.key }, ins: `${a.key} players` })),
+      { text: 'women', w: { gender: 'women' }, ins: 'women players' }, { text: 'men', w: { gender: 'men' }, ins: 'men players' },
+      ...[...COMP.values()].map(c => ({ text: c.name, w: { competition: c.competition_id }, ins: `players in the ${c.name}`, comp: c })),
+      { text: 'my level', w: mineWhere(), ins: 'my level' }, { text: 'whole catalogue', w: {}, ins: 'players across the whole catalogue' },
+    ];
+    return opts.filter(o => norm(o.text).split(/[\s-]+/).some(w => w.startsWith(n)) || norm(o.text).startsWith(n)).slice(0, 4)
+      .map(o => ({ kind: 'Place', text: o.text, detail: `${o.comp ? `${o.comp.country}, ${o.comp.level_words} · ` : ''}${count(o.w)} regulars`, insert: o.ins, k: 1, run: true }));
   }
   const groupLabel = (m) => ((CAT.groups || []).find(g => g.key === m.group) || {}).label || '';
   function metricSugs(q, k, runIt, prefix = '', pos = null, suffix = '') {
@@ -1788,7 +2292,7 @@
     const score = (m) => { if (!n) return 0; const l = norm(m.label); if (l.startsWith(n)) return 0; if (m.key.startsWith(kk)) return 1; if (norm(shortLabel(m)).startsWith(n)) return 1; if (l.split(' ').some(w => w.startsWith(n))) return 2; if (m.key.includes(kk) || l.includes(n)) return 3; const ws = TW.loose(n).split(' ').filter(Boolean), mw = W.mwords(m); if (ws.length && ws.every(w => mw.some(x => x.startsWith(w)))) return 4; return 9; };
     const base = n ? METRICS : (CAT.default_columns[pos || PID.get(S.focus).position] || CAT.default_columns.all).map(x => MK.get(x)).filter(Boolean);
     return base.filter(m => score(m) < 9).sort((a, b) => score(a) - score(b)).slice(0, 8)
-      .map(m => ({ kind: 'Stat', text: `${m.label}${m.noisy ? ' ≈' : ''}`, detail: groupLabel(m), insert: prefix + m.label + suffix, k, run: runIt, mk: m.key }));
+      .map(m => ({ kind: 'Stat', text: `${m.label}${noisyAt(m) ? ' ≈' : ''}`, detail: groupLabel(m), insert: prefix + m.label + suffix, k, run: runIt, mk: m.key }));
   }
   const POS_SUG = (cur, runIt) => ['ALL', ...POS].filter(p => (p === 'ALL' ? 'all' : POSN[p]).startsWith(norm(cur)) || p.startsWith(cur.toUpperCase()))
     .map(p => ({ kind: 'Position', text: p === 'ALL' ? 'all' : POSN[p], detail: p === 'ALL' ? 'every position' : p, insert: p === 'ALL' ? 'all' : POSN[p], k: 1, run: runIt }));
@@ -1799,7 +2303,7 @@
     const ph = TW.parseHead(before.replace(/^\s+/, '')), head = ph.head;
     const inArgs = ph.started && (COMMANDS[head] || head === 'PLYR');
     const args = ph.rest.split(/\s+/);            // the last is the word being typed ('' after a space)
-    const clubs = SEASON.clubs || [];
+    const clubs = [...CID.values()];
     let s = [];
     const trailing = (fn) => { for (let k = Math.min(3, toks.length - 1); k >= 1; k--) { const q = toks.slice(-k).join(' ').trim(); const r = fn(q, k); if (r.length && q) return r; } return fn(cur, 1); };
     if (!inArgs) {
@@ -1807,10 +2311,11 @@
         const n = norm(cur);
         s.push(...Object.entries(COMMANDS).filter(([c, x]) => x.word.startsWith(n) || c.startsWith(cur.toUpperCase())).map(([c, x]) => ({ kind: 'Command', text: x.word, detail: x.args ? `${x.word} ${x.args}` : x.help, insert: x.word, k: 1, run: c === 'HELP' })));
         s.push(...playerSugs(cur, 1, true).slice(0, 5));
-        s.push(...clubs.filter(c => norm(c.short_name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).map(c => ({ kind: 'Club', text: c.name, detail: 'how they play', insert: `team ${c.name}`, k: 1, run: true })));
+        s.push(...clubs.filter(c => norm(c.short_name).startsWith(n) || norm(c.name).split(' ').some(w => w.startsWith(n))).slice(0, 4).map(c => ({ kind: 'Club', text: c.name, detail: `how they play · ${(COMP.get(c.competition_id) || {}).name || ''}`, insert: `team ${c.name}`, k: 1, run: true })));
         const fpos = POSN[PID.get(S.focus).position];
         s.push(...metricSugs(cur, 1, true, `rank ${fpos} `).slice(0, 3).map(x => ({ ...x, detail: `rank ${fpos}` })));
-      } else s = playerSugs(wordsIn.join(' '), toks.length, true);
+        s.push(...placeSugs(cur).slice(0, 3));
+      } else s = [...playerSugs(wordsIn.join(' '), toks.length, true), ...placeSugs(wordsIn.join(' ')).map(x => ({ ...x, k: toks.length }))];
     } else if (['SIM', 'HL', 'SHOT', 'FORM', 'HEAT', 'RDR', 'PLYR'].includes(head)) s = playerSugs(args.join(' '), args.length, true);
     else if (head === 'CMP') {
       // Players already named before the last "," / "and" / "vs" are not suggested again (Compare with… names the selected one).
@@ -1857,12 +2362,13 @@
   function openHelp(opener) {
     const h = $('txHelp');
     const srcs = Object.entries(CAT.sources || {}).map(([, s]) => `<li>${s.url && /^https:\/\//.test(s.url) ? `<a href="${esc(s.url)}" target="_blank" rel="noopener">${esc(s.title)}</a>` : esc(s.title)}</li>`).join('');
-    const f = PID.get(S.focus), sm = (C.get('sim|' + f.id) || {}).v, like = sm && sm.similar && sm.similar[0];
+    const f = PID.get(S.focus), sm = (C.get(`sim|${S.scope}|${f.id}`) || {}).v, like = sm && sm.similar && sm.similar[0];
     const ex = (c, x) => c === 'TEAM' ? `team ${club(S.club).name}` : x.ex;
     h.innerHTML = `<div class="tx-hhead"><h2 tabindex="-1" id="txHelpH">How to use the Scout terminal</h2><button type="button" class="tx-mini" data-act="helpclose" aria-label="Close help">Close &times;</button></div>
       <div class="tx-hbody"><p>Type in the search box and press Enter. Click any example to run it.</p><table class="tx-mt tx-htable"><tbody>
         <tr><th scope="row"><code>a name</code></th><td>Opens the player. ${runBtn(lastName(f))}</td></tr>
         <tr><th scope="row"><code>a club</code> or <code>a stat</code></th><td>A club opens how it plays; a stat ranks every player on it. ${runBtn('goals')}</td></tr>
+        <tr><th scope="row"><code>a place or level</code></th><td>A country, a level (semi-pro, amateur, college, academy), an age group (U17 to U20), women or men, a competition, "my level" or "whole catalogue" sets the players table's filters; add a position or a question. Lists that mix levels split into one list per level. ${runBtn('U19 midfielders in Spain')} ${runBtn('best dribblers in academy')} ${runBtn('women forwards')} ${runBtn('players in Nigeria')} ${runBtn('my level forwards', 'my level')}</td></tr>
         <tr><th scope="row"><code>a question</code></th><td>Plain words work too: best finishers, the most of any stat, a stat per 90, best finishers at a club, a player with a stat, a panel or "highlights", or two players with "vs". ${runBtn('who has the most xG?')} ${runBtn(`${lastName(f)} highlights`)} ${runBtn(`${lastName(f)} vs ${like ? String(like.name).split(' ').slice(-1)[0] : 'Ustinov'}`)}</td></tr>
         ${Object.entries(COMMANDS).filter(([c]) => c !== 'HELP').map(([c, x]) => `<tr><th scope="row"><code>${esc(x.word)}</code> <span class="tx-dim">${esc(x.args)}</span></th><td>${esc(x.help)} ${runBtn(ex(c, x))}</td></tr>`).join('')}
       </tbody></table>
@@ -1871,8 +2377,8 @@
         <li><kbd>⌘K</kbd> / <kbd>Ctrl K</kbd> goes to the search box</li><li><kbd>Enter</kbd> searches</li><li><kbd>↑</kbd> <kbd>↓</kbd> earlier searches, or move in the suggestions</li>
         <li><kbd>Tab</kbd> takes a suggestion</li><li><kbd>Esc</kbd> closes suggestions, help, tips and the clips drawer</li><li><kbd>Alt 1–9</kbd> jump to a panel, in the order of the panel buttons (each button's tooltip shows its key)</li>
         <li><kbd>Alt 1</kbd> (Players) goes straight into the players table: arrow keys, Home/End and PageUp/PageDown move, Enter plays the moments</li><li>In the scatter: arrow keys pick a player, Enter selects</li></ul>
-      <h3 class="tx-h3">How the panels link</h3><p>One selected player and up to three compared players drive every panel. Selecting a player anywhere (a row in the table, a dot in the scatter, a similar player, the squad, a legend) updates the rest. Every underlined number plays every moment behind it in the clips drawer, each with its clip; physical numbers, consistency means and team-style ratios list one value per match, without a clip. Ranks, SD and CV open nothing.</p>
-      <h3 class="tx-h3">The numbers</h3><p>${esc(CAT.note)}</p><p>${esc(plainSample((CAT.season.sample || {}).note))}</p><p><span class="tx-noisy">≈</span> small sample, read with care: the stat cannot yet tell players in the same role apart over one season.</p>
+      <h3 class="tx-h3">How the panels link</h3><p>One selected player and up to three compared players drive every panel. A player with two competitions has a row in each; numbers never merge across them. Selecting a player anywhere (a row in the table, a dot in the scatter, a similar player, the squad, a legend) updates the rest. Every underlined number plays every moment behind it in the clips drawer, each with its clip; physical numbers, consistency means and team-style ratios list one value per match, without a clip. Ranks, SD and CV open nothing.</p>
+      <h3 class="tx-h3">The numbers</h3><p>${esc(IX.note || CAT.note)}</p><p>Percentiles are within each player's level by default (the same tier, age group and gender), or their competition, or all levels of their gender; every percentile shows the size of its pool, and a pool under ${esc(SMALL_POOL)} is marked small. A count of 0 is "none yet": no percentile and no place. The order and the places are the engine's. ${esc(plainSample((CAT.season.sample || {}).note))} Outside England only the uploaded matches count.</p><p><span class="tx-noisy">≈</span> small sample, read with care: the stat cannot yet tell players in the same role apart over one season.</p>
       <h3 class="tx-h3">Sources</h3><ul class="tx-srcs">${srcs}</ul></div>`;
     h.hidden = false; h._opener = opener || null;
     $('txHelpH').focus();
@@ -1917,7 +2423,7 @@
   }
   function act(t) {
     const a = t.dataset.act, pid = t.dataset.pid;
-    if (pid !== undefined && !GID.test(pid)) return null;
+    if (pid !== undefined && !ROW.test(pid)) return null;
     if (a === 'sel') { select(pid); return null; }
     if (a === 'ev') {
       if (!MK.has(t.dataset.mk)) return null;
@@ -1930,7 +2436,7 @@
     if (a === 'fev') { const p = PID.get(S.focus); return openEvidence(S.focus, formKey(p), t.dataset.mid); }
     if (a === 'tev') {
       if (!CLUBID.test(t.dataset.cid || '') || !KEY.test(t.dataset.tk || '')) return null;
-      if (t.classList.contains('z')) { const tm = TK.get(t.dataset.tk), tt = TEAMS.get(t.dataset.cid); out(`${tt ? tt.club : 'This club'}: ${tm ? tm.label : 'this number'} ${t.textContent}, so there is nothing to play.`); return null; }
+      if (t.classList.contains('z')) { const tm = TK.get(t.dataset.tk); out(`${CID.has(t.dataset.cid) ? club(t.dataset.cid).name : 'This club'}: ${tm ? tm.label : 'this number'} ${t.textContent}, so there is nothing to play.`); return null; }
       return openTeamReel(t.dataset.cid, t.dataset.tk);
     }
     if (a === 'shot') { shotReel(PID.get(S.focus), +t.dataset.i); return null; }
@@ -1948,7 +2454,11 @@
     if (a === 'scrpos') { S.scr.pos = POS.includes(t.dataset.v) ? t.dataset.v : null; scrAct = null; save(); renderScrn(); return null; }
     if (a === 'scrmode') { S.scr.mode = t.dataset.v === 'pct' ? 'pct' : 'val'; save(); renderScrn(); return null; }
     if (a === 'scrdef') { colMenuOpen = true; S.scr.cols = (CAT.default_columns[S.scr.pos || 'all'] || CAT.default_columns.all).filter(k => MK.has(k)); save(); renderScrn(); return null; }
-    if (a === 'colsretry') { colsErr = null; renderScrn(); return null; }
+    if (a === 'colsretry') { for (const [k, c] of [...C]) if (c.st === 'err' && /^(ord|cells)\|/.test(k)) C.delete(k); renderScrn(); return null; }
+    if (a === 'wmine') { setWhere(mineWhere()); return null; }
+    if (a === 'wall') { setWhere({}); return null; }
+    if (a === 'scope') { if (SCOPES.includes(t.dataset.v)) { S.scope = t.dataset.v; scrAct = null; save(); renderAll(); out(scopeText()); } return null; }
+    if (a === 'team') { if (CID.has(t.dataset.cid)) return team(club(t.dataset.cid), teamText(club(t.dataset.cid))); return null; }
     if (a === 'retry') { C.delete(t.dataset.key); renderAll(); return null; }
     if (a === 'reload') { load(); return null; }
     if (a === 'scpos') { S.scat.pos = POS.includes(t.dataset.v) ? t.dataset.v : null; scatCur = null; save(); renderScat(); return null; }
@@ -2014,18 +2524,21 @@
       // A click anywhere on a row of the players table (not on its name or a number) selects that player.
       if (!t) {
         const tr = e.target.closest('tbody[data-r="grid"] tr[data-row]');
-        if (tr && GID.test(tr.dataset.row) && !e.target.closest('a, button, input, select, summary')) { scrAct = { pid: tr.dataset.row, c: 0 }; select(tr.dataset.row); }
+        if (tr && ROW.test(tr.dataset.row) && !e.target.closest('a, button, input, select, summary')) { scrAct = { pid: tr.dataset.row, c: 0 }; select(tr.dataset.row); }
         return;
       }
       if (!root.contains(t) || t.disabled) return;
       if (t.tagName === 'A') return;
       e.preventDefault(); doAct(t, e);
     });
-    // The Columns menu stays open across repaints (its state is kept here) and closes on a click outside it.
-    root.addEventListener('toggle', (e) => { if (e.target.classList && e.target.classList.contains('tx-menu')) colMenuOpen = e.target.open; }, true);
+    // The Columns and Where menus stay open across repaints (their state is kept here) and close on a click outside them.
+    root.addEventListener('toggle', (e) => {
+      if (!e.target.classList || !e.target.classList.contains('tx-menu')) return;
+      if (e.target.dataset.r === 'wmenu') whereMenuOpen = e.target.open; else colMenuOpen = e.target.open;
+    }, true);
     document.addEventListener('click', (e) => {
-      if (!colMenuOpen || e.target.closest('.tx-menu')) return;
-      colMenuOpen = false; for (const m of document.querySelectorAll('.tx .tx-menu[open]')) m.open = false;
+      if ((!colMenuOpen && !whereMenuOpen) || e.target.closest('.tx-menu')) return;
+      colMenuOpen = false; whereMenuOpen = false; for (const m of document.querySelectorAll('.tx .tx-menu[open]')) m.open = false;
     });
     root.addEventListener('change', (e) => {
       const r = e.target.dataset.r; if (!r || !ready) return;
@@ -2034,6 +2547,15 @@
       if (r === 'formk' && MK.has(e.target.value)) { S.form.k = e.target.value; save(); renderForm(); }
       if ((r === 'scx' || r === 'scy') && MK.has(e.target.value)) { S.scat[r === 'scx' ? 'x' : 'y'] = e.target.value; scatCur = null; save(); renderScat(); }
       if (r === 'scall') { S.scat.all = e.target.checked; scatCur = null; save(); renderScat(); }
+      if (r === 'club' && CID.has(e.target.value)) { S.club = e.target.value; save(); renderTeam(); out(teamText(club(S.club))); }
+      if (r.startsWith('w-') && W_FIELDS.some(([k]) => k === r.slice(2))) {
+        const f = r.slice(2), w = { ...(S.scr.where || {}) };
+        if (e.target.value) w[f] = e.target.value; else delete w[f];
+        // A competition the other filters no longer allow is dropped.
+        if (w.competition && f !== 'competition' && !inWhere(COMP.get(w.competition), { ...w, competition: undefined })) delete w.competition;
+        whereMenuOpen = true;
+        setWhere(w);
+      }
     });
     root.addEventListener('input', (e) => { if (ready && e.target.dataset.r === 'scrq') { S.scr.q = e.target.value.slice(0, 40); scrAct = null; save(); renderScrn(); } });
     root.addEventListener('keydown', (e) => {
@@ -2109,7 +2631,7 @@
         hideTip();
         if (!$('txHelp').hidden) { closeHelp(); return; }
         const menu = document.querySelector('.tx .tx-menu[open]');
-        if (menu) { const back = menu.contains(document.activeElement); colMenuOpen = false; menu.open = false; if (back) menu.querySelector('summary').focus(); return; }
+        if (menu) { const back = menu.contains(document.activeElement); colMenuOpen = false; whereMenuOpen = false; menu.open = false; if (back) menu.querySelector('summary').focus(); return; }
         if (acItems.length) { closeAc(); return; }
         if (drawerOpen()) { closeDrawer(); return; }
       }

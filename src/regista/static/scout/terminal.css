@@ -380,7 +380,7 @@ main.pf:has(> [data-panel="terminal"]:not([hidden])) { max-width: none; padding:
 }
 @media (max-width: 720px) {
   main.pf:has(> [data-panel="terminal"]:not([hidden])) { padding: 10px 16px 28px; }
-  .pf .tx-top { position: static; }
+  .pf .tx-top { position: static; z-index: auto; }   /* static, but still a flex item: a z-index would lift it over the sticky header and nav */
   .pf .tx-cmd { flex-basis: 100%; }
   .pf .tx-panel, .pf .tx-panel.s-M, .pf .tx-panel.s-L, .pf .tx-panel.s-XL { grid-column: 1 / -1; }
   .pf .tx-kbd { display: none; }
@@ -429,4 +429,49 @@ main.pf:has(> [data-panel="terminal"]:not([hidden])) { max-width: none; padding:
   .pf .tx-table .tx-sub { display: block; font-size: 11px; font-weight: 500; color: var(--tx-dim); line-height: 1.2; }
   /* panel buttons are always visible on touch screens; give them room */
   .pf .tx .tx-pbtns button { width: 30px; height: 30px; }
+}
+
+/* the catalogue: where (country, level, age group, gender, competition), percentile scope, level lists, the Percentile
+   column, small pools, none yet, and the warnings when levels mix */
+.pf .tx-wherebar { row-gap: 6px; }
+.pf .tx-wmenu > summary b { color: var(--text); font-weight: 700; }
+.pf .tx-wherep { left: 0; right: auto; width: 320px; }
+.pf .tx-wherep .tx-ctl { justify-content: space-between; }
+.pf .tx-wherep .tx-ctl select { flex: 1; max-width: 220px; }
+.pf .tx .tx-mini[aria-pressed="true"] { border-color: var(--tx-amber); color: var(--tx-amber); }
+.pf .tx-segl { align-self: center; padding: 0 8px; font-size: 11.5px; font-weight: 600; color: var(--tx-dim); border-right: 1px solid var(--tx-line); }
+.pf .tx-segln { display: none; }
+.pf .tx-mixed { margin: 0; font-size: 12px; line-height: 1.4; color: #ffb366; background: rgba(255,159,67,.08); border-left: 3px solid #ff9f43; padding: 4px 8px; border-radius: 2px; }
+.pf .tx-table tr.tx-board th { position: static; background: #11151f; color: var(--tx-amber); font: 700 11.5px -apple-system, "Helvetica Neue", Arial, sans-serif;
+  padding: 6px 8px 4px; border-bottom: 1px solid #2a3142; white-space: normal; text-align: left; }
+.pf .tx-table tr.tx-board:hover th { background: #11151f; }
+/* the list's name stays in view while the table scrolls sideways */
+.pf .tx-table .tx-bh { position: sticky; left: 8px; display: inline-block; max-width: min(640px, calc(100vw - 72px)); }
+.pf .tx-table .tx-pool { color: #cfd4de; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pf .tx-table .tx-poolh { cursor: help; }
+.pf .tx-small { display: inline-block; font-size: 10.5px; font-weight: 700; color: #ffb366; border: 1px solid rgba(255,159,67,.5); border-radius: 999px; padding: 0 5px; line-height: 1.4; }
+.pf .tx-of { color: var(--tx-dim); font-weight: 500; font-size: 11px; }
+.pf .tx-lv { display: inline-block; font-size: 11px; font-weight: 700; color: #cfd4de; background: rgba(255,255,255,.07); border-radius: 999px; padding: 0 7px; }
+.pf .tx-table .tx-lvc { font-size: 12px; }
+.pf .tx-compl { color: #cfd4de; }
+.pf .tx-sample, .pf .tx-career { line-height: 1.45; }
+.pf .tx .tx-lk { color: var(--tx-amber); text-decoration: underline; text-underline-offset: 2px; font-size: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.pf .tx-clubsel select { max-width: 280px; }
+.pf .tx-bestm { color: var(--tx-amber); font-weight: 700; }
+/* "none yet" for a count of 0 (no percentile, no place), and the line after a list saying how many have none; the line
+   stays in view while the table scrolls sideways, like the list's name */
+.pf .tx-nyet { color: var(--tx-dim); font-style: italic; white-space: nowrap; }
+.pf .tx-table tr.tx-bnone td { text-align: left; white-space: normal; font-size: 11.5px; padding: 5px 8px 8px; border-bottom: 1px solid #2a3142; }
+.pf .tx-table tr.tx-bnone .tx-bnl { position: sticky; left: 8px; display: inline-block; max-width: min(640px, calc(100vw - 72px)); }
+@media (max-width: 720px) {
+  .pf .tx-wherep { width: calc(100vw - 48px); }
+  /* the label stays on a phone, shorter, so the three buttons never read as another place filter */
+  .pf .tx-segl { padding: 0 6px; white-space: nowrap; }
+  .pf .tx-seglw { display: none; }
+  .pf .tx-segln { display: inline; }
+  .pf .tx-table .tx-pool { font-size: 11.5px; }
+  /* "small" under the percentile, so the Percentile column stays narrow enough for the ranked column beside it */
+  .pf .tx-table td.tx-pool .tx-small { display: block; width: fit-content; margin: 2px 0 0 auto; }
+  .pf .tx-table td.tx-pool .tx-poolw { display: none; }
+  .pf .tx-clubsel select { max-width: 230px; }
 }

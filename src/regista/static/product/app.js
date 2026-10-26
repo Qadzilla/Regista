@@ -31,6 +31,9 @@
     season: [],              // the Regista League's matches (GET /api/season), in round order
     clubs: new Map(),        // club id -> short name ("ASH"), for the match line on result cards
     view: 'landing',         // 'landing' | 'results' | 'match'
+    catalogue: new Map(),    // match id -> GET /api/catalogue/matches row: every uploaded match (the league's included),
+                             // with its competition, round, score, date, camera and uploader
+    comps: new Map(),        // competition id -> GET /api/catalogue competition, with its level in words
   };
   // The match view's conversation (as before: the query so far for this match). history is the whole conversation, for
   // a Foundry reply's context; the log in the panel shows every turn, from Home and from the match view.
@@ -45,6 +48,8 @@
     infos: new Map(),        // match id -> GET /api/matches/{id} (origin, for the "Cut from video" badge)
     clips: new Map(),        // match id -> clip id -> clip (label models, for the Foundry badge), library matches only
     wayout: null,            // {label, go}: the follow-up that clears piled-up filters, when nothing was found
+    comp: '',                // the Competition filter on the results ('' for every competition)
+    expanded: new Set(),     // competitions whose results show all, not the best 8
   };
   const ui = { engine: 'rules' };
 
@@ -74,6 +79,28 @@
   // Tags that are bookkeeping, not football: never shown or offered as filters (as in regista.conversation).
   const INTERNAL = /_appearance$|_against$|^(on_ball_main|touch|possession_change|kick_off|period_start|period_end)$/;
   const plainTags = (tags) => (tags || []).filter(t => !INTERNAL.test(t));
+
+  // The match clock at video time t, as the clip's scoreboard draws it (the engine's count: period 2 starts at 45:00,
+  // whatever the match's length): MM:SS inside a period, HT between the halves, FT after. From the match's periods
+  // (GET /api/matches/{id}); without them, the video time.
+  const START_MIN = { 1: 0, 2: 45, 3: 90, 4: 105, 5: 120 };
+  function clockOf(info, t) {
+    const ps = (info && info.periods) || [], x = Number(t) || 0;
+    if (!ps.length) return R.fmtTime(x);
+    for (let i = 0; i < ps.length; i++) {
+      if (x < ps[i].t) return i === 0 ? '00:00' : 'HT';
+      if (x < ps[i].t_end) { const s = (START_MIN[ps[i].period] ?? 0) * 60 + (x - ps[i].t); return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`; }
+    }
+    return 'FT';
+  }
+  // A catalogue match in words: "Round 1 · Eastwick United 0–2 Brookfield Rovers", the date, the camera and the uploader.
+  const CAMS = { tripod: 'tripod', phone: 'phone', drone: 'drone', broadcast: 'broadcast camera' };
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmtDate = (iso) => { const [y, m, d] = String(iso || '').split('-').map(Number); return y && m && d ? `${d} ${MONTHS[m - 1]} ${y}` : String(iso || ''); };
+  const scoreWords = (cm) => cm.score ? `${cm.home_name} ${cm.score.t_home}–${cm.score.t_away} ${cm.away_name}` : `${cm.home_name} v ${cm.away_name}`;
+  const matchWords = (cm) => `${cm.round ? `Round ${cm.round} · ` : ''}${scoreWords(cm)}`;
+  const upWords = (u) => !u ? '' : u.type === 'player' ? `uploaded by ${u.name}, a player at ${u.club}` : `uploaded by the ${u.club} team account`;
+  const levelOf = (comp) => comp ? comp.level_words : '';
 
   // A clip from GET /clips or a result from /chat, as one shape. Chat results carry no label model, so the badge
   // reads it from the match's clips. A Foundry label's explanation was written to justify a score ("Scored 0.56
@@ -235,7 +262,7 @@
 
   // ------------------------------------------------------------------ loading
 
-  let seasonReady = Promise.resolve();
+  let seasonReady = Promise.resolve(), catalogueReady = Promise.resolve();
 
   async function init() {
     wire();
@@ -254,6 +281,7 @@
     state.matches = [first, ...state.matches.filter(m => m !== first)].filter(Boolean);
     $('match').innerHTML = state.matches.map(m => `<option value="${esc(m.match_id)}">${esc(matchName(m))}</option>`).join('');
     seasonReady = loadSeason();  // not awaited: the first paint never waits for the league
+    catalogueReady = loadCatalogue();  // nor for the catalogue's other competitions
     recapView.wanted = link.recap;  // the profile's "Recap" link: open the recap and scroll to it as soon as it is written
     if (link.match) {
       showView('match');
@@ -297,6 +325,46 @@
       $('match').appendChild(g);
     }
     return g;
+  }
+
+  // The catalogue: every uploaded match, grouped by country and competition, each with its round, score, date, camera and
+  // who uploaded it. The Regista League's own group (loadSeason) keeps its matches and takes the same words; every other
+  // competition joins the picker as its own group. /api/matches keeps its shape: nothing here changes it. No catalogue on
+  // this server, or no answer: the picker keeps what it has.
+  async function loadCatalogue() {
+    let ix, ms = [];
+    try {
+      ix = await R.api('/api/catalogue');
+      for (let offset = 0, total = Infinity; offset < total;) {
+        const j = await R.api(`/api/catalogue/matches?limit=200&offset=${offset}`);
+        ms.push(...(j.matches || [])); total = j.total;
+        if (!(j.matches || []).length) break;
+        offset += j.matches.length;
+      }
+    } catch (e) { return; }
+    const words = new Map((((ix.levels || {}).pools) || []).map(l => [l.key, l.words]));
+    for (const c of ix.competitions || []) state.comps.set(c.competition_id, { ...c, level_words: words.get(`${c.tier}/${c.age_group}/${c.gender}`) || c.tier });
+    for (const m of ms) state.catalogue.set(m.match_id, m);
+    await seasonReady;
+    const sel = $('match'), keep = sel.value;
+    const opt = (m) => `<option value="${esc(m.match_id)}">${esc(`${matchWords(m)} · ${fmtDate(m.date)} · ${CAMS[m.camera] || m.camera} · ${m.uploader && m.uploader.type === 'player' ? 'uploaded by a player' : 'uploaded by a team account'}`)}</option>`;
+    const byComp = (cid) => ms.filter(m => m.competition_id === cid).sort((a, b) => String(a.date).localeCompare(String(b.date)) || (a.round || 0) - (b.round || 0));
+    const label = (c) => `${c.country} · ${c.name} (${c.level_words})`;
+    for (const c of state.comps.values()) {
+      const list = byComp(c.competition_id); if (!list.length) continue;
+      // The league's group is already there (its matches are /api/season's): same words, same ids.
+      const g = c.competition_id === 'co_eng_sp_men' && state.season.length ? seasonGroup()
+        : Object.assign(document.createElement('optgroup'), { className: 'catgroup' });
+      g.label = label(c);
+      g.innerHTML = list.map(opt).join('');
+      if (!g.parentElement) sel.appendChild(g);
+    }
+    if (keep) sel.value = keep;
+    // Home's "Or open a match": the same list, with its own first line.
+    $('homeMatch').innerHTML = `<option value="">${esc(`Pick one of the ${sel.options.length} matches…`)}</option>${sel.innerHTML}`;
+    $('homeMatch').value = '';
+    $('homePick').hidden = false;
+    if (state.info) showMatchLine(state.matches.find(m => m.match_id === state.match) || state.info);
   }
 
   // A match opened by a link before the league's list arrived (or one not listed at all) still gets its option.
@@ -364,9 +432,15 @@
   }
 
   // The match's name and, for a match cut from video, what the badge means. (Its explainer line is not shown.)
+  // A catalogue match adds a line under its title: competition, country, level, date, who uploaded it and the camera they
+  // named (joined here from the catalogue's list, so /api/matches/{id} keeps its shape).
   function showMatchLine(m) {
     $('matchTitle').textContent = matchName({ ...m, title: m.title || state.info.title, teams: m.teams || state.info.teams });
     $('visionNote').hidden = state.info.origin !== 'vision';
+    const cm = state.catalogue.get(state.match), comp = cm && state.comps.get(cm.competition_id);
+    $('matchMeta').hidden = !cm;
+    $('matchMeta').textContent = cm ? [comp ? `${comp.name} · ${comp.country} · ${levelOf(comp)}` : cm.competition, fmtDate(cm.date), upWords(cm.uploader),
+      cm.camera ? `filmed on a ${CAMS[cm.camera] || cm.camera} (the uploader's label)` : ''].filter(Boolean).join(' · ') : '';
   }
 
   // Players with moments first (most first), then everyone else. Any player can be picked: the server finds the
@@ -520,12 +594,13 @@
   function searchList() {
     const list = [], seen = new Set();
     let skipped = 0;
-    for (const m of [...state.matches, ...state.season]) {
+    for (const m of [...state.matches, ...state.season, ...state.catalogue.values()]) {
       if (seen.has(m.match_id)) continue;
       seen.add(m.match_id);
       if (m.source === 'cosmos') { skipped++; continue; }
+      const cm = state.catalogue.get(m.match_id);
       list.push({ id: m.match_id, name: m.home_name ? (m.title || `Round ${m.round}: ${m.home_name} v ${m.away_name}`) : matchName(m),
-                  card: cardLine(m), library: !m.home_name, idx: list.length });
+                  card: cardLine(m), library: !m.home_name, idx: list.length, comp: cm ? cm.competition_id : '', cm: cm || null });
     }
     return { list, skipped };
   }
@@ -533,7 +608,11 @@
 
   // The short line on a result card that says which match it comes from: "Round 2 · EAS v ASH" for a league match,
   // the match's own name for the library's.
+  // A catalogue match: "Round 1 · Eastwick United 0–2 Brookfield Rovers · Regista League" (full club names: a code means
+  // nothing for a club a scout does not know).
   function cardLine(m) {
+    const cm = state.catalogue.get(m.match_id);
+    if (cm) return `${matchWords(cm)} · ${cm.competition}`;
     if (!m.home_name) return matchName(m);
     const short = (club, name) => state.clubs.get(club) || name;
     return `Round ${m.round} · ${short(m.home, m.home_name)} v ${short(m.away, m.away_name)}`;
@@ -571,7 +650,7 @@
   async function searchEvery(message, { fresh = false, withStates = null, only = null, quiet = false, focus = null } = {}) {
     if (!message || chat.busy) return null;
     busy(true);
-    await seasonReady;
+    await seasonReady; await catalogueReady;
     const { list: everyMatch, skipped } = searchList();
     const list = only ? everyMatch.filter(m => only.includes(m.id)) : everyMatch;
     if (fresh) { search.states = new Map(); search.names = null; }
@@ -657,6 +736,7 @@
     search.results = intent === 'more' ? [...search.results, ...fixed.filter(r => !search.results.some(x => x.mid === r.mid && x.id === r.id))] : fixed;
     search.total = Math.max(search.results.length, [...search.perMatch.values()].reduce((a, p) => a + (p.total || 0), 0));
     search.fromQuestion = true; search.tag = null; search.asked = true;
+    if (intent !== 'more') { search.comp = ''; search.expanded = new Set(); }
     const best = sorted(search.results, { sort: 'best' });
     const topMid = best[0]?.mid || kept[0]?.m.id || list[0].id;
     const top = oks.find(o => o.m.id === topMid) || kept[0] || oks[0];
@@ -1115,19 +1195,38 @@
     renderTagBar();
     const vision = (r) => visionOf(s === search ? search.infos.get(r.mid) : state.info);
     const cards = s === search ? new Map(searchList().list.map(m => [m.id, m.card])) : null;  // results: which match
-    $('grid').innerHTML = rows.map(r => `
+    const info = (r) => s === search ? search.infos.get(r.mid) : state.info;
+    const card = (r) => {
+      const cm = cards ? state.catalogue.get(r.mid) : null;
+      return `
       <button type="button" class="card" data-id="${esc(r.id)}" data-mid="${esc(r.mid)}" aria-label="Play ${esc(r.title)}">
         ${r.video_url ? `<span class="thumb"><video muted playsinline preload="none" src="${esc(r.video_url)}"></video><span class="prep">Preparing…</span></span>`
           : `<span class="novideo">Read from Cosmos DB. The labels and timings are stored there; this server does not hold the match's video.</span>`}
         <span class="body">
           ${cards ? `<span class="from">${esc(cards.get(r.mid) || '')}</span>` : ''}
-          <span class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${esc(R.reasonLabel(r.reason))} · ${esc(R.fmtTime(r.t))}</span>
+          ${cm ? `<span class="uline">${esc([fmtDate(cm.date), CAMS[cm.camera] || cm.camera, upWords(cm.uploader)].filter(Boolean).join(' · '))}</span>` : ''}
+          <span class="reason ${r.reason === 'replay_appearance' ? 'replay' : ''}">${esc(R.reasonLabel(r.reason))} · ${esc(clockOf(info(r), r.t))}</span>
           <span class="title">${esc(r.title)}</span>
           <span class="bar" title="How worth watching, from 0 to 1: ${esc(Number(r.watchability).toFixed(2))}"><i data-w="${esc(Math.round(r.watchability * 100))}"></i></span>
           <span class="tags">${plainTags(r.tags).map(t => `<span>${esc(R.tagLabel(t))}</span>`).join('')}</span>
           ${badges(r, vision(r))}
         </span>
-      </button>`).join('');
+      </button>`;
+    };
+    // Results: grouped by competition, in the catalogue's country order (the sample and uploaded matches last), the best
+    // 8 of each with "Show all N", and the Competition filter. The match view: one grid.
+    const groups = s === search ? resultGroups(rows) : null;
+    $('grid').classList.toggle('grouped', !!groups);
+    $('grid').innerHTML = !groups ? rows.map(card).join('') : groups.map(gr => {
+      const all = search.comp || search.expanded.has(gr.key) || gr.rows.length <= RESULTS_PER, shown = all ? gr.rows : gr.rows.slice(0, RESULTS_PER);
+      return `<section class="rgroup" aria-label="${esc(gr.name)}"><h3 class="rgh">${esc(gr.name)} <span class="muted">${esc(`${gr.sub ? `${gr.sub} · ` : ''}${plural(gr.rows.length, 'moment')}`)}</span></h3>
+        <div class="rgrid">${shown.map(card).join('')}</div>
+        ${all ? '' : `<button type="button" class="alt rmore" data-more="${esc(gr.key)}">Show all ${esc(gr.rows.length)}</button>`}</section>`;
+    }).join('');
+    if (groups) {
+      for (const b of $('grid').querySelectorAll('.rmore')) b.onclick = () => { search.expanded.add(b.dataset.more); render(); };
+      paintCompFilter(rows);
+    } else $('rcompWrap').hidden = true;
     for (const i of $('grid').querySelectorAll('.bar i')) i.style.width = `${Number(i.dataset.w) || 0}%`;
     for (const card of $('grid').querySelectorAll('.card')) {
       card.onclick = () => (state.view === 'results' ? openResult(card.dataset.mid, card.dataset.id) : select(card.dataset.id, true));
@@ -1141,6 +1240,30 @@
     if (state.view === 'match') { renderTimeline(); renderStage(); }
   }
   const visionOf = (info) => info?.origin === 'vision';
+  const RESULTS_PER = 8;
+  const OTHER = '_other';
+  // The results' groups: one per competition, in the catalogue's order; the matches outside the catalogue (the sample
+  // and uploaded matches) last. The Competition filter keeps one group.
+  function resultGroups(rows) {
+    const list = new Map(searchList().list.map(m => [m.id, m])), by = new Map();
+    for (const r of rows) { const k = (list.get(r.mid) || {}).comp || OTHER; if (!by.has(k)) by.set(k, []); by.get(k).push(r); }
+    const order = [...state.comps.keys(), OTHER];
+    return order.filter(k => by.has(k) && (!search.comp || search.comp === k)).map(k => {
+      const c = state.comps.get(k);
+      return { key: k, rows: by.get(k), name: c ? c.name : 'Other matches', sub: c ? `${c.country} · ${c.level_words}` : 'sample and uploaded matches' };
+    });
+  }
+  function paintCompFilter(rows) {
+    const list = new Map(searchList().list.map(m => [m.id, m])), n = new Map();
+    for (const r of rows) { const k = (list.get(r.mid) || {}).comp || OTHER; n.set(k, (n.get(k) || 0) + 1); }
+    if (search.comp && !n.has(search.comp)) search.comp = '';
+    const countries = [...new Set([...state.comps.values()].map(c => c.country))];
+    const opt = (k, label) => `<option value="${esc(k)}"${search.comp === k ? ' selected' : ''}>${esc(`${label} (${n.get(k)})`)}</option>`;
+    $('rcomp').innerHTML = `<option value="">${esc(`All competitions (${rows.length})`)}</option>`
+      + countries.map(co => { const cs = [...state.comps.values()].filter(c => c.country === co && n.has(c.competition_id)); return cs.length ? `<optgroup label="${esc(co)}">${cs.map(c => opt(c.competition_id, c.name)).join('')}</optgroup>` : ''; }).join('')
+      + (n.has(OTHER) ? opt(OTHER, 'Other matches') : '');
+    $('rcompWrap').hidden = n.size < 2 && !search.comp;
+  }
 
   // Tag chips over the grid: one per football tag in the result set, with its count, as a filter.
   function renderTagBar() {
@@ -1232,7 +1355,7 @@
       $('stageTags').innerHTML = ''; $('stageWhy').textContent = '';
       return;
     }
-    $('stageNow').textContent = prefix || `${R.reasonLabel(r.reason)} · ${R.fmtTime(r.t)}–${R.fmtTime(r.t_end)}`;
+    $('stageNow').textContent = prefix || `${R.reasonLabel(r.reason)} · ${clockOf(state.info, r.t)}–${clockOf(state.info, r.t_end)}`;
     $('stageTitle').textContent = r.title || '';
     $('stageTags').innerHTML = plainTags(r.tags).map(t => `<span>${esc(R.tagLabel(t))}</span>`).join('');
     $('stageWhy').textContent = r.explanation || '';
@@ -1566,6 +1689,14 @@
     window.addEventListener('popstate', onPopState);
     $('match').onchange = async () => { showView('match'); if (await loadMatch($('match').value)) syncUrl(); };
     $('player').onchange = () => { showView('match'); pickPlayer($('player').value); };
+    // Home's "Or open a match": the match view, as a new entry (Back returns to Home).
+    $('homeMatch').onchange = async () => {
+      const id = $('homeMatch').value; if (!id) return;
+      $('homeMatch').value = '';
+      showView('match', { sync: false, push: true }); window.scrollTo(0, 0);
+      if (await loadMatch(id)) syncUrl();
+    };
+    $('rcomp').onchange = () => { search.comp = $('rcomp').value; render(); };
     for (const b of document.querySelectorAll('.seg')) b.onclick = () => { setSort(b.dataset.sort); render(); };
     $('more').onclick = () => {
       if (state.view !== 'results') return send('more');

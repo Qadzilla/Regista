@@ -317,3 +317,24 @@ details.how .engine-raw { margin: 4px 0 0; font-family: ui-monospace, Menlo, mon
            padding: 6px 9px; font-size: 12px; line-height: 1.35; box-shadow: 0 4px 14px rgba(0,0,0,.45); }
 .rtl-tip b { display: block; font-weight: 700; }
 .rtl-tip span { color: var(--muted, #9aa3b5); }
+
+/* The catalogue (the Clip view on every uploaded match): Home's "Or open a match", the match line under the title
+   (competition, country, level, date, uploader, camera), results grouped by competition with "Show all", the competition
+   filter, and each card's match and upload lines. */
+.homepick { margin: 16px auto 0; max-width: 560px; }
+.homepick .pick-label { min-width: 0; white-space: nowrap; }
+.matchline .matchmeta { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.results-bar .rcomp { flex: 0 1 320px; max-width: 360px; }
+.results-bar .rcomp .pick-label { min-width: 0; }
+.grid.grouped { display: block; }
+.rgroup { margin: 0 0 22px; }
+.rgroup .rgh { margin: 0 0 10px; font-size: 15px; font-weight: 700; }
+.rgroup .rgh .muted { font-weight: 400; font-size: 13px; }
+.rgroup .rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 14px; }
+.rgroup .rmore { margin-top: 10px; }
+.card .uline { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .homepick { flex-wrap: wrap; }
+  .homepick .pick-label { flex-basis: 100%; }
+  .results-bar .rcomp { flex-basis: 100%; max-width: none; }
+}
