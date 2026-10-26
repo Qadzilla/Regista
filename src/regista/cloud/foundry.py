@@ -471,7 +471,9 @@ async def foundry_chat_reply(cloud: CloudConfig, match_dir: str, history: list[d
 
 # ---------------------------------------------------------------------------- the Scout agent (Scout view)
 
-SCOUT_TOOLS = ["search_players", "get_profile", "compare_players"]  # read-only, public data: synthetic players only
+# read-only, public data: synthetic players only (never the Cosmos DB annotations, never render_clip)
+SCOUT_TOOLS = ["search_players", "get_profile", "compare_players",
+               "list_competitions", "search_catalogue_players", "get_catalogue_player"]
 
 SCOUT_INSTRUCTIONS = """You are Regista's Scout agent. A football scout asks about players in the Regista League, a
 synthetic league of 6 clubs and 10 rounds. Your tools (Regista MCP) read the season's profiles:
@@ -483,7 +485,15 @@ Always call a tool before answering. Answer in one to three plain sentences a sc
 name the best one to three players with their club and the numbers exactly as the tools returned them, for example
 "Haruki Fontaine (Eastwick United) wins the most take-ons among forwards, 2.5 per 90 (8 in 288 minutes), ahead of …".
 Say "per 90" for per-90 values. Never invent players, stats or numbers. Use full names or surnames, never gendered pronouns. Each question comes with a note on how Regista's rules read
-it: use it as a hint; if it reads the question wrongly, call the tools the way the question needs."""
+it: use it as a hint; if it reads the question wrongly, call the tools the way the question needs.
+The catalogue: 14 synthetic competitions in 10 countries below the professional line (invented names; countries and
+levels are labels). For a question about other countries, levels, age groups, women's football or "the catalogue" use
+list_competitions, search_catalogue_players (filters tier, age_group, gender, country, competition, position; sort by a
+Scout terminal metric key such as np_goals, take_ons_won, key_passes, interceptions) and get_catalogue_player. Its rules:
+percentiles are within the player's own level by default; say the pool and its size as the tool gives it ("98th
+percentile among 33 semi-pro men forwards"); when rows come from more than one level, say that each percentile is read
+against its own pool; never put men and women in one pool or one ranking; a count of 0 is "none yet", never a rank;
+a number marked noisy is a small sample. Quote only numbers the tools returned."""
 
 
 async def foundry_scout_answer(cloud: CloudConfig, question: str, understood: str, season_env: dict[str, str],

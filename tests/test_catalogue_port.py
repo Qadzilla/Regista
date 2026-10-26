@@ -483,3 +483,132 @@ def test_a_done_catalogue_upload_is_named_never_counted(writer, monkeypatch, tmp
         assert writer.get(f"/api/players/{NGA_GID}").status_code == 404      # never in the league's season
     finally:
         profiles.invalidate()
+
+
+# ---------------------------------------------------------------------------- B14: the Scout agent on the catalogue
+
+PLACE_CASES = [  # the sandbox's checks for terminal-place.js (tools/test_terminal_place.js), on the Python port
+    ("U19 midfielders in Spain", {"where": {"country": "Spain", "age_group": "U19"}, "rest": "midfielders"}),
+    ("best dribblers in academy", {"where": {"tier": "academy"}, "rest": "best dribblers"}),
+    ("women forwards", {"where": {"gender": "women"}, "rest": "forwards"}),
+    ("players in Nigeria", {"where": {"country": "Nigeria"}, "rest": "players"}),
+    ("my level forwards", {"where": {"tier": "semi_pro", "age_group": "senior", "gender": "men"}, "reset": "mine",
+                           "rest": "forwards"}),
+    ("rank forwards non-penalty goals across the whole catalogue", {"reset": "all", "rest": "rank forwards non-penalty goals"}),
+    ("rank forwards npxg women across the whole catalogue", {"where": {"gender": "women"}, "reset": "all",
+                                                             "rest": "rank forwards npxg"}),
+    ("under 17 midfielders in ghana", {"where": {"country": "Ghana", "age_group": "U17"}, "rest": "midfielders"}),
+    ("u-18 keepers", {"where": {"age_group": "U18"}, "rest": "keepers"}),
+    ("college women keepers", {"where": {"tier": "college", "age_group": "college", "gender": "women"}, "rest": "keepers"}),
+    ("semi pro women", {"where": {"tier": "semi_pro", "gender": "women"}, "rest": ""}),
+    ("best finishers in women's football", {"where": {"gender": "women"}, "rest": "best finishers"}),
+    ("goals in the Regista League", {"where": {"competition": ENGLAND_ID}, "rest": "goals"}),
+    ("Weserland strikers", {"where": {"competition": GER}, "rest": "strikers"}),
+    ("amateur players in the united states", {"where": {"country": "USA", "tier": "amateur"}, "rest": "players"}),
+    ("defenders at academy level", {"where": {"tier": "academy"}, "rest": "defenders"}),
+    ("U21 forwards", {"unknown": ["U21"], "rest": "forwards"}),
+    ("everywhere", {"reset": "all", "rest": ""}),
+    ("best young defenders in Ghana", {"where": {"country": "Ghana", "tier": "academy"}, "rest": "best defenders"}),
+    ("young players", {"where": {"tier": "academy"}, "rest": "players"}),
+    ("youngsters in Spain", {"where": {"country": "Spain", "tier": "academy"}, "rest": ""}),
+    ("young semi-pro forwards", {"where": {"tier": "semi_pro"}, "rest": "forwards"}),
+    ("Ashley Young", {"found": False, "rest": "ashley young"}),
+    *[(q, {"found": False, "rest": None}) for q in
+      ["Femi Toure", "goals", "rank forwards non-penalty xG", "compare Femi Toure and Amari Ustinov", "team Calder Town",
+       "best finishers", "who has the most assists", "best finishers at Brookfield", "top scorers", "who scores the most"]],
+]
+
+
+@pytest.mark.parametrize("q, want", PLACE_CASES)
+def test_the_scout_agents_place_words_read_as_the_terminals(cm, q, want):
+    from regista.catalogue.place import norm, parse
+    from regista.catalogue.scout import place_vocab
+
+    r = parse(q, place_vocab(cm))
+    assert r["where"] == want.get("where", {}) and r["reset"] == want.get("reset")
+    assert r["unknown"] == want.get("unknown", []) and r["found"] == want.get("found", True)
+    assert r["rest"] == (norm(q) if want["rest"] is None else want["rest"])
+
+
+def test_competition_words_never_collide_with_a_name(cm):
+    from regista.catalogue.place import norm
+    from regista.catalogue.scout import place_vocab
+
+    names = {w for es in cm.people.values() for w in norm(es[0][1]["name"]).split(" ")}
+    v = place_vocab(cm)
+    assert v["words"] and not set(v["words"]) & names
+
+
+@pytest.mark.parametrize("q, args", [
+    ("Who are the best U19 dribblers up front?", {"age_group": "U19", "position": "FW", "sort": "take_ons_won"}),
+    ("Find me women forwards who score", {"gender": "women", "position": "FW", "sort": "goals"}),
+    ("Which amateur midfielders create the most chances?", {"tier": "amateur", "position": "MF", "sort": "key_passes"}),
+    ("Who are the best U19 forwards?", {"age_group": "U19", "position": "FW", "sort": "np_goals"}),
+])
+def test_the_rules_engine_on_the_catalogue_gives_the_tools_rows(client, cm, q, args):
+    from regista import mcp_server
+
+    r = client.post("/api/scout/ask", json={"q": q, "engine": "rules", "where": "catalogue"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["where"] == "catalogue" and d["answered_by"] == "rules"
+    assert {k: v for k, v in d["query"]["args"].items() if v is not None and k not in ("order", "limit")} == args
+    tool = mcp_server.search_catalogue_players(**args, limit=d["query"]["limit"])
+    assert [c["global_id"] for c in d["players"]] == [p["global_id"] for p in tool["players"]]
+    top = d["players"][0]
+    assert top["stat"]["pool"]["words"] and top["profile_url"] == f"/players/{top['global_id']}" and top["competition"]
+    assert top["name"] in d["reply"] and "percentile among" in d["reply"] and "the catalogue" in d["understood"]
+    assert not _hidden(d)
+
+
+def test_the_catalogue_answer_names_a_player_and_my_level(client):
+    d = client.post("/api/scout/ask", json={"q": "Sergio Cruz", "engine": "rules", "where": "catalogue"}).json()
+    assert d["query"]["mode"] == "player" and d["players"][0]["global_id"] == CRUZ
+    mine = client.post("/api/scout/ask", json={"q": "most interceptions at my level", "engine": "rules",
+                                               "where": "catalogue"}).json()
+    assert mine["query"]["where"] == {"tier": "semi_pro", "age_group": "senior", "gender": "men"}
+    assert {c["tier"] for c in mine["players"]} == {"semi_pro"} and mine["query"]["sort"] == "interceptions"
+
+
+def test_where_league_is_the_league_answer(client):
+    base = client.post("/api/scout/ask", json={"q": "who scored the most goals", "engine": "rules"}).json()
+    league = client.post("/api/scout/ask", json={"q": "who scored the most goals", "engine": "rules",
+                                                 "where": "league"}).json()
+    drop = lambda d: {k: v for k, v in d.items() if k != "trace"}  # noqa: E731 - the trace's step times differ
+    assert drop(base) == drop(league) and "where" not in base
+    assert client.post("/api/scout/ask", json={"q": "x", "engine": "rules", "where": "mars"}).status_code == 422
+
+
+def test_the_foundry_scout_agent_holds_the_catalogue_tools_and_its_cards_are_its_calls(client, monkeypatch):
+    from regista import season_api
+    from regista.cloud.foundry import SCOUT_INSTRUCTIONS, SCOUT_TOOLS
+
+    assert {"list_competitions", "search_catalogue_players", "get_catalogue_player"} <= set(SCOUT_TOOLS)
+    assert not {"render_clip", "cosmos_database_container_item_query", "cosmos_list"} & set(SCOUT_TOOLS)
+    assert "none yet" in SCOUT_INSTRUCTIONS and "own level" in SCOUT_INSTRUCTIONS
+    from regista import mcp_server
+
+    args = {"tier": "amateur", "position": "MF", "sort": "key_passes", "limit": 3}
+    top = mcp_server.search_catalogue_players(**args)["players"][0]
+    seen = {}
+
+    def fake(s, q, rules):
+        seen["rules"] = rules
+        text = f"{top['name']} creates the most chances among amateur midfielders: {top['stat']['value']} per 90."
+        return text, [("search_catalogue_players", args)], "foundry:stand-in"
+
+    monkeypatch.setattr(season_api, "_scout_foundry", fake)
+    monkeypatch.setattr(api, "_ask_limiter", api.AskLimiter(10, 100, 100, 100, 2))
+    d = client.post("/api/scout/ask", json={"q": "Which amateur midfielders create the most chances?",
+                                            "where": "catalogue"}).json()
+    assert d["answered_by"] == "foundry:stand-in" and seen["rules"]["where"] == "catalogue"
+    assert [c["global_id"] for c in d["players"]] == [p["global_id"] for p in mcp_server.search_catalogue_players(**args)["players"]]
+    assert d["checked"] == {"tool_calls": 1, "numbers_not_in_tool_results": []}
+    assert d["understood"].startswith("Foundry called search_catalogue_players(")
+
+    def made_up(s, q, rules):
+        return f"{top['name']} makes 99.9 key passes per 90.", [("search_catalogue_players", args)], "foundry:stand-in"
+
+    monkeypatch.setattr(season_api, "_scout_foundry", made_up)
+    d = client.post("/api/scout/ask", json={"q": "amateur midfielders chances", "where": "catalogue"}).json()
+    assert d["checked"]["numbers_not_in_tool_results"] == ["99.9"]
