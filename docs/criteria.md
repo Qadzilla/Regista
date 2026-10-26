@@ -32,6 +32,15 @@ bands included (`python3 -m regista.synth.report --league [--repeat 6]`). Split-
 (`python3 -m regista.season.audit`), and noisy stats are flagged as such. The vision layer is measured against that truth on matches it never
 saw (`docs/vision.md`: fresh matches with the v4 models, clips 0.75 recall / 0.94 precision; a full 90-minute match, all 5 goals).
 
+**The catalogue** (built on `feature/catalogue`, **not merged, not deployed**: the live app does not serve it): 13 more
+synthetic competitions beside the Regista League (kept byte-identical as "England semi-pro men"), across 10 countries
+and the levels below the professional line (semi-pro, amateur, college, U17-U20 academies; men and women), with
+percentiles within level and a read-only API and three MCP tools. Each level's realism is reported against only what a
+source supports: one sourced band and ten sourced orders between levels pass; of six assumed orders (no published band,
+never counted) five hold and one fails (running distance U18 < U19); event rates below the professional line have no
+published band and claim none. Check: `python3 -m regista.synth.report --catalogue`, `docs/catalogue/realism.md`,
+`tests/test_catalogue_*.py`.
+
 **The Scout terminal's engine** (part A, built on `feature/terminal-engine`, not yet deployed; its screens are next):
 127 player metrics and 19 team-style metrics, each with its definition, rule and source (FBref, Opta, StatsBomb,
 Wyscout; xT fitted on the season), percentiles among position peers (FBref's rule), and the events and clip behind every
@@ -74,5 +83,6 @@ Microsoft Agent Framework.
 ## Planned, not built
 
 Azure AI Vision and Video Indexer for the vision layer; Azure AI Speech and Translator (the app is English only, by
-decision); a Fabric data agent; the Scout terminal's screens (part B: to be built in the sandbox, then ported into Scout as a
+decision); a Fabric data agent; the catalogue's pages (the UI round after `feature/catalogue` merges) and a Fabric push of
+the catalogue; the Scout terminal's screens (part B: to be built in the sandbox, then ported into Scout as a
 Terminal section); real broadcast footage (the vision layer is trained and measured on rendered footage).

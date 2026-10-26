@@ -29,6 +29,7 @@ python -m regista.validate data/synthetic/sample/syn_0294
 python -m regista.synth.report --profile realistic --seeds 21 22 23 --minutes 30
 python -m regista.synth.report --league --repeat 3      # the Regista League in league mode (players with ratings)
 python -m regista.season.audit                          # split-half reliability within a role, and the scoring chart
+python -m regista.synth.report --catalogue              # each catalogue level against what can be checked (see "Catalogue")
 ```
 
 `--periods 2` simulates two halves (`--minutes` is per half): the teams swap ends, the clock continues from 45', a `graphic` camera segment marks half time. `--home`/`--away` take `Name,SHORT,#primary[,#secondary[,#gk]]` so the demo can show different clubs. The generator has two profiles. `demo` (default) packs a short sample with shots, take-ons, and nutmegs so a 3-minute clip reel has content; its per-90 rates sit well above real football. `realistic` is tuned so that per-90 passes, completion, shots, xG per shot, tackles, interceptions, take-ons, nutmegs, fouls, corners, throw-ins, and possession length sit inside approximate Premier League bands (see `regista/synth/report.py` for the bands and their source). `report.md` next to a generated match states which bands it meets.
@@ -330,6 +331,90 @@ business, and it applies to every player the same way.
 `height_cm` and `preferred_foot`, which puts the generator in league mode (above). Matches generated without ratings
 (every committed sample, the vision seeds, the demo and realistic profiles, the Player view's filmed friendlies, which
 call `generate_kwargs(..., ratings=False)`) stay byte-identical: tests/test_backcompat.py pins their hashes from `main`.
+
+## Catalogue (14 competitions of uploaded footage)
+
+Added 2026-10-25 on branch `feature/catalogue` (not merged, not deployed: the live app does not serve any of it yet).
+Design: `docs/catalogue/build/design.md`; build records: `docs/catalogue/build/`. The catalogue is Regista as a library
+of **uploaded footage below the professional line**: players and teams upload matches, scouts compare players within
+their level. All of it is synthetic: invented people, clubs and competition names. Countries, regions and levels are
+classification labels only.
+
+**Files.** `data/catalogue/catalogue.json` (the index: competitions with their labels, the levels, the careers, the
+as-of date) and 13 league-shaped competition files in `data/catalogue/competitions/` (the same keys as
+`league.json`, plus `competition` (labels), `level` (the hidden scale the people were drawn with) and each fixture's
+`uploader` and `camera`). `python -m regista.catalogue define` writes them from `regista.catalogue.define` (seeded
+`regista.detmath.Random` streams, one set per competition); `define --check` and a test check the committed files
+are what it writes. The matches are built on demand into `data/catalogue/matches/<match_id>/` (git-ignored; built into
+the Docker image) and every one is pinned (`regista.catalogue.pins.CATALOGUE_PINS`).
+
+**England semi-pro men is the Regista League, untouched.** Its index entry points at `data/season/league.json` and adds
+uploader and camera for its 30 fixtures as an overlay. `league.json` is byte-identical to `main` (its SHA-256 is
+pinned), `SEASON_PINS` and every existing endpoint's answer are unchanged (`tests/test_catalogue_backcompat.py`), and
+Femi Toure (`pl_bro_09`) still has 5 league goals, none a penalty, two clear.
+
+**Competitions and levels.** A competition is classified by `tier` (`semi_pro`, `amateur`, `college`, `academy`; no
+`professional` tier, by decision), `age_group` (`senior`, `college`, `U20`, `U19`, `U18`, `U17`: under N on
+1 August 2026), `gender` (`men`, `women`) and `format` (`11-a-side`). Its **level** is `tier/age_group/gender`. Every
+match is two halves of 15 minutes, as in the league; per-90 rates normalise it.
+
+| Level | Competitions (invented names; country) | Uploaded matches |
+|---|---|---|
+| semi_pro/senior/men | Regista League (England, 30, all its fixtures), Weserland-Liga (Germany, 8) | 38 |
+| semi_pro/senior/women | Pennine Women's League (England) | 5 |
+| amateur/senior/men | Regional Preferente Levante Interior (Spain), Ogun Riverside Amateur League (Nigeria), Liga Amateur del Valle Alto (Mexico) | 13 |
+| college/college/men | Atlantic Collegiate Soccer Conference (USA), Minato Bay University League (Japan) | 10 |
+| college/college/women | Pacific Coast Collegiate Conference (USA) | 5 |
+| academy/U20/men | Campeonato Serrano Sub-20 (Brazil) | 4 |
+| academy/U19/men | Liga Juvenil Levante Interior (Spain), Ligue Juniors Atlas Centre U19 (Morocco) | 8 |
+| academy/U18/men | Shires Academy League U18 (England) | 4 |
+| academy/U17/men | Ashanti Colts Academy League U17 (Ghana) | 3 |
+
+Totals: 14 competitions in 10 countries, 66 clubs, 1,183 people (108 in the league, 1,075 new), 90 matches (30 + 60).
+The new competitions have 4-6 clubs and 3-8 uploaded matches each, drawn from their double round robin; every club
+appears at least once. Youth competitions carry a birth-date rule (`eligibility`).
+
+**Hidden scales.** One absolute rating scale across the catalogue, whose reference is the Regista League. Each level
+shifts its people's hidden ratings and physical capacities (skill offset, stamina, top speed and acceleration
+multipliers, height, age range) and carries an `execution` size: an optional team-spec key that lowers pass
+completion, first touches and ball retention against absolute football (`regista.synth.generator.LEAGUE["exec_*"]`),
+plus `style_offset`, which re-centres team style on the level. Both keys are inert when absent, so every match without
+them, England's included, is byte-identical (the league generator version stays 0.7.1). Like the ratings, the scales
+are in the competition files only and are never served. Which part of each scale is sourced and which is Regista's
+assumption is recorded in `regista.catalogue.taxonomy.LEVELS[...].source`.
+
+**Uploader and camera.** Each uploaded fixture has `uploader`: `{"type": "team", "club_id": …}` or
+`{"type": "player", "global_id": …, "club_id": …}` (a starter of either side), and `camera`: one of
+`tripod`, `phone`, `drone`, `broadcast`, drawn with weights by tier. **The camera type is a label only**: every match is
+rendered with the same broadcast-style view, the vision layer is measured only on that render, and nothing claims phone
+or drone footage is processed differently. A built match's `manifest.json` carries `collection: "catalogue"`, the
+competition labels, `uploader` and `camera`.
+
+**As of 2026-10-24** (`regista.catalogue.taxonomy.AS_OF`, served as `as_of`). A library of footage holds matches
+already played, so every upload is dated on or before that day: each competition's rounds are spread over its own
+season window and uploads are drawn only from rounds played by then.
+
+**Careers.** Five people play in two competitions, with one global id, one bio and one set of hidden ratings in both
+squads, the same role in both, minutes in uploaded matches of both, and never two matches on one date: two Spanish
+U19 academy players stepping up to a senior amateur side, and three student-athletes at US colleges who play for a home
+club (England semi-pro women, Germany semi-pro men, Mexico amateur men) in matches before their college season opens.
+The Regista League takes no career player: its squads are frozen.
+
+**Pools.** Percentiles are drawn from peers in the same **pool**: by default `scope=level` (same tier, age group, gender
+and position, across countries), or `competition`, or `all` (every level of one gender; men and women never share a
+pool, and answers in this scope carry a warning that raw numbers from different levels are not comparable). A pool
+needs 5 qualified peers for a percentile and is flagged `small` under 15. Outside England, qualifying minutes are at
+least 45 and ratio metrics need the competition's minimum attempts; xT uses the grid fitted on the Regista League.
+Every number carries its `pool` and `sample`. Rankings compare percentiles only within one position and raw numbers
+only within one level (`regista.catalogue.metrics.RANK_RULE`). Reliability per level
+(`data/catalogue/reliability.json`) is measured on six full regenerated seasons of every competition; a metric below
+0.3 split-half reliability is marked noisy, and the uploaded sample is smaller still.
+
+**Realism per level.** `python -m regista.synth.report --catalogue` (written to `docs/catalogue/realism.md`) reports
+each level against what can honestly be checked: one sourced band (U17 mean peak match speed, 26.80 km/h inside
+24.9-28.7), ten sourced orders between levels (all pass), six assumed orders with no published band (five hold; running
+distance U18 < U19 fails) and "no published band" for event rates below the professional line. It reads the committed
+measurement (`data/catalogue/realism.json`); `--regenerate` measures again.
 
 ## Azure mapping
 
