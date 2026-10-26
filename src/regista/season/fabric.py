@@ -31,7 +31,7 @@ ROOT = "data/season/matches"
 
 
 def main(argv: list[str] | None = None) -> int:
-    ap = argparse.ArgumentParser(prog="python -m regista.season.fabric", description=__doc__,
+    ap = argparse.ArgumentParser(prog="python -m regista.season.fabric", description=__doc__, allow_abbrev=False,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--env", default=None, help="the .env file to read and to write the ids into (default: $REGISTA_DOTENV or .env)")
     ap.add_argument("--league", default=LEAGUE)
@@ -41,15 +41,15 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--catalogue-root", default=None, help="where the catalogue's match folders are (default: "
                                                             "$REGISTA_CATALOGUE_ROOT or data/catalogue/matches)")
     sub = ap.add_subparsers(dest="cmd", required=True)
-    s = sub.add_parser("setup", help="find your own trial capacity; create or reuse the workspace and the lakehouse")
+    s = sub.add_parser("setup", allow_abbrev=False, help="find your own trial capacity; create or reuse the workspace and the lakehouse")
     s.add_argument("--capacity", default=None, help="a capacity id (still only one of your own trials)")
     s.add_argument("--workspace", default=fb.WORKSPACE_NAME)
     s.add_argument("--lakehouse", default=fb.LAKEHOUSE_NAME)
-    p = sub.add_parser("push", help="write the season and the uploads as Delta tables (overwrites them)")
+    p = sub.add_parser("push", allow_abbrev=False, help="write the season and the uploads as Delta tables (overwrites them)")
     p.add_argument("--no-uploads", action="store_true", help="skip the Player-view uploads table")
     p.add_argument("--catalogue", action="store_true", help="also write the catalogue_* tables (after the league's)")
     p.add_argument("--catalogue-only", action="store_true", help="write only the catalogue_* tables")
-    c = sub.add_parser("check", help="run the Fabric notebook and compare its leaders with Regista's")
+    c = sub.add_parser("check", allow_abbrev=False, help="run the Fabric notebook and compare its leaders with Regista's")
     c.add_argument("--no-run", action="store_true", help="compare the leaders_check already in OneLake")
     c.add_argument("--catalogue", action="store_true", help="the catalogue's notebook and tables instead of the league's")
     c.add_argument("--timeout", type=float, default=1800)
