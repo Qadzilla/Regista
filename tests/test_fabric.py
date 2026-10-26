@@ -11,7 +11,7 @@ import pytest
 
 from regista.cloud import fabric as fb
 from regista.cloud.fabric_notebook import LEADERS_SQL, STAT_SQL, definition, leaders_rule
-from regista.cloud.fabric_tables import SCHEMAS, UPLOAD_STATS, player_season_rows, season_tables, to_arrow, upload_rows
+from regista.cloud.fabric_tables import LEAGUE_TABLES, SCHEMAS, UPLOAD_STATS, player_season_rows, season_tables, to_arrow, upload_rows
 from regista.player.store import LocalStore, UploadRecord, match_id_for
 from regista.schema import iter_jsonl
 from regista.season.build import materialise
@@ -245,7 +245,7 @@ def tables(small, tmp_path_factory):
 
 def test_tables_have_their_schema_and_sizes(tables):
     small, root, _season, t = tables
-    assert set(t) == set(SCHEMAS) - {"uploads"}
+    assert set(t) == set(LEAGUE_TABLES) - {"uploads"} and set(LEAGUE_TABLES) <= set(SCHEMAS)
     for name, rows in t.items():
         assert rows and all(set(r) == set(SCHEMAS[name]) for r in rows), name
         arrow = to_arrow(name, rows)

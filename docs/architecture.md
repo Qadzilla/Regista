@@ -320,8 +320,45 @@ star's league attributes version 2): `push` wrote clubs 6, players 108, matches 
 10,661, labels 10,661, player_season 3,024 and uploads 1 rows in 28 s. `check` ran the notebook in 52 s and matched
 **756 of 756** rows (108 players x 7 stats), Femi Toure's five goals among them.
 
+### The catalogue in the same lakehouse (built, not yet run)
+
+**Status: built and tested offline on `feature/catalogue-fabric`; not yet pushed to Fabric and the notebook has not yet
+run there.** The numbers below are what the code builds offline from the committed catalogue; the real push and run fill
+in their own (`docs/catalogue/fabric.md`).
+
+The catalogue (§2.11 of CLAUDE.md: 14 competitions in 10 countries, 90 uploaded matches) goes into the same lakehouse
+under its own table names, so the league's tables, its notebook and its 756-row check stay exactly as they are:
+
+```
+lakehouse regista_league
+  catalogue_competitions (14: level labels, as_of), catalogue_clubs (66), catalogue_players (1,188 squad entries,
+  public bio only), catalogue_matches (90: round, date, score, played_s, uploader, camera), catalogue_lineups (3,240,
+  played_s from substitutions and red cards), catalogue_events (102,904, with competition_id and seq),
+  catalogue_possessions (30,645, with seq), catalogue_player_season (7,399: Regista's numbers, one row per
+  player-competition row and stat), catalogue_leaders_check (written by the second notebook)
+notebook regista_catalogue_check   Spark SQL over the six raw catalogue tables -> catalogue_leaders_check
+```
+
+- England semi-pro men is the Regista League's 30 fixtures (from `data/season/matches`), the matches the catalogue
+  pages count; the Player view's friendlies are not in the catalogue tables.
+- `catalogue_player_season` comes from the engine the catalogue pages use (`regista.catalogue.metrics`): appearances,
+  minutes, count, per-90, whether the row qualifies, the percentile in the default **level pool** (same tier, age group,
+  gender and position over every competition of that level) and that pool's size.
+- The second notebook (`fabric_catalogue_notebook.py`) writes the catalogue's rules again in SQL: each competition's
+  qualifying minutes (England a third of the busiest club's minutes; elsewhere also at least 45), level pools, FBref's
+  percentile, no percentile from fewer than 5 peers or for a count of 0. The catalogue engine's shots leave penalties
+  out, its key passes are FBref's (the pass received at the start of the shooter's possession, read off
+  `catalogue_possessions`), and a tackle without an outcome counts as won; the SQL follows the engine there, and the
+  engine is unchanged.
+- `catalogue_leaders_rule` is the same SQL in plain Python. `tests/test_fabric_catalogue.py` compares it with
+  Regista's rows for every row (7,399 of 7,399 offline) and checks that a rule written differently (penalties in the
+  shots, no 45-minute floor, pools per competition, men and women in one pool) is caught.
+- `python -m regista.season.fabric push --catalogue` writes the league's tables and then the catalogue's
+  (`--catalogue-only`: only the catalogue's; plain `push` is unchanged); `check --catalogue` runs the second notebook
+  and compares.
+
 ## What is deliberately not here
 
 - No real footage, anywhere. The vision layer v0 is trained and measured only on Regista's own rendered broadcast; its evaluation matches were used during development, so they are a development set, not a held-out test. `docs/vision.md` has the numbers and what changes for real footage.
-- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above). Since the Player view, Blob Storage, a Storage queue and a Container Apps Job run too. Azure AI Vision, Video Indexer, Speech, Translator, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
+- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above; the catalogue's tables and second notebook are built but not yet run there). Since the Player view, Blob Storage, a Storage queue and a Container Apps Job run too. Azure AI Vision, Video Indexer, Speech, Translator, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.

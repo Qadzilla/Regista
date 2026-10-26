@@ -8,7 +8,8 @@ Three steps, each run by ``python -m regista.season.fabric``:
   (``regista.cloud.fabric_tables`` builds them; every push overwrites them).
 - ``check``: create or update the notebook ``regista_leaders_check`` (``regista.cloud.fabric_notebook``), run it on
   demand through the Job Scheduler API, wait, read the table ``leaders_check`` it wrote, and compare it with Regista's
-  own ``player_season`` (``compare``).
+  own ``player_season`` (``compare``). With ``--catalogue``: the second notebook ``regista_catalogue_check``
+  (``regista.cloud.fabric_catalogue_notebook``), its ``catalogue_leaders_check`` against ``catalogue_player_season``.
 
 Keyless: ``DefaultAzureCredential`` (``az login`` on a laptop) with the Fabric API scope for REST calls, the Power BI
 scope for the one call that says who administers a capacity, and the storage scope for OneLake.
@@ -364,40 +365,75 @@ def _delta_read(uri: str, options: dict[str, str]) -> Any:
 
 # ---------------------------------------------------------------------------- the cross-check
 CHECK_STATS = ["goals", "assists", "shots", "key_passes", "take_ons_won", "tackles_won", "interceptions"]
+# The catalogue's check uses the same seven stats, as the catalogue engine (regista.season.metrics, the Terminal's) defines
+# them: shots and key passes leave penalties out there (regista.cloud.fabric_catalogue_notebook says where it differs).
+CATALOGUE_CHECK_STATS = list(CHECK_STATS)
+CATALOGUE_NOTEBOOK_NAME = "regista_catalogue_check"
 PER90_TOLERANCE = 0.005 + 1e-9    # both sides round to 2 decimals; Python and Spark may round a half differently
 MINUTES_TOLERANCE = 0.05 + 1e-9   # Regista keeps minutes to 0.1
+OPTIONAL_FIELDS = ("qualified", "pool_size")   # compared when both sides carry them (the catalogue's rows do)
+
+
+def row_key(r: Record) -> tuple:
+    """A row's identity: (global_id, stat) for the league, (competition_id, global_id, stat) for the catalogue, where one
+    person can have a row in two competitions (a career)."""
+    return (r["competition_id"], r["global_id"], r["stat"]) if "competition_id" in r else (r["global_id"], r["stat"])
 
 
 def compare(regista: list[Record], fabric: list[Record], stats: list[str] | None = None) -> Record:
-    """Regista's ``player_season`` rows against the notebook's ``leaders_check`` rows, both one row per (player, stat)
-    with ``global_id, stat, appearances, minutes, count, per90, percentile``.
+    """Regista's rows against the notebook's, both one row per (player, stat) with ``global_id, stat, appearances,
+    minutes, count, per90, percentile``: the league's ``player_season`` against ``leaders_check``, or, keyed also on
+    ``competition_id``, the catalogue's ``catalogue_player_season`` against ``catalogue_leaders_check`` (which also carry
+    ``qualified`` and ``pool_size``, compared when both sides have them).
 
-    Counts, appearances and percentiles must be equal; minutes and per-90 rates may differ by rounding only. Every
-    player and stat Regista has must be on the Fabric side and the other way round."""
+    Counts, appearances, percentiles (and qualified, pool size) must be equal; minutes and per-90 rates may differ by
+    rounding only. Every row Regista has must be on the Fabric side and the other way round."""
     stats = stats or CHECK_STATS
-    mine = {(r["global_id"], r["stat"]): r for r in regista if r["stat"] in stats}
-    theirs = {(r["global_id"], r["stat"]): r for r in fabric if r["stat"] in stats}
+    mine = {row_key(r): r for r in regista if r["stat"] in stats}
+    theirs = {row_key(r): r for r in fabric if r["stat"] in stats}
     diffs: list[Record] = []
     matched = 0
     for key in sorted(mine.keys() & theirs.keys()):
         a, b = mine[key], theirs[key]
-        bad = [f for f, ok in (
+        checks = [
             ("appearances", int(a["appearances"]) == int(b["appearances"])),
-            ("minutes", abs(float(a["minutes"]) - float(b["minutes"])) <= MINUTES_TOLERANCE),
+            ("minutes", _close(a["minutes"], b["minutes"], MINUTES_TOLERANCE)),
             ("count", int(a["count"]) == int(b["count"])),
-            ("per90", abs(float(a["per90"]) - float(b["per90"])) <= PER90_TOLERANCE),
+            ("per90", _close(a["per90"], b["per90"], PER90_TOLERANCE)),
             ("percentile", _same_pct(a.get("percentile"), b.get("percentile"))),
-        ) if not ok]
+        ]
+        for f in OPTIONAL_FIELDS:
+            if f in a and f in b:
+                checks.append((f, _same_value(a[f], b[f])))
+        bad = [f for f, ok in checks if not ok]
         if bad:
-            diffs += [{"global_id": key[0], "stat": key[1], "field": f, "regista": a.get(f), "fabric": b.get(f)} for f in bad]
+            where = {"competition_id": key[0]} if len(key) == 3 else {}
+            diffs += [{**where, "global_id": key[-2], "stat": key[-1], "field": f, "regista": a.get(f), "fabric": b.get(f)}
+                      for f in bad]
         else:
             matched += 1
     only_regista = sorted(mine.keys() - theirs.keys())
     only_fabric = sorted(theirs.keys() - mine.keys())
-    players = {k[0] for k in mine} | {k[0] for k in theirs}
-    return {"players": len(players), "stats": list(stats), "checked": len(mine.keys() & theirs.keys()), "matched": matched,
-            "differences": diffs, "only_regista": only_regista, "only_fabric": only_fabric,
-            "ok": not diffs and not only_regista and not only_fabric}
+    every = mine.keys() | theirs.keys()
+    out = {"players": len({k[:-1] for k in every}), "stats": list(stats), "checked": len(mine.keys() & theirs.keys()),
+           "matched": matched, "differences": diffs, "only_regista": only_regista, "only_fabric": only_fabric,
+           "ok": not diffs and not only_regista and not only_fabric}
+    if any(len(k) == 3 for k in every):
+        out["rows"] = "player-competition"
+        out["competitions"] = len({k[0] for k in every})
+    return out
+
+
+def _close(a: Any, b: Any, tol: float) -> bool:
+    if a is None or b is None:
+        return a is None and b is None
+    return abs(float(a) - float(b)) <= tol
+
+
+def _same_value(a: Any, b: Any) -> bool:
+    if a is None or b is None:
+        return a is None and b is None
+    return (bool(a) == bool(b)) if isinstance(a, bool) or isinstance(b, bool) else int(a) == int(b)
 
 
 def _same_pct(a: Any, b: Any) -> bool:
@@ -407,14 +443,19 @@ def _same_pct(a: Any, b: Any) -> bool:
 
 
 def report_lines(result: Record) -> list[str]:
-    out = [f"checked {result['players']} players x {len(result['stats'])} stats ({', '.join(result['stats'])}): "
-           f"{result['matched']} of {result['checked']} match"]
+    if result.get("rows") == "player-competition":
+        out = [f"checked {result['players']} player-competition rows in {result['competitions']} competitions x "
+               f"{len(result['stats'])} stats ({', '.join(result['stats'])}): {result['matched']} of {result['checked']} match"]
+    else:
+        out = [f"checked {result['players']} players x {len(result['stats'])} stats ({', '.join(result['stats'])}): "
+               f"{result['matched']} of {result['checked']} match"]
     if result["only_regista"]:
         out.append(f"{len(result['only_regista'])} rows only in Regista, e.g. {result['only_regista'][:3]}")
     if result["only_fabric"]:
         out.append(f"{len(result['only_fabric'])} rows only in Fabric, e.g. {result['only_fabric'][:3]}")
     for d in result["differences"][:20]:
-        out.append(f"  {d['global_id']} {d['stat']} {d['field']}: Regista {d['regista']}, Fabric {d['fabric']}")
+        where = f"{d['competition_id']} " if "competition_id" in d else ""
+        out.append(f"  {where}{d['global_id']} {d['stat']} {d['field']}: Regista {d['regista']}, Fabric {d['fabric']}")
     if len(result["differences"]) > 20:
         out.append(f"  ... and {len(result['differences']) - 20} more")
     out.append("result: " + ("Fabric agrees with Regista" if result["ok"] else "MISMATCH"))

@@ -10,6 +10,9 @@
                     minutes, count, per-90 rate, percentile within the position. League fixtures only.
     uploads         Player-view uploads from the store (``regista.player.store``): who, which clubs, status, and for a
                     finished one the uploader's minutes and headline counts in that match
+    catalogue_*     the catalogue (14 competitions, 90 matches) and Regista's numbers for its check: built by
+                    ``regista.cloud.fabric_catalogue`` with their schemas here (``CATALOGUE_TABLES``), under their own
+                    names so the league's tables above stay exactly as they are
 
 Rows are plain dicts so tests can read them; ``to_arrow`` turns a table into a pyarrow Table with its schema.
 """
@@ -60,7 +63,48 @@ SCHEMAS: dict[str, dict[str, str]] = {
                 "created_at": "timestamp", "updated_at": "timestamp", "stages": "int", "error": "string",
                 "minutes": "double", "goals": "int", "assists": "int", "shots": "int", "key_passes": "int",
                 "take_ons_won": "int", "tackles_won": "int", "interceptions": "int"},
+    # ---- the catalogue (14 competitions, 90 matches), built by regista.cloud.fabric_catalogue; distinct names, so the
+    # league's tables above and their check stay exactly as they are. Public facts only: never the hidden ratings, the
+    # level scales, the generator's execution or the seeds.
+    "catalogue_competitions": {"competition_id": "string", "code": "string", "name": "string", "country": "string",
+                               "region": "string", "tier": "string", "tier_label": "string", "age_group": "string",
+                               "age_group_label": "string", "gender": "string", "gender_label": "string", "level": "string",
+                               "level_label": "string", "format": "string", "season": "string", "eligibility": "string",
+                               "teams": "int", "uploaded_matches": "int", "coverage": "string", "source": "string",
+                               "as_of": "date"},
+    "catalogue_clubs": {"competition_id": "string", "club_id": "string", "name": "string", "short_name": "string",
+                        "city": "string", "ground": "string", "kit_primary": "string", "kit_secondary": "string",
+                        "kit_gk": "string"},
+    "catalogue_players": {"competition_id": "string", "global_id": "string", "name": "string", "club_id": "string",
+                          "kit_number": "int", "position": "string", "role": "string", "starter": "bool", "age": "int",
+                          "date_of_birth": "date", "height_cm": "int", "preferred_foot": "string", "nationality": "string",
+                          "career": "bool"},
+    "catalogue_matches": {"match_id": "string", "competition_id": "string", "round": "int", "date": "date",
+                          "home_club_id": "string", "away_club_id": "string", "home_goals": "int", "away_goals": "int",
+                          "periods": "int", "played_s": "double", "video_duration_s": "double", "title": "string",
+                          "uploader_type": "string", "uploader_club_id": "string", "uploader_global_id": "string",
+                          "camera": "string"},
+    "catalogue_lineups": {"match_id": "string", "competition_id": "string", "player_id": "string", "global_id": "string",
+                          "team_id": "string", "club_id": "string", "kit_number": "int", "position": "string",
+                          "starter": "bool", "played_s": "double"},
+    "catalogue_events": {"match_id": "string", "competition_id": "string", "seq": "int", "event_id": "string", "t": "double",
+                         "period": "int", "minute": "int", "second": "int", "event_type": "string", "outcome": "string",
+                         "player_id": "string", "global_id": "string", "team_id": "string", "club_id": "string",
+                         "related_player_id": "string", "related_global_id": "string", "possession_id": "string",
+                         "segment_id": "string", "under_pressure": "bool", "x": "double", "y": "double", "end_x": "double",
+                         "end_y": "double", "body_part": "string", "qualifiers": "list<string>", "confidence": "double"},
+    "catalogue_possessions": {"match_id": "string", "competition_id": "string", "seq": "int", "possession_id": "string",
+                              "t": "double", "t_end": "double", "player_id": "string", "global_id": "string",
+                              "team_id": "string", "club_id": "string", "gained_by": "string", "lost_by": "string",
+                              "touches": "int", "under_pressure": "bool"},
+    "catalogue_player_season": {"competition_id": "string", "global_id": "string", "name": "string", "club_id": "string",
+                                "position": "string", "tier": "string", "age_group": "string", "gender": "string",
+                                "appearances": "int", "minutes": "double", "qualifying_minutes": "double", "stat": "string",
+                                "label": "string", "count": "int", "per90": "double", "qualified": "bool",
+                                "percentile": "int", "pool_size": "int", "pool_words": "string", "noisy": "bool"},
 }
+LEAGUE_TABLES = ("clubs", "players", "matches", "lineups", "events", "clips", "labels", "player_season", "uploads")
+CATALOGUE_TABLES = tuple(k for k in SCHEMAS if k.startswith("catalogue_"))
 UPLOAD_STATS = ["goals", "assists", "shots", "key_passes", "take_ons_won", "tackles_won", "interceptions"]
 
 
