@@ -89,7 +89,7 @@ LEVELS: dict[str, Level] = {lv.key: lv for lv in [
     Level("college/college/men", -3, 0, 0.99, 0.99, 0, (18, 23), 20, execution=1.4,
           source={"skill": _ASSUMED, "speed": _ASSUMED, "execution": _EXEC}),
     Level("amateur/senior/men", -8, -4, 0.97, 0.97, 0, (18, 38), 27, execution=2.65,
-          source={"skill": "direction [S9, S10]; size an assumption", "speed": _ASSUMED, "stamina": _ASSUMED,
+          source={"skill": "direction [S10]; size an assumption", "speed": _ASSUMED, "stamina": _ASSUMED,
                   "execution": _EXEC}),
     Level("academy/U20/men", -4, 0, 0.92, 0.97, 0, (17, 19), 18, execution=1.2,
           source={"skill": _ASSUMED, "speed": _YOUTH_SPEED, "execution": _EXEC_YOUTH}),
