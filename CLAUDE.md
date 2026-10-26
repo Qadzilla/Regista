@@ -313,8 +313,8 @@ round PR #40) and live since 2026-10-26.
   Foundry Scout agent holds the catalogue tools (public, read-only). New modules: `regista.catalogue.page` (catalogue
   profiles and pages), `place` (place words), `scout` (the Scout agent's catalogue rules). Not built: the demo and pitch
   lines.
-- **The catalogue in Microsoft Fabric (built on `feature/catalogue-fabric`, tested offline, not yet pushed or run;
-  `docs/catalogue/fabric.md`):** 8 `catalogue_*` tables beside the league's (England semi-pro men from the league
+- **The catalogue in Microsoft Fabric (built on `feature/catalogue-fabric`; pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched;
+  the league check re-run the same day matched 756 of 756; `docs/catalogue/fabric.md`):** 8 `catalogue_*` tables beside the league's (England semi-pro men from the league
   fixtures), Regista's level-pool numbers (`catalogue_player_season`, 7,399 rows) and a second notebook,
   `regista_catalogue_check`, that recomputes them in Spark SQL from the raw tables alone (time on the pitch from the
   events, per-competition qualifying minutes, level pools, FBref's percentile, a minimum pool of 5) into
@@ -596,15 +596,16 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-26 (evening).** The catalogue is live (§2.11): PR #39 (data, engine, API; merge 2952844) and PR #40
+**As of 2026-10-26 (night).** The catalogue is in Microsoft Fabric (§2.11): pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`). The code is on `feature/catalogue-fabric` (PR open, not merged). The first CLI run stalled after the league check finished and was stopped; run alone, every step finished in seconds.
+
+**Earlier, 2026-10-26 (evening).** The catalogue is live (§2.11): PR #39 (data, engine, API; merge 2952844) and PR #40
 (the UI round; merge fd0969f), deployed by CI to revision `regista-api--d1026204656`. Checked live, read-only, at 1440
 and 375 px: Find players on the whole catalogue (Femi Toure first in semi-pro men), Competitions (14 in 10 countries),
 Sergio Cruz's profile with his two-competition career, a catalogue clip playing (the first view of each clip on a
 fresh revision renders it, about 20 s), the Terminal on 1,057 rows, the Clip view's picker with 94 matches, /me; no
 console errors, no horizontal scroll; "most goals in England" puts Femi Toure first; a write without the token is
 refused (401). 1121 quick tests. Left: Zaid's recorded match (if any), the demo video (storyboard to update for the
-catalogue), the pitch, the catalogue's Fabric push and check (built on `feature/catalogue-fabric`, tested offline, not
-yet run: `docs/catalogue/fabric.md`), making the repo public, submitting by 2026-10-27.
+catalogue), the pitch, making the repo public, submitting by 2026-10-27.
 
 **Earlier, 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
 the realism report per level (`docs/catalogue/realism.md`: 10 of 10 sourced checks pass, 3 of them confirming a

@@ -321,11 +321,9 @@ star's league attributes version 2): `push` wrote clubs 6, players 108, matches 
 10,661, labels 10,661, player_season 3,024 and uploads 1 rows in 28 s. `check` ran the notebook in 52 s and matched
 **756 of 756** rows (108 players x 7 stats), Femi Toure's five goals among them.
 
-### The catalogue in the same lakehouse (built, not yet run)
+### The catalogue in the same lakehouse (running)
 
-**Status: built and tested offline on `feature/catalogue-fabric`; not yet pushed to Fabric and the notebook has not yet
-run there.** The numbers below are what the code builds offline from the committed catalogue; the real push and run fill
-in their own (`docs/catalogue/fabric.md`).
+**Status: Pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`, "Real run").**
 
 The catalogue (§2.11 of CLAUDE.md: 14 competitions in 10 countries, 90 uploaded matches) goes into the same lakehouse
 under its own table names, so the league's tables, its notebook and its 756-row check stay exactly as they are:
@@ -365,5 +363,5 @@ notebook regista_catalogue_check   Spark SQL over the six raw catalogue tables -
 ## What is deliberately not here
 
 - No real footage, anywhere. The vision layer v0 is trained and measured only on Regista's own rendered broadcast; its evaluation matches were used during development, so they are a development set, not a held-out test. `docs/vision.md` has the numbers and what changes for real footage.
-- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above; the catalogue's tables and second notebook are built but not yet run there). Since the Player view, Blob Storage, a Storage queue and a Container Apps Job run too. Azure AI Vision, Video Indexer, Speech, Translator, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
+- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above; the catalogue's tables and second notebook run there too). Since the Player view, Blob Storage, a Storage queue and a Container Apps Job run too. Azure AI Vision, Video Indexer, Speech, Translator, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.

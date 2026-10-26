@@ -1,8 +1,8 @@
 # The catalogue in Microsoft Fabric
 
-**Status (2026-10-26): built and tested offline on `feature/catalogue-fabric`. Not yet pushed to Fabric; the notebook has
-not yet run there.** Every number below comes from the code run offline on the committed catalogue. The lead fills in
-the real push and run (section "Real run", at the end).
+**Status (2026-10-26): built on `feature/catalogue-fabric`, pushed to Fabric and checked there: 7,399 of 7,399 rows
+match** (section "Real run", at the end). The numbers in the sections before it come from the code run offline on the
+committed catalogue; the real run gave the same.
 
 The league already lives in the Fabric lakehouse `regista_league` (CLAUDE.md §2.7, `docs/architecture.md` "Microsoft
 Fabric"): Delta tables in OneLake, and a Spark SQL notebook that recomputes the leaders from the raw tables so Regista
@@ -200,5 +200,30 @@ An independent review signed the build off with five should-fix findings, all fi
 
 ## Real run
 
-Not yet run. To fill in: date, workspace and lakehouse, push row counts and time, notebook run id and time, the check's
-line (`N of 7,399`), and any difference.
+2026-10-26, Zaid's workspace "Regista" (b45d50d0-…), lakehouse `regista_league` (1926e0bf-…), signed in as his
+Northeastern account; nothing else in the tenant was touched.
+
+- **League check first** (`python -m regista.season.fabric check`): notebook `regista_leaders_check` Completed in 52 s;
+  756 of 756 rows match. Unchanged.
+- **Push** (`push --catalogue-only`): 17.0 s.
+
+  | Table | Rows |
+  |---|---|
+  | catalogue_competitions | 14 |
+  | catalogue_clubs | 66 |
+  | catalogue_players | 1,188 |
+  | catalogue_matches | 90 |
+  | catalogue_lineups | 3,240 |
+  | catalogue_events | 102,904 |
+  | catalogue_possessions | 30,645 |
+  | catalogue_player_season | 7,399 |
+
+- **Catalogue check** (`check --catalogue --json docs/catalogue/fabric-check.json`): notebook `regista_catalogue_check`
+  (8b7ef92f-…) run 27d43e96-… Completed in 83 s; "checked 1057 player-competition rows in 14 competitions x 7 stats:
+  7399 of 7399 match", no difference, nothing only on one side. The first run of this SQL on Fabric's Spark needed no
+  change. Compared again with `--no-run` afterwards: 7,399 of 7,399, and the league's 756 of 756.
+- **What went wrong on the way:** the first attempt ran the three steps in one shell command whose output was buffered.
+  The league check finished (756 of 756) but the process did not exit, so the command was stopped after about 90
+  minutes. The rest of that command then ran at the same time as a fresh run of the catalogue check; both runs used the
+  same notebook, and one read `catalogue_leaders_check` while the other was rewriting it (delta-rs: "No files in log
+  segment"). The fresh run, alone, is the one reported above. Each step run on its own finished in seconds.
