@@ -3,6 +3,7 @@
     python -m regista.synth.report data/synthetic/sample/syn_0294
     python -m regista.synth.report --profile realistic --seeds 11 12 13 --minutes 20
     python -m regista.synth.report --league data/season/league.json [--repeat 6]
+    python -m regista.synth.report --catalogue [--out docs/catalogue/realism.md] [--regenerate [--level L] [--repeat 6]]
 
 League streams also carry ``physical`` records (every player's 10 Hz motion summarised, regista.synth.physical); the
 report checks them against physical bands from the Premier League (The Analyst / Opta) and the 2022 World Cup (FIFA's
@@ -12,6 +13,13 @@ terminal's own engine (regista.season.metrics). A season is about ten full match
 rare-event bands (penalties, red cards) are a verdict only over six pooled seasons (``--league --repeat 6``, about 1,800
 minutes a regular); on fewer (one season: about 300 minutes a regular, a handful of penalties) those verdicts are
 printed as indicative, with each leader's minutes beside the value.
+
+``--catalogue`` reports each level of the catalogue (docs/catalogue/build/design.md §10) against what can honestly be
+checked below the professional line: one sourced band (U17 peak match speed), sourced orders between levels, assumed
+orders (shown, never counted) and "no published band", with Premier League and elite figures beside some levels as
+upper references only. It reads the committed measurement (data/catalogue/realism.json, six regenerated seasons of every
+competition) and re-runs the checks on its stored aggregates, so it is fast; ``--regenerate`` measures the seasons
+again and compares them with the committed file (writing it is ``python -m regista.catalogue reliability``'s job).
 
 The generator has two profiles. ``demo`` packs a 3-minute sample with action so a
 short clip reel has something in it; ``realistic`` is tuned to land inside the bands
@@ -799,22 +807,392 @@ def report_league(league_path: Path | str, repeat: int = 1) -> tuple[dict[str, f
     return metrics, render_markdown(metrics, title, "league")
 
 
+# ============================================================================ the catalogue (--catalogue)
+#
+# Each catalogue level against the checks it can honestly get (regista.catalogue.realism): a sourced band, sourced orders
+# between levels, assumed orders (measured, shown, never counted) and "no published band". By default the report reads
+# the committed measurement (data/catalogue/realism.json: six regenerated seasons of every competition, written by
+# ``python -m regista.catalogue reliability``) and re-runs the checks on its stored aggregates, so it takes well under a
+# second; ``--regenerate`` measures the seasons again (a few minutes on ten cores; ``--level`` limits it to some levels)
+# and compares them with the committed file. It never writes the committed file.
+
+CATALOGUE_LEVEL_LABELS = {
+    "semi_pro/senior/men": "Semi-pro men", "college/college/men": "College men", "amateur/senior/men": "Amateur men",
+    "academy/U20/men": "Academy U20", "academy/U19/men": "Academy U19", "academy/U18/men": "Academy U18",
+    "academy/U17/men": "Academy U17", "semi_pro/senior/women": "Semi-pro women", "college/college/women": "College women",
+}
+# Premier League bands shown beside the senior semi-pro and college men's levels as an upper reference (no verdict):
+# (label, band key in NORMS or PHYSICAL_NORMS, how a level aggregate is read in the band's unit, what differs).
+CATALOGUE_PL_REFERENCES: list[tuple[str, str, Any, str]] = [
+    ("pass completion", "pass_completion", lambda a: a["pass_pct"] / 100.0,
+     "outfield players' passes here; the band counts every pass"),
+    ("shots per 90, both teams", "shots_per90", lambda a: 2.0 * a["team_shots_per90"], ""),
+    ("goals per 90, both teams", "goals_per90", lambda a: 2.0 * a["team_goals_per90"], ""),
+    ("distance per 90 (km)", "distance_per90_km", lambda a: a["outfield_per90"]["distance"] / 1000.0, ""),
+    ("distance at 20 km/h or more per 90 (m)", "hi_distance_per90_m", lambda a: a["outfield_per90"]["hi_distance"], ""),
+    ("distance at 25 km/h or more per 90 (m)", "sprint_distance_per90_m", lambda a: a["outfield_per90"]["sprint_distance"], ""),
+    ("mean peak match speed (km/h)", "peak_speed_mean_kmh", lambda a: a["peak_speed_mean"],
+     "matches with 10+ minutes played here; the band's matches had 60%+ played"),
+]
+# Women's and college references (regista.catalogue.realism.REFERENCES): the level aggregate shown beside each, where
+# one measures the same thing; the reference's own text says what differs (per match, sprint test, women's zones).
+CATALOGUE_REFERENCE_VALUES = {
+    "distance": ("distance per 90", lambda a: f"{a['outfield_per90']['distance']:,.0f} m"),
+    "peak_speed_mean": ("mean peak match speed", lambda a: f"{a['peak_speed_mean']:.2f} km/h"),
+}
+CATALOGUE_NOT_COMPARABLE = {
+    ("S11",): "not comparable (a team's total per match)",
+    ("S3",): "not comparable (a sprint-test top speed)",
+}
+
+
+def _catalogue_league(index: Path | None):
+    from regista.catalogue import store
+    from regista.catalogue.taxonomy import ENGLAND_ID
+    from regista.season.league import load_league
+
+    league = load_league(store.competition_path(store.entry(ENGLAND_ID, index), index))
+    return league, store.new_competitions(index)
+
+
+def catalogue_matches_measured(seasons: int, levels: list[str] | None = None) -> int:
+    """Matches in ``seasons`` measurement seasons of every competition (of ``levels``): each full double round robin."""
+    from regista.catalogue.taxonomy import COMPETITIONS
+
+    return sum(c.teams * (c.teams - 1) * seasons for c in COMPETITIONS if levels is None or c.level_key in levels)
+
+
+def _check_fields(c: Record) -> Record:
+    return {k: c.get(k) for k in ("value", "outside_by", "values", "steps", "verdict")}
+
+
+def catalogue_drift(committed: Record, rechecked: Record) -> list[str]:
+    """The checks whose committed verdict differs from the checks' code re-run on the same stored aggregates."""
+    out = []
+    for kind in ("bands", "orders"):
+        old = {c["id"]: _check_fields(c) for c in committed.get(kind, [])}
+        new = {c["id"]: _check_fields(c) for c in rechecked.get(kind, [])}
+        out += sorted(k for k in old.keys() | new.keys() if old.get(k) != new.get(k))
+    return out
+
+
+def catalogue_summary(data: Record) -> Record:
+    """Counts: sourced checks (the band and the sourced orders) and assumed orders, by verdict."""
+    sourced = list(data.get("bands", [])) + [o for o in data.get("orders", []) if o.get("basis", "sourced") != "assumed"]
+    assumed = [o for o in data.get("orders", []) if o.get("basis") == "assumed"]
+
+    def count(checks: list[Record]) -> Record:
+        verdicts = [c.get("verdict") for c in checks]
+        return {"total": len(checks), "pass": verdicts.count("pass"), "fail": verdicts.count("fail"),
+                "not separated": verdicts.count("not separated"), "not measured": verdicts.count(None)}
+
+    return {"sourced": count(sourced), "assumed": count(assumed)}
+
+
+def regenerate_catalogue(repeats: int, workers: int | None = None, levels: list[str] | None = None,
+                         index: Path | None = None) -> Record:
+    """Measure the catalogue again: every competition (of ``levels``) for ``repeats`` regenerated seasons, in memory,
+    and the realism checks on the result (``regista.catalogue.realism.compute``). Nothing is written. A run over some
+    levels leaves every check that needs another level "not measured"."""
+    import os
+
+    from regista.catalogue.measure import level_of, measure
+    from regista.catalogue.realism import compute
+    from regista.season.metrics import load_metrics
+    from regista.catalogue import store
+    from regista.catalogue.taxonomy import ENGLAND_ID
+
+    league, comps = _catalogue_league(index)
+    league_path = store.competition_path(store.entry(ENGLAND_ID, index), index)
+    xt = load_metrics(league_path, Path(os.environ.get("REGISTA_SEASON_ROOT", "data/season/matches"))).xt
+    chosen = [c for c in [league, *comps] if levels is None or level_of(c) in levels]
+    return compute(league, comps, repeats, measure(chosen, repeats, xt, workers))
+
+
+def _num(v: Any, digits: int = 2) -> str:
+    if v is None:
+        return "not measured"
+    if isinstance(v, float) and abs(v) >= 1000:
+        return f"{v:,.0f}"
+    return f"{v:,.{digits}f}" if isinstance(v, float) else str(v)
+
+
+def _val(v: Any, unit: str) -> str:
+    """An order's value in its unit: metres as whole numbers, everything else to two decimals."""
+    if v is None:
+        return "not measured"
+    return f"{v:,.0f}" if unit.startswith("m ") else f"{v:,.2f}"
+
+
+def _step_ratio(st: Record) -> str:
+    return f"{st['margin'] / st['se']:.1f}" if st.get("se") else "n/a"
+
+
+def _weakest(o: Record) -> str:
+    """The step closest to failing: the lowest margin over its standard error (the margin alone without one)."""
+    steps = o.get("steps") or []
+    if not steps:
+        return "not measured"
+    st = min(steps, key=lambda s: (s["margin"] / s["se"]) if s.get("se") else s["margin"])
+    lv = CATALOGUE_LEVEL_LABELS
+    digits = 1 if o["unit"].startswith("m ") else 2
+    return (f"{lv.get(st['lower'], st['lower'])} to {lv.get(st['higher'], st['higher'])}: {st['margin']:+,.{digits}f} "
+            f"({_step_ratio(st)} SE)")
+
+
+CATALOGUE_COMMAND = "python -m regista.synth.report --catalogue --out docs/catalogue/realism.md"
+
+
+def render_catalogue(data: Record, *, source: str, stale: str | None = None, drift: list[str] | None = None,
+                     comparison: Record | None = None, command: str = CATALOGUE_COMMAND) -> str:
+    """The catalogue realism report in Markdown, from a realism verdicts record (the committed file, re-checked, or a
+    fresh measurement). Deterministic: no dates or timings, so docs/catalogue/realism.md can be checked against it."""
+    from regista.catalogue.realism import (NOT_CHECKED, REFERENCES, SCALE_NOTE, SOURCES, WOMEN_ZONE_NOTE, YOUTH_ZONE_NOTE,
+                                           level_kinds)
+    from regista.catalogue.taxonomy import COMPETITIONS, LEVELS
+
+    lv_label = CATALOGUE_LEVEL_LABELS
+    levels = data.get("levels") or {}
+    seasons = data.get("seasons")
+    measured_levels = [k for k in LEVELS if k in levels]
+    summary = catalogue_summary(data)
+    s, a = summary["sourced"], summary["assumed"]
+    lines = ["# Catalogue realism report", "",
+             f"Generated by `{command}`; do not edit by hand. "
+             "Everything in it is synthetic: Regista's own simulated players, measured exactly, set against what published "
+             "studies report. Below the professional line almost nothing is published, so each level gets only the checks "
+             "a source supports, and says so.", "",
+             f"**Measurement:** {source}. Generator {data.get('generator_version')}, catalogue fingerprint "
+             f"`{data.get('catalogue_fingerprint')}`, {seasons} regenerated seasons of "
+             f"{'every' if len(measured_levels) == len(LEVELS) else 'each measured'} competition's full double round "
+             f"robin ({catalogue_matches_measured(seasons or 0, measured_levels):,} matches), never the 3-8 uploaded "
+             "matches, which are far too few for a verdict.", ""]
+    if stale:
+        lines += [f"**Stale:** {stale}. The numbers below are the file's own and may not describe the current catalogue; "
+                  "run `python -m regista.catalogue reliability` to measure again.", ""]
+    if drift:
+        lines += [f"**The committed verdicts differ from the checks' code** for {', '.join(drift)}: shown as the code "
+                  "computes them on the committed aggregates; run `python -m regista.catalogue recheck-realism`.", ""]
+    if comparison:
+        lines += [f"**Compared with the committed measurement:** {comparison['text']}", ""]
+    lines += ["## Verdicts at a glance", "",
+              f"- **Sourced checks: {s['pass']} of {s['total']} pass** (one published band and {s['total'] - 1} sourced "
+              f"orders between levels; {s['fail']} fail, {s['not separated']} not separated, {s['not measured']} not measured).",
+              f"- **Assumed orders: {a['pass']} of {a['total']} hold, {a['fail']} fail** ({a['not separated']} not "
+              f"separated, {a['not measured']} not measured). No source covers these steps; they are measured and shown, "
+              "never counted as a check.",
+              "- **Event rates** have no published band at any level below the professional line. Premier League bands "
+              "stand beside senior semi-pro and college men as an upper reference only, with no verdict.",
+              "- **England semi-pro men** (the Regista League) keep their own report against Premier League bands, "
+              "unchanged: `python -m regista.synth.report --league` (docs/realism-report.md). The generator was tuned to "
+              "those bands, so they are a tuning target there, not independent evidence.", "",
+              f"{SCALE_NOTE}", "",
+              "## Kinds of check", "",
+              "- **band**: a published band read for this level: pass or fail.",
+              "- **order**: a direction a source reports between levels, checked on the pooled seasons. A step passes at "
+              f"{data.get('separation_se', 2.0):g} standard errors or more the way the source reports, fails as clearly the "
+              "other way, and is otherwise not separated. Where the source also gives a size (the women's pass gap), the "
+              "step must fall inside it.",
+              "- **assumed order**: a direction no source covers at these levels (Regista's assumption). Measured the same "
+              "way, never counted.",
+              "- **reference**: a figure from a higher level shown beside the number, no verdict.",
+              "- **none**: no published band. The number is shown; nothing is claimed.", "",
+              "| Level | Competitions | Event rates | Physical | Sourced orders | Assumed orders |",
+              "|---|---|---|---|---|---|"]
+    for key in LEVELS:
+        k = level_kinds(key)
+        comps = ", ".join(c.name for c in COMPETITIONS if c.level_key == key)
+        lines.append(f"| {lv_label[key]} | {comps} | {k['events']} | {k['physical']} | "
+                     f"{', '.join(k['orders']) or 'none'} | {', '.join(k['assumed_orders']) or 'none'} |")
+    lines += ["", "## The levels as measured", "",
+              "Pooled over every competition of the level and every measurement season. Per-90 rates are per outfield "
+              "player; shots and goals are per team per 90, penalties included; peak match speed is the mean of "
+              "outfielders' match top speeds (matches with 10+ minutes played). A match is two halves of 15 minutes, as "
+              "in the league, and per-90 rates normalise it.", "",
+              "| Level | Seasons | Outfield minutes | Pass % | Ball losses | Passes | Team shots | Team goals | Peak speed (km/h) "
+              "| Distance (m) | 20+ km/h (m) | 25+ km/h (m) | Tackles won | Fouls |",
+              "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+    for key in measured_levels:
+        g = levels[key]
+        p = g["outfield_per90"]
+        lines.append(f"| {lv_label[key]} | {g['seasons']} | {g['outfield_minutes']:,.0f} | {_num(g['pass_pct'])} | "
+                     f"{_num(p['ball_losses'])} | {_num(p['passes'])} | {_num(g['team_shots_per90'])} | "
+                     f"{_num(g['team_goals_per90'])} | {_num(g['peak_speed_mean'])} | {p['distance']:,.0f} | "
+                     f"{p['hi_distance']:,.0f} | {p['sprint_distance']:,.0f} | {_num(p['tackles_won'])} | {_num(p['fouls'])} |")
+    for key in LEVELS:
+        if key not in levels:
+            lines.append(f"| {lv_label[key]} | not measured in this run | | | | | | | | | | | | |")
+    lines += ["", "\"Seasons\" counts competition-seasons: a level with two competitions measured six times has 12.", "",
+              "## Band (sourced)", "", "| Check | Level | Measured | Band | Verdict | Source |", "|---|---|---|---|---|---|"]
+    for b in data.get("bands", []):
+        lines.append(f"| {b['label']} | {lv_label.get(b['level'], b['level'])} | {_num(b['value'])} {b['unit']} | "
+                     f"{b['low']}-{b['high']} {b['unit']} | **{b['verdict'] or 'not measured'}** | "
+                     f"{', '.join(b['sources'])} |")
+
+    def order_table(orders: list[Record], assumed: bool) -> list[str]:
+        head = ("| Check | Levels, lowest expected first | Weakest step (margin, SE ratio) | Verdict | "
+                + ("Sources cover only |" if assumed else "Sources |"))
+        out = [head, "|---|---|---|---|---|"]
+        for o in orders:
+            vals = ", ".join(f"{lv_label.get(level, level)} {_val(v, o['unit'])}" for level, v in
+                             zip(o["levels"], o.get("values") or [None] * len(o["levels"])))
+            if assumed:
+                cov = o.get("covers") or {}
+                src = (f"{', '.join(cov.get('sources', []))}: {cov['span']}" if cov.get("span") else "none")
+                if o.get("by_construction"):
+                    src += "; holds by construction (the youth speed scales are interpolated)"
+            else:
+                src = ", ".join(o["sources"]) + (f"; the step must fall inside {o['gap'][0]:g}-{o['gap'][1]:g}"
+                                                 if o.get("gap") else "")
+            out.append(f"| {o['label']} ({o['unit']}) | {vals} | {_weakest(o)} | **{o['verdict'] or 'not measured'}** "
+                       f"| {src} |")
+        return out
+
+    orders = data.get("orders", [])
+    lines += ["", "## Orders between levels (sourced)", ""]
+    lines += order_table([o for o in orders if o.get("basis", "sourced") != "assumed"], assumed=False)
+    lines += ["", "## Assumed orders (no published band)", "",
+              "No source covers these steps. They state Regista's assumption, are measured exactly like the sourced "
+              "orders and are never counted as checks.", ""]
+    lines += order_table([o for o in orders if o.get("basis") == "assumed"], assumed=True)
+    failing = [(o, st) for o in orders for st in (o.get("steps") or []) if st["verdict"] != "pass"]
+    if failing:
+        lines += ["", "Steps that do not pass:", ""]
+        for o, st in failing:
+            kind = "assumed order" if o.get("basis") == "assumed" else "sourced order"
+            lines.append(f"- {o['id']} ({kind}): {lv_label.get(st['lower'], st['lower'])} to "
+                         f"{lv_label.get(st['higher'], st['higher'])} {st['margin']:+,.2f} {o['unit']}"
+                         + (f", against season-to-season noise of +/- {2.0 * st['se']:,.2f} (2 standard errors)"
+                            if st.get("se") else "")
+                         + f": **{st['verdict']}**" + (", outside the sourced gap" if st.get("outside_gap") else "") + ".")
+    lines += ["", "## References (no verdict)", "",
+              "Premier League bands (the Regista League's report) beside the two levels that may be read against them. "
+              "They are upper references: the catalogue's levels are below the professional line, and every level is "
+              "scaled from the Regista League, which was tuned to these bands.", "",
+              "| Measure | Band | " + " | ".join(lv_label[k] for k in ("semi_pro/senior/men", "college/college/men"))
+              + " | What differs |", "|---|---|---|---|---|"]
+    all_norms = {**NORMS, **PHYSICAL_NORMS}
+    for label, key, read, differs in CATALOGUE_PL_REFERENCES:
+        lo, hi, _unit, _note = all_norms[key]
+        cells = []
+        for level in ("semi_pro/senior/men", "college/college/men"):
+            g = levels.get(level)
+            cells.append("not measured" if g is None else _num(round(read(g), 3), 3 if hi < 2 else 2))
+        lines.append(f"| {label} | {lo:g}-{hi:g} | {' | '.join(cells)} | {differs or 'same measure'} |")
+    lines += ["", "Elite and higher-level figures beside the levels they are quoted for (realism.REFERENCES):", "",
+              "| Level | Reference | Source | Measured here |", "|---|---|---|---|"]
+    for level, refs in REFERENCES.items():
+        for metric, items in refs.items():
+            for r in items:
+                g = levels.get(level)
+                shown = CATALOGUE_NOT_COMPARABLE.get(tuple(r["sources"]), "not comparable")
+                if metric in CATALOGUE_REFERENCE_VALUES and tuple(r["sources"]) not in CATALOGUE_NOT_COMPARABLE:
+                    name, fmt = CATALOGUE_REFERENCE_VALUES[metric]
+                    shown = "not measured" if g is None else f"{name} {fmt(g)}"
+                lines.append(f"| {lv_label[level]} | {r['text']} | {', '.join(r['sources'])} | {shown} |")
+    lines += ["", "## Speed zones", "", f"- Women's pools: {WOMEN_ZONE_NOTE}", f"- Youth pools: {YOUTH_ZONE_NOTE}", "",
+              "## Not checked", ""]
+    lines += [f"- {x}" for x in NOT_CHECKED]
+    lines += ["- Long-ball share, or any 'more direct' style, by level: no source was found.",
+              "- Event rates of any single level against a band: none is published below the professional line.",
+              "- Each competition's uploaded matches (3-8): far too few for a verdict. The checks run on the levels' full "
+              "regenerated seasons.", "",
+              "## Method", "", data.get("method", ""), "",
+              "Every competition is classified on tier, age group and gender; its level is the pool key "
+              "`tier/age_group/gender`. Competitions of one level are pooled: "
+              + "; ".join(f"{lv_label[k]}: {', '.join(c.name for c in COMPETITIONS if c.competition_id in levels[k]['competitions'])}"
+                          for k in measured_levels) + ".", "",
+              "## Sources", ""]
+    lines += [f"- [{k}] {v}" for k, v in sorted(SOURCES.items(), key=lambda kv: int(kv[0][1:]))]
+    lines += [f"- Premier League bands: {NORMS_SOURCE} Physical bands: each band's own source in "
+              "`regista.synth.report.PHYSICAL_NORMS` (The Analyst / Opta; FIFA's 2022 World Cup physical analysis, "
+              "Bradley 2023).", ""]
+    return "\n".join(lines)
+
+
+def report_catalogue(index: Path | None = None, regenerate: bool = False, repeats: int | None = None,
+                     workers: int | None = None, levels: list[str] | None = None) -> tuple[Record, str, bool]:
+    """The catalogue realism report: (the verdicts record, the Markdown, ok). By default from the committed measurement
+    beside the catalogue index, its checks re-run on its stored aggregates (no season regenerated). ``ok`` is False when
+    the committed file is missing or stale, when its verdicts differ from the checks' code, or (with ``regenerate``) when
+    the fresh measurement differs from it."""
+    from regista.catalogue import realism as rea
+    from regista.catalogue import store
+    from regista.catalogue.measure import DEFAULT_REPEATS
+
+    path = Path(index or store.index_path()).with_name(rea.FILE_NAME)
+    try:
+        shown = str(path.resolve().relative_to(store.repo_root(path.parent / "catalogue.json")))
+    except ValueError:
+        shown = str(path)
+    try:
+        committed = json.loads(path.read_text())
+    except (OSError, ValueError):
+        committed = None
+    stale = None
+    if committed is None:
+        stale = f"no {rea.FILE_NAME} beside the catalogue index"
+    else:
+        league, comps = _catalogue_league(index)
+        stale = rea.load(path, league, comps).get("stale")
+    if not regenerate:
+        if committed is None:
+            return {"stale": stale}, f"# Catalogue realism report\n\n**{stale}**: run `python -m regista.catalogue reliability`.\n", False
+        data = rea.recheck(committed)
+        drift = catalogue_drift(committed, data)
+        md = render_catalogue(data, source=f"the committed file `{shown}`, its checks re-run on its stored aggregates",
+                              stale=stale, drift=drift)
+        return {**data, "stale": stale, "drift": drift}, md, not stale and not drift
+    repeats = repeats or DEFAULT_REPEATS
+    data = json.loads(json.dumps(regenerate_catalogue(repeats, workers, levels, index), sort_keys=True))
+    names = ", ".join(CATALOGUE_LEVEL_LABELS.get(k, k) for k in sorted(data["levels"]))
+    if not data["levels"]:
+        same, text = False, "nothing was measured."
+    elif committed is None or committed.get("seasons") != repeats:
+        same, text = False, (f"not compared ({'no committed file' if committed is None else 'the committed file has ' + str(committed.get('seasons')) + ' seasons'}).")
+    else:
+        differ = [k for k in data["levels"] if data["levels"][k] != committed["levels"].get(k)
+                  or data["per_season"][k] != committed["per_season"].get(k)]
+        same = not differ and not stale
+        text = (f"the regenerated levels ({names}) equal the committed file's aggregates, season by season."
+                if not differ else f"these levels differ from the committed file: {', '.join(differ)}.")
+    cmd = ("python -m regista.synth.report --catalogue --regenerate"
+           + "".join(f" --level {lv}" for lv in levels or []) + (f" --repeat {repeats}" if repeats != DEFAULT_REPEATS else ""))
+    md = render_catalogue(data, source=f"regenerated now ({repeats} seasons; levels: {names})", stale=stale,
+                          comparison={"text": text, "same": same}, command=cmd)
+    return {**data, "stale": stale, "comparison": {"text": text, "same": same}}, md, same
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Compare synthetic match statistics with Premier League norms.")
     parser.add_argument("match_dir", nargs="?", type=Path, help="a generated match directory (events.jsonl)")
     parser.add_argument("--profile", choices=["demo", "realistic", "league"], help="instead of a directory, simulate this profile")
     parser.add_argument("--league", type=Path, nargs="?", const=Path("data/season/league.json"),
                         help="instead of a directory, regenerate this league's fixtures with their players' ratings")
-    parser.add_argument("--repeat", type=int, default=1, help="with --league: this many seasons, seeds shifted by 1000 each")
+    parser.add_argument("--repeat", type=int, default=None,
+                        help="with --league: this many seasons, seeds shifted by 1000 each (default 1); with --catalogue "
+                             "--regenerate: this many measurement seasons (default 6, the committed measurement's)")
+    parser.add_argument("--catalogue", type=Path, nargs="?", const=None, default=False, metavar="INDEX",
+                        help="each catalogue level against its sourced band, sourced orders, assumed orders and 'no "
+                             "published band', from the committed measurement beside the index (default "
+                             "data/catalogue/catalogue.json); fast, nothing regenerated unless --regenerate")
+    parser.add_argument("--regenerate", action="store_true",
+                        help="with --catalogue: measure every level again on regenerated seasons (a few minutes on ten "
+                             "cores) and compare with the committed measurement; never writes it")
+    parser.add_argument("--level", action="append", default=None,
+                        help="with --catalogue --regenerate: only this level (tier/age_group/gender; repeatable)")
+    parser.add_argument("--workers", type=int, default=None, help="with --catalogue --regenerate: worker processes")
     parser.add_argument("--seeds", type=int, nargs="+", default=[11, 12, 13])
     parser.add_argument("--minutes", type=float, default=20.0)
     parser.add_argument("--out", type=Path, help="write the markdown report here")
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
+    if args.catalogue is not False:
+        return _catalogue_main(args, parser)
     if args.match_dir:
         metrics, md = report_match_dir(args.match_dir)
     elif args.league:
-        metrics, md = report_league(args.league, args.repeat)
+        metrics, md = report_league(args.league, args.repeat or 1)
     elif args.profile:
         metrics, md = report_profile(args.profile, args.seeds, args.minutes)
     else:
@@ -837,6 +1215,28 @@ def main(argv: list[str] | None = None) -> int:
     if args.out:
         args.out.write_text(md, encoding="utf-8")
     return 0
+
+
+def _catalogue_main(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
+    from regista.catalogue.taxonomy import LEVELS
+
+    if args.match_dir or args.league or args.profile:
+        parser.error("--catalogue reports the catalogue's levels: give no match directory, --league or --profile with it")
+    if (args.level or args.workers or args.repeat) and not args.regenerate:
+        parser.error("--level, --workers and --repeat go with --catalogue --regenerate")
+    bad = [lv for lv in args.level or [] if lv not in LEVELS]
+    if bad:
+        parser.error(f"unknown level {bad[0]!r}: one of {', '.join(LEVELS)}")
+    data, md, ok = report_catalogue(args.catalogue, args.regenerate, args.repeat, args.workers, args.level)
+    if args.json:
+        print(json.dumps({**data, "summary": catalogue_summary(data), "ok": ok}, indent=2, sort_keys=True))
+    else:
+        print(md)
+    if args.out:
+        args.out.write_text(md, encoding="utf-8")
+    if not ok:
+        print("catalogue realism: not current (see the report's first lines)", file=sys.stderr)
+    return 0 if ok else 1
 
 
 if __name__ == "__main__":
