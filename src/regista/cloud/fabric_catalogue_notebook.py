@@ -5,10 +5,17 @@ It reads ``catalogue_competitions``, ``catalogue_players``, ``catalogue_matches`
 minutes, counts and per-90 rates of the checked stats, then each rate's percentile in its **level pool** by the
 catalogue's rule (``regista.catalogue.metrics``), written again here:
 
-- **appearances**: a starter, or a player who came on (a ``substitution`` event's ``related_player_id``), in a squad of
-  that competition; **minutes**: the sum of their lineups' ``played_s`` / 60.
+- **time on the pitch, from the events**: the notebook does not take ``played_s`` from ``catalogue_lineups`` or
+  ``catalogue_matches`` (both come from ``regista.season.playing_time``, the rule the engine uses); it works it out again
+  from the ``period_start`` / ``period_end``, ``substitution`` and ``card_red`` events. A match lasts the sum of its
+  periods (``period_end.t - period_start.t``). A starter is on from 0, a substitute from the first ``substitution`` that
+  brings him on (``related_player_id``); a spell ends at the first ``substitution`` that takes him off (``player_id``) or
+  his first ``card_red``, in stream order. A starter who never goes off plays the whole match; anyone else plays the
+  overlap of his spell with each period.
+- **appearances**: a starter, or a player who came on, in a squad of that competition; **minutes**: the sum of his
+  matches' time on the pitch / 60.
 - **qualifying minutes, per competition**: a third of the minutes of the competition's busiest club (a club's minutes are
-  the sum of its matches' ``played_s`` / 60), rounded to 0.1. England (the Regista League, ``source = 'league'``) keeps
+  the sum of its matches' lengths / 60), rounded to 0.1. England (the Regista League, ``source = 'league'``) keeps
   exactly that; every other competition needs at least 45 (one and a half 30-minute matches).
 - **level pools**: the qualified rows of one position over every competition of the same tier, age group and gender
   (England and Germany semi-pro men share one), each row qualified under its own competition's rule.
@@ -57,25 +64,60 @@ STAT_SQL: dict[str, str] = {
 }
 KEY_PASSES = "key_passes"
 
-APPEARED_SQL = """
-CREATE OR REPLACE TEMP VIEW cat_came_on AS
-SELECT DISTINCT match_id, related_player_id AS player_id
-FROM catalogue_events
-WHERE event_type = 'substitution' AND player_id IS NOT NULL AND related_player_id IS NOT NULL
+# Time on the pitch, worked out again from the events (not from catalogue_lineups.played_s or catalogue_matches.played_s).
+PERIODS_SQL = """
+CREATE OR REPLACE TEMP VIEW cat_periods AS
+SELECT s.match_id, s.period, s.t AS t0, e.t AS t1
+FROM catalogue_events s
+JOIN catalogue_events e ON e.match_id = s.match_id AND e.period = s.period AND e.event_type = 'period_end'
+WHERE s.event_type = 'period_start'
+"""
+
+MATCH_LENGTH_SQL = """
+CREATE OR REPLACE TEMP VIEW cat_match_length AS
+SELECT match_id, SUM(t1 - t0) AS length_s FROM cat_periods GROUP BY match_id
+"""
+
+SPELLS_SQL = """
+CREATE OR REPLACE TEMP VIEW cat_spells AS
+WITH came_on AS (
+  SELECT match_id, related_player_id AS player_id, MIN_BY(t, seq) AS t_on
+  FROM catalogue_events
+  WHERE event_type = 'substitution' AND player_id IS NOT NULL AND related_player_id IS NOT NULL
+  GROUP BY match_id, related_player_id
+),
+went_off AS (
+  SELECT match_id, player_id, MIN_BY(t, seq) AS t_off
+  FROM catalogue_events
+  WHERE player_id IS NOT NULL AND ((event_type = 'substitution' AND related_player_id IS NOT NULL) OR event_type = 'card_red')
+  GROUP BY match_id, player_id
+)
+SELECT l.competition_id, l.match_id, l.player_id, l.global_id, CASE WHEN l.starter THEN 0.0D ELSE o.t_on END AS t_on, x.t_off
+FROM catalogue_lineups l
+LEFT JOIN came_on o ON o.match_id = l.match_id AND o.player_id = l.player_id
+LEFT JOIN went_off x ON x.match_id = l.match_id AND x.player_id = l.player_id
+WHERE l.starter OR o.player_id IS NOT NULL
+"""
+
+ON_PITCH_SQL = """
+CREATE OR REPLACE TEMP VIEW cat_on_pitch AS
+SELECT s.competition_id, s.match_id, s.player_id, s.global_id,
+  CASE WHEN s.t_off IS NULL AND s.t_on = 0.0D THEN SUM(p.t1 - p.t0)
+       ELSE SUM(GREATEST(0.0D, LEAST(p.t1, COALESCE(s.t_off, p.t1)) - GREATEST(p.t0, s.t_on))) END AS on_pitch_s
+FROM cat_spells s JOIN cat_periods p ON p.match_id = s.match_id
+GROUP BY s.competition_id, s.match_id, s.player_id, s.global_id, s.t_on, s.t_off
 """
 
 APPEARANCES_SQL = """
 CREATE OR REPLACE TEMP VIEW cat_appeared AS
-SELECT l.competition_id, l.match_id, l.player_id, l.global_id, l.played_s
-FROM catalogue_lineups l
-JOIN catalogue_players p ON p.competition_id = l.competition_id AND p.global_id = l.global_id
-LEFT JOIN cat_came_on o ON o.match_id = l.match_id AND o.player_id = l.player_id
-WHERE l.starter OR o.player_id IS NOT NULL
+SELECT o.competition_id, o.match_id, o.player_id, o.global_id, o.on_pitch_s
+FROM cat_on_pitch o
+JOIN catalogue_players p ON p.competition_id = o.competition_id AND p.global_id = o.global_id
 """
 
 PLAYED_SQL = """
 CREATE OR REPLACE TEMP VIEW cat_played AS
-SELECT competition_id, global_id, COUNT(*) AS appearances, SUM(played_s / 60.0D) AS minutes_raw
+SELECT competition_id, global_id, COUNT(*) AS appearances, SUM(on_pitch_s / 60.0D) AS minutes_raw
 FROM cat_appeared
 GROUP BY competition_id, global_id
 """
@@ -136,9 +178,11 @@ LEFT JOIN cat_tallies t ON t.competition_id = pl.competition_id AND t.global_id 
 QUALIFYING_SQL = f"""
 CREATE OR REPLACE TEMP VIEW cat_qualifying AS
 WITH club_minutes AS (
-  SELECT competition_id, club_id, SUM(played_s / 60.0D) AS club_min
-  FROM (SELECT competition_id, home_club_id AS club_id, played_s FROM catalogue_matches
-        UNION ALL SELECT competition_id, away_club_id AS club_id, played_s FROM catalogue_matches)
+  SELECT competition_id, club_id, SUM(length_s / 60.0D) AS club_min
+  FROM (SELECT m.competition_id, m.home_club_id AS club_id, n.length_s
+        FROM catalogue_matches m JOIN cat_match_length n ON n.match_id = m.match_id
+        UNION ALL SELECT m.competition_id, m.away_club_id AS club_id, n.length_s
+        FROM catalogue_matches m JOIN cat_match_length n ON n.match_id = m.match_id)
   GROUP BY competition_id, club_id
 )
 SELECT c.competition_id, c.tier, c.age_group, c.gender,
@@ -189,8 +233,8 @@ TABLES = ["catalogue_competitions", "catalogue_players", "catalogue_matches", "c
 
 def statements(stats: list[str] | None = None) -> list[str]:
     stats = stats or CATALOGUE_CHECK_STATS
-    return [APPEARED_SQL, APPEARANCES_SQL, PLAYED_SQL, KEY_PASSES_SQL, KEY_PASS_EVENTS_SQL, tallies_sql(stats),
-            rates_sql(stats), QUALIFYING_SQL]
+    return [PERIODS_SQL, MATCH_LENGTH_SQL, SPELLS_SQL, ON_PITCH_SQL, APPEARANCES_SQL, PLAYED_SQL, KEY_PASSES_SQL,
+            KEY_PASS_EVENTS_SQL, tallies_sql(stats), rates_sql(stats), QUALIFYING_SQL]
 
 
 # ============================================================================ the same rule, in plain Python
@@ -205,24 +249,70 @@ EVENT_TESTS = {
 }
 
 
+def match_periods(events: list[dict[str, Any]]) -> dict[str, list[tuple[float, float]]]:
+    """cat_periods: match id -> (start, end) of each period, a period_start joined with its period's period_end."""
+    starts: dict[tuple[str, Any], list[float]] = {}
+    ends: dict[tuple[str, Any], list[float]] = {}
+    for e in events:
+        if e["event_type"] in ("period_start", "period_end") and e["period"] is not None:   # NULL joins nothing
+            (starts if e["event_type"] == "period_start" else ends).setdefault((e["match_id"], e["period"]), []).append(e["t"])
+    out: dict[str, list[tuple[float, float]]] = {}
+    for key in sorted(starts):
+        out.setdefault(key[0], []).extend((t0, t1) for t0 in starts[key] for t1 in ends.get(key, []))
+    return out
+
+
+def match_lengths(events: list[dict[str, Any]]) -> dict[str, float]:
+    """cat_match_length: match id -> seconds played, the sum of its periods."""
+    return {mid: sum(t1 - t0 for t0, t1 in ps) for mid, ps in match_periods(events).items()}
+
+
+def on_pitch(tables: dict[str, list[dict[str, Any]]]) -> dict[tuple[str, str], tuple[str, str, float]]:
+    """cat_spells and cat_on_pitch: (match id, player id) -> (competition id, global id, seconds on the pitch) for every
+    lineup row that started or came on, worked out from the period, substitution and card_red events alone."""
+    events = sorted(tables["catalogue_events"], key=lambda e: (e["match_id"], e["seq"]))
+    periods = match_periods(events)
+    came_on: dict[tuple[str, str], float] = {}
+    went_off: dict[tuple[str, str], float] = {}
+    for e in events:   # first in stream order (MIN_BY(t, seq))
+        if e["player_id"] is None:
+            continue
+        if e["event_type"] == "substitution" and e["related_player_id"] is not None:
+            came_on.setdefault((e["match_id"], e["related_player_id"]), e["t"])
+            went_off.setdefault((e["match_id"], e["player_id"]), e["t"])
+        elif e["event_type"] == "card_red":
+            went_off.setdefault((e["match_id"], e["player_id"]), e["t"])
+    out: dict[tuple[str, str], tuple[str, str, float]] = {}
+    for r in tables["catalogue_lineups"]:
+        key = (r["match_id"], r["player_id"])
+        if not (r["starter"] or key in came_on) or not periods.get(r["match_id"]):
+            continue
+        t_on, t_off = (0.0 if r["starter"] else came_on[key]), went_off.get(key)
+        ps = periods[r["match_id"]]
+        if t_off is None and t_on == 0.0:
+            secs = sum(t1 - t0 for t0, t1 in ps)
+        else:
+            secs = sum(max(0.0, min(t1, t1 if t_off is None else t_off) - max(t0, t_on)) for t0, t1 in ps)
+        out[key] = (r["competition_id"], r["global_id"], secs)
+    return out
+
+
 def catalogue_leaders_rule(tables: dict[str, list[dict[str, Any]]], stats: list[str] | None = None) -> list[dict[str, Any]]:
     """The notebook's SQL, view by view, in plain Python over the same raw catalogue tables: one
     ``catalogue_leaders_check`` row per (competition, player, stat). It reuses nothing from ``regista.catalogue`` or
     ``regista.season``, so comparing it with ``catalogue_player_season`` checks the rule offline."""
     stats = stats or CATALOGUE_CHECK_STATS
     assert set(EVENT_TESTS) | {KEY_PASSES} == set(STAT_SQL) | {KEY_PASSES}
-    events, lineups = tables["catalogue_events"], tables["catalogue_lineups"]
+    events = tables["catalogue_events"]
     squad = {(p["competition_id"], p["global_id"]): p for p in tables["catalogue_players"]}
-    came_on = {(e["match_id"], e["related_player_id"]) for e in events                     # cat_came_on
-               if e["event_type"] == "substitution" and e["player_id"] is not None and e["related_player_id"] is not None}
     appeared: dict[tuple[str, str], tuple[str, str]] = {}                                  # cat_appeared
     played: dict[tuple[str, str], list[float]] = {}                                        # cat_played
-    for r in lineups:
-        if (r["competition_id"], r["global_id"]) in squad and (r["starter"] or (r["match_id"], r["player_id"]) in came_on):
-            appeared[(r["match_id"], r["player_id"])] = (r["competition_id"], r["global_id"])
-            a = played.setdefault((r["competition_id"], r["global_id"]), [0, 0.0])
+    for key, (cid, gid, secs) in on_pitch(tables).items():                                 # cat_spells, cat_on_pitch
+        if (cid, gid) in squad:
+            appeared[key] = (cid, gid)
+            a = played.setdefault((cid, gid), [0, 0.0])
             a[0] += 1
-            a[1] += r["played_s"] / 60.0
+            a[1] += secs / 60.0
     credits: list[tuple[str, str, str]] = []                                               # the tallies' union
     for e in events:
         if e["player_id"] is not None:
@@ -260,11 +350,14 @@ def catalogue_leaders_rule(tables: dict[str, list[dict[str, Any]]], stats: list[
         if who:
             tallies[(*who, s)] = tallies.get((*who, s), 0) + 1
     comps = {c["competition_id"]: c for c in tables["catalogue_competitions"]}             # cat_qualifying
+    lengths = match_lengths(events)                                                        # cat_match_length
     club_min: dict[tuple[str, str], float] = {}
     for m in tables["catalogue_matches"]:
+        if m["match_id"] not in lengths:
+            continue
         for club in (m["home_club_id"], m["away_club_id"]):
             k = (m["competition_id"], club)
-            club_min[k] = club_min.get(k, 0.0) + m["played_s"] / 60.0
+            club_min[k] = club_min.get(k, 0.0) + lengths[m["match_id"]] / 60.0
     min_minutes: dict[str, float] = {}
     for cid, c in comps.items():
         top = [v for (c2, _club), v in club_min.items() if c2 == cid]
@@ -327,7 +420,8 @@ def notebook(workspace_id: str, lakehouse_id: str, lakehouse_name: str, stats: l
 The catalogue holds 14 competitions in 10 countries (England semi-pro men is the Regista League). Its pages show every
 player's goals, assists, shots, key passes, take-ons won, tackles won and interceptions per 90 minutes, as a percentile
 among peers of the same level: tier, age group, gender and position, over every competition of that level. This notebook
-works the same numbers out again in Spark SQL from the raw `catalogue_*` tables (each competition's qualifying minutes,
+works the same numbers out again in Spark SQL from the raw `catalogue_*` tables (time on the pitch from the period,
+substitution and red-card events, each competition's qualifying minutes,
 the level pools, FBref's percentile, no percentile from fewer than 5 peers or for a count of 0) and writes them to
 `catalogue_leaders_check`. `python -m regista.season.fabric check --catalogue` runs it and compares
 `catalogue_leaders_check` with `catalogue_player_season`. It never reads or writes the league's tables.

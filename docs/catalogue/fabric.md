@@ -18,7 +18,7 @@ independent check, in the same way.
 | The second notebook (Spark SQL) and its Python twin `catalogue_leaders_rule` | `src/regista/cloud/fabric_catalogue_notebook.py` |
 | `compare` and `report_lines` for both checks (rows keyed on competition when they carry one) | `src/regista/cloud/fabric.py` |
 | CLI: `push --catalogue`, `push --catalogue-only`, `check --catalogue` | `src/regista/season/fabric.py` |
-| Tests (no test reaches Fabric, OneLake or Azure) | `tests/test_fabric_catalogue.py` (18 tests); `tests/test_fabric.py` unchanged apart from naming the league's tables |
+| Tests (no test reaches Fabric, OneLake or Azure) | `tests/test_fabric_catalogue.py` (24 tests); `tests/test_fabric.py` unchanged apart from naming the league's tables |
 
 The league's tables, its notebook (`regista_leaders_check`), `leaders_check` and its 756-row check are unchanged: the
 catalogue's tables are all named `catalogue_*`, its notebook is a second notebook (`regista_catalogue_check`) that reads
@@ -32,7 +32,7 @@ and writes only `catalogue_*` tables, and plain `push` and `check` do exactly wh
 | `catalogue_clubs` | 66 | one per club and competition (6 league clubs + 60) |
 | `catalogue_players` | 1,188 | one per squad entry (competition, global id): name, club, kit number, position, role, starter, and the public bio only (age, date of birth, height, foot, nationality); `career` on the 10 entries of the 5 people in two squads |
 | `catalogue_matches` | 90 | competition, round, date, score, periods, `played_s`, title, uploader (type `team` 59 / `player` 31, club, player), camera (tripod 39, drone 19, broadcast 18, phone 14; a label only) |
-| `catalogue_lineups` | 3,240 | one per player per match; `played_s` from substitutions and red cards (`regista.season.playing_time`) |
+| `catalogue_lineups` | 3,240 | one per player per match; `played_s` from substitutions and red cards (`regista.season.playing_time`; the notebook does not read it) |
 | `catalogue_events` | 102,904 | every event, with `competition_id` and `seq` (its place in the stream) |
 | `catalogue_possessions` | 30,645 | every possession record, with `seq` (key passes are read off them) |
 | `catalogue_player_season` | 7,399 | Regista's numbers for the check: 1,057 player-competition rows x 7 stats |
@@ -74,18 +74,28 @@ defines three of them differently. The SQL follows the engine; the engine is not
 | goals, assists, take-ons won, interceptions | the same tests | the same tests |
 
 On the committed catalogue the two key-pass rules agree player by player (395 key passes), and every tackle carries
-`success`, so only shots differ in the data: 5 penalty shots.
+`success`, so only shots differ in the data: 5 penalty shots. The other two differences are pinned by built streams
+(below). The schema requires an outcome on every event, so a tackle without one comes only from a stream outside the
+schema; the engine reads such a tackle as won (`r.get("outcome", "success")`) and the SQL does too.
 
 ### The second notebook: `regista_catalogue_check`
 
 Reads `catalogue_competitions`, `catalogue_players`, `catalogue_matches`, `catalogue_lineups`, `catalogue_events` and
 `catalogue_possessions`, and writes the catalogue's rules again in Spark SQL:
 
-- **appearances**: a starter, or a player who came on (a substitution's `related_player_id`), in a squad of that
-  competition; **minutes**: the sum of those lineups' `played_s / 60`. Events count only for a player who appeared in
-  that match, for the competition of the match (a career player's two rows stay apart).
+- **time on the pitch, from the events.** The tables' `played_s` (lineups and matches) is built by
+  `regista.season.playing_time.played_seconds`, the same function the engine uses for minutes, so summing it would make
+  minutes, per-90 and qualification inherit Regista's playing-time rule. The notebook does not read it. It works time on
+  the pitch out again from `catalogue_events` alone: a match lasts the sum of its periods (`period_start` to
+  `period_end`); a starter is on from 0, a substitute from the first `substitution` that brings him on; a spell ends at
+  the first `substitution` that takes him off or his first `card_red`, in stream order (`MIN_BY(t, seq)`); a starter who
+  never goes off plays the whole match, anyone else the overlap of his spell with each period. (The league's notebook
+  still sums `lineups.played_s`; it is unchanged.)
+- **appearances**: a starter, or a player who came on, in a squad of that competition; **minutes**: the sum of his
+  matches' time on the pitch / 60. Events count only for a player who appeared in that match, for the competition of the
+  match (a career player's two rows stay apart).
 - **qualifying minutes, per competition** (`CatalogueMetrics`): a third of the busiest club's minutes, rounded to 0.1
-  (a club's minutes: the sum of its matches' `played_s / 60`); England (`source = 'league'`) keeps exactly that, every
+  (a club's minutes: the sum of its matches' lengths / 60, from the period events); England (`source = 'league'`) keeps exactly that, every
   other competition needs at least 45. Offline: England 100.5, every other competition 45.
 - **level pools**: the qualified rows of one position over every competition of the same tier, age group and gender,
   each row qualified under its own competition's rule (England and Germany semi-pro men share one pool).
@@ -108,18 +118,45 @@ vectors (as the league's notebook does), and shows the top three per level for g
   percentile), and some England percentiles differ from the competition's own (the level pool is in effect);
 - the check is sharp: penalties in the shots, no 45-minute floor, pools per competition, or men and women in one pool
   each make it fail;
+- built streams, for the rules the committed data cannot tell apart, each through the real table builder
+  (`fabric_catalogue._match_rows`) and checked against the engine's own answer on the same stream
+  (`regista.season.metrics.analyse_match`, `qualifying_minutes`, `regista.season.playing_time.played_seconds`):
+  **key passes** (a teammate's pass to the shooter before the previous possession record is outside the window; of three
+  passes in the window the last complete one by a teammate counts; a penalty has none: the twin and the engine credit
+  a2, while the league's `key_pass` qualifier would credit a1 and a rule without the window would credit both);
+  **England without the floor** (two 60-minute matches: qualifying 40.0 in England, 45 elsewhere, so a player with 42
+  minutes qualifies only in England, and applying the floor to England too changes that); **a tackle with no outcome**
+  (won: 2 of 3 for one player, where the league's test gives 1); **time on the pitch** (a red card, a substitution, a
+  substitute sent off, a player sent off after he was substituted: the twin equals `played_seconds` for every player,
+  and zeroing the tables' `played_s` changes no row);
+- on all 90 matches, time on the pitch from the events equals `catalogue_lineups.played_s` for every lineup row that
+  played, and each match's length equals `catalogue_matches.played_s`;
 - a pool of 4 gives no percentile, a count of 0 gives none, keepers have pool size 0;
 - the stats mean what the engine means (per-90, higher is better, count metrics, outfield positions);
 - the notebook reads only `catalogue_*` tables, writes `catalogue_leaders_check`, compiles cell by cell and states its
   rule; the league's notebook does not mention the catalogue;
-- `compare` keeps a career's two rows apart and names the competition in each difference;
+- `compare` keeps a career's two rows apart and names the competition in each difference, and allows one unit of the
+  last digit on minutes and per-90 (two units fail);
 - the CLI: `push --catalogue-only` writes only the 8 catalogue tables, `push --catalogue` the league's and the
   catalogue's, plain `push` only the league's; `check --catalogue` creates and runs `regista_catalogue_check` and
   compares, and a changed number fails it.
 
 What the data does not exercise: England's third (100.5) is above the 45-minute floor, so England's own case changes no
-number here; and no level pool of these stats is under 5 rows (the smallest is 5: academy U17 men forwards), so the
-minimum pool removes no percentile in the real data. The twin's tests exercise both.
+number here; no level pool of these stats is under 5 rows (the smallest is 5: academy U17 men forwards), so the
+minimum pool removes no percentile in the real data; the two key-pass rules agree; and every tackle has an outcome. The
+twin's built cases exercise all four.
+
+### Rounding tolerance
+
+Both sides round per-90 rates to 2 decimals and minutes to 1, so two values differ by 0 or by at least one unit of the
+last digit. They can differ by exactly one unit on a half: Spark's `ROUND` takes a half up on the double's shortest
+decimal form, Python's `round` takes the exact binary value half to even (30.15 minutes is 30.149999... in binary:
+Python 30.1, Spark 30.2). The earlier tolerance (half a unit: 0.005 per 90, 0.05 minutes) would have reported that as a
+mismatch, against what `compare` says it allows ("rounding only"); it is now one unit (0.01 per 90, 0.1 minutes, plus
+float noise), in `regista.cloud.fabric`, shared with the league check, whose 756 of 756 cannot get worse by it. The
+reviewer simulated Spark's `ROUND`/`BROUND` in the twin and shuffled the order of the lineup and match sums over 4 trials:
+7,399 of 7,399 still matched, so this data has no such half either way. Counts, appearances, percentiles, `qualified`
+and pool size stay exact.
 
 ## Run steps (for the lead)
 
@@ -143,6 +180,23 @@ Success: step 2 prints `catalogue_competitions 14`, `catalogue_clubs 66`, `catal
 `catalogue_player_season 7399` and `pushed 8 tables`; step 3 prints the notebook's table counts, `7399 rows in
 catalogue_leaders_check`, `checked 1057 player-competition rows in 14 competitions x 7 stats (...): 7399 of 7399 match`
 and `result: Fabric agrees with Regista`, and exits 0.
+
+## Review round (2026-10-26)
+
+An independent review signed the build off with five should-fix findings, all fixed in this round:
+
+1. **Minutes were not checked independently** (the notebook summed `played_s`, built by the engine's own playing-time
+   function). The notebook now works time on the pitch out from the period, substitution and red-card events
+   (`cat_periods`, `cat_match_length`, `cat_spells`, `cat_on_pitch`; `match_periods`, `match_lengths` and `on_pitch` in
+   the twin). Offline it gives the same 7,399 of 7,399, and equals `played_s` on every lineup row.
+2. **Three rules had no sharpness test** (FBref's key pass, England without the floor, a tackle with no outcome won).
+   Built streams now pin each, against the engine's answer (above).
+3. **The `PER90_TOLERANCE` comment was wrong** (a half-way disagreement is one unit, above half a unit). The tolerance is
+   now one unit of the last digit, with a comment that says why, and a test.
+4. **ruff F401** in `tests/test_fabric.py` (unused `Path`): removed.
+5. **Docs contradicting CLAUDE.md** (`docs/architecture.md`, `docs/criteria.md` called the catalogue unmerged): they now
+   say it is live (PRs #39 and #40, revision `regista-api--d1026204656`), and CLAUDE.md §2.11 and §4.2 name the Fabric
+   push and check as built, not yet run.
 
 ## Real run
 

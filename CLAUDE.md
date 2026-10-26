@@ -311,8 +311,15 @@ round PR #40) and live since 2026-10-26.
   decisions: the engine's minutes stay as they are (a 2 x 15 match's second half counts from 45'), noisy marks stay,
   and catalogue pages count league fixtures only (Femi Toure's Player-view friendly is named, not counted). The
   Foundry Scout agent holds the catalogue tools (public, read-only). New modules: `regista.catalogue.page` (catalogue
-  profiles and pages), `place` (place words), `scout` (the Scout agent's catalogue rules). Not built: a Fabric push of
-  the catalogue, the demo and pitch lines.
+  profiles and pages), `place` (place words), `scout` (the Scout agent's catalogue rules). Not built: the demo and pitch
+  lines.
+- **The catalogue in Microsoft Fabric (built on `feature/catalogue-fabric`, tested offline, not yet pushed or run;
+  `docs/catalogue/fabric.md`):** 8 `catalogue_*` tables beside the league's (England semi-pro men from the league
+  fixtures), Regista's level-pool numbers (`catalogue_player_season`, 7,399 rows) and a second notebook,
+  `regista_catalogue_check`, that recomputes them in Spark SQL from the raw tables alone (time on the pitch from the
+  events, per-competition qualifying minutes, level pools, FBref's percentile, a minimum pool of 5) into
+  `catalogue_leaders_check`; its Python twin matches 7,399 of 7,399 offline. `python -m regista.season.fabric push
+  --catalogue` / `--catalogue-only`, `check --catalogue`. The league's tables and 756-row check are unchanged.
 
 ---
 
@@ -354,7 +361,7 @@ src/regista/player_api.py    the Player view (/me): uploads to the store (admin)
 src/regista/season/playing_time.py  time on the pitch from substitutions and red cards (profiles, build, Fabric lineups)
 src/regista/season/audit.py  can a scout trust it: split-half reliability within a kit slot, the scoring chart (python -m regista.season.audit)
 src/regista/season/reliability.py  split-half reliability per metric (data/season/reliability.json); below 0.3 is marked noisy
-src/regista/catalogue/       the catalogue (feature/catalogue, not merged): 13 more synthetic competitions in 10 countries below the
+src/regista/catalogue/       the catalogue (live since 2026-10-26): 13 more synthetic competitions in 10 countries below the
                              professional line (taxonomy.py levels and scales, names.py, clubs.py, define.py -> data/catalogue/,
                              store.py, build.py -> data/catalogue/matches/, pins.py CATALOGUE_PINS for all 60 uploaded matches);
                              England semi-pro men is league.json by reference, untouched (docs/catalogue/build/design.md)
@@ -370,7 +377,7 @@ src/regista/catalogue/metrics.py  the engine over the catalogue: one SeasonMetri
 src/regista/synth/report.py --catalogue  the catalogue realism report: each level against its sourced band, sourced orders,
                              assumed orders and "no published band", from the committed measurement (fast); --regenerate
                              [--level L] measures again and compares, never writing; output docs/catalogue/realism.md
-src/regista/catalogue_api.py the catalogue's API (feature/catalogue, not merged): /api/catalogue, /api/competitions[/{id}[/players]],
+src/regista/catalogue_api.py the catalogue's API (live since 2026-10-26): /api/catalogue, /api/competitions[/{id}[/players]],
                              /api/catalogue/{players[/{id}],rank,compare,matches,pools}, /api/players/{id}/career; optional
                              competition/country/tier(level)/age_group/gender/scope(pool) on /api/season, /api/players and the
                              terminal endpoints (without them every response is main's: tests/test_catalogue_backcompat.py);
@@ -596,7 +603,8 @@ Sergio Cruz's profile with his two-competition career, a catalogue clip playing 
 fresh revision renders it, about 20 s), the Terminal on 1,057 rows, the Clip view's picker with 94 matches, /me; no
 console errors, no horizontal scroll; "most goals in England" puts Femi Toure first; a write without the token is
 refused (401). 1121 quick tests. Left: Zaid's recorded match (if any), the demo video (storyboard to update for the
-catalogue), the pitch, a Fabric push of the catalogue, making the repo public, submitting by 2026-10-27.
+catalogue), the pitch, the catalogue's Fabric push and check (built on `feature/catalogue-fabric`, tested offline, not
+yet run: `docs/catalogue/fabric.md`), making the repo public, submitting by 2026-10-27.
 
 **Earlier, 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
 the realism report per level (`docs/catalogue/realism.md`: 10 of 10 sourced checks pass, 3 of them confirming a

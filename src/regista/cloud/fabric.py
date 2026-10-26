@@ -369,8 +369,13 @@ CHECK_STATS = ["goals", "assists", "shots", "key_passes", "take_ons_won", "tackl
 # them: shots and key passes leave penalties out there (regista.cloud.fabric_catalogue_notebook says where it differs).
 CATALOGUE_CHECK_STATS = list(CHECK_STATS)
 CATALOGUE_NOTEBOOK_NAME = "regista_catalogue_check"
-PER90_TOLERANCE = 0.005 + 1e-9    # both sides round to 2 decimals; Python and Spark may round a half differently
-MINUTES_TOLERANCE = 0.05 + 1e-9   # Regista keeps minutes to 0.1
+# Both sides round per-90 rates to 2 decimals and minutes to 1, so two values differ by 0 or by at least one unit of the
+# last digit. They can differ by exactly one unit on a half: Spark's ROUND is HALF_UP on the double's shortest decimal
+# form, Python's round is half-even on its exact binary value (30.15 is 30.149999... in binary: Python gives 30.1, Spark
+# 30.2). So the tolerance is one unit of the last digit (plus float noise): a rounding difference passes, and anything
+# larger is a mismatch. Counts, appearances, percentiles, qualified and pool size are compared exactly.
+PER90_TOLERANCE = 0.01 + 1e-9
+MINUTES_TOLERANCE = 0.1 + 1e-9
 OPTIONAL_FIELDS = ("qualified", "pool_size")   # compared when both sides carry them (the catalogue's rows do)
 
 

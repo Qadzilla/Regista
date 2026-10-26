@@ -5,7 +5,6 @@ Everything runs against fakes: a fake HTTP transport for the Fabric and Power BI
 
 import base64
 import json
-from pathlib import Path
 
 import pytest
 
