@@ -1,10 +1,14 @@
-// The Player dashboard (/me): one (synthetic) league player's own space, in six sections under Player profile in the
-// left panel (/me#overview, #profile, #matches, #messages, #team, #settings). It opens on Femi Toure (pl_bro_09) unless
-// the address names another player (?player=pl_…); "Switch player" picks any player of the Regista League.
+// The Player dashboard (/me): one synthetic player's own space, in six sections under Player profile in the left panel
+// (/me#overview, #profile, #matches, #messages, #team, #settings). It opens on Femi Toure (pl_bro_09) unless the address
+// names another player (?player=pl_…); "Switch player" picks any player of the catalogue (14 competitions in 10
+// countries), and every section follows: their club in their competition, their numbers against their level.
 //
-// Live, from the API: the profile (My profile is the same page scouts open, drawn by player/profile-view.js without the
-// scout bar), the numbers and moments, the matches, the club's squad, results and table, uploads with every agent step
-// and its time (polled), "Is this you?" questions and answers, the moments and recap of a finished upload.
+// Live, from the API: the catalogue (/api/catalogue), the player (/api/catalogue/players/{id}?include=profile: My profile
+// is the same page scouts open, drawn by player/profile-view.js `catalogue` without the scout bar; every number is the
+// engine's, England's the Regista League's fixtures only), their club's page (/api/competitions/{id}: squad with minutes,
+// results, the table), the catalogue's uploads of their matches (/api/catalogue/matches), and their own uploads with
+// every agent step and its time (polled), "Is this you?" questions and answers, the moments and recap of a finished
+// upload. A Player-view upload is named on the profile and the competition's page, never counted in their numbers.
 // Per visitor, in this browser only (Regista.demo, shared/demo.js): messages (one store shared with the Scout
 // dashboard), My details edits, settings.
 //
@@ -23,6 +27,13 @@
   const POLL_MS = 2000;
   const IDLE_MS = 15000;
   const POS = { GK: 'Goalkeeper', DF: 'Defender', MF: 'Midfielder', FW: 'Forward' };
+  const GROUP = { GK: 'goalkeepers', DF: 'defenders', MF: 'midfielders', FW: 'forwards' };
+  const ENGLAND = 'co_eng_sp_men';   // the Regista League: its uploads stay the league's friendly form (no competition_id)
+  const FIND_N = 40;                 // Switch player lists this many at a time
+  const CLIP_VIEW = /^\/\?match=[A-Za-z0-9_]+(&[a-z_]+=[A-Za-z0-9_]+)*$/;   // Clip view links from the API
+  // The numbers the Overview leads with, by position (profile stat keys).
+  const LEAD = { FW: ['goals', 'assists', 'shots'], MF: ['key_passes', 'recoveries', 'tackles_won'], DF: ['interceptions', 'tackles_won', 'recoveries'],
+                 GK: ['saves', 'passes_completed', 'recoveries'] };
 
   // h('p', {class: 'muted'}, 'text', child, ...): elements with text children only; attributes are set, never parsed.
   function h(tag, attrs, ...kids) {
@@ -81,7 +92,7 @@
     return `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, '0')} s`;
   }
   const dayText = (epochS) => {
-    try { return new Date(epochS * 1000).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }); } catch (e) { return ''; }
+    try { const d = new Date(epochS * 1000); return isNaN(d) ? '' : `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`; } catch (e) { return ''; }
   };
   const clockText = (epochS) => {
     try { return new Date(epochS * 1000).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
@@ -89,22 +100,27 @@
 
   // ------------------------------------------------------------------------------------------------ state
   const S = {
-    gid: null, P: null, clubs: [], season: null, writes: null, maxMb: 300, store: null,
+    gid: null, P: null, cat: null, writes: null, maxMb: 300, store: null,
+    rows: [], home: {}, matchOf: new Map(), matches: [], moments: [],   // the player's rows (most minutes first), main career entry
+    comps: new Map(),     // competition id -> Promise of GET /api/competitions/{id}
+    clubMatches: new Map(),   // club id -> Promise of GET /api/catalogue/matches?club=
+    catUp: [], teamComp: null, reread: new Set(),
     uploads: new Map(),   // upload_id -> { rec, el, ask, sig, answers: Map(item_id -> bool), parts, results, questions }
     timer: null, busy: false, view: null, nav: null, first: true,
     open: null, draft: [],   // Messages: the open conversation, the moments attached to the reply
   };
   const canWrite = () => S.writes === 'open' || (S.writes === 'token' && !!R.key.get());
 
-  // Who the player is on this dashboard: the league's details, with this browser's "My details" edits on top.
+  // Who the player is on this dashboard: the catalogue's details (their main club), with this browser's "My details" edits
+  // on top.
   function me() {
-    const P = S.P || {};
+    const P = S.P || {}, H = S.home || {};
     const d = (S.gid && demo.details(S.gid)) || {};
     const kit = Number(d.kit_number);
     return {
       name: (typeof d.name === 'string' && d.name.trim()) || P.name || '',
-      position: POS[d.position] ? d.position : P.position,
-      kit_number: Number.isInteger(kit) && kit >= 1 && kit <= 99 ? kit : P.kit_number,
+      position: POS[d.position] ? d.position : H.position,
+      kit_number: Number.isInteger(kit) && kit >= 1 && kit <= 99 ? kit : H.kit_number,
       foot: ['Right', 'Left', 'Both'].includes(d.foot) ? d.foot : '',
       height: Number(d.height) >= 140 && Number(d.height) <= 220 ? Math.round(Number(d.height)) : null,
       bio: typeof d.bio === 'string' ? d.bio.slice(0, 280) : '',
@@ -119,6 +135,43 @@
     $('netRetry').onclick = () => { $('netError').hidden = true; retry(); };
   }
   const offline = (e) => !(e instanceof R.ApiError);
+
+  // The catalogue's words: a competition's level ("semi-pro men"), a club's kit, a match line, its round.
+  const levelWords = (cid) => ((((S.cat || {}).levels || {}).pools || []).find((p) => (p.competitions || []).includes(cid)) || {}).words || '';
+  const clubOf = (id) => ((S.cat && S.cat.clubs) || []).find((c) => c.club_id === id) || null;
+  const kitOf = (id) => (clubOf(id) || {}).kit || {};
+  const compOf = (cid) => ((S.cat && S.cat.competitions) || []).find((c) => c.competition_id === cid) || null;
+  const roundOf = (m) => (m && m.round !== null && m.round !== undefined ? `Round ${m.round}` : 'Friendly');
+  const vsOf = (m) => (!m ? '' : !m.score ? `${m.home ? m.club : m.opponent} v ${m.home ? m.opponent : m.club}`
+    : m.home ? `${m.club} ${m.score} ${m.opponent}` : `${m.opponent} ${m.score} ${m.club}`);
+  const scoreLine = (m) => `${m.home_name} ${(m.score || {}).t_home ?? ''}–${(m.score || {}).t_away ?? ''} ${m.away_name}`;
+  const dayMs = (iso) => Date.parse(`${iso}T15:00:00`) || 0;
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const longDate = (iso) => { const [y, m, d] = String(iso || '').split('-').map(Number); return y && m ? `${d} ${MONTHS[m - 1]} ${y}` : ''; };
+  const clean = (label) => String(label || '').replace(/ \(incl\. penalties\)/, '');
+  const CAMERA = { tripod: 'Tripod', phone: 'Phone', drone: 'Drone', broadcast: 'Broadcast camera' };
+  // The best moments across competitions: highest watchability first, on the ball before replays, each clip once.
+  function bestMoments(n) {
+    const seen = new Set();
+    return [...S.moments].sort((a, b) => ((b.watchability ?? 0) - (a.watchability ?? 0)) || ((a.reason !== 'on_ball_main') - (b.reason !== 'on_ball_main')))
+      .filter((m) => !seen.has(PV.key(m)) && seen.add(PV.key(m))).slice(0, n);
+  }
+  // The player's rows (most minutes first), main career entry, matches and moments, from the catalogue's answer.
+  function derive(P) {
+    const rows = [...(P.rows || [])].sort((a, b) => ((b.sample || {}).minutes || 0) - ((a.sample || {}).minutes || 0));
+    const career = P.career || [];
+    S.rows = rows;
+    S.home = (rows[0] && career.find((e) => e.competition_id === rows[0].competition_id)) || career[0] || {};
+    S.matchOf = new Map();
+    for (const r of rows) for (const m of (r.profile && r.profile.matches) || []) S.matchOf.set(m.match_id, { ...m, club: r.club, club_id: r.club_id, comp: r.competition_id, competition: r.competition });
+    S.matches = [...S.matchOf.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    S.moments = rows.flatMap((r) => ((r.profile && r.profile.moments) || []).map((m) => ({ ...m, comp: r.competition_id })));
+    if (!career.some((e) => e.competition_id === S.teamComp)) S.teamComp = S.home.competition_id;
+  }
+  const compPage = (cid) => {
+    if (!S.comps.has(cid)) { const p = R.api(`/api/competitions/${enc(cid)}`); S.comps.set(cid, p); p.catch(() => S.comps.delete(cid)); }
+    return S.comps.get(cid);
+  };
 
   // ------------------------------------------------------------------------------------------------ sections
   function onSection(section, rest) {
@@ -154,10 +207,10 @@
   async function choose(gid, { quiet = false } = {}) {
     if (!GID_RE.test(gid || '')) return false;
     let p;
-    try { p = await R.api(`/api/players/${enc(gid)}`); } catch (e) {
+    try { p = await R.api(`/api/catalogue/players/${enc(gid)}?include=profile&moments=0`); } catch (e) {
       if (e instanceof R.ApiError && e.status === 404) {
         if (quiet) return false;
-        $('foundNote').textContent = 'That player has not played in the Regista League.';
+        $('foundNote').textContent = 'That player is not in the catalogue.';
         return false;
       }
       if (offline(e)) { netError('Regista cannot be reached. Check the connection.', () => choose(gid, { quiet })); return false; }
@@ -165,7 +218,9 @@
       return false;
     }
     const changed = gid !== S.gid;
+    if (changed) S.teamComp = null;
     S.gid = gid; S.P = p;
+    derive(p);
     const url = new URL(location.href);
     url.searchParams.set('player', gid);
     try { history.replaceState(null, '', url.pathname + url.search + url.hash); } catch (e) { /* the page still works */ }
@@ -176,7 +231,8 @@
       clearTimeout(S.timer);
       S.uploads.forEach((u) => { u.el.remove(); u.ask.remove(); });
       S.uploads.clear();
-      S.open = null; S.draft = [];
+      S.open = null; S.draft = []; S.catUp = [];
+      if (S.view) { S.view.pause(); S.view = null; }
       $('uploadMsg').textContent = '';
     }
     paintAll();
@@ -185,26 +241,26 @@
     return true;
   }
 
-  // After a finished upload the match is in the profile: read it again (the open evidence stays open).
+  // After a finished upload the match is named in the profile: read it again (the open evidence stays open).
   async function reloadProfile() {
     if (!S.gid) return;
     const gid = S.gid;
     try {
-      const p = await R.api(`/api/players/${enc(gid)}`);
+      const p = await R.api(`/api/catalogue/players/${enc(gid)}?include=profile&moments=0`);
       if (gid !== S.gid) return;
       S.P = p;
-      paintProfile(); paintSeason(); paintBest(); paintMatches(); paintActivity();
+      derive(p);
+      paintProfile(); paintSeason(); paintBest(); paintMatches(); paintActivity(); paintCatUploads();
     } catch (e) { /* the old profile stays */ }
   }
 
   function paintAll() {
-    const P = S.P;
     paintIdentity();
     paintProfile();
     paintSeason();
     paintBest();
     paintMatches();
-    fillOpponents();
+    paintAddForm();
     renderKey();
     paintMessages();
     paintTeam();
@@ -212,46 +268,65 @@
     paintNeeds();
     paintActivity();
     paintQuestionsState();
+    paintCatUploads();
     order();
     counts();
   }
 
-  // The header strip (Switch player), the Overview's header and My profile's header, from me().
+  // The bar over every section (who this dashboard is for, Switch player), the Overview's header and My profile's header,
+  // from me().
   function paintIdentity() {
-    const P = S.P, d = me();
+    const d = me(), H = S.home;
     document.title = `${d.name} · Regista Player`;
     $('as').hidden = false;
-    paintMini($('asShirt'), { ...P, kit_number: d.kit_number, position: d.position });
-    $('asName').textContent = d.name;
-    swap($('ovShirt'), shirt(P.kit, d.kit_number, d.position));
+    paintMini($('asShirt'), { kit: kitOf(H.club_id), kit_number: d.kit_number, position: d.position });
+    swap($('asLine'), h('b', {}, d.name), S.gid === demo.PLAYER ? h('span', { class: 'muted' }, '(the default player)') : null,
+      h('span', { class: 'muted' }, `${H.club || ''} · ${H.competition || ''}, ${H.country || ''}`), h('span', { class: 'cp-lvl' }, levelWords(H.competition_id)));
+    swap($('ovShirt'), shirt(kitOf(H.club_id), d.kit_number, d.position));
     $('ovName').textContent = d.name;
-    $('ovLine').textContent = `${POS[d.position] || d.position} · ${P.club} · Number ${d.kit_number}`;
+    $('ovLine').textContent = `${POS[d.position] || d.position} · ${H.club || ''} · Number ${d.kit_number}`;
+    const others = S.rows.slice(1).map((r) => r.competition);
+    swap($('ovWhere'), h('span', {}, `${H.competition || ''} · ${H.country || ''}`), h('span', { class: 'cp-lvl' }, levelWords(H.competition_id)),
+      others.length ? h('span', {}, `also plays in ${others.join(', ')}`) : null);
     if (S.view) S.view.identity(d.name, d.position, d.kit_number, d);
   }
 
   // ------------------------------------------------------------------------------------------------ My profile
-  // The same page scouts open, with My details (name, position, number, foot, height, a line about the player) on top.
+  // The same page scouts open (in the player's words), with My details (name, position, number, foot, height, a line about
+  // the player) on top.
   function paintProfile() {
     const keep = S.view ? S.view.state() : {};
     if (S.view) S.view.pause();
-    S.view = PV.render($('meProfile'), S.P, { stat: keep.stat });
+    S.view = PV.catalogue($('meProfile'), S.P, { cat: S.cat, audience: 'player', stat: keep.stat, comp: keep.comp });
     const d = me();
     if (d.edited) S.view.identity(d.name, d.position, d.kit_number, d);
   }
 
   // ------------------------------------------------------------------------------------------------ Overview
+  // Your season: where the player has the most minutes, three lead numbers with their pool lines (the level scope).
   function paintSeason() {
-    const P = S.P;
-    const keys = (PV.HEADLINE[P.position] || PV.HEADLINE.FW).filter((k) => (P.counts || {})[k] !== undefined).slice(0, 3);
+    const r = S.rows[0];
+    if (!r) {
+      swap($('ovSeason'), h('p', { class: 'muted small ov-more' }, 'Not in an uploaded match yet: your numbers start with your first match.'));
+      return;
+    }
+    const pr = r.profile || {}, st = pr.stats || {};
+    const group = `${levelWords(r.competition_id)} ${GROUP[r.position] || 'players'}`;
     const tile = (n, k, sub) => h('div', { class: 'ov-tile' }, h('span', { class: 'pf-n' }, n), h('span', { class: 'pf-k' }, k), h('span', { class: 'pf-rate' }, sub));
+    const keys = (LEAD[r.position] || LEAD.FW).filter((k) => st[k]);
     swap($('ovSeason'),
-      tile(P.appearances, P.appearances === 1 ? 'Match' : 'Matches', `${Math.round(P.minutes || 0)} minutes`),
-      keys.map((k) => tile(P.counts[k], (P.stat_labels && P.stat_labels[k]) || R.tagLabel(k), PV.pctText((P.percentiles || {})[k], P.position))));
+      tile(pr.appearances, pr.appearances === 1 ? 'Match' : 'Matches', `${Math.round(pr.minutes || 0)} minutes in ${r.competition}`),
+      keys.map((k) => {
+        const c = st[k];
+        const small = c.pool && c.pool.small && c.pool.size >= (c.pool.min_size || 0) && !c.none_yet ? ' (small pool)' : '';
+        return tile(c.count, clean(c.label), `${(c.per90 ?? 0).toFixed(2)} per 90 · ${PV.statPoolLine(c, r, group)}${small}${c.noisy ? ' ≈' : ''}`);
+      }),
+      S.rows.length > 1 ? h('p', { class: 'muted small ov-more' }, `In ${r.competition}, where you have the most minutes. Your numbers in ${S.rows.slice(1).map((x) => x.competition).join(', ')} are on My profile, each against its own level.`) : null,
+      keys.some((k) => st[k].noisy) ? h('p', { class: 'muted small ov-more' }, `≈ ${String((S.cat || {}).noisy_words || '').replace(/^≈ /, '') || 'marks a number to read with care.'}`) : null);
   }
 
   function paintBest() {
-    const P = S.P;
-    const top = PV.best(P, 1)[0];
+    const top = bestMoments(1)[0];
     const v = $('ovVideo');
     $('ovWait').hidden = true;
     if (!top || !clipUrl(top.video_url)) {
@@ -262,15 +337,18 @@
     }
     v.hidden = false;
     if (v.getAttribute('src') !== top.video_url) { v.preload = 'none'; v.src = top.video_url; }
-    const match = (P.matches || []).find((m) => m.match_id === top.match_id);
-    $('ovNow').textContent = [R.reasonLabel(top.reason), PV.roundName(match || top), PV.vsLineFor(P)(match)].filter(Boolean).join(' · ');
+    const match = S.matchOf.get(top.match_id);
+    $('ovNow').textContent = [R.reasonLabel(top.reason), roundOf(match || top), vsOf(match)].filter(Boolean).join(' · ');
     $('ovNow').classList.toggle('replay', top.reason === 'replay_appearance');
     $('ovTitle').textContent = PV.short(top.title);
   }
 
   const latest = () => [...S.uploads.values()].map((u) => u.rec).sort((a, b) => b.created_at - a.created_at);
-  const oppName = (rec) => (rec.opponent && rec.opponent.name) || (S.clubs.find((c) => c.club_id === rec.opponent_club_id) || {}).name || 'another club';
+  const oppName = (rec) => (rec.opponent && rec.opponent.name) || (clubOf(rec.opponent_club_id) || {}).name || 'another club';
   const clipsNote = (rec) => plain(((rec.stages || []).find((s) => s.role === 'clips' && s.note && OK.has(s.status)) || {}).note || '');
+  // A Regista League upload is a friendly (not one of the league's fixtures); a catalogue club's upload is a match of its
+  // competition. Neither counts in the catalogue's numbers.
+  const kindOf = (rec) => (rec.competition_id && rec.competition_id !== ENGLAND ? 'match' : 'friendly');
 
   function paintNeeds() {
     if (!S.P) return;
@@ -286,18 +364,18 @@
     }
     if (asking.length) {
       needs.push({ hot: true, href: '#matches/questions', head: 'Regista has a question for you',
-        sub: `About your friendly v ${oppName(asking[0])}: is this you?`, cta: 'Answer' });
+        sub: `About your ${kindOf(asking[0])} v ${oppName(asking[0])}: is this you?`, cta: 'Answer' });
     }
-    if (!up) {
-      needs.push({ href: '#matches/add', head: 'Add a match', sub: 'Upload footage of a match you played: Regista cuts every moment you are on the ball.', cta: 'Add a match' });
-    } else if (up.status === 'done') {
-      needs.push({ href: '#matches', head: `Your friendly v ${oppName(up)} is ready`, sub: clipsNote(up) || 'Its moments are in your profile.', cta: 'See it' });
-    } else if (up.status === 'failed') {
-      needs.push({ href: '#matches', head: `Your friendly v ${oppName(up)} stopped`, sub: up.error || 'The agents could not finish it.', cta: 'See why' });
-    } else if (up.status !== 'needs_review') {
+    if (up && up.status === 'done') {
+      needs.push({ href: '#matches', head: `Your ${kindOf(up)} v ${oppName(up)} is ready`, sub: clipsNote(up) || 'Its moments are ready to watch.', cta: 'See it' });
+    } else if (up && up.status === 'failed') {
+      needs.push({ href: '#matches', head: `Your ${kindOf(up)} v ${oppName(up)} stopped`, sub: up.error || 'The agents could not finish it.', cta: 'See why' });
+    } else if (up && up.status !== 'needs_review') {
       const now = steps(up).find((r) => r.state === 'running');
       needs.push({ href: '#matches', head: 'Your upload is being processed', sub: now ? `${now.label}: ${now.what}` : 'Regista’s agents are working on it.', cta: 'Follow it' });
     }
+    const where = S.home.competition ? `${S.home.competition}: pick` : 'Pick';
+    needs.push({ href: '#matches/add', head: 'Add a match you filmed', sub: `${where} the opponent, name the camera, upload. Regista cuts every moment you are on the ball.`, cta: 'Add a match' });
     if (!asking.length) {
       const answered = recs.flatMap((r) => (r.notes || []).filter((n) => /answer/i.test(n)));
       needs.push({ href: '#matches', head: 'No “Is this you?” questions waiting',
@@ -307,6 +385,8 @@
       h('span', { class: 'ov-nh' }, n.head), h('span', { class: 'ov-ns' }, n.sub), h('span', { class: 'ov-cta' }, `${n.cta} →`))));
   }
 
+  // Recent activity, newest first: messages, the player's uploads, catalogue uploads they made, their latest matches.
+  // A match their club's team account uploaded is listed once, with the uploader folded into its line.
   function paintActivity() {
     if (!S.P) return;
     const items = [];
@@ -318,54 +398,75 @@
         text: last.from === 'player' ? `You replied to ${s.name} (${s.club})` : `${s.name} (${s.club}) sent you a message` });
     }
     for (const r of latest()) {
-      const what = r.status === 'done' ? `Your friendly v ${oppName(r)} was processed${clipsNote(r) ? `: ${clipsNote(r)}` : ''}`
-        : r.status === 'needs_review' ? `Regista asked you about your friendly v ${oppName(r)}`
-        : r.status === 'failed' ? `Your friendly v ${oppName(r)} stopped` : `Your friendly v ${oppName(r)} is being processed`;
+      const what = r.status === 'done' ? `Your ${kindOf(r)} v ${oppName(r)} was processed${clipsNote(r) ? `: ${clipsNote(r)}` : ''}`
+        : r.status === 'needs_review' ? `Regista asked you about your ${kindOf(r)} v ${oppName(r)}`
+        : r.status === 'failed' ? `Your ${kindOf(r)} v ${oppName(r)} stopped` : `Your ${kindOf(r)} v ${oppName(r)} is being processed`;
       items.push({ k: 'up', at: (r.updated_at || r.created_at) * 1000, href: r.status === 'needs_review' ? '#matches/questions' : '#matches', text: what });
     }
-    const club = S.P.club_id;
-    const results = ((S.season && S.season.rounds) || []).flatMap((rd) => rd.matches.filter((m) => m.home === club || m.away === club)
-      .map((m) => ({ ...m, date: m.date || rd.date }))).sort((a, b) => b.round - a.round).slice(0, 2);
-    for (const m of results) {
-      const sc = m.score || {};
-      items.push({ k: 'match', at: Date.parse(`${m.date}T15:00:00`), href: '#profile',
-        text: `Round ${m.round}: ${m.home_name} ${sc.t_home ?? ''}–${sc.t_away ?? ''} ${m.away_name}` });
+    const listed = new Set();
+    for (const m of S.catUp.filter((x) => x.uploader && x.uploader.type === 'player' && x.uploader.global_id === S.gid).slice(0, 2)) {
+      listed.add(m.match_id);
+      items.push({ k: 'up', at: dayMs(m.date), href: '#matches', text: `You uploaded ${scoreLine(m)}` });
+    }
+    const clubs = new Set((S.P.career || []).map((e) => e.club_id));
+    for (const m of S.matches.filter((x) => !listed.has(x.match_id)).slice(0, 3)) {
+      const u = m.uploader;
+      const by = u && u.type === 'team' && clubs.has(u.club_id) ? ` · uploaded by the ${u.club} team account` : '';
+      items.push({ k: 'match', at: dayMs(m.date), href: '#profile', text: `${roundOf(m)}: ${vsOf(m)}${by}` });
     }
     items.sort((a, b) => (b.at || 0) - (a.at || 0));
-    swap($('ovActivity'), items.length ? items.slice(0, 6).map((it) => h('li', {},
+    swap($('ovActivity'), items.length ? items.slice(0, 7).map((it) => h('li', {},
       h('span', { class: `ov-dot k-${it.k}`, 'aria-hidden': 'true' }), h('a', { href: it.href }, it.text),
       h('span', { class: 'muted small' }, demo.whenText(it.at, true)))) : h('li', { class: 'muted' }, 'Nothing yet.'));
   }
 
   // ------------------------------------------------------------------------------------------------ Switch player
-  async function suggest(note) {
+  // Players who have played in an uploaded match, from the catalogue (sort=name: alphabetical, no places), one entry per
+  // player; with no search, Femi Toure (the default player) first.
+  async function search(note = '') {
+    const q = $('find').value.trim(), comp = $('findComp').value;
+    const qs = `min_minutes=0&sort=name&limit=${FIND_N}${q ? `&q=${enc(q)}` : ''}${comp ? `&competition=${enc(comp)}` : ''}`;
     try {
-      const out = await R.api('/api/players?position=FW&sort=goals&limit=6');
-      listFound(out.players, note || 'Or pick one of the league’s forwards:');
+      const [out, star] = await Promise.all([R.api(`/api/catalogue/players?${qs}`),
+        !q && (!comp || comp === ENGLAND) ? R.api(`/api/catalogue/players?min_minutes=0&sort=name&limit=5&q=${enc('Femi Toure')}`) : null]);
+      const seen = new Map();
+      for (const p of [...((star && star.players) || []).filter((x) => x.global_id === demo.PLAYER), ...(out.players || [])]) {
+        if (!seen.has(p.global_id) || seen.get(p.global_id).minutes < p.minutes) seen.set(p.global_id, p);
+      }
+      const list = [...seen.values()];
+      const careers = !comp && out.total > FIND_N ? ((S.cat && S.cat.careers) || []).filter((c) => !q || c.name.toLowerCase().includes(q.toLowerCase())).length : 0;
+      const total = out.total > FIND_N ? out.total - careers : list.filter((p) => p.global_id !== demo.PLAYER || (out.players || []).some((x) => x.global_id === p.global_id)).length;
+      $('foundNote').textContent = (note ? `${note} ` : '') + (!list.length ? `Nobody matches${q ? ` “${q}”` : ''}. Try a shorter search.`
+        : `${total.toLocaleString('en-GB')} ${total === 1 ? 'player who has' : 'players who have'} played in an uploaded match${q ? ` matching “${q}”` : ''}`
+          + `${out.total > FIND_N ? `; the first ${FIND_N} by name shown, search to narrow it` : ''}. Synthetic data, invented names.`);
+      listFound(list);
     } catch (e) {
-      if (offline(e)) netError('Regista cannot be reached. Check the connection.', suggest);
-      else $('foundNote').textContent = `The league's players could not be listed: ${errText(e)}`;
+      if (offline(e)) netError('Regista cannot be reached. Check the connection.', search);
+      else $('foundNote').textContent = `The catalogue's players could not be listed: ${errText(e)}`;
     }
   }
+  const suggest = (note) => search(typeof note === 'string' ? note : '');
 
-  async function search(q) {
-    if (!q) return suggest();
-    try {
-      const out = await R.api(`/api/players?q=${enc(q)}&sort=name&limit=12`);
-      listFound(out.players, out.players.length ? `${out.players.length === 12 ? 'The first 12' : out.players.length} matching “${q}”:` : `No player matches “${q}”.`);
-    } catch (e) { $('foundNote').textContent = `Search failed: ${errText(e)}`; }
-  }
-
-  function listFound(players, note) {
-    $('foundNote').textContent = note;
+  function listFound(players) {
     swap($('found'), (players || []).map((p) => {
       const mini = h('span', { class: 'mini', 'aria-hidden': 'true' });
       paintMini(mini, p);
       return h('li', {}, h('button', { type: 'button', 'aria-current': p.global_id === S.gid ? 'true' : null, onclick: async () => {
-        if (await choose(p.global_id)) closeFinder(false);
-      } }, mini, h('span', { class: 'who' }, h('span', { class: 'nm' }, p.name),
-        h('span', { class: 'cl' }, `${p.club} · ${POS[p.position] || p.position} · #${p.kit_number}`))));
+        if (await choose(p.global_id)) { closeFinder(false); window.scrollTo(0, 0); }
+      } }, mini, h('span', { class: 'who' },
+        h('span', { class: 'nm' }, p.name, p.global_id === demo.PLAYER ? h('span', { class: 'muted small' }, ' (the default)') : null),
+        h('span', { class: 'cl' }, `${POS[p.position] || p.position} · ${p.club} · #${p.kit_number}`),
+        h('span', { class: 'cp-where small' }, h('span', {}, `${p.competition} · ${p.country}`), h('span', { class: 'cp-lvl' }, levelWords(p.competition_id)),
+          p.career ? h('span', {}, 'plays in two competitions') : null))));
     }));
+  }
+
+  // The Competition filter: every competition, grouped by country.
+  function fillFinder() {
+    const byCountry = new Map();
+    for (const c of (S.cat && S.cat.competitions) || []) { if (!byCountry.has(c.country)) byCountry.set(c.country, []); byCountry.get(c.country).push(c); }
+    swap($('findComp'), h('option', { value: '' }, 'Any'), [...byCountry].map(([country, cs]) => h('optgroup', { label: country },
+      cs.map((c) => h('option', { value: c.competition_id }, `${c.name} (${levelWords(c.competition_id)})`)))));
   }
 
   function openFinder(note) {
@@ -396,9 +497,34 @@
     if (open) setTimeout(() => { $('addBox').scrollIntoView({ behavior: 'smooth', block: 'start' }); const f = $('addBox').querySelector('input:not([type="radio"]), button'); if (f) f.focus({ preventScroll: true }); }, 60);
   }
 
-  function fillOpponents() {
-    const mine = S.P && S.P.club_id;
-    swap($('opponent'), S.clubs.filter((c) => c.club_id !== mine).map((c) => h('option', { value: c.club_id }, c.name)));
+  // Add a match, for the player's own club: 1. the match (their competition, one or two for a career player; Against, that
+  // competition's clubs; home or away; the date played), 2. the footage (the video, the camera it was filmed on, and that
+  // everyone filmed agreed). Both squads become the team sheet the vision agents read kit numbers against.
+  function paintAddForm() {
+    const career = (S.P && S.P.career) || [];
+    const was = $('upComp').value;
+    swap($('upComp'), career.map((e) => h('option', { value: e.competition_id }, `${e.competition} (${e.country}, ${levelWords(e.competition_id)})`)));
+    $('upComp').value = career.some((e) => e.competition_id === was) ? was : (S.home.competition_id || '');
+    const today = new Date();
+    $('upDate').max = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    $('upCamNote').textContent = (S.cat && S.cat.camera_note) || '';
+    fillOpponents();
+  }
+  async function fillOpponents() {
+    const cid = $('upComp').value;
+    const e = ((S.P && S.P.career) || []).find((x) => x.competition_id === cid);
+    const opp = $('opponent');
+    if (!e) { swap(opp); $('upCompNote').textContent = ''; return; }
+    const tested = cid === ENGLAND ? '' : ' Regista\'s vision agents were measured on Regista League matches; on other clubs\' kits they have been run on one test match so far, so check the moments they find.';
+    $('upCompNote').textContent = `You play for ${e.club} in ${e.competition}. Both squads become the team sheet the vision agents read kit numbers against.${tested}`;
+    swap(opp, h('option', { value: '' }, 'Loading the clubs…'));
+    try {
+      const comp = await compPage(cid);
+      if ($('upComp').value !== cid) return;
+      swap(opp, (comp.clubs || []).filter((c) => c.club_id !== e.club_id).map((c) => h('option', { value: c.club_id }, c.name)));
+    } catch (err) {
+      if ($('upComp').value === cid) swap(opp, h('option', { value: '' }, 'The clubs could not be loaded'));
+    }
   }
 
   function renderKey() {
@@ -463,16 +589,28 @@
 
   async function upload(e) {
     e.preventDefault();
+    const cid = $('upComp').value;
     const f = $('video').files[0];
+    const date = $('upDate').value;
+    if (!cid) { say('Pick the competition the match was in.', 'bad'); return; }
+    if (!$('opponent').value) { say('Pick the club you played against.', 'bad'); return; }
+    if (!date) { say('Say when the match was played.', 'bad'); $('upDate').focus(); return; }
+    if ($('upDate').max && date > $('upDate').max) { say('That date is in the future: upload a match that has been played.', 'bad'); return; }
     if (!f) { say('Pick the video first.', 'bad'); return; }
     if (!/\.mp4$/i.test(f.name)) { say('The footage must be an MP4 file (.mp4).', 'bad'); return; }
     if (f.size > S.maxMb * 1024 * 1024) { say(`That video is ${(f.size / 1048576).toFixed(0)} MB; the limit is ${S.maxMb} MB.`, 'bad'); return; }
-    if (!$('opponent').value) { say('Pick the club you played against.', 'bad'); return; }
+    if (!$('upConsent').checked) { say('Tick that everyone you filmed agreed: Regista only takes footage of players who said yes.', 'bad'); $('upConsent').focus(); return; }
     const side = (document.querySelector('input[name="side"]:checked') || {}).value || 'home';
+    const camera = (document.querySelector('input[name="camera"]:checked') || {}).value || 'tripod';
     const fd = new FormData();
     fd.append('global_id', S.gid);
     fd.append('opponent_club_id', $('opponent').value);
     fd.append('side', side);
+    // A Regista League match stays the league's friendly form (no competition_id); any other club's names its competition.
+    if (cid !== ENGLAND) fd.append('competition_id', cid);
+    fd.append('date', date);
+    fd.append('camera', camera);
+    fd.append('consent', 'yes');
     fd.append('video', f, f.name);
     $('uploadGo').disabled = true; say('');
     $('sending').hidden = false;
@@ -489,6 +627,7 @@
       const out = await send(fd, progress);
       say(`Uploaded. The vision job is queued${out.store === 'azure' ? ' in Azure' : ''}: follow it under Your uploads.`, 'ok');
       $('uploadForm').reset();
+      paintAddForm();
       upsert(out.upload);
       order();
       schedule(300);
@@ -497,7 +636,7 @@
     } catch (err) {
       if (err.status === 401) { R.key.clear(); renderKey(); say('That key was not accepted. Paste it again.', 'bad'); }
       else if (err.status === 403) say(errText(err), 'bad');
-      else say(`The upload failed: ${errText(err)}`, 'bad');
+      else say(`The upload was refused: ${errText(err)}`, 'bad');
     } finally {
       $('sending').hidden = true;
       $('uploadGo').disabled = !canWrite();
@@ -517,7 +656,7 @@
     { key: 'writer', label: 'Match written', roles: ['vision_writer'], what: 'Writes the match as Regista’s event stream.' },
     { key: 'clips', label: 'Clips cut', roles: ['clips', 'ingest', 'validator', 'possession', 'clip', 'label', 'recap', 'persist', 'indexer', 'profiles', 'profile'],
       what: 'Cuts every moment you are on the ball, plus your replays, and labels them.' },
-    { key: 'saved', label: 'Saved', roles: ['publish'], what: 'The match joins your profile.' },
+    { key: 'saved', label: 'Saved', roles: ['publish'], what: 'The match is listed on your profile and your competition’s page (named there, not counted in the numbers).' },
   ];
   const OK = new Set(['ok', 'done', 'completed', 'success', 'succeeded']);
   const RUN = new Set(['running', 'started', 'working', 'retry', 'retrying']);
@@ -605,7 +744,7 @@
     return [ol, line];
   }
 
-  const title = (rec) => `Friendly v ${oppName(rec)}`;
+  const title = (rec) => `${kindOf(rec) === 'match' ? 'Match' : 'Friendly'} v ${oppName(rec)}`;
 
   // One card per upload, kept across polls: only the parts whose data changed are rebuilt, so a playing clip or an
   // answer in progress is never reset by the next poll. The card's questions live in the "Is this you?" panel.
@@ -630,7 +769,8 @@
     const total = (rec.stages || []).reduce((t, s) => t + (typeof s.ms === 'number' ? s.ms : 0), 0);
     swap(u.parts.head, h('div', {},
       h('h3', {}, title(rec)),
-      h('p', { class: 'muted small' }, [`Uploaded ${dayText(rec.created_at)}, ${clockText(rec.created_at)}`, rec.side === 'away' ? 'away' : 'at home',
+      h('p', { class: 'muted small' }, [`Uploaded ${dayText(rec.created_at)}, ${clockText(rec.created_at)}`, rec.competition && rec.competition.name, rec.side === 'away' ? 'away' : 'at home',
+        rec.date_played ? `played ${longDate(rec.date_played)}` : null, rec.camera ? `filmed on: ${(CAMERA[rec.camera] || rec.camera).toLowerCase()}` : null,
         rec.size_bytes ? `${(rec.size_bytes / 1048576).toFixed(1)} MB` : null, rec.source === 'synthetic' ? 'synthetic footage' : null,
         rec.status === 'done' && total ? `processed in ${dur(total)}${S.store === 'azure' ? ' on Azure Container Apps' : ''}` : null].filter(Boolean).join(' · '))),
     h('span', { class: `pf-status ${rec.status}` }, STATUS[rec.status] || rec.status));
@@ -669,6 +809,11 @@
       S.store = out.store || null;
       $('netError').hidden = true;
       for (const rec of out.uploads || []) upsert(rec);
+      // A finished upload the profile does not name yet (the first read of the uploads brings the match into the app):
+      // read the profile again once, so My profile and All your matches name it.
+      const named = new Set(((S.P && S.P.not_counted) || []).map((u) => u.match_id));
+      const fresh = (out.uploads || []).filter((r) => r.status === 'done' && r.match_id && !named.has(r.match_id) && !S.reread.has(r.match_id));
+      if (fresh.length) { fresh.forEach((r) => S.reread.add(r.match_id)); reloadProfile(); }
       order();
       paintNeeds(); paintActivity(); paintQuestionsState();
     } catch (e) {
@@ -793,12 +938,12 @@
     swap(u.parts.res,
       h('div', { class: 'pf-bar' }, h('h3', {}, `Your moments: ${mine.length}`),
         h('span', { class: 'badge filmed' }, 'Filmed by you · cut from video')),
-      h('p', { class: 'muted small' }, mine.length ? `Best first. ${mine.length > best.length ? `The best ${best.length} are here, and every one is on Home. ` : 'Each one opens on Home too. '}The match now counts in your profile.`
-        : 'Regista found no moments of you on the ball in this footage. The match still counts in your profile.'),
+      h('p', { class: 'muted small' }, mine.length ? `Best first. ${mine.length > best.length ? `The best ${best.length} are here, and every one is on Home. ` : 'Each one opens on Home too. '}The match is listed on your profile; the catalogue's numbers count your competition's own matches only, so it is not counted in them.`
+        : 'Regista found no moments of you on the ball in this footage. The match is still listed on your profile (not counted in its numbers).'),
       best.length ? h('div', { class: 'moments' }, best.map(moment)) : null,
       h('div', { class: 'links' },
         h('a', { class: 'pf-btn', href: href(links.clip_view) }, 'Open the match on Home'),
-        h('a', { class: 'btn alt', href: '#profile' }, 'See your updated profile')));
+        h('a', { class: 'btn alt', href: '#profile' }, 'See your profile')));
     const mid = u.rec.match && u.rec.match.match_id;
     if (mid && pid) {
       const box = h('section', { class: 'recap', 'aria-label': 'Your match recap' }, h('p', { class: 'muted small' }, 'Writing your match recap…'));
@@ -870,15 +1015,64 @@
   }
 
   // ------------------------------------------------------------------------------------------------ All your matches
+  // Every uploaded match the player played in, newest first, each opening in the Clip view on them; then the matches the
+  // catalogue names and does not count (their Player-view uploads, confirmed claims).
   function paintMatches() {
-    const P = S.P;
-    const vs = PV.vsLineFor(P);
-    const rows = [...(P.matches || [])].reverse();
-    swap($('allMatches'), rows.length ? rows.map((m) => h('li', {}, h('a', { href: PV.matchHref(m) },
-      h('span', { class: 'pf-round' }, PV.roundName(m)),
-      h('span', { class: 'pf-vs' }, vs(m), m.source === 'upload' ? h('span', { class: 'badge filmed' }, 'Filmed by you') : null),
-      h('span', { class: 'pf-mm muted' }, m.home ? 'At home' : 'Away'),
-      h('span', { class: 'pf-open' }, 'Open on Home')))) : h('li', { class: 'muted' }, 'No matches yet.'));
+    const many = S.rows.length > 1;
+    const href = (v) => (CLIP_VIEW.test(String(v || '')) ? v : '/');
+    const rows = S.matches.map((m) => h('li', {}, h('a', { href: href(m.clip_view) },
+      h('span', { class: 'pf-round' }, roundOf(m)),
+      h('span', { class: 'pf-vs' }, vsOf(m)),
+      h('span', { class: 'pf-mm muted' }, [longDate(m.date), m.home ? 'at home' : 'away', many ? m.competition : null].filter(Boolean).join(' · ')),
+      h('span', { class: 'pf-open' }, 'Open on Home'))));
+    const named = ((S.P && S.P.not_counted) || []).map((u) => h('li', {}, h('a', { href: href(u.clip_view) },
+      h('span', { class: 'pf-round' }, u.kind === 'friendly' ? 'Friendly' : 'Match'),
+      h('span', { class: 'pf-vs' }, u.opponent ? `v ${u.opponent}` : (u.title || ''), h('span', { class: 'badge filmed' }, u.source === 'claim' ? 'Claimed' : 'Filmed by you')),
+      h('span', { class: 'pf-mm muted' }, [longDate(u.date), 'not counted in your numbers'].filter(Boolean).join(' · ')),
+      h('span', { class: 'pf-open' }, 'Open on Home'))));
+    swap($('allMatches'), rows.length || named.length ? [...named, ...rows] : h('li', { class: 'muted' }, 'No matches yet.'));
+  }
+
+  // The catalogue's uploads of the player's matches: ones they uploaded, or that their club's team account uploaded of a
+  // match they played (GET /api/catalogue/matches?club=, each club of their career). Uploader and camera as named.
+  async function paintCatUploads() {
+    const gid = S.gid, P = S.P;
+    const career = (P && P.career) || [];
+    const clubs = new Set(career.map((e) => e.club_id));
+    const box = $('catUploads');
+    try {
+      const lists = await Promise.all([...clubs].map((club) => {
+        if (!S.clubMatches.has(club)) {
+          const pr = R.api(`/api/catalogue/matches?club=${enc(club)}&limit=200`);
+          S.clubMatches.set(club, pr); pr.catch(() => S.clubMatches.delete(club));
+        }
+        return S.clubMatches.get(club);
+      }));
+      if (gid !== S.gid) return;
+      const seen = new Set();
+      S.catUp = lists.flatMap((l) => l.matches || []).filter((m) => {
+        const u = m.uploader || {};
+        const ok = (u.type === 'player' && u.global_id === gid) || (u.type === 'team' && clubs.has(u.club_id) && S.matchOf.has(m.match_id));
+        if (!ok || seen.has(m.match_id)) return false;
+        seen.add(m.match_id); return true;
+      }).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    } catch (e) { S.catUp = []; }
+    if (gid !== S.gid) return;
+    const many = career.length > 1;
+    swap(box, S.catUp.length ? [
+      h('h3', { class: 'me-uph' }, 'In the catalogue'),
+      h('p', { class: 'muted small' }, 'Matches you, or your club’s team account, uploaded. The camera is the label the uploader chose; Regista draws every match the same way.'),
+      h('ol', { class: 'cp-uploads' }, S.catUp.map((m) => {
+        const u = m.uploader || {};
+        return h('li', { class: 'cp-up' }, h('span', { class: 'cp-update' }, longDate(m.date)),
+          h('span', { class: 'cp-upmain' }, h('b', {}, scoreLine(m)),
+            h('span', { class: 'muted small' }, [roundOf(m), many ? m.competition : null].filter(Boolean).join(' · ')),
+            h('span', { class: 'small' }, u.type === 'player' ? 'Uploaded by you' : `Uploaded by the ${u.club} team account`, ' · ',
+              h('span', { class: 'cp-cam' }, CAMERA[m.camera] || m.camera || ''))),
+          (() => { const v = (S.matchOf.get(m.match_id) || {}).clip_view || m.clip_view;   // on the player when they played in it
+            return CLIP_VIEW.test(String(v || '')) ? h('a', { class: 'cp-watch', href: v }, 'Watch in the Clip view') : null; })());
+      }))] : []);
+    paintActivity();
   }
 
   // ------------------------------------------------------------------------------------------------ Messages
@@ -891,16 +1085,15 @@
 
   // A moment as a clip card that plays where it is (match AND clip id: clip ids repeat across matches).
   function clipCard(r, onRemove) {
-    const P = S.P;
-    const match = (P.matches || []).find((m) => m.match_id === r.match_id);
+    const match = S.matchOf.get(r.match_id);
     const src = clipUrl(r.video_url);
     const video = h('video', { controls: true, playsinline: true, preload: 'none', 'aria-label': PV.short(r.title) });
     if (src) video.src = src;
     return h('div', { class: 'mx-clip' }, video,
       h('div', { class: 'mx-cinfo' },
-        h('span', { class: `reason${r.reason === 'replay_appearance' ? ' replay' : ''}` }, [R.reasonLabel(r.reason), PV.roundName(match || { round: r.round })].filter(Boolean).join(' · ')),
+        h('span', { class: `reason${r.reason === 'replay_appearance' ? ' replay' : ''}` }, [R.reasonLabel(r.reason), roundOf(match || { round: r.round })].filter(Boolean).join(' · ')),
         h('b', {}, PV.short(r.title)),
-        h('span', { class: 'muted small' }, match ? PV.vsLineFor(P)(match) : r.opponent ? `v ${r.opponent}` : '')),
+        h('span', { class: 'muted small' }, match ? vsOf(match) : r.opponent ? `v ${r.opponent}` : '')),
       onRemove ? h('button', { type: 'button', class: 'link mx-unpick', 'aria-label': `Remove ${PV.short(r.title)}`, onclick: onRemove }, '×') : null);
   }
 
@@ -964,12 +1157,10 @@
 
   // The player's own best moments, to attach to a reply.
   function paintPicker() {
-    const P = S.P;
     const picked = new Set(S.draft.map(demo.refKey));
-    const vs = PV.vsLineFor(P);
-    const mine = PV.best(P, 8);
+    const mine = bestMoments(8);
     swap($('mxPickList'), mine.length ? mine.map((m) => {
-      const match = (P.matches || []).find((x) => x.match_id === m.match_id);
+      const match = S.matchOf.get(m.match_id);
       const box = h('input', { type: 'checkbox', value: PV.key(m) });
       box.checked = picked.has(PV.key(m));
       box.addEventListener('change', () => {
@@ -978,7 +1169,7 @@
         paintDraft();
       });
       return h('li', {}, h('label', {}, box, h('span', {}, h('b', {}, PV.short(m.title)), ' ',
-        h('span', { class: 'muted small' }, `${PV.roundName(match || m)} · ${vs(match)}`))));
+        h('span', { class: 'muted small' }, `${roundOf(match || m)} · ${vsOf(match)}`))));
     }) : h('li', { class: 'muted small' }, 'No moments of you yet.'));
   }
 
@@ -996,6 +1187,9 @@
   }
 
   // ------------------------------------------------------------------------------------------------ Team
+  // My details (this browser only), then the player's club in their competition (GET /api/competitions/{id}): crest, city
+  // and ground, the squad with each player's minutes there, the club's results, and England's league table or, where only
+  // some matches are uploaded, what each club's uploaded matches add up to. A career player picks between their clubs.
   function paintTeam() {
     const P = S.P, d = me();
     $('tmName').value = d.name;
@@ -1006,40 +1200,70 @@
     $('tmHeight').value = d.height ? String(d.height) : '';
     $('tmBio').value = d.bio;
     $('tmUndo').hidden = !d.edited;
-    const club = S.clubs.find((c) => c.club_id === P.club_id) || { name: P.club, kit: P.kit, squad: [] };
-    const kit = club.kit || P.kit || {};
+    const career = (P && P.career) || [];
+    const cid = S.teamComp || S.home.competition_id;
+    const e = career.find((x) => x.competition_id === cid) || S.home;
+    swap($('tmClubs'), career.length > 1 ? career.map((x) => h('button', { type: 'button', class: 'chip', 'aria-pressed': String(x.competition_id === cid),
+      onclick: () => { S.teamComp = x.competition_id; paintTeam(); } }, `${x.club} · ${x.competition}`)) : []);
+    $('tmClubs').hidden = career.length < 2;
+    const kit = kitOf(e.club_id);
     $('tmCrest').style.background = `linear-gradient(135deg, ${colour(kit.primary, '#444')} 50%, ${colour(kit.secondary, '#fff')} 50%)`;
-    $('tmClubHead').textContent = club.name;
-    const table = (S.season && S.season.table) || [];
-    const row = table.find((t) => t.club_id === P.club_id);
-    $('tmClubLine').textContent = [S.season ? `${S.season.league} ${S.season.season}` : null, club.ground || null,
-      row ? `${PV.ordinal(row.position)} in the table, ${row.points} points` : null].filter(Boolean).join(' · ');
-    const num = (p) => (p.global_id === S.gid ? d.kit_number : p.kit_number);
-    const squad = [...(club.squad || [])].sort((a, b) => num(a) - num(b));
-    swap($('tmSquad'), squad.length ? squad.map((p) => {
-      const you = p.global_id === S.gid;
-      return h('li', { class: you ? 'you' : null },
-        h('span', { class: 'tm-num' }, you ? d.kit_number : p.kit_number),
-        h('span', {}, you ? d.name : p.name, you ? h('span', { class: 'badge filmed' }, 'You') : null),
-        h('span', { class: 'muted small' }, `${POS[you ? d.position : p.position] || p.position}${p.starter ? '' : ' · sub'}`));
-    }) : h('li', { class: 'muted' }, 'The squad could not be loaded.'));
-    const results = ((S.season && S.season.rounds) || []).flatMap((rd) => rd.matches.filter((m) => m.home === P.club_id || m.away === P.club_id))
-      .sort((a, b) => b.round - a.round);
-    swap($('tmResults'), results.length ? results.map((m) => {
-      const sc = m.score || {};
-      const us = m.home === P.club_id ? sc.t_home : sc.t_away, them = m.home === P.club_id ? sc.t_away : sc.t_home;
-      const res = us > them ? 'W' : us < them ? 'L' : 'D';
-      return h('li', {}, h('span', { class: `tm-res r-${res}`, title: { W: 'Won', L: 'Lost', D: 'Drawn' }[res] },
-        res, h('span', { class: 'sr' }, ` (${{ W: 'won', L: 'lost', D: 'drawn' }[res]})`)),
-        h('span', { class: 'pf-round' }, `Round ${m.round}`), h('span', {}, `${m.home_name} ${sc.t_home ?? ''}–${sc.t_away ?? ''} ${m.away_name}`));
-    }) : h('li', { class: 'muted' }, 'No results yet.'));
-    const th = (t, full) => h('th', { scope: 'col', title: full || null }, full ? h('abbr', { title: full }, t) : t);
-    swap($('tmTable'),
-      h('caption', { class: 'sr' }, 'The league table'),
-      h('thead', {}, h('tr', {}, th('#', 'Position'), th('Club'), th('P', 'Played'), th('W', 'Won'), th('D', 'Drawn'), th('L', 'Lost'), th('GD', 'Goal difference'), th('Pts', 'Points'))),
-      h('tbody', {}, table.map((t) => h('tr', { class: t.club_id === P.club_id ? 'you' : null },
-        h('td', {}, t.position), h('td', {}, t.club), h('td', {}, t.played), h('td', {}, t.won), h('td', {}, t.drawn), h('td', {}, t.lost),
-        h('td', {}, `${t.goal_difference > 0 ? '+' : ''}${t.goal_difference}`), h('td', {}, h('b', {}, t.points))))));
+    $('tmClubHead').textContent = e.club || '';
+    const where = [`${e.competition}, ${e.country}`, levelWords(cid)];
+    $('tmClubLine').textContent = where.join(' · ');
+    swap($('tmSquad'), h('li', { class: 'muted' }, 'Loading the squad…'));
+    compPage(cid).then((comp) => {
+      if ((S.teamComp || S.home.competition_id) !== cid || S.P !== P) return;
+      const club = (comp.clubs || []).find((c) => c.club_id === e.club_id) || { squad: [] };
+      const row = (comp.table || []).find((t) => t.club_id === e.club_id);
+      $('tmClubLine').textContent = [...where, [club.city, club.ground].filter(Boolean).join(', ') || null,
+        row ? (row.position === 1 ? `top of the table, ${row.points} points` : `${PV.ordinal(row.position)} in the table, ${row.points} points`)
+          : `${club.uploaded_matches || 0} uploaded ${club.uploaded_matches === 1 ? 'match' : 'matches'}`].filter(Boolean).join(' · ');
+      // My details are the player's at their main club; at a second club they keep that club's number and position.
+      const mine = (p) => p.global_id === S.gid && cid === S.home.competition_id;
+      const num = (p) => (mine(p) ? d.kit_number : p.kit_number);
+      const squad = [...(club.squad || [])].sort((a, b) => num(a) - num(b));
+      swap($('tmSquad'), squad.length ? squad.map((p) => {
+        const you = p.global_id === S.gid;
+        return h('li', { class: you ? 'you' : null },
+          h('span', { class: 'tm-num' }, num(p)),
+          h('span', {}, you ? d.name : p.name, you ? h('span', { class: 'badge filmed' }, 'You') : null),
+          h('span', { class: 'muted small' }, `${POS[mine(p) ? d.position : p.position] || p.position}${p.played ? ` · ${Math.round(p.minutes || 0)} min` : ' · no minutes yet'}`));
+      }) : h('li', { class: 'muted' }, 'The squad could not be loaded.'));
+      const full = Array.isArray(comp.table) && comp.table.length > 0;
+      $('tmResHead').textContent = full ? 'Results' : 'Uploaded matches';
+      const ms = (comp.matches || []).filter((m) => m.home === e.club_id || m.away === e.club_id)
+        .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      swap($('tmResults'), ms.length ? ms.map((m) => {
+        const sc = m.score || {};
+        const us = m.home === e.club_id ? sc.t_home : sc.t_away, them = m.home === e.club_id ? sc.t_away : sc.t_home;
+        const res = us > them ? 'W' : us < them ? 'L' : 'D';
+        return h('li', {}, h('span', { class: `tm-res r-${res}`, title: { W: 'Won', L: 'Lost', D: 'Drawn' }[res] },
+          res, h('span', { class: 'sr' }, ` (${{ W: 'won', L: 'lost', D: 'drawn' }[res]})`)),
+          h('span', { class: 'pf-round' }, roundOf(m)), h('span', {}, scoreLine(m)));
+      }) : h('li', { class: 'muted' }, 'No uploaded matches yet.'));
+      const th = (t, full2) => h('th', { scope: 'col', title: full2 || null }, full2 ? h('abbr', { title: full2 }, t) : t);
+      $('tmTableHead').textContent = full ? 'League table' : 'Results so far';
+      $('tmTableNote').hidden = full;
+      $('tmTableNote').textContent = full ? '' : 'Uploaded matches only, not a league table: what each club’s uploaded matches add up to.';
+      $('tmTable').classList.toggle('nopos', !full);
+      if (full) {
+        swap($('tmTable'),
+          h('caption', { class: 'sr' }, 'The league table'),
+          h('thead', {}, h('tr', {}, th('#', 'Position'), th('Club'), th('P', 'Played'), th('W', 'Won'), th('D', 'Drawn'), th('L', 'Lost'), th('GD', 'Goal difference'), th('Pts', 'Points'))),
+          h('tbody', {}, comp.table.map((t) => h('tr', { class: t.club_id === e.club_id ? 'you' : null },
+            h('td', {}, t.position), h('td', {}, t.club), h('td', {}, t.played), h('td', {}, t.won), h('td', {}, t.drawn), h('td', {}, t.lost),
+            h('td', {}, `${t.goal_difference > 0 ? '+' : ''}${t.goal_difference}`), h('td', {}, h('b', {}, t.points))))));
+      } else {
+        swap($('tmTable'),
+          h('caption', { class: 'sr' }, 'Results so far, uploaded matches only'),
+          h('thead', {}, h('tr', {}, th('Club'), th('Up', 'Uploaded matches'), th('W', 'Won'), th('D', 'Drawn'), th('L', 'Lost'), th('Goals', 'Goals for and against'))),
+          h('tbody', {}, (comp.results || []).map((t) => h('tr', { class: t.club_id === e.club_id ? 'you' : null },
+            h('td', {}, t.club), h('td', {}, t.played), h('td', {}, t.won), h('td', {}, t.drawn), h('td', {}, t.lost), h('td', {}, `${t.goals_for}–${t.goals_against}`)))));
+      }
+    }).catch(() => {
+      if ((S.teamComp || S.home.competition_id) === cid) swap($('tmSquad'), h('li', { class: 'muted' }, 'The squad could not be loaded.'));
+    });
   }
 
   function saveDetails(e) {
@@ -1114,10 +1338,12 @@
     $('change').addEventListener('click', () => ($('finder').hidden ? openFinder() : closeFinder()));
     $('finderClose').addEventListener('click', () => closeFinder());
     $('missingPick').addEventListener('click', () => openFinder());
-    $('findForm').addEventListener('submit', (e) => { e.preventDefault(); search($('find').value.trim()); });
+    $('findForm').addEventListener('submit', (e) => { e.preventDefault(); search(); });
+    $('findComp').addEventListener('change', () => search());
     $('addBtn').addEventListener('click', () => toggleAdd($('addBox').hidden));
     $('addCancel').addEventListener('click', () => { toggleAdd(false); $('addBtn').focus(); });
     $('uploadForm').addEventListener('submit', upload);
+    $('upComp').addEventListener('change', fillOpponents);
     $('mxCompose').addEventListener('submit', sendReply);
     $('mxAttach').addEventListener('click', () => {
       const p = $('mxPicker'); p.hidden = !p.hidden;
@@ -1168,27 +1394,27 @@
   async function start() {
     $('main').classList.add('me-wait');
     try {
-      const [health, season] = await Promise.all([R.api('/api/health'), R.api('/api/season')]);
+      const [health, cat] = await Promise.all([R.api('/api/health'), R.api('/api/catalogue')]);
       S.writes = health.writes;
-      S.season = season;
-      S.clubs = season.clubs || [];
+      S.cat = cat;
+      fillFinder();
     } catch (e) {
       $('loading').hidden = true;
       if (offline(e)) return netError('Regista cannot be reached. Check the connection.', start);
-      return netError(`Regista could not load the league: ${errText(e)}`, start);
+      return netError(`Regista could not load the catalogue: ${errText(e)}`, start);
     }
     const wanted = new URLSearchParams(location.search).get('player');
     const gid = wanted && GID_RE.test(wanted) ? wanted : demo.PLAYER;
-    const slow = setTimeout(() => { $('loading').textContent = 'Loading your dashboard… The league is built on first use, which can take about half a minute.'; }, 3000);
+    const slow = setTimeout(() => { $('loading').textContent = 'Loading your dashboard… The catalogue is built on first use, which can take about half a minute.'; }, 3000);
     let ok = await choose(gid, { quiet: true });
     if (!ok && gid !== demo.PLAYER && $('netError').hidden) {
-      // A player the league does not know: open the default player and say so in Switch player.
+      // A player the catalogue does not know: open the default player and say so in Switch player.
       ok = await choose(demo.PLAYER, { quiet: true });
-      if (ok) openFinder(`No player with that id has played in the Regista League. Pick one, or stay with ${me().name}. The league's forwards:`);
+      if (ok) openFinder(`No player with that id is in the catalogue. Pick one, or stay with ${me().name}.`);
     }
     clearTimeout(slow);
     $('loading').hidden = true;
-    if (!ok && $('netError').hidden) { showMissing('No player with this id has played in the Regista League.'); openFinder(); }
+    if (!ok && $('netError').hidden) { showMissing('No player with this id is in the catalogue.'); openFinder(); }
   }
 
   wire();

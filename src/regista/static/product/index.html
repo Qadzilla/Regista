@@ -34,6 +34,8 @@
       <label><input type="radio" name="engine" value="rules" checked><span>Data Search</span></label>
       <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
     </div>
+    <!-- Or open one match: every uploaded match, grouped by country and competition (app.js fills it). -->
+    <label class="pick homepick" id="homePick" hidden><span class="pick-label">Or open a match</span><select id="homeMatch"></select></label>
     <p class="empty" id="landingNote" hidden></p>
     <!-- What this server runs on, from /api/health (app.js fills it): official icons, unaltered, each beside its full
          service name. Azure icons: Microsoft's Azure Architecture Center (V24). MCP mark: the Model Context Protocol
@@ -77,6 +79,7 @@
               <label class="pick"><span class="pick-label">Player</span><select id="player"></select></label>
             </div>
           </div>
+          <p class="matchmeta" id="matchMeta" hidden></p>
           <p class="scout-link" id="scoutLinkLine" hidden><a id="scoutLink"></a></p>
           <p id="visionNote" class="vision-note" hidden><span class="badge vision">Cut from video</span> on a moment means the vision layer
             found it in the pictures: who had the ball, what happened and who is in each replay.</p>
@@ -132,6 +135,7 @@
         <div class="results-bar">
           <h2 id="resultsHead">Moments</h2>
           <p class="sr" id="resultsStatus" role="status" aria-live="polite"></p>
+          <label class="pick rcomp" id="rcompWrap" hidden><span class="pick-label">Competition</span><select id="rcomp"></select></label>
           <div class="sort" role="group" aria-label="Sort">
             <button type="button" class="seg" data-sort="best" aria-pressed="true">Best first</button>
             <button type="button" class="seg" data-sort="time" aria-pressed="false">Match order</button>

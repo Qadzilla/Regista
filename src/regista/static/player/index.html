@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Player profile · Regista Scout</title>
-<meta name="description" content="One player across every match: best moments, numbers that link to the moments they came from, touch map.">
+<meta name="description" content="One player across every competition of the catalogue: career, numbers against their level, the moments behind every number, touch map.">
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
 <link rel="stylesheet" href="/static/shared/dashboard.css">
@@ -16,7 +16,7 @@
 </header>
 
 <div class="shell">
-<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find" aria-current="true">Find players</a><a href="/scout#terminal" data-section="terminal">Terminal</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
+<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout" class="parent" aria-current="page">Scout</a><div class="subviews" role="group" aria-label="Scout sections"><a href="/scout#overview" data-section="overview">Overview</a><a href="/scout#find" data-section="find" aria-current="true">Find players</a><a href="/scout#competitions" data-section="competitions">Competitions</a><a href="/scout#terminal" data-section="terminal">Terminal</a><a href="/scout#shortlist" data-section="shortlist">Shortlist</a><a href="/scout#reports" data-section="reports">Reports</a><a href="/scout#messages" data-section="messages">Messages <span class="count" data-count="messages"></span></a><a href="/scout#team" data-section="team">Team</a><a href="/scout#settings" data-section="settings">Settings</a></div></nav>
 <div class="shell-main">
 
 <main id="main" class="pf">
@@ -28,13 +28,14 @@
 
   <section class="missing panel" id="missing" hidden aria-labelledby="missingHead">
     <h1 id="missingHead">No such player</h1>
-    <p id="missingText" class="muted">No player with this id has played in the Regista League.</p>
+    <p id="missingText" class="muted">No player with this id is in the catalogue.</p>
     <p><a class="btn alt" href="/scout#find">Find a player in Scout</a></p>
   </section>
 
   <div id="profile" hidden>
     <div id="profileView"></div>
-    <section id="addMatch" class="pf-addmatch" aria-label="Add a match"></section>
+    <section id="addMatch" class="pf-addmatch" aria-label="Add a match" hidden></section>
+    <p class="pf-scouts" id="addMatchElse" hidden></p>
   </div>
 </main>
 

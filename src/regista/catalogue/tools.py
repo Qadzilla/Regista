@@ -11,8 +11,8 @@ from pathlib import Path
 from typing import Any
 
 from regista.catalogue import store
-from regista.catalogue.metrics import (ALL_WARNING, BOARD_TOP, POOL_RULE, RANK_BY, RANK_RULE, SYNTHETIC_NOTE,
-                                       CatalogueMetrics)
+from regista.catalogue.metrics import (ALL_WARNING, BOARD_TOP, NONE_YET_RULE, POOL_RULE, RANK_BY, RANK_RULE,
+                                       SYNTHETIC_NOTE, CatalogueMetrics)
 from regista.catalogue.taxonomy import AGE_GROUPS, GENDERS, TIERS, levels_public
 from regista.season.metrics import CATALOGUE, DEFAULT_COLUMNS
 
@@ -54,8 +54,14 @@ def _check(value: str | None, allowed: tuple[str, ...] | list[str], name: str) -
     return None
 
 
+def tiers_of(tier: str | None) -> list[str] | None:
+    """A tier filter: one tier or a comma list (``amateur,college,academy``); None for every tier."""
+    return [t.strip() for t in tier.split(",") if t.strip()] if tier else None
+
+
 def filter_errors(tier=None, age_group=None, gender=None, position=None, scope=None) -> str | None:
-    return (_check(tier, [k for k, _v in TIERS], "tier") or _check(age_group, [k for k, _v in AGE_GROUPS], "age_group")
+    bad_tier = next((t for t in tiers_of(tier) or [] if t not in [k for k, _v in TIERS]), None)
+    return (_check(bad_tier, [k for k, _v in TIERS], "tier") or _check(age_group, [k for k, _v in AGE_GROUPS], "age_group")
             or _check(gender, [k for k, _v in GENDERS], "gender") or _check(position, POSITIONS, "position")
             or _check(scope, SCOPES, "scope"))
 
@@ -64,7 +70,7 @@ def entries_matching(index: Path | str | None, *, competition=None, country=None
                      gender=None) -> list[tuple[Record, Record]]:
     out = []
     for e in store.entries(index):
-        if (competition and e["competition_id"] != competition) or (tier and e["tier"] != tier) or \
+        if (competition and e["competition_id"] != competition) or (tier and e["tier"] not in tiers_of(tier)) or \
                 (age_group and e["age_group"] != age_group) or (gender and e["gender"] != gender) or \
                 (country and e["country"].lower() != country.lower()):
             continue
@@ -80,7 +86,7 @@ def list_competitions(index: Path | str | None = None, *, country: str | None = 
     idx = store.load_index(index)
     rows = [competition_summary(e, c) for e, c in entries_matching(index, country=country, tier=tier, age_group=age_group,
                                                                     gender=gender)]
-    return {"competitions": rows, "total": len(rows), "levels": levels_public(),
+    return {"competitions": rows, "total": len(rows), "levels": levels_public(words=True),
             "careers": [{k: car.get(k) for k in ("global_id", "name", "competitions", "story")} for car in idx.get("careers", [])],
             "note": SYNTHETIC_NOTE}
 
@@ -97,7 +103,9 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
 
     A list with boards returns each board's top rows (up to ``limit`` each on two boards, up to ``BOARD_TOP`` each on
     more; each row's ``board``), and ``boards`` gives each board's key, label, size, offset and top rows, so no board is
-    out of reach; ``hint`` says how to read one board further."""
+    out of reach; ``hint`` says how to read one board further. On each board the rows that get a place come first
+    (``ranked`` true) and the rest follow in order (``ranked`` false: below the minimum attempts, or none yet), as
+    ``/api/catalogue/rank`` lists them."""
     err = filter_errors(tier=tier, age_group=age_group, gender=gender, position=position, scope=scope)
     if err:
         return {"error": err}
@@ -117,8 +125,14 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
         rows.sort(key=lambda r: ((-1 if order == "desc" else 1) * r[1].minutes, r[1].info["name"], r[0]))
         by = cm.board_by([cm.where_of(r) for r in rows], "value")
         rows = cm.group_boards(rows, by, cm.where_of)
+        # with min_minutes=0 every row is in the list and minutes need no percentile, so every row gets a place
+        placed = {(cid, ps.info["global_id"]) for cid, ps in rows
+                  if min_minutes == 0 or ps.minutes >= cm.metrics[cid].min_minutes}
     else:
-        rows, mode, by, _ranked = cm.order_rows(rows, sort, scope, order, rank_by)
+        # the rows that get a place first on each board, the rest after (below their minimum attempts, none yet), as
+        # /api/catalogue/rank lists them: an unranked row never leads
+        rows, mode, by, by_pct = cm.order_rows(rows, sort, scope, order, rank_by)
+        rows, placed = cm.ranked_first(rows, sort, mode, by_pct, by)
 
     def row_of(cid: str, ps: Any) -> Record:
         gid = ps.info["global_id"]
@@ -126,15 +140,18 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
                "position": ps.info["position"], "role": ps.info.get("role"), "age": ps.info.get("age"),
                "minutes": round(ps.minutes, 1), "appearances": ps.appearances,
                "qualified": ps.minutes >= cm.metrics[cid].min_minutes, "career": len(cm.people.get(gid, [])) > 1,
-               "board": cm.board_key(by, cid, ps.info["position"])}
+               "board": cm.board_key(by, cid, ps.info["position"]), "ranked": (cid, gid) in placed}
         if sort != "minutes":
             c = cm.cell(cid, gid, sort, scope)
             row["stat"] = {"key": sort, "label": CATALOGUE[sort].label, "value": c["value"], "percentile": c["percentile"],
-                           "noisy": c["noisy"], "pool": {k: c["pool"][k] for k in ("scope", "tier", "age_group", "gender",
-                                                                                   "position", "size", "small", "reason")}}
+                           "noisy": c["noisy"], "none_yet": c["none_yet"], "zeros": c["zeros"],
+                           "pool": {k: c["pool"][k] for k in ("scope", "tier", "age_group", "gender", "position", "size",
+                                                              "small", "reason", "words")}}
+        row["profile_url"] = f"/players/{gid}"
         return row
 
-    boards = cm.boards(by, rows, cm.where_of, lambda i: row_of(*rows[i]), limit)
+    boards = cm.boards(by, rows, cm.where_of, lambda i: row_of(*rows[i]), limit,
+                       any_of=cm.any_of(sort) if sort != "minutes" else None)
     if boards:   # each board's top rows: up to limit each on two boards, up to BOARD_TOP each on more
         per_board = limit if len(boards) <= 2 else min(limit, BOARD_TOP)
         shown = [r for b in boards for r in rows[b["offset"]:b["offset"] + min(b["size"], per_board)]]
@@ -145,8 +162,9 @@ def search_players(cm: CatalogueMetrics, *, tier=None, age_group=None, gender=No
         shown, hint = rows[:limit], None
     out = [row_of(cid, ps) for cid, ps in shown]
     levels = {cm.level[cid] for cid, _ps in rows}
+    split = cm.count_split(rows, sort) if sort != "minutes" else {"with_any": None, "none_yet": None}
     return {"players": out, "total": len(rows), "sort": sort, "order": order, "scope": scope, "rank_by": mode or "value",
-            "rank_rule": RANK_RULE, "boards": boards, "hint": hint,
+            "rank_rule": RANK_RULE, "boards": boards, "hint": hint, **split, "none_yet_rule": NONE_YET_RULE,
             "warning": ALL_WARNING if scope == "all" or len(levels) > 1 else None, "pool_rule": POOL_RULE,
             "note": SYNTHETIC_NOTE}
 

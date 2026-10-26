@@ -346,3 +346,14 @@ def test_the_real_vision_workflow_on_ten_seconds_of_footage(tmp_path):
     s.get_match(rec.match_id, d)
     assert not any(validate_match_dir(d).values())
     assert json.loads((d / "manifest.json").read_text())["identity"]["named_tracks"] > 0
+
+
+def test_a_new_work_folder_is_made_not_a_failure(store, tmp_path, monkeypatch):
+    """The verify round: ``--work`` naming a folder that does not exist yet failed every upload (FileNotFoundError from
+    the temporary directory); the worker now makes it."""
+    monkeypatch.setenv("REGISTA_PLAYER_DIR", str(store.root))
+    monkeypatch.setattr(worker, "vision_agents_for", lambda models_dir: stand_in_agents())
+    up = queue_upload(store, tiny_video(tmp_path / "a.mp4"))
+    work = tmp_path / "new" / "work"
+    assert worker.main(["--once", "--work", str(work)]) == 0
+    assert work.is_dir() and store.get_record(up).status == "done"

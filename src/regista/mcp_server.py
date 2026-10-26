@@ -241,8 +241,9 @@ def search_catalogue_players(tier: str | None = None, age_group: str | None = No
     level, one board per level; rank_by "pool" or "value" forces a mode. order desc lists the largest numbers first in
     value mode, and in pool mode the rows highest in their own pool (largest relative to the pool, not the largest
     numbers). When the list has boards, players holds each board's top rows and boards gives each board's key, label,
-    size and offset; pass position, gender or competition to read one board further. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small,
-    reason)."""
+    size and offset; pass position, gender or competition to read one board further. On each board the rows that get a
+    place come first (ranked true); rows below their minimum attempts or with none yet follow (ranked false) and never
+    lead. Returns the sorted metric with its value, percentile, noisy flag and pool (size, small, reason)."""
     from regista.catalogue.tools import search_players
 
     return search_players(_catalogue(), tier=tier, age_group=age_group, gender=gender, country=country,

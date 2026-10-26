@@ -2,8 +2,9 @@
 it in the cloud, and the match joins their profile.
 
 POST /api/player/uploads                     multipart: video (mp4, at most 300 MB), global_id, opponent_club_id, side
-                                             (home or away). Stores the video, writes the upload record, queues the
-                                             vision job                                                         [write]
+                                             (home or away); for a catalogue club also competition_id, date, camera and
+                                             consent (all required then). Stores the video, writes the upload record,
+                                             queues the vision job                                              [write]
 GET  /api/player/uploads?global_id=          the uploads, newest first, each with its stages (live progress)
 GET  /api/player/uploads/{upload_id}         one upload: record, stages, the player, and links once the match is ready
 GET  /api/player/uploads/{upload_id}/questions          "is this you?": the match's Who's who questions about the
@@ -52,6 +53,12 @@ MATCH_RE = re.compile(r"^pv_[a-z0-9]{4,40}$")
 GID_RE = re.compile(r"^pl_[a-z0-9_]{1,40}$")
 CLUB_RE = re.compile(r"^cl_[a-z0-9_]{1,40}$")
 CROP_RE = re.compile(r"^(tr|cw)_[A-Za-z0-9_.\-]{1,80}\.jpg$")
+COMP_RE = re.compile(r"^co_[a-z0-9_]{1,40}$")
+DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+CAMERAS = ("tripod", "phone", "drone", "broadcast")   # a label of the upload (regista.catalogue.taxonomy.CAMERAS)
+CONSENT_YES = ("yes", "true", "on", "1")
+UPLOADS_NOTE = ("Uploaded through the Player view; not counted in the catalogue's numbers, which count each competition's "
+                "own uploaded matches only (England: the Regista League's fixtures).")
 READY = ("done", "needs_review")      # the worker has written the match folder
 FORM_SLACK = 1 << 20                  # multipart framing and the three small fields, on top of the video
 SYNC_TTL_S = 15.0                     # how often a served match checks the store for a newer version
@@ -92,12 +99,31 @@ def _league() -> dict[str, Any]:
     return load_league_cached(api.SEASON_LEAGUE)
 
 
-def _person(gid: str) -> dict[str, Any]:
+def _competition(competition_id: str | None) -> dict[str, Any]:
+    """The league-shaped competition an upload belongs to: the Regista League (None, or England's id), else a catalogue
+    competition (``regista.catalogue.store``). Public fields only are read from it (squads, clubs, season)."""
+    from regista import api
+    from regista.catalogue import store as cat_store
+    from regista.catalogue.taxonomy import ENGLAND_ID
+
+    if competition_id is None or competition_id == ENGLAND_ID:
+        return _league()
+    if not COMP_RE.match(competition_id):
+        raise HTTPException(422, "competition_id must be a catalogue competition id (co_…)")
+    comp = cat_store.competition(competition_id, api.CATALOGUE) if api.CATALOGUE.exists() else None
+    if comp is None:
+        raise HTTPException(422, f"no competition {competition_id!r} in the catalogue")
+    return comp
+
+
+def _person(gid: str, competition_id: str | None = None) -> dict[str, Any]:
     from regista.season.league import people
 
-    p = people(_league()).get(gid)
+    comp = _competition(competition_id)
+    p = people(comp).get(gid)
     if p is None:
-        raise HTTPException(404, f"no player {gid!r} in the league")
+        where = "the league" if competition_id is None else comp["league"]
+        raise HTTPException(404 if competition_id is None else 422, f"no player {gid!r} in {where}")
     return p
 
 
@@ -211,7 +237,7 @@ def uploaded_matches(force: bool = False) -> list[dict[str, Any]]:
             pid = _uploader_pid(d, rec) if d else None
             if d and pid:
                 rows.append({"match_id": d.name, "match_dir": str(d), "player_id": pid, "global_id": rec.global_id,
-                             "upload_id": rec.upload_id})
+                             "upload_id": rec.upload_id, "competition_id": rec.competition_id})
         _listed.update(t=time.time(), rows=rows)
         return list(rows)
 
@@ -219,6 +245,47 @@ def uploaded_matches(force: bool = False) -> list[dict[str, Any]]:
 def _forget_listing() -> None:
     with _list_lock:
         _listed["t"] = 0.0
+
+
+def player_uploads(competition_id: str | None = None, global_id: str | None = None) -> list[dict[str, Any]]:
+    """Finished Player-view uploads, named for the catalogue's pages and never counted there (``UPLOADS_NOTE``): those
+    of one competition's clubs (England's: the Regista League's own friendlies too, whose records name no competition)
+    and/or of one player. Newest first. Never raises: without the store there are none."""
+    from regista.catalogue.taxonomy import ENGLAND_ID
+    from regista.season.league import people
+
+    try:
+        records = [r for r in store().list_records() if r.status == "done"]
+    except Exception:  # noqa: BLE001 - no store (or unreachable): nothing to name
+        return []
+    out = []
+    for rec in sorted(records, key=lambda r: -r.created_at):
+        cid = rec.competition_id or ENGLAND_ID
+        if (competition_id and cid != competition_id) or (global_id and rec.global_id != global_id):
+            continue
+        try:
+            d = ensure_match(rec)
+        except Exception:  # noqa: BLE001 - the record still names the upload
+            d = None
+        manifest = json.loads((d / "manifest.json").read_text()) if d and (d / "manifest.json").exists() else {}
+        try:
+            comp = _competition(rec.competition_id)
+            p = people(comp).get(rec.global_id) or {}
+            opp = next((c for c in comp["clubs"] if c["club_id"] == rec.opponent_club_id), None)
+        except HTTPException:
+            p, opp = {}, None
+        mid = rec.match_id or match_id_for(rec.upload_id)
+        pid = _uploader_pid(d, rec) if d else None
+        out.append({"upload_id": rec.upload_id, "match_id": mid, "competition_id": cid, "global_id": rec.global_id,
+                    "name": p.get("name"), "club_id": rec.club_id, "club": p.get("club"),
+                    "opponent_club_id": rec.opponent_club_id, "opponent": opp["name"] if opp else None, "side": rec.side,
+                    "date": rec.date_played or manifest.get("date"), "camera": rec.camera,
+                    "uploader": {"type": rec.uploader_type, "global_id": rec.global_id, "name": p.get("name")},
+                    "title": manifest.get("title"), "source": "upload",
+                    "kind": "friendly" if rec.competition_id is None else "match",
+                    "clip_view": f"/?match={mid}" + (f"&player={pid}" if pid else ""), "counted": False,
+                    "note": UPLOADS_NOTE})
+    return out
 
 
 def _uploader_pid(d: Path, rec: UploadRecord) -> str | None:
@@ -244,12 +311,17 @@ def _view(rec: UploadRecord, d: Path | None = None) -> dict[str, Any]:
 
     out = rec.to_json()
     try:
-        p = _person(rec.global_id)
+        p = _person(rec.global_id, rec.competition_id)
         out["player"] = {"global_id": rec.global_id, "name": p["name"], "club": p["club"], "short_name": p["short_name"],
                          "kit_number": p["kit_number"], "position": p["position"]}
-        clubs = {c["club_id"]: c for c in _league()["clubs"]}
+        comp = _competition(rec.competition_id)
+        clubs = {c["club_id"]: c for c in comp["clubs"]}
         opp = clubs.get(rec.opponent_club_id)
         out["opponent"] = {"club_id": rec.opponent_club_id, "name": opp["name"], "short_name": opp["short_name"]} if opp else None
+        if rec.competition_id:
+            lab = comp.get("competition") or {}
+            out["competition"] = {"competition_id": rec.competition_id, "name": comp["league"],
+                                  **{k: lab.get(k) for k in ("country", "tier", "age_group", "gender")}}
     except HTTPException:
         out["player"], out["opponent"] = None, None
     out["links"] = None
@@ -322,10 +394,12 @@ async def create_upload(request: Request) -> dict[str, Any]:
         raise _bad(413, f"the video is larger than {MAX_VIDEO_BYTES // (1 << 20)} MB")
     if not request.headers.get("content-type", "").startswith("multipart/form-data"):
         raise _bad(415, "send multipart/form-data with video, global_id, opponent_club_id and side")
-    form = await request.form(max_files=1, max_fields=8)
+    form = await request.form(max_files=1, max_fields=12)
     try:
         video = form.get("video")
         gid, opp, side = (str(form.get(k) or "").strip() for k in ("global_id", "opponent_club_id", "side"))
+        cid, played, camera, consent = (str(form.get(k) or "").strip() for k in ("competition_id", "date", "camera",
+                                                                                  "consent"))
         side = side or "home"
         if not isinstance(video, UploadFile):
             raise _bad(422, "attach the footage as the video field")
@@ -335,6 +409,7 @@ async def create_upload(request: Request) -> dict[str, Any]:
             raise _bad(422, "opponent_club_id must be a league club id (cl_…)")
         if side not in ("home", "away"):
             raise _bad(422, "side is home or away")
+        extra = _catalogue_fields(cid or None, played or None, camera or None, consent)
         name = (video.filename or "").lower()
         if not name.endswith(".mp4") or (video.content_type or "video/mp4") not in ("video/mp4", "application/octet-stream"):
             raise _bad(415, "the footage must be an MP4 file (.mp4)")
@@ -342,13 +417,16 @@ async def create_upload(request: Request) -> dict[str, Any]:
         if len(head) < 12 or head[4:8] != b"ftyp":
             raise _bad(415, "that file is not an MP4 video")
         await video.seek(0)
-        person = _person(gid)
+        comp_id = extra["competition_id"]
+        person = _person(gid, comp_id)
         if opp == person["club_id"]:
             raise _bad(422, f"{person['club']} cannot play itself: pick another club")
-        if opp not in {c["club_id"] for c in _league()["clubs"]}:
-            raise _bad(404, f"no club {opp!r} in the league")
+        if opp not in {c["club_id"] for c in _competition(comp_id)["clubs"]}:
+            if comp_id is None:
+                raise _bad(404, f"no club {opp!r} in the league")
+            raise _bad(422, f"{opp!r} is not a club of {_competition(comp_id)['league']}: pick a club from that competition")
         rec = UploadRecord(upload_id=new_upload_id(), global_id=gid, club_id=person["club_id"], opponent_club_id=opp,
-                           side=side, kit_number=int(person["kit_number"]), filename="video.mp4")
+                           side=side, kit_number=int(person["kit_number"]), filename="video.mp4", **extra)
         rec.match_id = match_id_for(rec.upload_id)
         s = store()
         try:
@@ -361,6 +439,43 @@ async def create_upload(request: Request) -> dict[str, Any]:
         return {"upload": _view(rec), "store": s.kind}
     finally:
         await form.close()
+
+
+def _catalogue_fields(competition_id: str | None, played: str | None, camera: str | None, consent: str) -> dict[str, Any]:
+    """The upload's competition, date, camera and consent. With a ``competition_id`` (a catalogue club's match) the date,
+    the camera and ``consent=yes`` are all required; without one (the Regista League's friendly form, as before) they
+    are optional and checked when given. Plain 422 messages."""
+    from datetime import date, datetime, timezone
+
+    from regista.catalogue.taxonomy import BY_ID
+
+    if competition_id is not None:
+        if not COMP_RE.match(competition_id):
+            raise _bad(422, "competition_id must be a catalogue competition id (co_…)")
+        _competition(competition_id)   # known, else a plain 422
+        if not played:
+            raise _bad(422, "say when the match was played (date, YYYY-MM-DD)")
+        if not camera:
+            raise _bad(422, "say what the match was filmed on (camera: tripod, phone, drone or broadcast)")
+        if consent.lower() not in CONSENT_YES:
+            raise _bad(422, "tick the box to confirm that everyone you filmed agreed to be filmed and shown (consent=yes)")
+    if camera and camera not in CAMERAS:
+        raise _bad(422, f"camera is one of {', '.join(CAMERAS)}")
+    if played:
+        if not DATE_RE.match(played):
+            raise _bad(422, "date is the day the match was played, YYYY-MM-DD")
+        try:
+            day = date.fromisoformat(played)
+        except ValueError:
+            raise _bad(422, f"{played} is not a date")
+        lab = BY_ID.get(competition_id) if competition_id else None
+        start = date.fromisoformat(lab.window[0]) if lab else date(2026, 8, 1)
+        if day < start:
+            raise _bad(422, f"the season started on {start.isoformat()}: a match before it is not this season's")
+        if day > datetime.now(timezone.utc).date():
+            raise _bad(422, "that date is in the future: upload a match that has been played")
+    return {"competition_id": competition_id, "camera": camera, "date_played": played,
+            "consent": consent.lower() in CONSENT_YES}
 
 
 # ---------------------------------------------------------------------------- "is this you?"
@@ -509,6 +624,25 @@ def _finish(rec: UploadRecord, note: str, ms: int) -> UploadRecord:
     return rec
 
 
+REFRESHED = ("record_counts", "segments", "validation", "event_records")   # what the recompute measures again
+
+
+def _keep_manifest(d: Path, worker: dict[str, Any]) -> None:
+    """The recompute writes the vision layer's own manifest over the worker's: put the worker's back (title, uploader,
+    player, competition labels, camera, video facts: what the Product and the catalogue read), with the counts the
+    recompute measured again, and no machine paths (``out_dir``, the video's local path)."""
+    if not worker:
+        return
+    now = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
+    merged = {**worker, **{k: now[k] for k in REFRESHED if k in now}}
+    if isinstance(now.get("identity"), dict):
+        merged["identity"] = {k: v for k, v in now["identity"].items() if k != "video"}
+    merged.pop("out_dir", None)
+    if isinstance(merged.get("video"), dict):
+        merged["video"] = {k: v for k, v in merged["video"].items() if k != "path"}
+    (d / "manifest.json").write_text(json.dumps(merged, indent=1, default=str) + "\n", encoding="utf-8")
+
+
 _answer_locks: dict[str, threading.Lock] = {}
 
 
@@ -547,6 +681,7 @@ def _answer(upload_id: str, body: AnswersIn) -> dict[str, Any]:
         answers = _identity_answers(items, body, me)
         if not (d / ".vision_work" / "identity.joblib").exists():
             raise HTTPException(409, "this match has no identity result to correct (the worker did not keep .vision_work)")
+        worker_manifest = json.loads((d / "manifest.json").read_text()) if (d / "manifest.json").exists() else {}
         _point_at_video(d, rec)
         models = _models_dir(d)
         from regista.vision.review import QUEUE_FILE
@@ -567,6 +702,7 @@ def _answer(upload_id: str, body: AnswersIn) -> dict[str, Any]:
             os.rename(claimed, q)
             raise
         write_clips(d, me)  # the uploader's moments, cut again from the corrected stream
+        _keep_manifest(d, worker_manifest)
         store().put_match(d.name, d)
         yes = sum(a.is_me for a in body.answers)
         rec = _finish(rec, f"{len(answers)} answer(s) from the player ({yes} yes)", int((time.perf_counter() - t0) * 1000))

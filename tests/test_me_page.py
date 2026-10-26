@@ -72,10 +72,13 @@ def test_no_inline_script_handler_or_style(page, script):
 
 
 def test_the_live_parts_use_the_real_api(script):
-    for endpoint in ("/api/health", "/api/season", "/api/players/${enc(gid)}", "/api/players?q=", "/api/players?position=FW&sort=goals",
-                     "/api/player/uploads?global_id=", "/api/player/uploads/${enc(u.rec.upload_id)}/questions",
+    for endpoint in ("/api/health", "'/api/catalogue'", "/api/catalogue/players/${enc(gid)}?include=profile&moments=0",
+                     "/api/catalogue/players?${qs}", "min_minutes=0&sort=name", "/api/competitions/${enc(cid)}",
+                     "/api/catalogue/matches?club=${enc(club)}", "/api/player/uploads?global_id=",
+                     "/api/player/uploads/${enc(u.rec.upload_id)}/questions",
                      "/api/player/uploads/${enc(u.rec.upload_id)}/answers", "'/api/player/uploads'", "/recap?player="):
         assert endpoint in script, endpoint
+    assert "/api/season" not in script and "/api/players?" not in script   # the catalogue, not the league's cards
     assert "x.setRequestHeader('X-Regista-Token', R.key.get())" in script  # uploads send the admin key
     assert "{ method: 'POST', body: { answers }, auth: true }" in script     # answers too
     assert "sessionStorage." not in script                                   # shared/regista.js keeps the key
@@ -85,7 +88,8 @@ def test_the_live_parts_use_the_real_api(script):
 
 def test_the_profile_is_the_shared_page_without_the_scout_bar(page, script):
     assert "This is what scouts see when they open your profile." in page
-    assert "PV.render($('meProfile'), S.P, { stat: keep.stat })" in script and "bar:" not in script
+    assert "PV.catalogue($('meProfile'), S.P, { cat: S.cat, audience: 'player', stat: keep.stat, comp: keep.comp })" in script
+    assert "bar:" not in script
     assert "S.view.identity(d.name, d.position, d.kit_number, d)" in script  # My details (with foot, height, bio) on My profile
 
 
@@ -121,3 +125,25 @@ def test_no_pitch_or_event_wording(page, script):
 @pytest.mark.skipif(shutil.which("node") is None, reason="node is not installed")
 def test_the_script_parses():
     subprocess.run(["node", "--check", str(ME / "me.js")], check=True)
+
+
+def test_uploads_from_any_catalogue_club(page, script):
+    # The two-step form: the match (competition, opponent, side, date), the footage (video, camera, consent). A Regista
+    # League match stays the league's friendly form; another club's names its competition. Consent is required.
+    for part in ('id="upComp"', 'id="opponent"', 'name="side"', 'id="upDate"', 'id="video"', 'name="camera"', 'value="broadcast"',
+                 'id="upConsent"', "Everyone I filmed agreed to be filmed and shown"):
+        assert part in page, part
+    for field in ("fd.append('global_id', S.gid)", "fd.append('opponent_club_id',", "fd.append('side', side)", "fd.append('date', date)",
+                  "fd.append('camera', camera)", "fd.append('consent', 'yes')", "if (cid !== ENGLAND) fd.append('competition_id', cid)"):
+        assert field in script, field
+    assert "if (!$('upConsent').checked)" in script and "if (!date)" in script and "if (!f)" in script
+    assert "The upload was refused: ${errText(err)}" in script        # the server's plain refusal, word for word
+    assert "counts in your profile" not in script                     # named on the profile, never counted
+
+
+def test_switch_player_covers_the_catalogue(page, script):
+    assert 'id="findComp"' in page and 'id="asLine"' in page
+    assert "(the default player)" in script and "plays in two competitions" in script
+    assert "No player with that id is in the catalogue." in script
+    # A career player picks between their clubs under Team; a club with only some matches uploaded has no league table.
+    assert 'id="tmClubs"' in page and "Uploaded matches only, not a league table" in script

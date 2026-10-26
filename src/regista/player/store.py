@@ -61,6 +61,15 @@ class UploadRecord:
     error: str | None = None
     source: str = "synthetic"      # footage rendered by Regista (``regista.player.film``), not a real camera
     notes: list[str] = field(default_factory=list)
+    # A catalogue club's upload (the catalogue port): which competition the match belongs to (None: the Regista League's
+    # friendly form, as every record before it), what it was filmed on (a label: tripod, phone, drone, broadcast), when
+    # it was played, who uploaded it, and the uploader's word that everyone filmed agreed. Old records load with these
+    # defaults (``from_json`` ignores keys it does not know and fills the rest).
+    competition_id: str | None = None
+    camera: str | None = None
+    date_played: str | None = None
+    uploader_type: str = "player"
+    consent: bool = False
 
     def to_json(self) -> Record:
         return asdict(self)

@@ -148,7 +148,7 @@ GET /api/competitions/co_ger_sp_men
                        "age": 31, "date_of_birth": "1994-10-27", "height_cm": 190, "preferred_foot": "right", "nationality": "Brazil",
                        "career": null}, …]}, …],
  "matches": [{"match_id": "cm_gsp_01_hbg_hsb", "round": 1, "date": "2026-08-08", "home": "cl_hollenburg", "away": "cl_haselbrock",
-              "score": {"t_home": 0, "t_away": 0}, "title": "Weserland-Liga, matchday 1: SV Hollenburg 0–0 Eintracht Haselbrock",
+              "score": {"t_home": 0, "t_away": 0}, "title": "Round 1: SV Hollenburg 0–0 Eintracht Haselbrock",
               "uploader": {"type": "player", "global_id": "pl_hsb_08", "club_id": "cl_haselbrock", "club": "Eintracht Haselbrock",
                            "name": "Kai Neumann"},
               "camera": "tripod", "clip_view": "/?match=cm_gsp_01_hbg_hsb", "home_name": "SV Hollenburg", "away_name": "Eintracht Haselbrock"}, …],
@@ -208,6 +208,22 @@ GET /api/catalogue/players?tier=academy&age_group=U19&position=FW&metrics=np_goa
  "pool_rule": "…", "reliability_note": "…", "camera_note": null, "synthetic": true, "note": "…"}
 ```
 
+### `GET /api/catalogue/directory`
+
+Every player-competition row of the catalogue once (1,057 rows, a career player twice), by name: the cards of
+`/api/catalogue/players` without metric cells, pools or samples, plus `qualifying_minutes` per competition. The
+Terminal's name search reads it once instead of paging the screen six times (fixes round 1). Nothing in it is ranked.
+
+```
+{"players": [{"global_id": "pl_…", "name": "…", "club": "…", "position": "FW", "minutes": 52.9, "qualified": true,
+              "competition_id": "co_…", "competition": "…", "country": "…", "tier": "…", "age_group": "…", "gender": "…",
+              "career": false, "also_in": [], "profile_url": "/players/pl_…", "api_url": "/api/catalogue/players/pl_…", …}, …],
+ "total": 1057, "qualifying_minutes": {"co_eng_sp_men": 101.0, …}, "synthetic": true, "note": "…"}
+```
+
+JSON answers of 1 KB or more are sent gzip-compressed to clients that accept it (`_JSONGzip` in `regista.api`); video,
+pages, scripts and styles are not.
+
 ### `GET /api/catalogue/players/{global_id}`
 
 One player across the catalogue:
@@ -222,29 +238,32 @@ minutes), and `evidence_offset` pages through it.
 ```
 GET /api/catalogue/players/pl_sot_09?metrics=np_goals&moments=1
 {"global_id": "pl_sot_09", "name": "Sergio Cruz", "bio": {"age": 17, "height_cm": 188, "preferred_foot": "both", "nationality": "Spain"},
- "career": [{"competition_id": "co_esp_u19", …, "minutes": 42.2, "qualified": false},
+ "career": [{"competition_id": "co_esp_u19", …, "appearances": 2, "minutes": 46.5, "qualified": true},
             {"competition_id": "co_esp_am_men", "competition": "Regional Preferente Levante Interior", "club": "CF Torrevalle",
-             "kit_number": 9, "role": "ST", "appearances": 2, "minutes": 50.4, "qualified": true, "first_match": "2026-10-24",
-             "last_match": "2026-11-14", "matches": ["cm_eam_03_tvl_ams", "cm_eam_04_rsc_tvl"], …}],
- "career_story": "a juvenil striker who, while still eligible for the juvenil, also plays for the senior amateur club his academy side is affiliated with, in the same territorial federation (Valencian Community)",
- "overall": {"competitions": 2, "competitions_played": 2, "appearances": 4, "minutes": 92.6, "totals": {…},
+             "kit_number": 9, "role": "ST", "appearances": 2, "minutes": 49.9, "qualified": true, "first_match": "2026-10-03",
+             "last_match": "2026-10-24", "matches": ["cm_eam_02_fta_tvl", "cm_eam_03_tvl_ams"], …}],
+ "career_story": "17 and still plays for UD Sotoalto's under-19 side; he also plays for CF Torrevalle, the senior amateur club it is linked to, in the same region",
+ "overall": {"competitions": 2, "competitions_played": 2, "appearances": 4, "minutes": 96.4, "totals": {…},
              "note": "Counts and minutes are summed across competitions; per-90 rates and percentiles stay per competition, …"},
  "rows": [{"competition_id": "co_esp_u19", …},
           {"competition_id": "co_esp_am_men", "club": "CF Torrevalle", "position": "FW", "scope": "level", "sample": {…},
-           "metrics": {"np_goals": {"value": 1.79, "percentile": 98, "peers": 27,
-                                    "pool": {"tier": "amateur", "competitions": ["co_esp_am_men", "co_nga_am_men", "co_mex_am_men"], …}, …}},
-           "touch_map": [[…], …],
-           "summary": {"text": "Sergio Cruz is a pressing forward for CF Torrevalle: 39.28 pressures per 90, 2nd of the league's 9 forwards. …", …}}],
- "moments": [{"match_id": "cm_eam_03_tvl_ams", "clip_id": "cl_t_home_09_000014", "title": "Sergio Cruz (9): goal at 56'", "tags": ["shot", "goal"],
-              "watchability": 1.0, "video_url": "/api/matches/cm_eam_03_tvl_ams/clips/cl_t_home_09_000014.mp4", "competition_id": "co_esp_am_men", …}],
- "profile_url": null, "summary_note": "…", "pool_rule": "…", "reliability_note": "…", "warning": null, "synthetic": true, "note": "…"}
+           "metrics": {"np_goals": {"value": 0.0, "percentile": null, "none_yet": true, "zeros": {"none": 24, "of": 31}, "peers": 31,
+                                    "pool": {"tier": "amateur", "competitions": ["co_esp_am_men", "co_nga_am_men", "co_mex_am_men"],
+                                             "words": "amateur men forwards", …}, …}},
+           "touch_map": [[…], …], "also_in": ["co_esp_u19"], "not_counted": [],
+           "basis": "These numbers count Regional Preferente Levante Interior's uploaded matches only (2 matches).",
+           "summary": {"text": "Sergio Cruz is a pressing forward for CF Torrevalle: 12.63 ball recoveries per 90, 2nd of the 12 forwards with enough minutes in Regional Preferente Levante Interior's uploaded matches. …", "engine": "rules", …}}],
+ "moments": [{"match_id": "cm_eam_03_tvl_ams", "clip_id": "cl_t_home_09_000002", "title": "Sergio Cruz (9): skill move at 5'", …,
+              "competition_id": "co_esp_am_men"}],
+ "profile_url": "/players/pl_sot_09", "not_counted": [], "basis": "…", "summary_note": "…", "pool_rule": "…",
+ "reliability_note": "…", "warning": null, "synthetic": true, "note": "…"}
 
 GET /api/catalogue/players/pl_sot_09?evidence=shots&competition=co_esp_am_men&evidence_limit=1
-{"global_id": "pl_sot_09", "competition_id": "co_esp_am_men", "value": 3.57, "percentile": 87, "pool": {…}, "sample": {…},
- "evidence": {"keys": ["shots"], "total": 2, "moments": 2, "offset": 0,
-              "items": [{"metric": "shots", "match_id": "cm_eam_03_tvl_ams", "minute": 56, "clip_id": "cl_t_home_09_000014",
-                         "video_url": "/api/matches/cm_eam_03_tvl_ams/clips/cl_t_home_09_000014.mp4",
-                         "link": "/?match=cm_eam_03_tvl_ams&player=t_home_09&clip=cl_t_home_09_000014", …}]}, …}
+{"global_id": "pl_sot_09", "competition_id": "co_esp_am_men", "value": 1.8, "percentile": 60, "pool": {…}, "sample": {…},
+ "evidence": {"keys": ["shots"], "total": 1, "moments": 1, "offset": 0,
+              "items": [{"metric": "shots", "match_id": "cm_eam_02_fta_tvl", "minute": 11, "clip_id": "cl_t_away_09_000006",
+                         "video_url": "/api/matches/cm_eam_02_fta_tvl/clips/cl_t_away_09_000006.mp4",
+                         "link": "/?match=cm_eam_02_fta_tvl&player=t_away_09&clip=cl_t_away_09_000006", …}]}, …}
 ```
 
 ### `GET /api/players/{global_id}/career`
@@ -257,11 +276,11 @@ profile is `main`'s, which is tested.
 GET /api/players/pl_kbc_11/career
 {"global_id": "pl_kbc_11", "name": "Edson Jimenez",
  "career": [{"competition_id": "co_usa_col_men", "club": "Kestrel Bay College", "kit_number": 11, "role": "W", "appearances": 3,
-             "minutes": 87.9, "qualified": true, …},
-            {"competition_id": "co_mex_am_men", "club": "Club Agave Azul", "kit_number": 7, "role": "W", "appearances": 2,
-             "minutes": 58.3, "qualified": true, …}],
- "overall": {"competitions": 2, "competitions_played": 2, "appearances": 5, "minutes": 146.2, "totals": {…}, "note": "…"},
- "story": "a Mexican student-athlete who plays for an amateur side at home outside the college season",
+             "minutes": 76.7, "qualified": true, …},
+            {"competition_id": "co_mex_am_men", "club": "Club Agave Azul", "kit_number": 7, "role": "W", "appearances": 1,
+             "minutes": 30.1, "qualified": false, …}],
+ "overall": {"competitions": 2, "competitions_played": 2, "appearances": 4, "minutes": 106.9, "totals": {…}, "note": "…"},
+ "story": "a Mexican student-athlete who played for an amateur side at home in August, before the college season",
  "api_url": "/api/catalogue/players/pl_kbc_11", "synthetic": true, "note": "…"}
 ```
 
@@ -276,20 +295,22 @@ One metric's leaderboard across the filtered catalogue: `metric`, plus the scree
 
 ```
 GET /api/catalogue/rank?metric=np_goals&gender=men&position=FW&limit=3
-{"metric": {…}, "scope": "level", "rank_by": "pool", "rank_rule": "…", "boards": null, "ranked": 108, "offset": 0, "limit": 3,
+{"metric": {…}, "scope": "level", "rank_by": "pool", "rank_rule": "…", "boards": null, "ranked": 24, "offset": 0, "limit": 3,
+ "with_any": 24, "none_yet": 99, "none_yet_rule": "…",
  "warning": "rows from different levels: read each percentile against its own pool. Raw event rates barely encode level …",
  "players": [{"rank": 1, "board": "men", "name": "Femi Toure", "competition": "Regista League", "value": 1.64, "percentile": 98,
               "pool": {"scope": "level", "tier": "semi_pro", "age_group": "senior", "size": 33, "small": false, …}, …},
-             {"rank": 2, "board": "men", "name": "Sergio Cruz", "competition": "Regional Preferente Levante Interior",
-              "value": 1.79, "percentile": 98, "pool": {"tier": "amateur", "age_group": "senior", "size": 27, …}, …},
-             {"rank": 3, "board": "men", "name": "Ulises Perez", "competition": "Atlantic Collegiate Soccer Conference",
-              "value": 3.25, "percentile": 97, "pool": {"tier": "college", "age_group": "college", "size": 18, …}, …}],
+             {"rank": 2, "board": "men", "name": "Sergio Gallego", "competition": "Regional Preferente Levante Interior",
+              "value": 2.99, "percentile": 98, "pool": {"tier": "amateur", "age_group": "senior", "size": 31, …}, …},
+             {"rank": 3, "board": "men", "name": "Edson Jimenez", "competition": "Atlantic Collegiate Soccer Conference",
+              "value": 1.17, "percentile": 97, "pool": {"tier": "college", "age_group": "college", "size": 17, …}, …}],
  "unranked": […], "competitions": [… 12 men's competitions], "pool_rule": "…", …}
 ```
 
-Without `gender` the same request gives `"boards": [{"gender": "men", "ranked": 108, "offset": 0, "top": […]},
-{"gender": "women", "ranked": 20, "offset": 108, "top": […]}]`:
-the men's board first, then the women's, which starts again at rank 1 (Hannah Mitchell, Pennine Women's League).
+Without `gender` the same request gives `"boards": [{"gender": "men", "size": 24, "offset": 0, "top": […]},
+{"gender": "women", "size": 5, "offset": 24, "top": […]}]`:
+the men's board first, then the women's, which starts again at rank 1 (Olivia Webb). A count at 0 (99 men forwards
+have no non-penalty goal yet) has no place: it is listed after, and `with_any` / `none_yet` say how many.
 `rank_by=value` gives the old raw-value order on each board.
 
 ### `GET /api/catalogue/compare`
@@ -301,8 +322,9 @@ pool.
 ```
 GET /api/catalogue/compare?ids=pl_bro_09,pl_sot_09&metrics=npxg
 {"players": [{"name": "Femi Toure", "competition_id": "co_eng_sp_men", "values": {"npxg": {"value": 1.15, "percentile": 98, "pool": {"size": 33, …}, …}}, …},
-             {"name": "Sergio Cruz", "competition_id": "co_esp_am_men", "values": {"npxg": {"value": 1.82, "percentile": 98, "pool": {"size": 27, …}, …}}, …}],
- "columns": […], "scope": "level", "same_pool": false,
+             {"name": "Sergio Cruz", "competition_id": "co_esp_am_men", "values": {"npxg": {"value": 0.07, "percentile": 53, "pool": {"size": 31, …}, …}}, …}],
+ "columns": […], "scope": "level", "same_pool": false, "best": {"npxg": ["pl_bro_09"]},
+ "best_rule": {"npxg": {"by": "percentile", "reason": "more than one level, one position: the best percentile, each in its own pool"}},
  "warning": "different pools (level or position): read each percentile against its own pool", …}
 ```
 
@@ -313,10 +335,10 @@ Uploaded matches across the catalogue, in the index's competition order and then
 
 ```
 GET /api/catalogue/matches?uploader_type=player&tier=amateur&limit=1
-{"matches": [{"match_id": "cm_eam_03_tvl_ams", "round": 3, "date": "2026-10-24", "score": {"t_home": 1, "t_away": 0},
-              "title": "Regional Preferente Levante Interior, matchday 3: CF Torrevalle 1–0 Atlético Montesol",
-              "uploader": {"type": "player", "global_id": "pl_tvl_04", "club_id": "cl_torrevalle", "club": "CF Torrevalle", "name": "Alvaro Munoz"},
-              "camera": "phone", "clip_view": "/?match=cm_eam_03_tvl_ams", "competition_id": "co_esp_am_men", "country": "Spain",
+{"matches": [{"match_id": "cm_eam_01_fta_bnc", "round": 1, "date": "2026-09-12", "score": {"t_home": 0, "t_away": 1},
+              "title": "Round 1: SD Fuentealba 0–1 UD Benialcor",
+              "uploader": {"type": "player", "global_id": "pl_fta_04", "club_id": "cl_fuentealba", "club": "SD Fuentealba", "name": "Oscar Ramirez"},
+              "camera": "phone", "clip_view": "/?match=cm_eam_01_fta_bnc", "competition_id": "co_esp_am_men", "country": "Spain",
               "tier": "amateur", …}],
  "total": 9, "offset": 0, "limit": 1, "filters": {"tier": "amateur", "uploader_type": "player"}, "camera_note": "…", …}
 ```
@@ -340,7 +362,7 @@ Every response keeps today's top-level keys. Each adds the fields described here
 
 | Endpoint | New parameters | What they do |
 |---|---|---|
-| `GET /api/season` | `competition` | That competition with the same keys. `table` is its uploaded matches' results; `table_note` says so. `rounds` lists matchdays with uploads, each match with uploader and camera. `percentiles` gains `scope` and `min_pool`. `competition` holds the labels. For England: today's response plus `competition` and `table_note: null`. |
+| `GET /api/season` | `competition` | That competition with the same keys. `table` is its uploaded matches' results; `table_note` says so. `rounds` lists the rounds with uploads, each match with uploader and camera. `percentiles` gains `scope` and `min_pool`. `competition` holds the labels. For England: today's response plus `competition` and `table_note: null`. |
 | `GET /api/players` | `competition`, `country`, `tier`/`level`, `age_group`, `gender`, `scope`/`pool`, `offset`, `rank_by` | Cards from each selected competition. Each headline percentile is in `scope` (level by default) with its `pool`. Cards gain competition labels, `board`, `career` and `api_url`. Ranked across levels by percentile, gender boards (`rank_by`, `rank_rule`, `boards`). `total` counts every row. England's cards come from the app's own season (fixtures, confirmed claims, Player-view uploads), so they are today's cards; `basis` says so. |
 | `GET /api/players/{id}` | `include=career` | Adds `career` (the career block). |
 | `GET /api/metrics` | `competition`, `scope` | Each metric described in that competition: ratio minimums, the reliability table it reads, its realism check. Plus the catalogue `season` block. The xT grid outside England is England's. |
@@ -409,13 +431,30 @@ Bad arguments return `{"error": …}` so an agent can correct itself. Example:
 
 ```
 search_catalogue_players(gender="men", position="FW", sort="npxg", limit=2)
-[{"global_id": "pl_mpu_09", "name": "Ulises Perez", "competition_id": "co_usa_col_men", "tier": "college", "minutes": 83.0, "career": false,
-  "stat": {"key": "npxg", "label": "Non-penalty xG", "value": 2.61, "percentile": 97, "noisy": true,
-           "pool": {"scope": "level", "tier": "college", "age_group": "college", "gender": "men", "position": "FW", "size": 18, "small": false, "reason": null}}, …},
- {"global_id": "pl_sot_09", "name": "Sergio Cruz", "competition_id": "co_esp_am_men", "tier": "amateur", "career": true,
-  "stat": {"value": 1.82, "percentile": 98, "pool": {"tier": "amateur", "size": 27, …}, …}, …}]
+[{"global_id": "pl_bro_09", "name": "Femi Toure", "competition_id": "co_eng_sp_men", "tier": "semi_pro", "minutes": 274.3, "career": false,
+  "stat": {"key": "npxg", "label": "Non-penalty xG", "value": 1.15, "percentile": 98, "noisy": false, "none_yet": false,
+           "pool": {"scope": "level", "tier": "semi_pro", "age_group": "senior", "gender": "men", "position": "FW", "size": 33,
+                    "small": false, "reason": null, "words": "semi-pro men forwards"}}, …},
+ {"global_id": "pl_rsc_11", "name": "Sergio Gallego", "competition_id": "co_esp_am_men", "tier": "amateur", "minutes": 60.1, "career": false,
+  "stat": {"value": 1.56, "percentile": 98, "noisy": true, "pool": {"tier": "amateur", "size": 31, …}, …}, …}]
 get_catalogue_player("Olivia King") -> {"global_id": "pl_msa_07", "rows": [co_usa_col_women, co_eng_sp_women], …}
 ```
+
+## The catalogue UI port (2026-10-26)
+
+The port's backend adds fields and parameters to these endpoints, and nothing else changes shape: none yet and
+`count_metrics`, pool `words`, sample `words`, `include=profile`, `not_counted` and `basis`, squads with playing time,
+`player_uploads`, tier lists, `min_percentile`, `sort=minutes|name`, compare's `best`, similar players' plain words,
+`profile_url` for every player, `where: "catalogue"` on `POST /api/scout/ask`, and catalogue-club uploads. Every one is
+listed with its contract in `docs/redesign/catalogue/backend.md`.
+
+The Scout pages added two more (`docs/redesign/catalogue/pages-scout.md`):
+- every row of `GET /api/catalogue/players` (and its boards' `top`) carries `rank`: its place on its board, the same
+  place `/api/catalogue/rank` gives (shared by rows showing the same number; null for none yet, too few minutes, no
+  percentile in pool mode, and every row of a `sort=name` list; `sort=minutes` places rows with their competition's
+  qualifying minutes by whole minutes);
+- `position` on `GET /api/catalogue/players` and `/api/catalogue/rank` takes a comma list (`DF,MF,FW`), so a list
+  sorted by a metric can hold only the positions the metric is scored for. Every other endpoint keeps one position.
 
 ## Tests
 

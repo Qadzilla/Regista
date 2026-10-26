@@ -501,6 +501,16 @@ _CATALOGUE: list[Metric] = [
 CATALOGUE: dict[str, Metric] = {m.key: m for m in _CATALOGUE}
 assert len(CATALOGUE) == len(_CATALOGUE), "duplicate metric key"
 
+# Counts: a per-90, possession-adjusted or season-total metric whose unit counts things (not metres, km/h, xG, xT or a
+# percentage), where more is better, and that is not a difference ("_diff", "_minus_"). At exactly 0 such a number is
+# "none yet" in the catalogue's answers: no percentile and no place (``regista.catalogue.metrics``). Kept out of
+# ``Metric.public()`` on purpose: /api/metrics and the terminal's default answers stay as they were.
+_NOT_COUNT_UNITS = frozenset({"m", "km/h", "xG", "xT", "%"})
+COUNT_METRICS: frozenset[str] = frozenset(
+    k for k, m in CATALOGUE.items()
+    if m.kind in ("per90", "padj", "total") and m.higher_is_better is True and m.unit not in _NOT_COUNT_UNITS
+    and "_diff" not in k and "_minus_" not in k)
+
 # Counts kept beside the catalogue for ratios and possession adjustment (never shown on their own).
 HELPERS = {"shot_distance_sum", "gk_launches", "gk_open_passes", "gk_pass_length_sum", "walking_s", "played_s", "opp_possession_s"}
 # Counts made from other counts after each match: key -> (component, sign) pairs.

@@ -100,17 +100,44 @@ def test_scripts_load_in_order_and_the_renderer_is_shared(page, view):
     assert order == sorted(order)
     for css in ("/static/shared/regista.css", "/static/shared/dashboard.css", "/static/player/player.css"):
         assert f'href="{css}"' in page
-    assert "R.profileView = { render," in view and "function render(root, P, options = {})" in view
+    assert "R.profileView = { render, catalogue," in view and "function render(root, P, options = {})" in view
+    assert "function catalogue(root, P, options = {})" in view
     for returned in ("pause:", "identity,", "openStat:", "state:"):
         assert returned in view, returned
     assert "typeof options.bar === 'function'" in view
 
 
 def test_the_script_does_not_depend_on_add_match(script):
-    # add-match.js may be missing (404): nothing in player.js calls into it; it may follow the profile instead.
-    assert "window.RegistaPlayer" in script and "regista:profile" in script
-    assert "AddMatch" not in script and "addMatch" not in script
-    assert "R.profileView.render($('profileView'), profile, { bar: scoutBar" in script
+    # add-match.js may be missing (404): nothing in player.js calls into it; it may follow the profile instead. player.js
+    # only shows its slot for Regista League players (it adds a league match) and says where anyone else adds one.
+    assert "window.RegistaPlayer" in script and "regista:profile" in script and "inLeague" in script
+    assert "AddMatch" not in script and "addMatch." not in script
+    assert "$('addMatch').hidden = !league;" in script and "/me?player=" in script
+    assert "R.profileView.catalogue($('profileView'), profile, { cat, bar: scoutBar" in script
+
+
+def test_the_profile_reads_the_catalogue(script, view):
+    # Every catalogue player has a profile: the page reads the catalogue's profile endpoint (England: the league's
+    # fixtures only), the scope toggle asks again with scope=, similar players and paged evidence come from the engine.
+    assert "/api/catalogue/players/${encodeURIComponent(GID)}?include=profile&moments=0" in script
+    assert "api('/api/catalogue')" in script and "/api/players/${encodeURIComponent(GID)}" not in script
+    assert "?include=profile&moments=0&scope=${encodeURIComponent(scope)}" in view
+    assert "/similar?competition=${encodeURIComponent(r.competition_id)}&scope=${encodeURIComponent(state.scope)}&n=5" in view
+    assert "?evidence=${encodeURIComponent(k)}&competition=${encodeURIComponent(r.competition_id)}&evidence_limit=" in view
+    # One rule, the engine's: no sorting of players or numbers in the renderer beyond picking the row with most minutes.
+    block = view[view.index("function catalogue(root, P, options = {})"):]
+    assert ".sort(" in block and "percentile -" not in block and "per90 -" not in block
+    for words in ("percentile among ${pool.size} ${who}", "None yet · ", "Small pool", "Synthetic player · invented name",
+                  "Level: ${levelW}", "Competition: ${r.competition}", "All levels: ${r.gender}", "Watch in the Clip view",
+                  "Not counted in these numbers", "Show these numbers"):
+        assert words in view, words
+    assert "matchday" not in view.lower()
+
+
+def test_add_match_waits_for_the_league_check():
+    src = (PLAYER / "add-match.js").read_text()
+    assert "host.inLeague && !(await host.inLeague)" in src
+    assert "counts in this profile" not in src  # the catalogue page names a claimed match, it does not count it
 
 
 def test_the_scout_bar_keeps_its_state_in_this_browser_and_opens_the_scout_sections(script):
@@ -195,3 +222,17 @@ def test_every_profile_ratio_has_its_count_and_words_in_the_renderer(view):
     block = re.search(r"const RATIOS = \{(.*?)\};", view, re.S).group(1)
     for key, (_label, num, den) in RATIOS.items():
         assert re.search(rf"{key}: \['{num}', '{den}', '[^']+'\]", block), key
+
+
+def test_the_catalogue_sample_line_is_the_players_own(view):
+    """The verify round: the profile's sample line is the player's own (matches, minutes, the club's uploaded matches, the
+    minutes a percentile needs), as the sandbox words it; the competition's sample words belong on its own page."""
+    assert "played ${smp.club_matches} of the competition's ${smp.competition_matches} uploaded matches" in view
+    assert "q('sample').textContent = [(r.sample || {}).words, r.basis]" not in view
+
+
+def test_one_month_spelling_on_the_dashboards():
+    """'5 Sep', never the browser's en-GB 'Sept': no date helper on these pages asks the browser for a short month."""
+    static = PLAYER.parent
+    for rel in ("player/profile-view.js", "me/me.js", "shared/demo.js", "scout/scout.js", "product/app.js"):
+        assert "month: 'short'" not in (static / rel).read_text(), rel

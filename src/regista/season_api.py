@@ -296,12 +296,13 @@ async def compare(ids: Annotated[str, Query(pattern=r"^pl_[a-z0-9_]{1,40}(,pl_[a
 class ScoutAskIn(BaseModel):
     q: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)]
     engine: Literal["rules", "foundry"] = "foundry"
+    where: Literal["league", "catalogue"] | None = None   # None or "league": the Regista League (as always)
 
 
 def _scout_foundry(s: Season, q: str, rules: dict[str, Any]) -> tuple[str, list[tuple[str, dict[str, Any]]], str]:
     """The Foundry Scout agent's answer (tests replace this). Returns (answer, tool calls with arguments, answered by);
     without Foundry, the rules reply and an ``answered_by`` that says so."""
-    from regista.api import SEASON_LEAGUE, SEASON_ROOT
+    from regista.api import CATALOGUE, CATALOGUE_ROOT, SEASON_LEAGUE, SEASON_ROOT
     from regista.cloud import CloudConfig
 
     cfg = CloudConfig.from_env()
@@ -310,8 +311,12 @@ def _scout_foundry(s: Season, q: str, rules: dict[str, Any]) -> tuple[str, list[
     from regista.aio import run_sync
     from regista.cloud.foundry import SCOUT_TOOLS, foundry_scout_answer
 
-    env = {"REGISTA_SEASON": str(SEASON_LEAGUE.resolve()), "REGISTA_SEASON_ROOT": str(SEASON_ROOT.resolve())}
-    text, calls = run_sync(foundry_scout_answer(cfg, q, rules["understood"], env, SCOUT_TOOLS))
+    env = {"REGISTA_SEASON": str(SEASON_LEAGUE.resolve()), "REGISTA_SEASON_ROOT": str(SEASON_ROOT.resolve()),
+           "REGISTA_CATALOGUE": str(CATALOGUE.resolve()), "REGISTA_CATALOGUE_ROOT": str(CATALOGUE_ROOT.resolve())}
+    understood = rules["understood"]
+    if rules.get("where") == "catalogue":   # the question is about the catalogue's 14 competitions, not only the league
+        understood = f"a question about the catalogue (use the catalogue tools): {understood}"
+    text, calls = run_sync(foundry_scout_answer(cfg, q, understood, env, SCOUT_TOOLS))
     return text, calls, f"foundry:{cfg.foundry_model}"
 
 
@@ -323,12 +328,27 @@ async def scout_ask(body: ScoutAskIn, request: Request) -> dict[str, Any]:
     ``engine=foundry`` (the default) a Foundry agent then answers through Regista's MCP player tools, with the same
     rate limits and public read-only tools as Ask Foundry; its cards are its own last tool call run again, and
     ``checked`` lists any number in its reply no tool returned. Without Foundry, over the limits, or if it fails, the
-    rules answer stands and ``answered_by`` says why."""
+    rules answer stands and ``answered_by`` says why.
+
+    ``where: "catalogue"`` asks about the catalogue's 14 competitions instead (``regista.catalogue.scout``): the rules
+    engine reads the place words (country, level, age group, gender, competition, "my level"), then calls the catalogue
+    tool ``search_catalogue_players`` (or ``get_catalogue_player`` for a named player); cards are catalogue rows with
+    competition, country, value, pool, small and noisy marks, minutes and profile link; ``where`` and ``warning`` are in
+    the answer. The Foundry agent holds the catalogue tools too (public, read-only). Without ``where`` the answer is the
+    league's, as always."""
     from regista import api
     from regista.season.scout import answer_rules, from_foundry
 
     s = await run_in_threadpool(season)
-    out = await run_in_threadpool(answer_rules, s, body.q)
+    cm = None
+    if body.where == "catalogue":
+        from regista.catalogue.scout import answer_catalogue
+        from regista.catalogue_api import catalogue_metrics
+
+        cm = await run_in_threadpool(catalogue_metrics)
+        out = await run_in_threadpool(answer_catalogue, s, cm, body.q)
+    else:
+        out = await run_in_threadpool(answer_rules, s, body.q)
     if body.engine != "foundry":
         return out
     ok, wait, which = api._ask_limiter.acquire(api._visitor(request))
@@ -359,7 +379,11 @@ async def scout_ask(body: ScoutAskIn, request: Request) -> dict[str, Any]:
         return out
     from regista.cloud.foundry import foundry_trace
 
-    final = await run_in_threadpool(from_foundry, s, out, text, calls, answered_by)
+    if cm is None and any(n in ("list_competitions", "search_catalogue_players", "get_catalogue_player") for n, _a in calls):
+        from regista.catalogue_api import catalogue_metrics
+
+        cm = await run_in_threadpool(catalogue_metrics)
+    final = await run_in_threadpool(from_foundry, s, out, text, calls, answered_by, cm)
     steps, note = foundry_trace(spans, [n for n, _a in calls])
     final["trace"] = out["trace"] + steps
     if note:

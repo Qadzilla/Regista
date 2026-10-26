@@ -31,6 +31,9 @@ ENGLAND_BASIS = ("England semi-pro men: profile cards, summaries and moments cou
                  "confirmed claims and finished Player-view uploads, as the existing profile does; the terminal metrics, "
                  "their pools and the career rows count the league's 30 fixtures only, as the Scout terminal does.")
 MOMENTS_KEPT = 40
+FIXTURES_BASIS = ("England semi-pro men on the catalogue's pages count the Regista League's fixtures only, as every other "
+                  "competition counts its own uploaded matches: confirmed claims and Player-view uploads are named "
+                  "(not_counted) and not counted.")
 
 
 class CatalogueProfiles:
@@ -45,6 +48,24 @@ class CatalogueProfiles:
         self.thresholds: dict[str, Record] = {}   # competition -> the metrics engine's ratio minimums (use_thresholds)
         self._pools: dict[tuple, list[float]] = {}
         self._lock = threading.Lock()
+        # England built here on league.json's fixtures, kept when use_england serves the app's season instead
+        self.league_england: Season | None = seasons.get(ENGLAND_ID)
+        self._fixtures: CatalogueProfiles | None = None
+
+    def fixtures_only(self) -> CatalogueProfiles:
+        """The same competitions with England on the Regista League's fixtures only (no confirmed claims, no Player-view
+        uploads): what the catalogue's pages count (``FIXTURES_BASIS``). Shares every other competition's ``Season``;
+        its own pools; the metrics engine's minutes and ratio minimums as this one has them."""
+        with self._lock:
+            if self._fixtures is None:
+                seasons = dict(self.seasons)
+                if self.league_england is not None:
+                    seasons[ENGLAND_ID] = self.league_england
+                self._fixtures = CatalogueProfiles(self.index, seasons)
+            fx = self._fixtures
+        fx.use_minutes(self.exact_minutes)
+        fx.use_thresholds(self.thresholds)
+        return fx
 
     # ------------------------------------------------------------------ a profile stat's percentile in a scope
     def use_minutes(self, minutes: dict[tuple[str, str], float]) -> None:
@@ -144,10 +165,14 @@ class CatalogueProfiles:
             pct = None
         reason = None if size >= need else f"fewer than {need} qualified peers"
         lab = BY_ID[cid]
+        from regista.catalogue.metrics import pool_words
+
         return {"percentile": pct, "pool": {"scope": scope, "tier": lab.tier if scope != "all" else None,
                                             "age_group": lab.age_group if scope != "all" else None, "gender": lab.gender,
                                             "position": pos, "size": size, "small": size < SMALL_POOL, "min_size": need,
-                                            "competitions": self.scope_competitions(cid, scope), "reason": reason}}
+                                            "competitions": self.scope_competitions(cid, scope), "reason": reason,
+                                            "words": pool_words(scope, pos, tier=lab.tier, age_group=lab.age_group,
+                                                                gender=lab.gender, competition=lab.name)}}
 
     def ratio_pool(self, cid: str, ratio: str, position: str, scope: str = "level") -> list[float]:
         """Sorted values of one profile ratio (pass_accuracy, ...) among the qualified rows of a position in the scope that

@@ -166,7 +166,9 @@ def test_the_cross_country_screen_pages_through_every_row_with_pools(client, cm)
         assert cell["pool"]["scope"] == "level" and cell["sample"]["competition_id"]
         assert cell["pool"]["size"] == cell["peers"] and "evidence_total" in cell
     assert all(r["api_url"] == f"/api/catalogue/players/{r['global_id']}" for r in rows)
-    assert all(r["profile_url"] is None for r in rows if r["competition_id"] != ENGLAND_ID)
+    assert all(r["profile_url"] == f"/players/{r['global_id']}" for r in rows)            # every catalogue player
+    assert all(r["also_in"] == [c for c in cm.people.get(r["global_id"]) and [x for x, _p in cm.people[r["global_id"]]]
+                                if c != r["competition_id"]] for r in rows)
 
 
 def test_screen_filters_sort_and_order(client):
@@ -236,7 +238,7 @@ def test_one_player_across_the_catalogue_keeps_a_row_per_competition(client, cm)
         lvl = {c["pool"]["tier"] for c in row["metrics"].values()}
         assert lvl == {row["tier"]}
     assert d["moments"] and all(m["competition_id"] in ("co_esp_u19", "co_esp_am_men") for m in d["moments"])
-    assert d["profile_url"] is None and ok(client, f"/api/catalogue/players/{STAR}")["profile_url"] == f"/players/{STAR}"
+    assert d["profile_url"] == f"/players/{CRUZ}" and ok(client, f"/api/catalogue/players/{STAR}")["profile_url"] == f"/players/{STAR}"
     ev = ok(client, f"/api/catalogue/players/{CRUZ}", evidence="shots", competition="co_esp_am_men", evidence_limit=2)
     assert ev["competition_id"] == "co_esp_am_men" and ev["evidence"]["total"] >= len(ev["evidence"]["items"])
     assert all(i["match_id"].startswith("cm_eam_") for i in ev["evidence"]["items"])
@@ -303,7 +305,11 @@ def test_england_in_competition_scope_is_todays_screen_and_cards(client):
     want = {r["global_id"]: r["values"] for r in today["players"]}
     for row in cat["players"]:
         for k, cell in row["values"].items():
-            assert {f: cell[f] for f in want[row["global_id"]][k]} == want[row["global_id"]][k]
+            today_cell = dict(want[row["global_id"]][k])
+            if cell["none_yet"]:      # the catalogue's one rule: a count at 0 has no percentile (none yet)
+                assert today_cell["value"] == 0 and cell["percentile"] is None
+                today_cell.pop("percentile")
+            assert {f: cell[f] for f in today_cell} == today_cell
     cards = ok(client, "/api/players", limit=200)
     ccards = ok(client, "/api/players", competition=ENGLAND_ID, scope="competition", limit=200)
     pct = {c["global_id"]: {k: h["percentile"] for k, h in c["headline"].items()} for c in cards["players"]}
@@ -511,7 +517,7 @@ def test_no_hidden_rating_scale_or_seed_in_any_new_payload(client):
 
 # ---------------------------------------------------------------------------- one board shape on every surface
 
-BOARD_KEYS = {"board", "by", "label", "gender", "level", "position", "size", "offset", "top"}
+BOARD_KEYS = {"board", "by", "label", "gender", "level", "position", "size", "offset", "top", "with_any", "none_yet"}
 
 
 def test_every_surface_serves_one_board_shape(client):

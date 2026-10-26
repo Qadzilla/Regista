@@ -215,7 +215,8 @@ STAT_PHRASES: list[tuple[str, str, str | None]] = [
     (r"shot accuracy|shooting accuracy|accurate shoot\w*|clinical", "shot_accuracy", None),
     (r"forward pass\w*|pass\w* forward|play\w* (?:the ball |it )?forward|progressive pass\w*|progressive|line[- ]breaking|vertical pass\w*",
      "forward_passes", None),
-    (r"key pass\w*|chances? created|creat\w* chances|chance creat\w*|creative|creators?|unlock\w*", "key_passes", None),
+    (r"key pass\w*|chances? created|creat\w* (?:the )?(?:most )?chances|chance creat\w*|creative|creators?|unlock\w*",
+     "key_passes", None),
     (r"playmak\w*", "key_passes", "MF"),
     (r"pass(?:ing)? accuracy|accurate pass\w*|keeps? the ball|tidy|retain\w* possession|pass completion", "pass_accuracy", None),
     (r"take[- ]?on success|dribbl\w* success|success\w* (?:dribbl\w*|take[- ]?ons?)", "take_on_success", None),
@@ -243,7 +244,7 @@ ROLE_PHRASES: list[tuple[str, str]] = [
     (r"goal ?keepers?|keepers?|\bgks?\b|goalies?", "GK"),
     (r"defenders?|cent(?:re|er)[- ]?backs?|full[- ]?backs?|wing[- ]?backs?|\bcbs?\b|defen[cs]e|back (?:four|line)", "DF"),
     (r"midfielders?|midfield|anchors?|holding|box[- ]to[- ]box|number (?:6|8|10)|no\.? ?(?:6|8|10)\b|regista", "MF"),
-    (r"wingers?|strikers?|forwards?|attackers?|cent(?:re|er)[- ]forwards?|number 9|no\.? ?9\b|front (?:three|line)", "FW"),
+    (r"wingers?|strikers?|forwards?|attackers?|cent(?:re|er)[- ]forwards?|number 9|no\.? ?9\b|front (?:three|line)|up front", "FW"),
 ]
 FEWEST = r"\b(fewest|least|lowest|worst|fewer|bottom)\b"
 NUMBERS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10}
@@ -504,6 +505,7 @@ def _ordinal(n: int) -> str:
 # ---------------------------------------------------------------------------- the Foundry engine's answer, checked
 
 PLAYER_TOOLS = ("search_players", "get_profile", "compare_players")
+CATALOGUE_PLAYER_TOOLS = ("list_competitions", "search_catalogue_players", "get_catalogue_player")   # where: catalogue
 
 
 def run_tool(season: Season, name: str, args: Record) -> Record:
@@ -562,13 +564,28 @@ def unverified_numbers(reply: str, results: list[Record]) -> list[str]:
     return unheld(reply, held_numbers(results))
 
 
-def from_foundry(season: Season, rules: Record, text: str, calls: list[tuple[str, Record]], answered_by: str) -> Record:
+def from_foundry(season: Season, rules: Record, text: str, calls: list[tuple[str, Record]], answered_by: str,
+                 catalogue: Any = None) -> Record:
     """The Foundry answer in the Scout shape: the model's reply; cards and ``understood`` from its last player tool
-    call, run again here (so the cards are what it read); every number in the reply checked against its tool results."""
+    call, run again here (so the cards are what it read); every number in the reply checked against its tool results.
+    ``catalogue`` (a ``CatalogueMetrics``): the catalogue tools' calls are run again too, and when the last player call
+    is one of them its rows are the cards (``regista.catalogue.scout.cards_from_calls``)."""
     player_calls = [(n, a) for n, a in calls if n in PLAYER_TOOLS]
     results = [run_tool(season, n, a) for n, a in player_calls]
     out = {**rules, "reply": text.strip(), "answered_by": answered_by, "tools_used": [n for n, _a in calls]}
-    if player_calls:
+    cat_calls = [(n, a) for n, a in calls if n in CATALOGUE_PLAYER_TOOLS] if catalogue is not None else []
+    last_is_catalogue = bool(cat_calls) and next(n for n, _a in reversed(calls)
+                                                 if n in PLAYER_TOOLS + CATALOGUE_PLAYER_TOOLS) in CATALOGUE_PLAYER_TOOLS
+    if cat_calls:
+        from regista.catalogue.scout import cards_from_calls
+
+        cards, cat_results = cards_from_calls(catalogue, cat_calls)
+        results = results + cat_results + [{"per": 90}]   # the catalogue's rows say per 90 by their metric, not in text
+    if last_is_catalogue:
+        out["players"] = cards
+        out["understood"] = "Foundry called " + ", then ".join(_call_text(n, a) for n, a in cat_calls) + \
+            f". Regista's rules read it as: {rules['understood']}"
+    elif player_calls:
         name, args = player_calls[-1]
         last = results[-1]
         if name == "search_players" and "players" in last:
@@ -584,7 +601,8 @@ def from_foundry(season: Season, rules: Record, text: str, calls: list[tuple[str
             f". Regista's rules read it as: {rules['understood']}"
     else:
         out["understood"] = f"Foundry answered without a player tool; the cards are Regista's rules reading: {rules['understood']}"
-    out["checked"] = {"tool_calls": len(player_calls), "numbers_not_in_tool_results": unverified_numbers(out["reply"], results)}
+    out["checked"] = {"tool_calls": len(player_calls) + len(cat_calls),
+                      "numbers_not_in_tool_results": unverified_numbers(out["reply"], results)}
     return out
 
 

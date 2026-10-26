@@ -148,6 +148,62 @@ class _Hardening:
         await self.app(scope, receive, wrapped)
 
 
+class _JSONGzip:
+    """Pure ASGI middleware: gzip JSON answers only, whole bodies of at least ``minimum`` bytes, for a client that
+    accepts gzip. The catalogue's reads run to hundreds of kilobytes of repeated keys (a cold Terminal asked for about
+    3 MB); compressed they are a tenth of that. Video (MP4, range requests), HTML, CSS, scripts, streamed or already
+    encoded bodies pass through untouched."""
+
+    def __init__(self, app: Any, minimum: int = 1024, level: int = 6):
+        self.app, self.minimum, self.level = app, minimum, level
+
+    async def __call__(self, scope: dict, receive: Any, send: Any) -> None:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        accept = b""
+        for k, v in scope.get("headers") or []:
+            if k == b"accept-encoding":
+                accept += v.lower()
+        if b"gzip" not in accept:
+            return await self.app(scope, receive, send)
+        held: dict | None = None
+        through = False
+
+        async def wrapped(message: dict) -> None:
+            nonlocal held, through
+            if message["type"] == "http.response.start":
+                hs = {k.lower(): v for k, v in message.get("headers", [])}
+                if message.get("status", 200) == 200 and hs.get(b"content-type", b"").startswith(b"application/json") \
+                        and b"content-encoding" not in hs and b"content-range" not in hs:
+                    held = message
+                    return
+                through = True
+                await send(message)
+                return
+            if message["type"] == "http.response.body" and held is not None and not through:
+                start, held = held, None
+                body = message.get("body", b"")
+                if message.get("more_body") or len(body) < self.minimum:
+                    through = True
+                    await send(start)
+                    await send(message)
+                    return
+                import gzip
+
+                packed = gzip.compress(body, compresslevel=self.level)
+                headers = [(k, v) for k, v in start.get("headers", []) if k.lower() not in (b"content-length", b"vary")]
+                vary = [v for k, v in start.get("headers", []) if k.lower() == b"vary"]
+                headers += [(b"content-encoding", b"gzip"), (b"content-length", str(len(packed)).encode()),
+                            (b"vary", b", ".join([*vary, b"Accept-Encoding"]))]
+                await send({**start, "headers": headers})
+                await send({"type": "http.response.body", "body": packed})
+                return
+            await send(message)
+
+        await self.app(scope, receive, wrapped)
+
+
+app.add_middleware(_JSONGzip)
 app.add_middleware(_Hardening)
 
 

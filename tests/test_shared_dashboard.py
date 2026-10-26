@@ -120,14 +120,16 @@ def test_shortlist_compare_reports_needs_and_reset():
                stages: D.STAGES, verdicts: D.VERDICTS, note: D.NOTE };
     """)
     assert {g: v["stage"] for g, v in out["seeded"].items()} == {
-        "pl_bro_09": "Contacted", "pl_ash_10": "Watching", "pl_ash_09": "Watching", "pl_dun_06": "Trial", "pl_eas_03": "Offer"}
+        "pl_bro_09": "Contacted", "pl_ash_10": "Watching", "pl_ash_09": "Watching", "pl_dun_06": "Trial", "pl_eas_03": "Offer",
+        "pl_vor_11": "Watching", "pl_kbc_11": "Watching", "pl_sot_07": "Watching"}
     mid = out["mid"]
     assert mid["list"]["pl_cal_09"]["stage"] == "Watching" and mid["list"]["pl_cal_09"]["note"] == "Quick feet."
     assert "pl_ash_09" not in mid["list"]
     assert mid["compare"] == ["pl_bro_09", "pl_ash_10", "pl_dun_06"]   # at most three
     assert mid["reports"][0] == ["pl_ash_10", True] and ["pl_bro_09", False] in mid["reports"] and mid["same"]
     after = out["after"]
-    assert after["list"] == ["pl_bro_09", "pl_ash_10", "pl_ash_09", "pl_dun_06", "pl_eas_03"] and after["compare"] == []
+    assert after["list"] == ["pl_bro_09", "pl_ash_10", "pl_ash_09", "pl_dun_06", "pl_eas_03", "pl_vor_11", "pl_kbc_11",
+                             "pl_sot_07"] and after["compare"] == []
     assert after["reports"] == 1 and after["needs"] == [["FW", "goals", 75], ["MF", "recoveries", 75], ["DF", "interceptions", 75]]
     assert "notify" in after["settings"]
     assert out["stages"] == ["Watching", "Contacted", "Trial", "Offer"] and out["verdicts"] == ["Sign", "Keep watching", "Pass"]
@@ -245,6 +247,42 @@ def test_seeded_claims_hold_in_the_league():
     assert rank("pl_dun_06", "MF", "passes") == 3
     assert rank("pl_eas_03", "DF", "key_passes") == 9
     assert "key_passes" in s.noisy()
+
+
+def test_the_catalogue_shortlist_notes_hold():
+    # The three shortlisted players from beyond the league: each note quotes the catalogue (league fixtures only for
+    # England, each competition's own uploaded matches elsewhere), and Maya's level is semi-pro men.
+    from fastapi.testclient import TestClient
+
+    from regista import api
+
+    c = TestClient(api.app)
+    demo = (SHARED / "demo.js").read_text()
+    assert "level: { tier: 'semi_pro', age_group: 'senior', gender: 'men', competition_id: 'co_eng_sp_men' }" in demo
+
+    def rows(gid):
+        out = c.get(f"/api/catalogue/players/{gid}", params={"metrics": "goals,shots", "moments": 0}).json()
+        return out, {r["competition_id"]: r for r in out["rows"]}
+
+    # "Same level as us, in Germany: a goal in 84 minutes. Only three uploaded matches so far"
+    p, r = rows("pl_vor_11")
+    g = r["co_ger_sp_men"]
+    assert p["name"] == "Kevin Jung" and (g["tier"], g["age_group"], g["gender"]) == ("semi_pro", "senior", "men")
+    assert g["metrics"]["goals"]["total"] == 1 and round(g["sample"]["minutes"]) == 84 and g["sample"]["appearances"] == 3
+    # "College forward who also played amateur football in the summer. Shoots a lot; tiny sample."
+    p, r = rows("pl_kbc_11")
+    col, am = r["co_usa_col_men"], r["co_mex_am_men"]
+    assert p["name"] == "Edson Jimenez" and col["position"] == "FW" and col["tier"] == "college" and am["tier"] == "amateur"
+    assert next(x for x in p["career"] if x["competition_id"] == "co_mex_am_men")["last_match"] < "2026-09-01"
+    assert col["metrics"]["shots"]["percentile"] >= 90 and col["sample"]["minutes"] < 90
+    # "17, academy U19 in Spain. One goal in 55 minutes"
+    p, r = rows("pl_sot_07")
+    u19 = r["co_esp_u19"]
+    assert p["name"] == "Ruben Prieto" and p["bio"]["age"] == 17 and u19["country"] == "Spain" and u19["age_group"] == "U19"
+    assert u19["metrics"]["goals"]["total"] == 1 and round(u19["sample"]["minutes"]) == 55
+    for note in ("a goal in 84 minutes", "Only three uploaded matches so far", "College forward who also played amateur football",
+                 "Shoots a lot; tiny sample", "17, academy U19 in Spain. One goal in 55 minutes"):
+        assert note in demo
 
 
 def test_the_sections_helper_and_the_shared_styles():
