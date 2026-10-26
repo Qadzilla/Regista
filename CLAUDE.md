@@ -299,7 +299,7 @@ report `docs/catalogue/realism.md`; the data contract in `data/synthetic/README.
   orders, of which 3 confirm a calibration and 7 follow from level scales set in the source's direction, so none
   independently validates football below the professional line; of 7 assumed orders, 6 hold and running distance
   U18 < U19 fails).
-- **The UI round (approved in the sandbox `ux/sandbox` 2026-10-26, ported on branch `ux/catalogue`, PR on top of
+- **The UI round (approved in the sandbox `ux/sandbox` 2026-10-26, ported on branch `ux/catalogue`, PR #40 on top of
   PR #39, not merged; reports `docs/redesign/catalogue/`):** Scout's Find players on the whole catalogue (Country,
   Level, Age group, Gender, Competition filters, "My level", one list per level, pool lines such as "98th percentile
   among 33 semi-pro men forwards", small pools with reasons, "none yet" for zeros), a Competitions section with
@@ -589,7 +589,7 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-26.** The catalogue's UI round is ported on `ux/catalogue` (§2.11), a PR on top of PR #39; neither is
+**As of 2026-10-26.** The catalogue's UI round is ported on `ux/catalogue` (§2.11), PR #40 on top of PR #39; neither is
 merged or deployed. 1121 quick tests pass on the Mac; two reviewers signed off after three rounds (the last two items
 fixed and checked by hand).
 
