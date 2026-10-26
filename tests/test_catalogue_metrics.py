@@ -393,7 +393,8 @@ def test_the_committed_realism_verdicts_are_current_and_served():
     assert "inside the band" in u17["note"] and "the source reports" in u17["note"]
     assert f"{u17['band']['value']:,.2f}" in u17["note"]
     amateur = realism("pass_pct", "co_esp_am_men", data)
-    assert amateur["verdict"] == "pass" and "as reported" in amateur["note"]
+    assert amateur["verdict"] == "pass" and "as the build extends it" in amateur["note"]
+    assert "the source reports that amateurs" not in amateur["note"]     # [S10] never studied semi-pros (close-1 S-1)
     by = {o["id"]: o for o in data["orders"]}
     assert by["women_ball_losses_semi_pro"]["verdict"] == "pass" and by["women_ball_losses_semi_pro"]["steps"][0]["separated"]
     gap = by["women_pass_pct_semi_pro"]
@@ -426,6 +427,45 @@ def test_the_image_smoke_test_checks_the_realism_verdicts(tmp_path):
     fake.write_text(INDEX.read_text())
     [bad] = catalogue_realism_checks(fake)
     assert not bad["ok"]
+
+
+def test_sourced_checks_say_how_the_build_relates_to_them():
+    """Closing review B round 1. S-1: [S10] compares amateurs with internationals in small-sided games, so the amateur
+    orders are served as a direction the build extends, and the sprint order (against [S9] and [S15] in full matches) is
+    assumed. S-2: every sourced check says whether it is calibrated to its source (the U17 band, the women's pass gaps)
+    or scaled in its direction, the served notes say so, and the standard errors are said to be conditional."""
+    from regista.catalogue import realism as rea
+    from regista.synth import report
+
+    by = {o["id"]: o for o in ORDERS}
+    sprint = by["amateur_sprint_distance"]
+    assert rea.assumed(sprint) and not sprint["sources"] and "[S9]" in sprint["contrary"] and "[S15]" in sprint["contrary"]
+    assert "S15" in rea.SOURCES and "10.1519/JSC.0000000000001642" in rea.SOURCES["S15"]
+    for o in ORDERS:
+        if not rea.assumed(o):
+            assert isinstance(o.get("calibrated"), bool) and o["calibration"], o["id"]
+            if "S10" in o["sources"] or o["id"].startswith("women_"):
+                assert o["extends"], o["id"]
+    assert BANDS[0]["calibrated"] and BANDS[0]["calibration"]
+    assert {o["id"] for o in ORDERS if o.get("calibrated")} == {"women_pass_pct_semi_pro", "women_pass_pct_college"}
+    data = rea.load(INDEX.with_name(rea.FILE_NAME))
+    s = report.catalogue_summary(data)["sourced"]
+    assert (s["total"], s["pass"], s["bands"], s["calibrated"], s["scaled"]) == (10, 10, 1, 3, 7)
+    a = report.catalogue_summary(data)["assumed"]
+    assert (a["total"], a["pass"], a["fail"]) == (7, 6, 1)
+    assert rea.SE_CONDITIONAL in data["method"]
+    u17 = realism("peak_speed_mean", "co_gha_u17", data)
+    assert u17["band"]["calibrated"] and "Calibrated to this source" in u17["note"]
+    women = realism("pass_pct", "co_eng_sp_women", data)
+    assert "Calibrated to this source" in women["note"] and "the build extends" in women["note"]
+    assert all(o["calibrated"] and o["extends"] for o in women["orders"])
+    sprint_r = realism("sprint_distance", "co_esp_am_men", data)
+    assert sprint_r["kind"] != "order" and sprint_r["orders"] == []
+    assert "Against it" in sprint_r["note"] and sprint_r["assumed_orders"][0]["calibrated"] is None
+    for c in COMPETITIONS:   # no served note says a source reports anything about the levels it extends to
+        for key in ("pass_pct", "ball_losses", "sprint_distance", "hi_distance"):
+            note = realism(key, c.competition_id, data)["note"]
+            assert "the source reports that amateurs" not in note and "the source reports that women" not in note
 
 
 def test_band_and_order_checks_read_level_aggregates():

@@ -426,9 +426,15 @@ only within one level (`regista.catalogue.metrics.RANK_RULE`). Reliability per l
 0.3 split-half reliability is marked noisy, and the uploaded sample is smaller still.
 
 **Realism per level.** `python -m regista.synth.report --catalogue` (written to `docs/catalogue/realism.md`) reports
-each level against what can honestly be checked: one sourced band (U17 mean peak match speed, 26.80 km/h inside
-24.9-28.7), ten sourced orders between levels (all pass), six assumed orders with no published band (five hold; running
-distance U18 < U19 fails) and "no published band" for event rates below the professional line. It reads the committed
+each level against what can honestly be checked: 10 sourced checks, all pass: one sourced band (U17 mean peak match
+speed, 26.80 km/h inside 24.9-28.7) and nine sourced orders between levels. Three of them confirm a calibration (the U17
+band and the two women's pass gaps: a level scale was set from the same source) and the other seven follow from level
+scales set in the source's direction, so none independently validates football below the professional line; eight of
+the nine orders extend a direction the source reports between other levels (amateurs against internationals in
+small-sided games, elite women against elite men) and say so. Seven assumed orders with no published band (six hold;
+running distance U18 < U19 fails; amateurs sprinting less than semi-pros holds but goes against the full-match studies
+[S9, S15]) and "no published band" for event rates below the professional line. The standard errors are conditional on
+each competition's drawn squads (every measurement season regenerates the same people). It reads the committed
 measurement (`data/catalogue/realism.json`); `--regenerate` measures again.
 
 ## Azure mapping

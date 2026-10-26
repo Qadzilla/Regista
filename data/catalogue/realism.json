@@ -1,6 +1,8 @@
 {
  "bands": [
   {
+   "calibrated": true,
+   "calibration": "the U17 speed scale was set so U17 outfielders' mean peak match speed lands on this source's 26.8 km/h (taxonomy.LEVELS), so the check confirms the build follows its source; it cannot fail short of a bug and is not independent evidence",
    "high": 28.7,
    "id": "u17_peak_speed_mean",
    "label": "U17 academy players' peak match speed is 26.8 +/- 1.9 km/h (mean +/- SD across the study's U17 players, of 180 U13-U17 in all; the band is that SD around the mean, wide for a level's mean)",
@@ -224,26 +226,33 @@
    "team_shots_per90": 12.451
   }
  },
- "method": "level aggregates pooled over every competition of the level and every measurement season (regista.catalogue.measure: each competition's full double round robin regenerated 6 times). A band passes when the pooled value is inside it. An order step's margin is the higher level's value minus the lower's; its standard error combines the two levels' per-season standard errors; the step passes at 2 standard errors or more the way the source reports, fails as clearly the other way, and is otherwise not separated.",
+ "method": "level aggregates pooled over every competition of the level and every measurement season (regista.catalogue.measure: each competition's full double round robin regenerated 6 times). A band passes when the pooled value is inside it. An order step's margin is the higher level's value minus the lower's; its standard error combines the two levels' per-season standard errors; the step passes at 2 standard errors or more the way the source reports, fails as clearly the other way, and is otherwise not separated. The standard errors are conditional on each competition's drawn squads: every measurement season regenerates the same clubs, people and ratings, so they measure match-to-match randomness on those squads, not how much real teams or levels vary, and a step of many standard errors reflects the level scales chosen, not evidence about football.",
  "not_checked": [
   "women's second-half drop in high-intensity distance [S1]: the engine's metrics do not split halves"
  ],
  "orders": [
   {
-   "basis": "sourced",
+   "basis": "assumed",
    "by_construction": false,
-   "covers": null,
+   "calibrated": null,
+   "calibration": null,
+   "contrary": "in full matches [S9] found no difference in sprinting between second-tier professionals and fourth-tier amateurs (only the top tier sprinted more), and [S15] none in match maximal sprinting speed between first-division professionals and fourth-division elite amateurs",
+   "covers": {
+    "sources": [
+     "S10"
+    ],
+    "span": "fourth-division amateurs against internationals, in small-sided games"
+   },
+   "extends": null,
    "gap": null,
    "id": "amateur_sprint_distance",
-   "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90; the source compares fourth-division amateurs with internationals in small-sided games [S10]; in full matches [S9] found no difference between second-tier professionals and fourth-tier amateurs, only the top tier sprinted more)",
+   "label": "amateurs sprint less than semi-pros (distance at 25 km/h or more per 90)",
    "levels": [
     "amateur/senior/men",
     "semi_pro/senior/men"
    ],
    "metric": "sprint_distance",
-   "sources": [
-    "S10"
-   ],
+   "sources": [],
    "steps": [
     {
      "higher": "semi_pro/senior/men",
@@ -264,10 +273,14 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": false,
+   "calibration": "the amateur level's technical execution was sized by the build, in this direction, to lower pass completion and ball retention (taxonomy.LEVELS), so a pass shows the direction carries through the simulation, not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S10] compares fourth-division French amateurs with international players in small-sided games, not semi-pros in full matches; the build extends its direction to amateur against semi-pro men",
    "gap": null,
    "id": "amateur_pass_pct",
-   "label": "amateurs complete fewer passes than semi-pros",
+   "label": "amateurs complete fewer passes than semi-pros (direction from [S10]: amateurs against internationals, small-sided games; extended by the build to semi-pros)",
    "levels": [
     "amateur/senior/men",
     "semi_pro/senior/men"
@@ -296,10 +309,14 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": false,
+   "calibration": "the amateur level's technical execution was sized by the build, in this direction, to lower pass completion and ball retention (taxonomy.LEVELS), so a pass shows the direction carries through the simulation, not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S10] compares fourth-division French amateurs with international players in small-sided games, not semi-pros in full matches; the build extends its direction to amateur against semi-pro men",
    "gap": null,
    "id": "amateur_ball_losses",
-   "label": "amateurs lose the ball more often than semi-pros",
+   "label": "amateurs lose the ball more often than semi-pros (direction from [S10]: amateurs against internationals, small-sided games; extended by the build to semi-pros)",
    "levels": [
     "semi_pro/senior/men",
     "amateur/senior/men"
@@ -328,6 +345,9 @@
   {
    "basis": "assumed",
    "by_construction": false,
+   "calibrated": null,
+   "calibration": null,
+   "contrary": null,
    "covers": {
     "sources": [
      "S10",
@@ -335,6 +355,7 @@
     ],
     "span": "amateurs against internationals in small-sided games; England's top three professional standards"
    },
+   "extends": null,
    "gap": null,
    "id": "tier_pass_pct",
    "label": "pass completion rises with the men's senior tier: amateur < college < semi-pro",
@@ -374,12 +395,16 @@
   {
    "basis": "assumed",
    "by_construction": false,
+   "calibrated": null,
+   "calibration": null,
+   "contrary": null,
    "covers": {
     "sources": [
      "S13"
     ],
     "span": "England's top three professional standards"
    },
+   "extends": null,
    "gap": null,
    "id": "lower_standard_passes",
    "label": "amateurs attempt fewer passes per 90 than semi-pros (shorter possessions, earlier shots)",
@@ -409,6 +434,9 @@
   {
    "basis": "assumed",
    "by_construction": false,
+   "calibrated": null,
+   "calibration": null,
+   "contrary": null,
    "covers": {
     "sources": [
      "S1",
@@ -418,6 +446,7 @@
     ],
     "span": "adult football"
    },
+   "extends": null,
    "gap": null,
    "id": "youth_pass_pct",
    "label": "pass completion rises with age: U17 < U18 < U19 < U20 < senior",
@@ -477,6 +506,9 @@
   {
    "basis": "assumed",
    "by_construction": false,
+   "calibrated": null,
+   "calibration": null,
+   "contrary": null,
    "covers": {
     "sources": [
      "S1",
@@ -485,6 +517,7 @@
     ],
     "span": "adult football"
    },
+   "extends": null,
    "gap": null,
    "id": "youth_ball_losses",
    "label": "ball losses fall with age: U17 > U18 > U19 > U20 > senior",
@@ -544,6 +577,9 @@
   {
    "basis": "assumed",
    "by_construction": true,
+   "calibrated": null,
+   "calibration": null,
+   "contrary": null,
    "covers": {
     "sources": [
      "S5",
@@ -551,6 +587,7 @@
     ],
     "span": "U13-U17"
    },
+   "extends": null,
    "gap": null,
    "id": "youth_peak_speed_mean",
    "label": "peak match speed keeps rising from U17 to senior: U17 < U18 < U19 < U20 < senior",
@@ -610,7 +647,11 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": false,
+   "calibration": "the youth speed and stamina scales were set to rise with age (taxonomy.LEVELS), so a pass shows the direction carries through the simulation, not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": null,
    "gap": null,
    "id": "youth_distance",
    "label": "match running distance per 90 rises with age through U13-U18 (the catalogue's step: U17 < U18)",
@@ -642,12 +683,16 @@
   {
    "basis": "assumed",
    "by_construction": false,
+   "calibrated": null,
+   "calibration": null,
+   "contrary": null,
    "covers": {
     "sources": [
      "S8"
     ],
     "span": "U13-U18"
    },
+   "extends": null,
    "gap": null,
    "id": "youth_distance_extension",
    "label": "match running distance per 90 keeps rising from U18 to senior: U18 < U19 < U20 < senior",
@@ -697,7 +742,11 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": true,
+   "calibration": "the women's technical execution was set to give this source's 8-point gap (taxonomy.LEVELS), so the check confirms the build follows its source; it is not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S1, S12] compare elite women and men, not semi-pro players; the build extends the direction and the size to semi-pro women against semi-pro men",
    "gap": [
     5.0,
     11.0
@@ -738,7 +787,11 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": true,
+   "calibration": "the women's technical execution was set to give this source's 8-point gap (taxonomy.LEVELS), so the check confirms the build follows its source; it is not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S1, S12] compare elite women and men, not college players; the build extends the direction and the size to college women against college men",
    "gap": [
     5.0,
     11.0
@@ -779,7 +832,11 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": false,
+   "calibration": "the women's technical execution was set in this direction (taxonomy.LEVELS), so a pass shows the direction carries through the simulation, not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S1] compares elite women and men, not semi-pro players; the build extends the direction to semi-pro women against semi-pro men",
    "gap": null,
    "id": "women_ball_losses_semi_pro",
    "label": "women lose the ball more often than men (semi-pro)",
@@ -811,7 +868,11 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": false,
+   "calibration": "the women's technical execution was set in this direction (taxonomy.LEVELS), so a pass shows the direction carries through the simulation, not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S1] compares elite women and men, not college players; the build extends the direction to college women against college men",
    "gap": null,
    "id": "women_ball_losses_college",
    "label": "women lose the ball more often than men (college)",
@@ -843,7 +904,11 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": false,
+   "calibration": "the women's speed and stamina scales were set in this direction (taxonomy.LEVELS), so a pass shows the direction carries through the simulation, not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S1] compares elite women and men, not semi-pro players; the build extends the direction to semi-pro women against semi-pro men",
    "gap": null,
    "id": "women_hi_distance_semi_pro",
    "label": "women cover less distance at 20 km/h or more than men (semi-pro; men's FIFA zones for both)",
@@ -875,7 +940,11 @@
   {
    "basis": "sourced",
    "by_construction": false,
+   "calibrated": false,
+   "calibration": "the women's speed and stamina scales were set in this direction (taxonomy.LEVELS), so a pass shows the direction carries through the simulation, not independent evidence",
+   "contrary": null,
    "covers": null,
+   "extends": "[S1] compares elite women and men, not college players; the build extends the direction to college women against college men",
    "gap": null,
    "id": "women_hi_distance_college",
    "label": "women cover less distance at 20 km/h or more than men (college; men's FIFA zones for both)",
@@ -2152,6 +2221,7 @@
   "S12": "Pappalardo L, Rossi A, Natilli M, Cintia P. Explaining the difference between men's and women's football. PLoS One 2021;16(8):e0255407. doi:10.1371/journal.pone.0255407 (2018 men's and 2019 women's World Cups, Wyscout events)",
   "S13": "Bradley PS, Carling C, Gomez Diaz A, Hood P, Barnes C, Ade J, Boddy M, Krustrup P, Mohr M. Match performance and physical capacity of players in the top three competitive standards of English professional soccer. Hum Mov Sci 2013;32(4):808-821. doi:10.1016/j.humov.2013.06.002",
   "S14": "Bradley PS. Setting the benchmark, part 3: setting physical benchmarks across positions. FIFA Training Centre, FIFA Women's World Cup 2023 physical analysis, 2024. https://www.fifatrainingcentre.com/en/game/tournaments/fifa-womens-world-cup/2023/post-tournament-analysis/physical-analysis/part-3-setting-physical-benchmarks-across-positions.php",
+  "S15": "Djaoui L, Chamari K, Owen AL, Dellal A. Maximal sprinting speed of elite soccer players during training and matches. J Strength Cond Res 2017;31(6):1509-1517. doi:10.1519/JSC.0000000000001642",
   "S2": "Datson N, Drust B, Weston M, Jarman IH, Lisboa PJ, Gregson W. Match physical performance of elite female soccer players during international competition. J Strength Cond Res 2017;31(9):2379-2387. doi:10.1519/JSC.0000000000001575",
   "S3": "Vescovi JD. Sprint speed characteristics of high-level American female soccer players: Female Athletes in Motion (FAiM) study. J Sci Med Sport 2012;15(5):474-478. doi:10.1016/j.jsams.2012.03.006",
   "S4": "Curtis RM, Huggins RA, Looney DP, West CA, Fortunati A, Fontaine GJ, Casa DJ. Match demands of National Collegiate Athletic Association Division I men's soccer. J Strength Cond Res 2018;32(10):2907-2917. doi:10.1519/JSC.0000000000002719",

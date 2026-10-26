@@ -36,9 +36,11 @@ saw (`docs/vision.md`: fresh matches with the v4 models, clips 0.75 recall / 0.9
 synthetic competitions beside the Regista League (kept byte-identical as "England semi-pro men"), across 10 countries
 and the levels below the professional line (semi-pro, amateur, college, U17-U20 academies; men and women), with
 percentiles within level and a read-only API and three MCP tools. Each level's realism is reported against only what a
-source supports: one sourced band and ten sourced orders between levels pass; of six assumed orders (no published band,
-never counted) five hold and one fails (running distance U18 < U19); event rates below the professional line have no
-published band and claim none. Check: `python3 -m regista.synth.report --catalogue`, `docs/catalogue/realism.md`,
+source supports: 10 sourced checks (one band, nine orders between levels) pass, of which three confirm a calibration
+(the U17 band and the women's pass gaps were set from the same sources) and seven follow from level scales set in the
+source's direction, so none independently validates football below the professional line; of seven assumed orders (no
+published band, never counted) six hold and one fails (running distance U18 < U19); event rates below the professional
+line have no published band and claim none. Check: `python3 -m regista.synth.report --catalogue`, `docs/catalogue/realism.md`,
 `tests/test_catalogue_*.py`.
 
 **The Scout terminal's engine** (part A, built on `feature/terminal-engine`, not yet deployed; its screens are next):

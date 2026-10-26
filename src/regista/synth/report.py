@@ -877,7 +877,9 @@ def catalogue_drift(committed: Record, rechecked: Record) -> list[str]:
 
 
 def catalogue_summary(data: Record) -> Record:
-    """Counts: sourced checks (the band and the sourced orders) and assumed orders, by verdict."""
+    """Counts: sourced checks (the band and the sourced orders) and assumed orders, by verdict; for the sourced checks
+    also how many are calibrated to their source (``calibrated``) and how many follow level scales set in the source's
+    direction (``scaled``), counted among those that pass."""
     sourced = list(data.get("bands", [])) + [o for o in data.get("orders", []) if o.get("basis", "sourced") != "assumed"]
     assumed = [o for o in data.get("orders", []) if o.get("basis") == "assumed"]
 
@@ -886,7 +888,12 @@ def catalogue_summary(data: Record) -> Record:
         return {"total": len(checks), "pass": verdicts.count("pass"), "fail": verdicts.count("fail"),
                 "not separated": verdicts.count("not separated"), "not measured": verdicts.count(None)}
 
-    return {"sourced": count(sourced), "assumed": count(assumed)}
+    passing = [c for c in sourced if c.get("verdict") == "pass"]
+    return {"sourced": {**count(sourced), "bands": len(data.get("bands", [])),
+                        "calibrated": sum(1 for c in passing if c.get("calibrated")),
+                        "scaled": sum(1 for c in passing if not c.get("calibrated")),
+                        "extended": sum(1 for c in sourced if c.get("extends"))},
+            "assumed": count(assumed)}
 
 
 def regenerate_catalogue(repeats: int, workers: int | None = None, levels: list[str] | None = None,
@@ -976,8 +983,15 @@ def render_catalogue(data: Record, *, source: str, stale: str | None = None, dri
     if comparison:
         lines += [f"**Compared with the committed measurement:** {comparison['text']}", ""]
     lines += ["## Verdicts at a glance", "",
-              f"- **Sourced checks: {s['pass']} of {s['total']} pass** (one published band and {s['total'] - 1} sourced "
-              f"orders between levels; {s['fail']} fail, {s['not separated']} not separated, {s['not measured']} not measured).",
+              f"- **Sourced checks: {s['pass']} of {s['total']} pass** ({s['bands']} published band and "
+              f"{s['total'] - s['bands']} sourced orders between levels; {s['fail']} fail, {s['not separated']} not separated, "
+              f"{s['not measured']} not measured). Of those that pass, {s['calibrated']} confirm a calibration (a level "
+              "scale was set from the same source: the U17 band and the two women's pass gaps) and the other "
+              f"{s['scaled']} follow from level scales set in the source's direction; none independently validates "
+              "football below the professional line. "
+              f"{s['extended']} of the {s['total'] - s['bands']} sourced orders extend a direction the source reports "
+              "between other levels (amateurs against internationals in small-sided games, elite women against elite "
+              "men) to the catalogue's levels, and say so.",
               f"- **Assumed orders: {a['pass']} of {a['total']} hold, {a['fail']} fail** ({a['not separated']} not "
               f"separated, {a['not measured']} not measured). No source covers these steps; they are measured and shown, "
               "never counted as a check.",
@@ -989,10 +1003,15 @@ def render_catalogue(data: Record, *, source: str, stale: str | None = None, dri
               f"{SCALE_NOTE}", "",
               "## Kinds of check", "",
               "- **band**: a published band read for this level: pass or fail.",
-              "- **order**: a direction a source reports between levels, checked on the pooled seasons. A step passes at "
+              "- **order**: a direction a source reports, checked on the pooled seasons. A step passes at "
               f"{data.get('separation_se', 2.0):g} standard errors or more the way the source reports, fails as clearly the "
               "other way, and is otherwise not separated. Where the source also gives a size (the women's pass gap), the "
-              "step must fall inside it.",
+              "step must fall inside it. Where the source compares other levels, the order is marked *extended*: the "
+              "build extends the source's direction to the catalogue's levels.",
+              "- **calibrated / scaled**: every sourced check says how the build relates to it. *Calibrated*: a level "
+              "scale was set from the same source's number, so a pass confirms the build follows its source. *Scaled*: "
+              "the level scales were set in the source's direction, so a pass shows that direction carries through the "
+              "simulation. Neither is independent evidence about football.",
               "- **assumed order**: a direction no source covers at these levels (Regista's assumption). Measured the same "
               "way, never counted.",
               "- **reference**: a figure from a higher level shown beside the number, no verdict.",
@@ -1028,6 +1047,9 @@ def render_catalogue(data: Record, *, source: str, stale: str | None = None, dri
         lines.append(f"| {b['label']} | {lv_label.get(b['level'], b['level'])} | {_num(b['value'])} {b['unit']} | "
                      f"{b['low']}-{b['high']} {b['unit']} | **{b['verdict'] or 'not measured'}** | "
                      f"{', '.join(b['sources'])} |")
+    for b in data.get("bands", []):
+        if b.get("calibration"):
+            lines += ["", f"Calibrated ({b['id']}): {b['calibration']}."]
 
     def order_table(orders: list[Record], assumed: bool) -> list[str]:
         head = ("| Check | Levels, lowest expected first | Weakest step (margin, SE ratio) | Verdict | "
@@ -1041,16 +1063,27 @@ def render_catalogue(data: Record, *, source: str, stale: str | None = None, dri
                 src = (f"{', '.join(cov.get('sources', []))}: {cov['span']}" if cov.get("span") else "none")
                 if o.get("by_construction"):
                     src += "; holds by construction (the youth speed scales are interpolated)"
+                if o.get("contrary"):
+                    src += f"; against it: {o['contrary']}"
             else:
                 src = ", ".join(o["sources"]) + (f"; the step must fall inside {o['gap'][0]:g}-{o['gap'][1]:g}"
                                                  if o.get("gap") else "")
+                src += "; extended by the build" if o.get("extends") else ""
+                src += "; calibrated" if o.get("calibrated") else "; scaled"
             out.append(f"| {o['label']} ({o['unit']}) | {vals} | {_weakest(o)} | **{o['verdict'] or 'not measured'}** "
                        f"| {src} |")
         return out
 
     orders = data.get("orders", [])
     lines += ["", "## Orders between levels (sourced)", ""]
-    lines += order_table([o for o in orders if o.get("basis", "sourced") != "assumed"], assumed=False)
+    sourced_orders = [o for o in orders if o.get("basis", "sourced") != "assumed"]
+    lines += order_table(sourced_orders, assumed=False)
+    lines += ["", "How the build relates to each sourced order:", ""]
+    for o in sourced_orders:
+        rel = [f"extended: {o['extends']}"] if o.get("extends") else []
+        if o.get("calibration"):
+            rel.append(f"{'calibrated' if o.get('calibrated') else 'scaled'}: {o['calibration']}")
+        lines.append(f"- {o['id']}: {'; '.join(rel) or 'the source compares these levels itself'}.")
     lines += ["", "## Assumed orders (no published band)", "",
               "No source covers these steps. They state Regista's assumption, are measured exactly like the sourced "
               "orders and are never counted as checks.", ""]

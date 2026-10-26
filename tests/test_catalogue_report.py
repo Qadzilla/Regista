@@ -55,8 +55,10 @@ def test_the_default_report_reads_the_committed_measurement(committed_report):
 def test_the_verdicts_at_a_glance():
     data = json.loads(COMMITTED.read_text())
     s = report.catalogue_summary(data)
-    assert s["sourced"] == {"total": 11, "pass": 11, "fail": 0, "not separated": 0, "not measured": 0}
-    assert s["assumed"] == {"total": 6, "pass": 5, "fail": 1, "not separated": 0, "not measured": 0}
+    # closing review B round 1: the amateur sprint order is assumed (S-1); the passes split into calibrated and scaled (S-2)
+    assert s["sourced"] == {"total": 10, "pass": 10, "fail": 0, "not separated": 0, "not measured": 0, "bands": 1,
+                            "calibrated": 3, "scaled": 7, "extended": 8}
+    assert s["assumed"] == {"total": 7, "pass": 6, "fail": 1, "not separated": 0, "not measured": 0}
     [failing] = [o["id"] for o in data["orders"] if o["verdict"] != "pass"]
     assert failing == "youth_distance_extension"
 
@@ -161,7 +163,7 @@ def test_the_command_line(no_generation, tmp_path, capsys):
     assert out.read_text(encoding="utf-8") == DOC.read_text(encoding="utf-8")
     assert capsys.readouterr().out.startswith("# Catalogue realism report")
     assert report.main(["--catalogue", str(INDEX), "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["summary"]["sourced"]["pass"] == 11
+    assert json.loads(capsys.readouterr().out)["summary"]["sourced"]["pass"] == 10
     for bad in (["--catalogue", "--level", "academy/U17/men"], ["--catalogue", "--repeat", "3"],
                 ["--catalogue", "--regenerate", "--level", "academy/U16/men"], ["--catalogue", "--profile", "league"]):
         with pytest.raises(SystemExit) as e:

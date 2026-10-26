@@ -295,8 +295,10 @@ report `docs/catalogue/realism.md`; the data contract in `data/synthetic/README.
   engine (`regista.catalogue.metrics`: pools within level, every number with its pool and sample, ranking rule:
   percentiles only within a position, raw numbers only within a level), reliability per level, the catalogue API
   (`catalogue_api.py`, read-only) with optional catalogue parameters on existing endpoints, three MCP tools, and the
-  realism report per level (`python -m regista.synth.report --catalogue`: 11 of 11 sourced checks pass; of 6 assumed
-  orders, 5 hold and running distance U18 < U19 fails).
+  realism report per level (`python -m regista.synth.report --catalogue`: 10 of 10 sourced checks pass, 1 band and 9
+  orders, of which 3 confirm a calibration and 7 follow from level scales set in the source's direction, so none
+  independently validates football below the professional line; of 7 assumed orders, 6 hold and running distance
+  U18 < U19 fails).
 - **What the UI round will do (not built):** the Scout and Player pages on the catalogue (country and level filters,
   pools and small-pool flags shown well, careers on profiles), whether the public Scout agent gets the catalogue tools,
   whether Player-view uploads may come from catalogue clubs, a Fabric push of the catalogue, and the demo and pitch
@@ -578,9 +580,9 @@ for the record:
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
 **As of 2026-10-25 (night).** The catalogue (§2.11) is built on `feature/catalogue`: data, engine, API, MCP tools and
-the realism report per level (`docs/catalogue/realism.md`: 11 of 11 sourced checks pass; assumed order running
-distance U18 < U19 fails). The branch is not pushed yet; the PR, merge and deploy wait for Zaid's go-ahead, so the live
-app does not serve the catalogue. England semi-pro men (the Regista League) is byte-identical. 979 quick tests and 15 slow pass on the Mac. The 60
+the realism report per level (`docs/catalogue/realism.md`: 10 of 10 sourced checks pass, 3 of them confirming a
+calibration; of 7 assumed orders, running distance U18 < U19 fails). The branch is not pushed yet; the PR, merge and deploy wait for Zaid's go-ahead, so the live
+app does not serve the catalogue. England semi-pro men (the Regista League) is byte-identical. 980 quick tests and 15 slow pass on the Mac. The 60
 catalogue pins were recorded on macOS; Linux CI runs them on the PR. Next: the UI round (Scout and Player pages on the
 catalogue).
 
