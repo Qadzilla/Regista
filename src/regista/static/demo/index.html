@@ -26,12 +26,22 @@
     <h1 id="dmHead">Regista directs every touch.</h1>
     <p class="dm-lede">Regista watches a football match and cuts every moment each player is on the ball, plus every replay and
       highlight they appear in.</p>
-    <p class="dm-lede">Its agents, on Microsoft Foundry and Microsoft Agent Framework, label and explain each moment, write match
-      recaps, and let anyone find any moment by asking.</p>
-    <p class="dm-lede">It also runs a catalogue of footage uploaded below the professional level, where scouts compare players
-      within their own level and every number opens the moments behind it.</p>
+    <p class="dm-lede">Agents on Microsoft Agent Framework label and explain each moment and write match recaps; Microsoft
+      Foundry answers questions and can write the recap.</p>
+    <p class="dm-lede">It also runs a synthetic catalogue of footage uploaded below the professional level, where scouts compare
+      players within their own level and every number opens the moments behind it.</p>
     <p class="dm-cta"><button type="button" class="dm-tour tour-start" id="tourStart" data-tour-start>Take the tour</button>
-      <span class="muted small">15 short steps across the live app, about five minutes. It only reads: nothing you click changes anything.</span></p>
+      <span class="muted small">12 short steps across the live app, about five minutes. It only reads: nothing you click changes Regista.</span></p>
+  </section>
+
+  <!-- What this server runs on, read from /api/health now (demo.js) -->
+  <section class="dm-sec" id="running" aria-labelledby="runningHead">
+    <h2 id="runningHead">Running on this server right now</h2>
+    <p class="muted small" id="runningNote">Checking this server…</p>
+    <ul class="dm-stack" id="runningList"></ul>
+    <p class="small dm-else"><b>Checked outside this app:</b> Microsoft Fabric recomputed every catalogue number from the raw
+      tables on 26 October 2026 (7,399 of 7,399 rows matched) and every league number (756 of 756); it runs in a Fabric
+      workspace, not in this app. GitHub Actions tests, builds and deploys every change.</p>
   </section>
 
   <!-- The four paths, each into its live view -->
@@ -61,16 +71,6 @@
     </div>
   </section>
 
-  <!-- What this server runs on, read from /api/health now (demo.js) -->
-  <section class="dm-sec" id="running" aria-labelledby="runningHead">
-    <h2 id="runningHead">Running on this server right now</h2>
-    <p class="muted small" id="runningNote">Checking this server…</p>
-    <ul class="dm-stack" id="runningList"></ul>
-    <p class="small dm-else"><b>Checked outside this app:</b> Microsoft Fabric recomputed every catalogue number from the raw
-      tables on 26 October 2026 (7,399 of 7,399 rows matched) and every league number (756 of 756); it runs in a Fabric
-      workspace, not in this app. GitHub Actions tests, builds and deploys every change.</p>
-  </section>
-
   <!-- Synthetic by design -->
   <section class="dm-sec panel dm-synth" aria-labelledby="synthHead">
     <h2 id="synthHead">Synthetic data, by design</h2>
@@ -83,7 +83,7 @@
   <section class="dm-sec" aria-labelledby="notesHead">
     <h2 id="notesHead">Good to know</h2>
     <ul class="dm-notes">
-      <li>Everything is open to read. Uploads, reviews and other changes need the operator's key, so nothing you click here changes anything.</li>
+      <li>Everything is open to read. Uploads, reviews and other changes need the operator's key, so nothing you click here changes Regista.</li>
       <li>Ask Microsoft Foundry is open too, with a limit of a few questions a minute per visitor. Data Search answers instantly with Regista's own rules.</li>
       <li>A clip nobody has played since the last deploy is rendered on its first view, which takes a few seconds.</li>
       <li>The Studio, the operator's dashboard, opens with the view-only key given in the submission.</li>

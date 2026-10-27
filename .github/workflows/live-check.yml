@@ -1,8 +1,9 @@
 # Read-only checks of the live app, every day until judging ends (2026-11-10), and on demand.
 #
 # The judges may score from the live app alone, so a broken demo must be noticed by us first: a failing run turns red
-# and GitHub emails the repository's owner. The checks are plain GETs with no key and no secret (src/regista/live_check.py:
-# health and its services, the five pages, the catalogue's totals, one clip as video/mp4); nothing here can write.
+# and GitHub emails whoever last changed this workflow's schedule (GitHub's rule for scheduled runs), so Zaid merges
+# it himself. The checks are plain GETs with no key and no secret (src/regista/live_check.py: health and its services,
+# the five pages, the catalogue's totals, one clip as video/mp4); nothing here can write.
 # The probe uses only the standard library, so it runs as a script without installing the package. After 2026-11-11 it
 # passes without sending a request; delete this file then.
 # Scheduled workflows run from the default branch only: this starts once it is merged into main.
@@ -26,4 +27,6 @@ jobs:
         with:
           python-version: "3.11"
       - name: Check the live app (read-only)
-        run: python src/regista/live_check.py --until 2026-11-11
+        # -I: the script's own folder (src/regista) is not put on the import path, so no file there can shadow the
+        # standard library
+        run: python -I src/regista/live_check.py --until 2026-11-11

@@ -315,7 +315,8 @@ def test_cache_counts_files_per_match_and_partial_renders(studio):
     c = _get(studio, "/api/studio/cache")
     assert c["files"] == 2 and c["bytes"] == 1500
     assert c["matches"] == [{"match_id": "syn_0294", "files": 2, "bytes": 1500, "partial": 1}]
-    assert set(c["prerender"]) == {"enabled", "running", "total", "rendered", "failed", "started_at", "finished_at"}
+    assert set(c["prerender"]) == {"enabled", "running", "total", "rendered", "failed", "started_at", "finished_at", "tour"}
+    assert isinstance(c["usable_cpus"], int) and c["usable_cpus"] >= 1
 
 
 def test_prerender_reports_its_progress(studio, monkeypatch):

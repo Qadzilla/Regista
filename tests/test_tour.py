@@ -33,13 +33,15 @@ PAGES = {
 TOUR_PAGES = ["product/index.html", "demo/index.html", "scout/index.html", "me/index.html", "player/index.html"]
 
 # The demo video's beats (docs/demo-storyboard.md), in order, as tour steps.
+# Beat 7's paths are folded in where the tour already stands (fixes-1): fans, creators and broadcasters on the recap
+# step (the recap, its reel, Download reel, Export moments), players on the upload step; scouts keep their own steps.
 BEATS = ["hook",                                  # 1 the Goal reel
-         "moments", "ask", "follow-up",           # 2 every moment; "his nutmegs", then "now the replays"
-         "recap",                                 # 3 explained and recapped
-         "video-in",                              # 4 the processed upload, agent by agent
+         "moments", "ask",                        # 2 every moment; "his nutmegs", then "now the replays"
+         "recap",                                 # 3 explained and recapped (+ 7: fans, creators, broadcasters)
+         "video-in",                              # 4 the processed upload, agent by agent (+ 7: players)
          "foundry",                               # 5 Ask Foundry and How Regista answered
          "catalogue", "competition",              # 6 the catalogue, and the Fabric check
-         "fans", "scout", "number", "terminal", "players",   # 7 the paths
+         "scout", "number", "terminal",           # 7 the scouts' path
          "close"]                                 # 8
 
 
@@ -65,7 +67,7 @@ def test_the_steps_follow_the_storyboard_beats_in_order():
     s = steps()
     assert [x["id"] for x in s] == BEATS
     for x in s:
-        assert set(x) <= {"id", "url", "target", "above", "fill", "title", "text", "act"}, x["id"]
+        assert set(x) <= {"id", "url", "target", "above", "rules", "fill", "title", "text", "act"}, x["id"]
         assert x["title"] and x["text"] and len(x["title"]) <= 40, x["id"]
         assert len(x["text"]) <= 330 and len(x.get("act", "")) <= 120, x["id"]   # one or two plain sentences
         assert "_" not in x["text"] and "regista." not in x["text"].lower(), x["id"]   # no snake_case, no module names
@@ -104,15 +106,29 @@ def test_every_target_is_an_id_or_a_data_tour_attribute_that_its_page_has():
 def test_the_steps_say_what_the_live_app_shows():
     by = {x["id"]: x for x in steps()}
     assert by["hook"]["url"] == "/players/pl_bro_09" and "Goal reel" in by["hook"]["act"]
-    assert by["ask"]["fill"]["value"] == "his nutmegs" and by["follow-up"]["fill"]["value"] == "now the replays"
+    assert by["ask"]["fill"]["value"] == "his nutmegs" and '"now the replays"' in by["ask"]["act"]
     assert by["moments"]["url"] == by["ask"]["url"] == by["recap"]["url"] == "/?match=syn_0294&player=t_home_09"
     assert by["video-in"]["url"].startswith("/me?player=pl_bro_09")
     assert "Azure MCP Server" in by["foundry"]["text"] and "Regista's MCP server" in by["foundry"]["text"]
     assert "press Ask" in by["foundry"]["act"]   # the visitor asks Foundry; the tour never does
-    # Fabric is not in the app: its check is quoted as text, with its date, and says where it runs
-    assert "7,399 of 7,399" in by["competition"]["text"] and "26 October 2026" in by["competition"]["text"]
-    assert "not in this app" in by["competition"]["text"]
-    assert by["competition"]["url"] == "/scout#competition/co_esp_u19"
+    # Fabric is not in the app: its check is quoted as text, with its date, said first to be outside the app, on the
+    # step whose title names it (fixes-1: not on the competition page, whose highlight is the uploads)
+    cat = by["catalogue"]
+    assert "Fabric" in cat["title"] and "Not in this app: " in cat["text"]
+    assert "7,399 of 7,399" in cat["text"] and "26 October 2026" in cat["text"]
+    assert by["competition"]["url"] == "/scout#competition/co_esp_u19" and "Fabric" not in by["competition"]["title"]
+    # Only the upload step says Regista's vision agents watched footage: the league and the demo match come from the
+    # generator (fixes-1), and nothing claims they were found in footage
+    assert "synthetic league" in by["hook"]["text"] and "footage" not in by["hook"]["text"]
+    assert "match generator" in by["moments"]["text"] and "watched" not in by["moments"]["text"]
+    assert "vision agents" in by["video-in"]["text"] and "Azure Blob Storage" in by["video-in"]["text"]
+    for x in steps():
+        if x["id"] != "video-in":
+            assert "vision" not in x["text"] and "watched" not in x["text"], x["id"]
+    # An act line is something to do, never a caption
+    assert all(not x["act"] or not x["act"].startswith("Measured") for x in steps())
+    # No step points at a write: Add a match asks for the operator's key on the live app
+    assert all(x["target"] != "#addBtn" for x in steps())
     assert "Who are the best U19 dribblers up front?" in by["scout"]["act"] and by["number"]["url"] == "/players/pl_pnr_11"
     assert by["terminal"]["fill"]["value"] == "most goals in England" and "Femi Toure" in by["terminal"]["act"]
     assert by["close"]["url"] == "/demo"
@@ -132,6 +148,41 @@ def test_the_tour_only_reads_and_keeps_its_place_in_the_visitor_store():
     assert "esc(step.title)" in code and "esc(step.text)" in code and "esc(step.act)" in code
     assert "[data-tour-start]" in code   # started by Home's and /demo's buttons
     assert "dispatchEvent(new Event('input'" in code   # a box is filled, never sent
+
+
+def test_the_steps_that_say_data_search_put_the_switches_back_on_it():
+    """Going Back from the Foundry step to a step that says no AI model is called must not leave Foundry picked."""
+    s = steps()
+    by = {x["id"]: x for x in s}
+    ruled = [x["id"] for x in s if x.get("rules")]
+    assert ruled == ["moments", "ask", "recap"]
+    assert "With Data Search picked" in by["ask"]["text"] and not by["foundry"].get("rules")
+    # every Clip view step before Foundry is ruled, so Back from Foundry lands on Data Search
+    i = [x["id"] for x in s].index("foundry")
+    assert all(x.get("rules") for x in s[:i] if x["url"].startswith("/?"))
+    js = TOUR.read_text()
+    fn = js[js.index("function rulesEngine()"):js.index("// Find the step's element")]
+    assert 'input[name="fengine"][value="rules"]' in fn and "dispatchEvent(new Event('change'" in fn
+    assert 'input[name="recapEngine"][value="rules"]' in fn and "fetch(" not in fn
+    html = (STATIC / "product/index.html").read_text()
+    assert 'name="fengine" value="rules"' in html and 'name="recapEngine" value="rules"' in html
+    app = (STATIC / "product/app.js").read_text()
+    assert "r.addEventListener('change', () => setEngine(r.value))" in app   # the change event is what sets all copies
+
+
+def test_a_double_click_moves_one_step_and_a_slow_page_still_gets_its_highlight():
+    js = TOUR.read_text()
+    click = js[js.index("function onCardClick(e)"):js.index("document.addEventListener('click'")]
+    assert "e.detail > 1" in click and "CLICK_GAP_MS" in click and "lastMove = now" in click
+    assert "b.disabled = true" in js[js.index("function go(i)"):js.index("function exit()")]
+    wait = int(re.search(r"const WAIT_MS = (\d+);", js).group(1))
+    assert wait >= 60000   # the probe allows 120 s for a cold catalogue; a cold profile or competition page can take most of a minute
+
+
+def test_the_demo_page_says_how_many_steps_the_tour_has():
+    html = (STATIC / "demo/index.html").read_text()
+    m = re.search(r"(\d+) short steps", html)
+    assert m and int(m.group(1)) == len(steps())
 
 
 def test_the_tour_script_parses():
@@ -163,7 +214,7 @@ def test_phones_get_the_card_along_the_bottom_and_a_way_to_fold_it():
     # phones: the element goes under the header (what it leads to shows above the strip), except where the answer
     # appears above it (the Ask box), and the pages' own scrolls stop above the strip
     assert "matchMedia('(max-width: 720px)')" in js and "!step.above" in js
-    assert [x["id"] for x in steps() if x.get("above")] == ["ask", "follow-up", "foundry"]
+    assert [x["id"] for x in steps() if x.get("above")] == ["ask", "foundry"]
     assert "scroll-padding-bottom" in phone
     assert "data-tour-act=\"min\"" in js and "data-tour-act=\"open\"" in js   # Hide folds the card to a pill
 

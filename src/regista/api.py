@@ -522,7 +522,11 @@ _render_slots = threading.BoundedSemaphore(RENDER_CONCURRENCY)
 _render_locks: dict[Path, threading.Lock] = {}
 _render_locks_guard = threading.Lock()
 _render_pool = ThreadPoolExecutor(max_workers=RENDER_CONCURRENCY + 2, thread_name_prefix="regista-render")
-_render_waiting = {"n": 0}        # requests waiting for a render; touched only on the event loop
+# Requests waiting for a render. Not only the server's event loop counts here: the startup warm-up (_prerender_tour)
+# calls _video from its own thread, on its own loop, so the count is changed under a lock (a lost decrement would leave
+# it raised for good, and after RENDER_QUEUE_MAX of them every cold render would answer 503).
+_render_waiting = {"n": 0}
+_render_waiting_guard = threading.Lock()
 _serving: dict[Path, int] = {}    # cached files a response is sending right now, never evicted
 _serving_guard = threading.Lock()
 
@@ -587,13 +591,15 @@ def _render_once(out: Path, render: Any) -> Path:
 async def _video(out: Path, render: Any, filename: str | None = None) -> FileResponse:
     """Serve ``out``, rendering it first on the render pool if it is not cached. Marked as served until sent."""
     if not out.exists():
-        if _render_waiting["n"] >= RENDER_QUEUE_MAX:
-            raise HTTPException(503, "too many videos are rendering right now; try again shortly", headers={"Retry-After": "10"})
-        _render_waiting["n"] += 1
+        with _render_waiting_guard:
+            if _render_waiting["n"] >= RENDER_QUEUE_MAX:
+                raise HTTPException(503, "too many videos are rendering right now; try again shortly", headers={"Retry-After": "10"})
+            _render_waiting["n"] += 1
         try:
             await asyncio.get_running_loop().run_in_executor(_render_pool, _render_once, out, render)
         finally:
-            _render_waiting["n"] -= 1
+            with _render_waiting_guard:
+                _render_waiting["n"] -= 1
     with _serving_guard:
         if not out.exists():  # evicted between the render and now: render it again on the next request
             raise HTTPException(503, "the video was just evicted from the cache; try again", headers={"Retry-After": "1"})
@@ -1156,7 +1162,10 @@ PUBLIC_REGISTA_TOOLS = ["search_clips", "search_library", "list_matches"]
 PUBLIC_AZURE_NAMESPACES = ("search",)
 
 
-ASK_DEFAULTS = {"per_min": 5, "per_hour": 40, "total_per_hour": 120, "total_per_day": 600, "concurrent": 3}
+# The daily cap for everyone stays at 300 (fixes-1): the subscription (Azure for Students) stops at its credit, which
+# would take the live demo down, and the credit left cannot be read from the command line, so the worst case is kept
+# where it was before judging (docs/redesign/live-demo/fixes-1.md).
+ASK_DEFAULTS = {"per_min": 5, "per_hour": 40, "total_per_hour": 120, "total_per_day": 300, "concurrent": 3}
 
 
 def _limit(name: str, default: int) -> int:
@@ -1181,7 +1190,7 @@ class AskLimiter:
     @classmethod
     def from_env(cls) -> AskLimiter:
         # Defaults for judging (raised 2026-10-26 from 3/20/60/300/2): per visitor 5 a minute and 40 an hour; for everyone
-        # 120 an hour and 600 a day; 3 at a time. Each REGISTA_ASK_* variable overrides its own.
+        # 120 an hour and still 300 a day; 3 at a time. Each REGISTA_ASK_* variable overrides its own.
         return cls(_limit("REGISTA_ASK_PER_MIN", ASK_DEFAULTS["per_min"]), _limit("REGISTA_ASK_PER_HOUR", ASK_DEFAULTS["per_hour"]),
                    _limit("REGISTA_ASK_TOTAL_PER_HOUR", ASK_DEFAULTS["total_per_hour"]),
                    _limit("REGISTA_ASK_TOTAL_PER_DAY", ASK_DEFAULTS["total_per_day"]),

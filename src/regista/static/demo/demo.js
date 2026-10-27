@@ -15,7 +15,7 @@
       ['agent-framework', 'Microsoft Agent Framework', true, 'Runs the agent workflows: vision, clips, labels, review, recap, profiles'],
       ['mcp', 'Azure MCP Server', h.azure_mcp, 'A Foundry agent\'s tool for the clip search index, beside Regista\'s own MCP server'],
       ['cosmos-db', 'Azure Cosmos DB', cloud.cosmos, 'Stores matches, clips, labels and reviewers\' verdicts'],
-      ['ai-search', 'Azure AI Search', cloud.search, 'Indexes every labelled clip for search across matches'],
+      ['ai-search', 'Azure AI Search', cloud.search, 'Indexes the library\'s labelled clips for search across matches'],
       ['container-apps', 'Azure Container Apps', h.container_apps, 'Runs this app, and the job that runs the vision agents on uploads'],
       ['storage', 'Azure Storage', h.storage, 'Holds uploaded footage, and the queue that hands it to the vision job'],
       ['app-insights', 'Application Insights', h.tracing, 'Receives a trace of every agent step and tool call'],

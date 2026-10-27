@@ -4,7 +4,10 @@
 // search box (never sending them), so a Microsoft Foundry question is only ever asked by the visitor pressing Ask.
 //
 // Each step names a URL (the tour goes there when the visitor presses Next or Back) and may name one element to
-// highlight, by id ("#uploads") or by a data-tour attribute ('[data-tour="goal-reel"]'), never by a page's layout.
+// highlight, by id ("#uploads") or by a data-tour attribute ('[data-tour="goal-reel"]'), never by a page's layout. A step
+// marked "rules" says Data Search answers, so on arrival it puts the Clip view's "Who answers" switch back on Data Search
+// (and the recap's on Instant): going Back from the Foundry step never spends a Foundry call. The switches only change
+// how the page answers the visitor's next question; nothing is sent.
 // Where the tour is lives in Regista.store (this browser only, key "tour"), so it resumes after a page load; Exit
 // forgets it. A visitor who follows a suggested link onto the next step's page moves the tour on; anywhere else the
 // card says the tour is paused and offers the way back.
@@ -16,7 +19,10 @@
   if (!R || typeof document === 'undefined') return;
   const esc = R.esc;
   const KEY = 'tour';
-  const WAIT_MS = 20000;   // how long a step waits for its element (pages build parts of themselves after loading)
+  // How long a step waits for its element: pages build parts of themselves after loading, and on a cold revision the
+  // catalogue or a profile can take most of a minute to build the first time.
+  const WAIT_MS = 60000;
+  const CLICK_GAP_MS = 400;   // Next, Back or resume pressed again sooner is the same press (a double-click), not a second one
 
   // The steps. Plain data between the markers: tests/test_tour.py reads it as JSON and checks every URL is a route and
   // every target is in its page's HTML or made by its scripts.
@@ -24,44 +30,36 @@
   const STEPS = [
     { "id": "hook", "url": "/players/pl_bro_09", "target": "[data-tour=\"goal-reel\"]",
       "title": "Every goal, found",
-      "text": "Femi Toure is the Regista League's top scorer: five league goals, none a penalty. Regista found every one in the footage.",
+      "text": "Femi Toure is the top scorer in Regista's synthetic league: five goals, none a penalty. Here is every one, in match order.",
       "act": "Press Goal reel: each goal once, in match order." },
-    { "id": "moments", "url": "/?match=syn_0294&player=t_home_09", "target": "#timelineWrap",
+    { "id": "moments", "url": "/?match=syn_0294&player=t_home_09", "target": "#timelineWrap", "rules": true,
       "title": "Every moment of a match",
-      "text": "Regista watched this match and cut every moment Sami Castellanos is on the ball, plus every replay, highlight and close-up he appears in. Each mark on the timeline is one.",
+      "text": "This match comes from Regista's match generator. Regista cut every moment Sami Castellanos is on the ball, plus every replay, highlight and close-up he appears in. Each mark on the timeline is one.",
       "act": "Click any mark to play it." },
-    { "id": "ask", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "his nutmegs" },
+    { "id": "ask", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "rules": true, "fill": { "id": "fq", "value": "his nutmegs" },
       "title": "Then you just ask",
-      "text": "Ask in plain words. Data Search answers with Regista's own rules, so no AI model is called.",
-      "act": "Press Ask to find his nutmegs." },
-    { "id": "follow-up", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "now the replays" },
-      "title": "Follow-ups keep the thread",
-      "text": "Regista remembers the question so far, so a follow-up narrows it: now only the replays of those nutmegs.",
-      "act": "Press Ask." },
-    { "id": "recap", "url": "/?match=syn_0294&player=t_home_09", "target": "#recap",
-      "title": "Explained and recapped",
-      "text": "Every match gets a recap, told from the picked player's side. Each sentence is a link that plays the moment it describes.",
+      "text": "Ask in plain words. With Data Search picked, Regista's own rules answer, so no AI model is called. A follow-up keeps the thread: after his nutmegs, \"now the replays\" narrows them to the replays.",
+      "act": "Press Ask, then type \"now the replays\" and press Ask again." },
+    { "id": "recap", "url": "/?match=syn_0294&player=t_home_09", "target": "#recap", "rules": true,
+      "title": "Recaps and replay packages",
+      "text": "Every match gets a recap told from the picked player's side; each sentence plays the moment it describes, and the recap has its own reel: a broadcaster's replay package. Fans and creators take moments away with Download reel and Export moments under the video.",
       "act": "Open Match recap, click a sentence, then try Play recap reel." },
     { "id": "video-in", "url": "/me?player=pl_bro_09#matches", "target": "[data-tour=\"agent-steps\"]",
-      "title": "Video in",
-      "text": "Femi's footage of a friendly went through Azure Blob Storage and a queue to a Container Apps job, where Regista's vision agents ran in turn, each with its time.",
-      "act": "Measured on Regista's own rendered footage." },
+      "title": "Video in: players upload",
+      "text": "A rendered film of Femi's friendly went through Azure Blob Storage and a queue to a Container Apps job, where Regista's vision agents found him, each agent with its time. He answered \"Is this you?\" where they were unsure, and the match joined his profile.",
+      "act": "Below the agents: the moments they found of him." },
     { "id": "foundry", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "every nutmeg in the library" },
       "title": "Microsoft Foundry and MCP",
       "text": "Switch to Ask Microsoft Foundry: a Foundry agent (gpt-5-mini, on Microsoft Agent Framework) answers and may call tools. Under its reply, How Regista answered shows each step, and which server ran each tool: Regista's MCP server or the Azure MCP Server.",
       "act": "Pick Ask Microsoft Foundry, then press Ask. Foundry questions are limited to a few a minute per visitor." },
     { "id": "catalogue", "url": "/scout#competitions", "target": "#coLine",
-      "title": "A catalogue of uploaded footage",
-      "text": "Regista is also a catalogue of matches uploaded by players and teams below the professional level: 14 competitions in 10 countries. Every player, club and competition is invented; countries and levels are labels.",
+      "title": "A catalogue, checked in Fabric",
+      "text": "Regista is also a catalogue of matches uploaded below the professional level: 14 competitions in 10 countries, every player, club and competition invented. Not in this app: on 26 October 2026 a Microsoft Fabric notebook recomputed every catalogue number from the raw tables; 7,399 of 7,399 rows matched.",
       "act": "Next opens one competition." },
     { "id": "competition", "url": "/scout#competition/co_esp_u19", "target": "[data-tour=\"co-uploads\"]",
-      "title": "Checked in Microsoft Fabric",
-      "text": "Each upload says who filmed it and the camera they named. On 26 October 2026 a Microsoft Fabric notebook recomputed every catalogue number from the raw tables: 7,399 of 7,399 rows matched. Fabric runs in its own workspace, not in this app.",
+      "title": "Who filmed each match",
+      "text": "Each upload says who filmed it, a player or a team account, and the camera they named. The camera is only a label: Regista draws every match with the same broadcast-style view.",
       "act": "Watch in the Clip view opens a match's moments; the tour waits." },
-    { "id": "fans", "url": "/?match=syn_0294&player=t_home_09", "target": "[data-tour=\"stage-actions\"]",
-      "title": "Fans, creators, broadcasters",
-      "text": "Fans and creators take moments away: Download reel joins them into one video, Export moments lists them with timecodes. Broadcasters get the recap and its reel as a replay package.",
-      "act": "Try Download reel." },
     { "id": "scout", "url": "/scout#find", "target": "#scExamples",
       "title": "Scouts: fair comparisons",
       "text": "Scouts ask in plain words. Players are compared only with players of their own level, age group and gender, and every percentile names its pool.",
@@ -74,10 +72,6 @@
       "title": "The Scout terminal",
       "text": "127 metrics, each with its definition and source, in linked panels, with a search box that reads plain questions.",
       "act": "Press Search: Femi Toure comes first." },
-    { "id": "players", "url": "/me?player=pl_bro_09#matches", "target": "#addBtn",
-      "title": "Players build their profile",
-      "text": "A player uploads their own match here, answers \"Is this you?\" where Regista is unsure, and the match joins their profile. Uploading starts cloud work, so on this demo it needs the operator's key.",
-      "act": "" },
     { "id": "close", "url": "/demo", "target": "#closeLinks",
       "title": "That's Regista",
       "text": "Every touch, every replay, every player, found. Next: real footage from players and teams. The code, the tests and how each judging criterion is met are in the repository.",
@@ -111,7 +105,7 @@
   const save = (s) => R.store.set(KEY, s);
 
   // ------------------------------------------------------------------ the card
-  let card = null, lit = null, waitTimer = null, filled = null;
+  let card = null, lit = null, waitTimer = null, filled = null, ruled = null, lastMove = 0;
   function ensureCard() {
     if (card) return card;
     card = document.createElement('aside');
@@ -160,7 +154,7 @@
         <div class="tour-bar">
           <button type="button" class="alt" data-tour-act="back"${s.i === 0 ? ' disabled' : ''}>Back</button>
           <button type="button" data-tour-act="${last ? 'exit' : 'next'}">${last ? 'Finish' : 'Next'}</button>
-          <button type="button" class="tour-exit" data-tour-act="exit">Exit tour</button>
+          ${last ? '' : '<button type="button" class="tour-exit" data-tour-act="exit">Exit tour</button>'}
         </div>`
       : `<div class="tour-top"><p class="tour-n">Tour paused · ${esc(n)}</p></div>
         <p class="tour-t">The tour waits at “${esc(step.title)}”.</p>
@@ -168,7 +162,18 @@
           <button type="button" data-tour-act="resume">Back to the tour</button>
           <button type="button" class="tour-exit" data-tour-act="exit">Exit tour</button>
         </div>`;
+    if (here && step.rules && ruled !== s.i) { ruled = s.i; rulesEngine(); }
     if (here && step.target) point(step, s.i);
+  }
+
+  // The Clip view's switches back on Regista's own rules (see the top of this file). The ask switch's change event runs
+  // the page's own setEngine, which sets all three of its copies; the recap's switch is read when the recap is next
+  // written, so it is only set.
+  function rulesEngine() {
+    const ask = document.querySelector('input[name="fengine"][value="rules"]');
+    if (ask && !ask.checked) { ask.checked = true; ask.dispatchEvent(new Event('change', { bubbles: true })); }
+    const recap = document.querySelector('input[name="recapEngine"][value="rules"]');
+    if (recap && !recap.checked) recap.checked = true;
   }
 
   // Find the step's element (waiting while the page builds it), light it, fill its box, and bring it into view clear
@@ -218,9 +223,12 @@
     const s = { ...(load() || {}), i, min: false };
     save(s);
     filled = null;
+    ruled = null;
     const step = STEPS[i];
     if (isHere(step)) { render(); return; }
     if (samePage(step)) { location.hash = parse(step.url).hash; render(); return; }   // a section of this page
+    // Leaving the page: the card's buttons stop answering until the next page shows its own card.
+    if (card) for (const b of card.querySelectorAll('button')) b.disabled = true;
     location.assign(step.url);
   }
   function exit() {
@@ -235,6 +243,14 @@
     const s = load();
     if (!s) { remove(); return; }
     const act = b.dataset.tourAct;
+    if (act === 'next' || act === 'back' || act === 'resume') {
+      // A double-click on Next would otherwise move two steps: the first press re-renders the card (or starts loading
+      // the next page) and the second lands on the new Next. The second click of a double-click, or any press within
+      // CLICK_GAP_MS of the last move, is ignored.
+      const now = Date.now();
+      if (e.detail > 1 || now - lastMove < CLICK_GAP_MS) return;
+      lastMove = now;
+    }
     if (act === 'next') go(Math.min(s.i + 1, STEPS.length - 1));
     else if (act === 'back') go(Math.max(s.i - 1, 0));
     else if (act === 'resume') go(s.i);

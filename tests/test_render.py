@@ -333,3 +333,38 @@ def test_cli_runs_on_the_committed_sample(tmp_path):
     assert out.exists() or out.with_suffix(".gif").exists()
     index = json.loads((frames / "frames.json").read_text())
     assert index
+
+
+# ---------------------------------------------------------------------------- how many render processes
+
+def test_render_workers_follow_a_containers_cpu_quota_not_the_hosts_cores(tmp_path, monkeypatch):
+    """Inside a container os.cpu_count() reports the host's cores; the live app has 1 CPU (fixes-1)."""
+    from regista.render import video
+
+    monkeypatch.setattr(video.os, "cpu_count", lambda: 16)
+    if hasattr(video.os, "sched_getaffinity"):
+        monkeypatch.setattr(video.os, "sched_getaffinity", lambda _pid: set(range(16)))
+    v2 = tmp_path / "v2"
+    v2.mkdir()
+    (v2 / "cpu.max").write_text("100000 100000\n")      # Azure Container Apps, 1.0 CPU
+    assert video.usable_cpus(v2) == 1
+    (v2 / "cpu.max").write_text("150000 100000\n")      # 1.5 CPUs: rounded up
+    assert video.usable_cpus(v2) == 2
+    (v2 / "cpu.max").write_text("max 100000\n")         # no quota
+    assert video.usable_cpus(v2) == 16
+    v1 = tmp_path / "v1"
+    (v1 / "cpu").mkdir(parents=True)
+    (v1 / "cpu" / "cpu.cfs_quota_us").write_text("200000\n")
+    (v1 / "cpu" / "cpu.cfs_period_us").write_text("100000\n")
+    assert video.usable_cpus(v1) == 2
+    (v1 / "cpu" / "cpu.cfs_quota_us").write_text("-1\n")   # v1's "no quota"
+    assert video.usable_cpus(v1) == 16
+    assert video.usable_cpus(tmp_path / "missing") == 16   # macOS, or no cgroup files: the machine's count
+
+
+def test_a_one_cpu_container_renders_in_process(tmp_path, monkeypatch, scene):
+    from regista.render import video
+
+    monkeypatch.setattr(video, "usable_cpus", lambda: 1)
+    out = render_video(scene, tmp_path / "one.mp4", fps=FPS, style=SMALL, t0=0.0, t1=2.0)
+    assert out["workers"] == 1 and out["parts"] == 1

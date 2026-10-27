@@ -62,10 +62,12 @@ honest about a small sample.
 ## Before recording
 
 - **Warm the clips.** The first view of each clip on a fresh revision renders it (about 20 s for a catalogue clip).
-  Play Toure's Goal reel, the demo match's clips, the recap reel, and Hector Santos's take-on moments once before
-  recording.
-- **Foundry rehearsal.** One Ask Foundry question and one Foundry recap before recording; the limits are 3 a minute
-  and 20 an hour per visitor. Check that "How Regista answered" lists both MCP servers.
+  Since the live demo (`docs/redesign/live-demo/`) the app renders these at startup after each deploy; check that the
+  Studio's prerender has finished, or play Toure's Goal reel, the demo match's clips, the recap reel, and Hector
+  Santos's take-on moments once before recording.
+- **Foundry rehearsal.** One Ask Foundry question and one Foundry recap before recording; the limits are 5 a minute
+  and 40 an hour per visitor (120 an hour and 300 a day
+  for everyone). Check that "How Regista answered" lists both MCP servers.
 - **Fabric shot.** The lakehouse `regista_league` in the workspace "Regista": the `catalogue_*` tables and the
   `regista_catalogue_check` notebook's last run (Completed, 83 s). Or run
   `python -m regista.season.fabric check --catalogue --no-run` in a terminal: it prints "7399 of 7399 match".

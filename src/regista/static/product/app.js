@@ -1585,7 +1585,7 @@
     const services = [
       ['Microsoft Foundry', h.cloud.foundry, `A ${h.cloud.model || 'Foundry'} model labels uploaded matches and writes the Foundry replies.`],
       ['Azure Cosmos DB', h.cloud.cosmos, 'Stores matches, clips, labels and reviewers\' verdicts.'],
-      ['Azure AI Search', h.cloud.search, 'Indexes every labelled clip for the Foundry Librarian.'],
+      ['Azure AI Search', h.cloud.search, 'Indexes the library\'s labelled clips for the Foundry Librarian.'],
       ['Azure MCP Server', h.azure_mcp, 'The Foundry Librarian\'s tool for querying the search index.'],
       ['Application Insights', h.tracing, 'Receives the Agent Framework traces, shown in Foundry tracing.'],
       ['Azure Container Apps', h.container_apps, 'Runs this app, and the vision job that processes uploaded footage.'],
@@ -1604,7 +1604,7 @@
       ['agent-framework', 'Microsoft Agent Framework', true, 'Runs the agent workflows: ingest, clips, labels, review, recap'],
       ['mcp', 'Azure MCP Server', h.azure_mcp, 'The Foundry Librarian\'s tool for the search index'],
       ['cosmos-db', 'Azure Cosmos DB', h.cloud.cosmos, 'Stores matches, clips, labels and reviewers\' verdicts'],
-      ['ai-search', 'Azure AI Search', h.cloud.search, 'Indexes every labelled clip'],
+      ['ai-search', 'Azure AI Search', h.cloud.search, 'Indexes the library\'s labelled clips'],
       ['container-apps', 'Azure Container Apps', h.container_apps, 'Runs this app and the vision job'],
       ['storage', 'Azure Storage', h.storage, 'Holds uploaded footage and the vision job queue'],
       ['app-insights', 'Application Insights', h.tracing, 'Receives the agents\' traces'],

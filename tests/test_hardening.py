@@ -160,3 +160,31 @@ def test_the_status_cli_drops_the_key_over_plain_http(monkeypatch, capsys):
     monkeypatch.setattr(cli, "fetch_overview", lambda url, key: sent.append(key) or (_ for _ in ()).throw(OSError("down")))
     assert cli.main(["status", "--url", "http://regista.example"]) == 2
     assert sent == [None] and "not sent" in capsys.readouterr().err
+
+
+def test_the_render_queue_count_returns_to_zero_when_two_threads_render_at_once(monkeypatch):
+    """The startup warm-up calls _video from its own thread and loop, beside the server's (fixes-1): the waiting count is
+    changed under a lock, so no decrement is lost and cold renders never start answering 503 for good."""
+    import asyncio
+    import threading
+
+    from fastapi import HTTPException
+
+    monkeypatch.setattr(api, "_render_once", lambda out, render: out)   # renders nothing: _video then answers 503
+    missing = api.CACHE_ROOT / "nowhere" / "never.mp4"
+
+    def many():
+        for _ in range(150):
+            try:
+                asyncio.run(api._video(missing, None))
+            except HTTPException:
+                pass
+
+    threads = [threading.Thread(target=many) for _ in range(6)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert api._render_waiting["n"] == 0
+    assert isinstance(api._render_waiting_guard, type(threading.Lock()))
+

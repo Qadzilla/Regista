@@ -177,8 +177,8 @@ def test_ask_limits_for_judging_are_the_defaults_and_each_env_overrides_its_own(
     for var in ("REGISTA_ASK_PER_MIN", "REGISTA_ASK_PER_HOUR", "REGISTA_ASK_TOTAL_PER_HOUR", "REGISTA_ASK_TOTAL_PER_DAY", "REGISTA_ASK_CONCURRENT"):
         monkeypatch.delenv(var, raising=False)
     lim = api.AskLimiter.from_env()
-    assert [cap for _w, cap, _v in lim.rules] == [5, 40, 120, 600] and lim.concurrent == 3
+    assert [cap for _w, cap, _v in lim.rules] == [5, 40, 120, 300] and lim.concurrent == 3   # 300 a day kept: fixes-1 (the credit)
     monkeypatch.setenv("REGISTA_ASK_PER_MIN", "2")
     monkeypatch.setenv("REGISTA_ASK_CONCURRENT", "0")   # never below one at a time
     lim = api.AskLimiter.from_env()
-    assert [cap for _w, cap, _v in lim.rules] == [2, 40, 120, 600] and lim.concurrent == 1
+    assert [cap for _w, cap, _v in lim.rules] == [2, 40, 120, 300] and lim.concurrent == 1

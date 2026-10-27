@@ -27,7 +27,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, required=True, help="output .mp4 (or .gif)")
     parser.add_argument("--fps", type=float, default=25.0)
     parser.add_argument("--size", type=parse_size, default=(1280, 720), help="WIDTHxHEIGHT, default 1280x720")
-    parser.add_argument("--workers", type=int, default=None, help="render processes (default: cpu count - 1, max 8)")
+    parser.add_argument("--workers", type=int, default=None, help="render processes (default: usable CPUs - 1, counting a container quota, max 8)")
     parser.add_argument("--frames-dir", type=Path, default=None, help="also save one PNG per second and per segment start here")
     parser.add_argument("--start", type=float, default=0.0, help="start time in seconds")
     parser.add_argument("--end", type=float, default=None, help="end time in seconds (default: whole video)")

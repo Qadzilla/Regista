@@ -149,6 +149,6 @@ def test_the_workflow_checks_daily_until_judging_ends_with_no_secret():
     wf = (REPO / ".github/workflows/live-check.yml").read_text()
     assert "schedule:" in wf and "cron:" in wf and "workflow_dispatch:" in wf
     assert "permissions:\n  contents: read" in wf
-    assert "python src/regista/live_check.py --until 2026-11-11" in wf
+    assert "python -I src/regista/live_check.py --until 2026-11-11" in wf
     assert "secrets." not in wf and "token" not in wf.lower() and "pip install" not in wf
     assert live_check.UNTIL == "2026-11-11" and live_check.LIVE_URL.startswith("https://regista-api.")

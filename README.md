@@ -19,15 +19,20 @@ Regista is an AI system for the Microsoft × Premier League **Inside the Game: D
 | **Player** | [`/me`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/me?player=pl_bro_09) | A player uploads their own footage; Regista's vision agents find them in it, in the cloud, and add the match to their profile |
 | **Studio** | [`/studio`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/studio) | The operator's dashboard: review, "who's who", training, claims, runs (needs a key) |
 
-**A two-minute tour for judges**
-1. On `/`, press **Make a reel of Sami Castellanos's best moments**, then switch the ask box to **Foundry** and ask
-   "every nutmeg in the library": "How Regista answered" shows the Foundry agent and each MCP tool it called.
-2. Open **Recap**: every sentence plays its moment.
-3. On `/scout`, ask the Scout agent "midfielders who win the ball back", then open a player: pick any number to see the
-   events behind it.
-4. On `/me?player=pl_bro_09`, see an upload that Regista's vision agents processed in Azure, agent by agent.
-5. Open `/studio` with the view-only key from the submission: it shows everything and changes nothing. Uploads and
-   other writes need the operator's key.
+**Start here: [`/demo`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/demo)**, the page
+for judges: what Regista is, what this server runs on right now (read from its health check), the four paths, and
+**Take the tour**, a guided tour of 12 short steps across the live app (also on Home). It only reads; a Microsoft
+Foundry question is asked only when you press Ask. In order:
+1. Femi Toure's **Goal reel**: the synthetic league's top scorer, every goal in match order.
+2. **Clips** on the demo match: every moment of one player on the timeline, then "his nutmegs" and "now the replays".
+3. The **match recap**: every sentence plays its moment, and the recap has its own reel.
+4. **Video in**: an upload Regista's vision agents processed in Azure, agent by agent.
+5. **Ask Microsoft Foundry**: "How Regista answered" shows the Foundry agent and which MCP server ran each tool.
+6. The **catalogue** (Scout > Competitions), the Microsoft Fabric check, **Find players** with a number that opens
+   its moments, and the **Scout terminal**.
+
+The Studio (`/studio`) opens with the view-only key from the submission: it shows everything and changes nothing.
+Uploads and other writes need the operator's key.
 
 How each judging criterion is met, with where to check: **[docs/criteria.md](docs/criteria.md)**.
 
