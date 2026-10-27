@@ -43,7 +43,7 @@ published band, never counted) six hold and one fails (running distance U18 < U1
 line have no published band and claim none. Check: `python3 -m regista.synth.report --catalogue`, `docs/catalogue/realism.md`,
 `tests/test_catalogue_*.py`.
 
-**The Scout terminal's engine** (part A, built on `feature/terminal-engine`, not yet deployed; its screens are next):
+**The Scout terminal's engine** (live since 2026-10-25, with its screens at `/scout#terminal`):
 127 player metrics and 19 team-style metrics, each with its definition, rule and source (FBref, Opta, StatsBomb,
 Wyscout; xT fitted on the season), percentiles among position peers (FBref's rule), and the events and clip behind every
 number. Served read-only by `regista.terminal_api` (`/api/metrics`, `/api/terminal/screen|rank|scatter`,

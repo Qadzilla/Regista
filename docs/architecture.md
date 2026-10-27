@@ -91,8 +91,7 @@ aerial, stamina, keeper skills, top speed, acceleration). The generator reads th
 `league.json`, but no API, MCP tool or page serves them: `people()` drops them, and `tests/test_attributes.py` and
 `tests/test_metrics.py` check every public payload. Scouts judge players by what they do.
 
-**The Scout terminal's engine** (part A, built on `feature/terminal-engine`, not yet deployed; the terminal's screens are
-part B). Three pieces:
+**The Scout terminal's engine** (live since 2026-10-25; the terminal's screens, part B, are at `/scout#terminal`). Three pieces:
 
 - **League mode** (`regista.synth.generator`, `LEAGUE_GENERATOR_VERSION` 0.7.1): the ratings move the probabilities of
   every action, and roles shape who makes which numbers (centre-backs pass and win headers, wingers cross and carry,
