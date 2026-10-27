@@ -59,6 +59,7 @@ ACCESS = {
     "GET /api/player/uploads/{upload_id}/crops/{name}": "public",
     # The Product (open)
     "GET /": "public",
+    "GET /demo": "public",  # the judges' page and the guided tour: no data
     "GET /api/health": "public",
     "GET /api/matches": "public",
     "GET /api/matches/{match_id}": "public",

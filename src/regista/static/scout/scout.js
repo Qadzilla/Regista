@@ -793,7 +793,7 @@
         <p class="small">With every <b>${esc(levelWords(c))}</b> player in the same position${others.length ? `: this competition and ${esc(others.map(o => `${o.name} (${o.country})`).join(', '))}` : ', and this is the only competition at that level'}. Players with enough minutes to compare: ${esc(pools)}.</p>
         <p class="muted small">${esc(S.sample?.words || '')}</p>
         <p class="muted small">The minutes a percentile needs are a third of the busiest club's minutes${c.coverage === 'full' ? '' : ', and never fewer than 45'}.</p></section>
-      <section class="panel"><h2>Uploaded matches</h2><p class="muted small">Newest first. ${esc(S.camera_note || '')}</p>
+      <section class="panel"><h2 data-tour="co-uploads">Uploaded matches</h2><p class="muted small">Newest first. ${esc(S.camera_note || '')}</p>
         <ol class="sc-uploads">${matches.slice(0, state.coAll ? Infinity : 8).map(m => matchRow(m, true)).join('')}</ol>
         ${matches.length > 8 ? `<button type="button" class="alt sc-more" data-coall>${state.coAll ? 'Show the newest 8' : `Show all ${esc(matches.length)}`}</button>` : ''}
         ${ups.length ? `<h3 class="sc-nh">Uploaded through the Player view</h3><p class="muted small">${esc(S.player_uploads_note || '')}</p>

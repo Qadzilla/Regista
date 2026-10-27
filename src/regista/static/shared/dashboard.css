@@ -519,6 +519,8 @@
 .cp-cpick { margin-top: 2px; font-size: 12.5px; font-weight: 700; color: var(--accent); }
 .pf .cp-overall { margin: 10px 0 0; }
 .cp-momfilter, .cp-scope { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+/* Best moments' reels: the Goal reel (each goal once, in match order) beside Play reel */
+.cp-reels { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .pf .cp-momfilter .chip[aria-pressed="true"], .pf .cp-scope .chip[aria-pressed="true"], .pf .me-clubs .chip[aria-pressed="true"] {
   background: var(--accent); color: #111; border-color: var(--accent); }
 .pf .cp-scopeline { margin: 0 0 8px; }

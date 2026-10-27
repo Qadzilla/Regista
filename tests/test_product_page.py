@@ -140,7 +140,7 @@ def test_grid_videos_load_lazily(script):
 
 # ---------------------------------------------------------------------------- the Clip view beside the Scout view
 
-VIEWS = [("/", "Home"), ("/me", "Player profile"), ("/scout", "Scout")]
+VIEWS = [("/", "Home"), ("/me", "Player profile"), ("/scout", "Scout"), ("/demo", "Demo")]
 # A dashboard's sections, indented under its link in the left panel (shared/regista.css .subviews, shared/regista.js
 # sections()); /players/{id} shows Scout's. Home has none. A page listed in SECTIONS_REQUIRED must have them.
 SECTIONS = {"/me": ["overview", "profile", "matches", "messages", "team", "settings"],
@@ -149,7 +149,8 @@ SECTIONS_REQUIRED = {"player/index.html", "me/index.html", "scout/index.html"}
 
 
 @pytest.mark.parametrize("page_file, current", [("product/index.html", "/"), ("scout/index.html", "/scout"),
-                                                ("player/index.html", "/scout"), ("me/index.html", "/me")])
+                                                ("player/index.html", "/scout"), ("me/index.html", "/me"),
+                                                ("demo/index.html", "/demo")])
 def test_every_view_has_the_same_left_panel_with_its_own_view_current(page_file, current):
     html = (PRODUCT.parent / page_file).read_text()
     header = re.search(r'<header class="top">(.*?)</header>', html, flags=re.S).group(1)
@@ -346,7 +347,7 @@ def test_the_match_view_has_no_explainer_line_a_folded_recap_and_actions_in_one_
     assert '<summary id="recapHead">Match recap</summary>' in recap
     assert 'name="recapEngine" value="rules"' in recap and ">Instant<" in recap and ">Foundry<" in recap  # its own switch, inside
     stage = page[page.index('<section class="stage panel" id="stage"'):page.index("</section>", page.index('id="stage"'))]
-    assert stage.index('<div class="info">') < stage.index("</div>\n          <div class=\"actions\">")  # actions under the clip, not in .info
+    assert stage.index('<div class="info">') < stage.index("</div>\n          <div class=\"actions\"")  # actions under the clip, not in .info
     css = (PRODUCT / "product.css").read_text()
     assert ".stage > .actions { grid-column: 1 / -1;" in css
     assert ".card.on {" not in css  # no yellow outline on the playing card

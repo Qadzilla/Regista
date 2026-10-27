@@ -79,9 +79,9 @@ def test_the_page_loads_only_same_origin_scripts_and_no_inline_script(page):
     srcs = [re.search(r'src="([^"]+)"', a).group(1) for a, _ in scripts]
     # the shared helpers, the per-visitor store, the shared profile renderer's helpers, then the page
     assert srcs == ["/static/shared/regista.js", "/static/shared/demo.js", "/static/player/profile-view.js", "/static/scout/scout.js",
-                    "/static/scout/terminal-place.js", "/static/scout/terminal-words.js", "/static/scout/terminal.js"]   # the Terminal
-    # section (its place-word reader, its search-box reader, then the section itself), after the page's own script
-    # (tests/test_scout_terminal.py)
+                    "/static/scout/terminal-place.js", "/static/scout/terminal-words.js", "/static/scout/terminal.js",
+                    "/static/shared/tour.js"]   # the Terminal section (its place-word reader, its search-box reader, then the
+    # section itself), after the page's own script (tests/test_scout_terminal.py); then the guided tour (tests/test_tour.py)
 
 
 def test_the_files_the_page_loads_are_served(client, page):

@@ -8,6 +8,7 @@
 <link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
 <link rel="stylesheet" href="/static/shared/regista.css">
 <link rel="stylesheet" href="/static/product/product.css">
+<link rel="stylesheet" href="/static/shared/tour.css">
 </head>
 <body>
 <header class="top">
@@ -15,7 +16,7 @@
 </header>
 
 <div class="shell">
-<nav class="views" aria-label="Views"><a href="/" aria-current="page">Home</a><a href="/me">Player profile</a><a href="/scout">Scout</a></nav>
+<nav class="views" aria-label="Views"><a href="/" aria-current="page">Home</a><a href="/me">Player profile</a><a href="/scout">Scout</a><a href="/demo">Demo</a></nav>
 <div class="shell-main">
 
 <main>
@@ -35,6 +36,9 @@
       <label><input type="radio" name="engine" value="foundry"><span>Ask Microsoft Foundry</span></label>
     </div>
     <!-- Or open one match: every uploaded match, grouped by country and competition (app.js fills it). -->
+    <!-- New here: the judges' page and the guided tour (shared/tour.js) -->
+    <p class="tourline"><button type="button" class="alt tour-start" id="homeTour" data-tour-start>Take the tour</button>
+      <a href="/demo">What is Regista?</a></p>
     <label class="pick homepick" id="homePick" hidden><span class="pick-label">Or open a match</span><select id="homeMatch"></select></label>
     <p class="empty" id="landingNote" hidden></p>
     <!-- What this server runs on, from /api/health (app.js fills it): official icons, unaltered, each beside its full
@@ -101,7 +105,7 @@
             <div class="tags" id="stageTags"></div>
             <p class="why" id="stageWhy"></p>
           </div>
-          <div class="actions">
+          <div class="actions" data-tour="stage-actions">
             <button id="playReel" type="button">Play reel</button>
             <a class="btn alt" id="downloadReel" download>Download reel</a>
             <a class="btn alt" id="exportMoments" download>Export moments</a>
@@ -229,5 +233,6 @@
 <script src="/static/shared/regista.js"></script>
 <script src="/static/product/timeline.js" defer></script>
 <script src="/static/product/app.js" defer></script>
+<script src="/static/shared/tour.js" defer></script>
 </body>
 </html>

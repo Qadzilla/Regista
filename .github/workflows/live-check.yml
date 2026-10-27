@@ -1,0 +1,29 @@
+# Read-only checks of the live app, every day until judging ends (2026-11-10), and on demand.
+#
+# The judges may score from the live app alone, so a broken demo must be noticed by us first: a failing run turns red
+# and GitHub emails the repository's owner. The checks are plain GETs with no key and no secret (src/regista/live_check.py:
+# health and its services, the five pages, the catalogue's totals, one clip as video/mp4); nothing here can write.
+# The probe uses only the standard library, so it runs as a script without installing the package. After 2026-11-11 it
+# passes without sending a request; delete this file then.
+# Scheduled workflows run from the default branch only: this starts once it is merged into main.
+name: live-check
+
+on:
+  schedule:
+    - cron: "23 7 * * *"   # 07:23 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Check the live app (read-only)
+        run: python src/regista/live_check.py --until 2026-11-11

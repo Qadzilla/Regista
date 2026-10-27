@@ -12,6 +12,7 @@ live in regista.access.
 Endpoints
 ---------
 GET  /                                          the Product
+GET  /demo                                      the judges' page: the four paths, what runs (from /api/health), the guided tour
 GET  /studio                                    the Studio (data behind the Studio keys; see regista.studio_api)
 GET  /api/health
 GET  /api/matches                               match directories under REGISTA_DATA
@@ -98,7 +99,7 @@ async def _lifespan(_app: FastAPI):
 
     configure_tracing("regista-api")
     if os.environ.get("REGISTA_PRERENDER") == "1":
-        threading.Thread(target=_prerender, name="regista-prerender", daemon=True).start()
+        threading.Thread(target=_prerender, kwargs={"tour": True}, name="regista-prerender", daemon=True).start()
     if os.environ.get("REGISTA_SEASON_WARM", "1") == "1" and SEASON_LEAGUE.exists():
         from regista.season_api import warm_season
 
@@ -616,15 +617,20 @@ def _render_clip_cached(d: Path, clip: dict, label: dict | None, fps: float, wid
     return _render_once(*_render_clip_job(d, clip, label, fps, width))
 
 
-PRERENDER_PROGRESS: dict[str, Any] = {"running": False, "total": 0, "rendered": 0, "failed": 0, "started_at": None, "finished_at": None}
+PRERENDER_PROGRESS: dict[str, Any] = {"running": False, "total": 0, "rendered": 0, "failed": 0, "started_at": None, "finished_at": None,
+                                      "tour": None}
 
 
-def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
+def _prerender(fps: float = 25.0, width: int = 1280, tour: bool = False) -> list[Path]:
     """Render the featured player's clips for every local match, best first, so the first visitor after a deploy finds
-    them cached. Runs in a background thread at startup when REGISTA_PRERENDER=1 (set in the Dockerfile). Progress is
-    kept in PRERENDER_PROGRESS for the Studio."""
+    them cached. Runs in a background thread at startup when REGISTA_PRERENDER=1 (set in the Dockerfile). With ``tour``
+    (the startup thread passes it), then every clip the guided tour and the demo video play (regista.warm: Femi Toure's
+    Goal reel, the demo match's recap reel, Hector Santos's take-ons, one competition page's first cards), requested
+    through the app itself one at a time, so the cache keys are the ones the pages ask for. Progress is kept in
+    PRERENDER_PROGRESS for the Studio (``total`` grows when the tour's list is known; ``tour`` counts its part)."""
     done, todo = [], []
-    PRERENDER_PROGRESS.update(running=True, total=0, rendered=0, failed=0, started_at=time.time(), finished_at=None)
+    PRERENDER_PROGRESS.update(running=True, total=0, rendered=0, failed=0, started_at=time.time(), finished_at=None,
+                              tour={"planned": 0, "rendered": 0, "failed": 0} if tour else None)
     try:
         for d in sorted(DATA_ROOT.iterdir()) if DATA_ROOT.exists() else []:
             manifest = d / "manifest.json"
@@ -642,9 +648,41 @@ def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
             except Exception as exc:  # noqa: BLE001  (one bad clip must not stop the rest)
                 PRERENDER_PROGRESS["failed"] += 1
                 print(f"prerender: {d.name}/{c['id']} failed: {exc!r}", flush=True)
+        if tour:
+            _prerender_tour()
     finally:
         PRERENDER_PROGRESS.update(running=False, finished_at=time.time())
     return done
+
+
+def _prerender_tour() -> list[str]:
+    """The guided tour's and the storyboard's clips (regista.warm.plan), each a plain GET into the app; returns the URLs
+    that answered 200 with video. Already-cached clips (the featured player's) answer at once."""
+    from regista import warm
+
+    get_json, get_video = warm.fetchers(app)
+    try:
+        urls = warm.plan(get_json, log=lambda m: print(f"prerender: {m}", flush=True))
+    except Exception as exc:  # noqa: BLE001
+        print(f"prerender: the tour's clips could not be planned: {exc!r}", flush=True)
+        return []
+    progress = PRERENDER_PROGRESS.get("tour") or {}
+    progress["planned"] = len(urls)
+    PRERENDER_PROGRESS["total"] += len(urls)
+    ok = []
+    for url in urls:
+        try:
+            status, ctype = get_video(url)
+            if status != 200 or not ctype.startswith("video/mp4"):
+                raise RuntimeError(f"answered {status} {ctype}")
+            ok.append(url)
+            PRERENDER_PROGRESS["rendered"] += 1
+            progress["rendered"] = progress.get("rendered", 0) + 1
+        except Exception as exc:  # noqa: BLE001  (one bad clip must not stop the rest)
+            PRERENDER_PROGRESS["failed"] += 1
+            progress["failed"] = progress.get("failed", 0) + 1
+            print(f"prerender: {url} failed: {exc!r}", flush=True)
+    return ok
 
 
 # ---------------------------------------------------------------------------- read endpoints
@@ -652,6 +690,13 @@ def _prerender(fps: float = 25.0, width: int = 1280) -> list[Path]:
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
 def viewer() -> str:
     return (STATIC / "product" / "index.html").read_text(encoding="utf-8")
+
+
+@app.get("/demo", response_class=HTMLResponse, include_in_schema=False)
+def demo_page() -> str:
+    """The judges' page: what Regista is, its four paths into the live views, what this server runs on (from
+    /api/health), the synthetic-data note, and "Take the tour" (static/shared/tour.js). Holds no data."""
+    return (STATIC / "demo" / "index.html").read_text(encoding="utf-8")
 
 
 @app.get("/api/health")
@@ -1111,6 +1156,9 @@ PUBLIC_REGISTA_TOOLS = ["search_clips", "search_library", "list_matches"]
 PUBLIC_AZURE_NAMESPACES = ("search",)
 
 
+ASK_DEFAULTS = {"per_min": 5, "per_hour": 40, "total_per_hour": 120, "total_per_day": 600, "concurrent": 3}
+
+
 def _limit(name: str, default: int) -> int:
     try:
         return max(0, int(os.environ.get(name, default)))
@@ -1132,8 +1180,12 @@ class AskLimiter:
 
     @classmethod
     def from_env(cls) -> AskLimiter:
-        return cls(_limit("REGISTA_ASK_PER_MIN", 3), _limit("REGISTA_ASK_PER_HOUR", 20), _limit("REGISTA_ASK_TOTAL_PER_HOUR", 60),
-                   _limit("REGISTA_ASK_TOTAL_PER_DAY", 300), max(1, _limit("REGISTA_ASK_CONCURRENT", 2)))
+        # Defaults for judging (raised 2026-10-26 from 3/20/60/300/2): per visitor 5 a minute and 40 an hour; for everyone
+        # 120 an hour and 600 a day; 3 at a time. Each REGISTA_ASK_* variable overrides its own.
+        return cls(_limit("REGISTA_ASK_PER_MIN", ASK_DEFAULTS["per_min"]), _limit("REGISTA_ASK_PER_HOUR", ASK_DEFAULTS["per_hour"]),
+                   _limit("REGISTA_ASK_TOTAL_PER_HOUR", ASK_DEFAULTS["total_per_hour"]),
+                   _limit("REGISTA_ASK_TOTAL_PER_DAY", ASK_DEFAULTS["total_per_day"]),
+                   max(1, _limit("REGISTA_ASK_CONCURRENT", ASK_DEFAULTS["concurrent"])))
 
     def acquire(self, visitor: str, now: float | None = None) -> tuple[bool, float, str]:
         """(allowed, seconds until it would be, which limit). On success the question is counted and in flight."""
