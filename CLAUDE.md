@@ -618,8 +618,10 @@ synthetic film seed 4101, uploaded as `up_e4595e7407` with the write token → B
 identity 135 s) → 2 questions, both answered yes after checking the film's ground truth (track tr_20 is him; he is in
 the highlight cw_cs_v00006) → done. His clips against the truth: 4 of 5 found, 4 of 6 correct (on the ball 4 of 4, 4 of 5;
 the highlight clip is cut but misaligned). Named on the Ogun Riverside competition page and in his catalogue row, not
-counted (2 matches). Left: Zaid's video (public YouTube or Vimeo), the repo made public (history scan first), the
-submission form by 2026-10-27 23:59 PT.
+counted (2 matches). The repository is **public** since 2026-10-27, after a
+full history scan (no secret in 390 commits, 42 PRs or the CI logs; the owner's school email and the Fabric ids replaced
+by placeholders at HEAD; the subscription and tenant ids appear in old Actions logs, not secrets). Left: Zaid's video
+(public YouTube or Vimeo) and the submission form by 2026-10-27 23:59 PT.
 
 **Earlier, 2026-10-26 (night).** The catalogue is in Microsoft Fabric (§2.11): pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`). The code is merged (PR #41, merge dc22a47; CI deployed revision `regista-api--d1027004838`). The demo storyboard (`docs/demo-storyboard.md`) is rewritten for the catalogue and the pitch is written (`docs/pitch.md`). The first CLI run stalled after the league check finished and was stopped; run alone, every step finished in seconds.
 
