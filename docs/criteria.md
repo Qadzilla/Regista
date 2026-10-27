@@ -17,8 +17,8 @@ Everything named here runs; what is planned is listed as planned. (Replaces `doc
 | **GitHub CLI** | Provisioning sets the deploy variables with `gh`; CI on GitHub Actions deploys with a federated identity (no stored secret) | `infra/provision.sh`, `.github/workflows/build-image.yml` |
 | GitHub Copilot Agent Mode, GitHub SDK | **Not used.** Regista is built with Claude Code; nothing claims otherwise | – |
 
-**Code quality.** 798 tests (`python3 -m pytest -q`), run with the image build and an in-image smoke test on every push,
-plus 13 slow ones (`python3 -m pytest -q -m slow`: whole seasons regenerated) in a nightly workflow;
+**Code quality.** 1,145 tests (`python3 -m pytest -q`), run with the image build and an in-image smoke test on every push,
+plus 15 slow ones (`python3 -m pytest -q -m slow`: whole seasons regenerated) in a nightly workflow;
 a schema-validated contract between the layers (`data/synthetic/README.md`); one-command provisioning (`infra/SETUP.md`);
 keyless Azure (Entra ID roles, shared-key login off on Cosmos DB, Search and Storage).
 

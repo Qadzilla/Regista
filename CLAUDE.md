@@ -596,7 +596,7 @@ for the record:
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
 
-**As of 2026-10-26 (night).** The catalogue is in Microsoft Fabric (§2.11): pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`). The code is on `feature/catalogue-fabric` (PR open, not merged). The first CLI run stalled after the league check finished and was stopped; run alone, every step finished in seconds.
+**As of 2026-10-26 (night).** The catalogue is in Microsoft Fabric (§2.11): pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`). The code is merged (PR #41, merge dc22a47; CI deployed revision `regista-api--d1027004838`). The demo storyboard (`docs/demo-storyboard.md`) is rewritten for the catalogue and the pitch is written (`docs/pitch.md`). The first CLI run stalled after the league check finished and was stopped; run alone, every step finished in seconds.
 
 **Earlier, 2026-10-26 (evening).** The catalogue is live (§2.11): PR #39 (data, engine, API; merge 2952844) and PR #40
 (the UI round; merge fd0969f), deployed by CI to revision `regista-api--d1026204656`. Checked live, read-only, at 1440
