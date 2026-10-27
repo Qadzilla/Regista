@@ -784,7 +784,7 @@
         <thead><tr><th class="l" scope="col">Club</th><th scope="col">Uploaded</th><th scope="col">W</th><th scope="col">D</th><th scope="col">L</th><th scope="col">Goals</th></tr></thead><tbody>
         ${(S.results || []).map(t => `<tr><th scope="row">${esc(t.club)}</th><td>${esc(t.played)}</td><td>${esc(t.won)}</td><td>${esc(t.drawn)}</td><td>${esc(t.lost)}</td><td>${esc(t.goals_for)}–${esc(t.goals_against)}</td></tr>`).join('')}</tbody></table></div>`;
     const ups = S.player_uploads || [];
-    $('coPage').innerHTML = `<header class="panel sc-cohead"><div><p class="muted small">${esc(c.country)} · ${esc(c.region)}</p><h1>${esc(c.name)}</h1>
+    $('coPage').innerHTML = `<header class="panel sc-cohead" data-tour="co-head"><div><p class="muted small">${esc(c.country)} · ${esc(c.region)}</p><h1>${esc(c.name)}</h1>
         <p class="sc-where">${levelChip(c)}<span class="small">${esc(tierWord(c))} · ${esc(ageWord(c))} · ${esc(genderWord(c))} · ${esc(c.format)} · season ${esc(c.season)}</span>${isMineLevel(c) ? '<span class="sc-mine">Your level</span>' : ''}</p>
         ${c.eligibility ? `<p class="small muted">Who can play: ${esc(c.eligibility)}</p>` : ''}
         <p class="small">${c.coverage === 'full' ? `Every league match so far is uploaded: ${esc(matches.length)} matches.` : `${esc(plural(matches.length, 'match', 'matches'))} uploaded so far; the season goes on after ${esc(fmtDate(state.cat.as_of))} without footage yet.`}</p></div>

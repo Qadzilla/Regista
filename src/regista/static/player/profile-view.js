@@ -45,6 +45,14 @@
 
   // ------------------------------------------------------------------ small helpers (also used by the dashboards)
   const key = (m) => `${m.match_id}|${m.clip_id}`;
+  // Bring the playing video into view. On a wide screen the whole best-moments section fits, so it scrolls only as far
+  // as it must. On a phone that section (the video and a long moment list) is taller than the screen, and 'nearest'
+  // would line up its bottom and leave the video above the screen: the video itself goes to the top instead.
+  function showStage(root) {
+    const narrow = window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+    const target = narrow ? root.querySelector('.pf-screen') : root.querySelector('.pf-best');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: narrow ? 'start' : 'nearest' });
+  }
   const short = (title) => String(title ?? '').replace(/^.*?: /, '');
   const ordinal = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
   const rate = (v) => (typeof v !== 'number' ? '0.00' : v >= 10 ? v.toFixed(1) : v.toFixed(2));
@@ -313,7 +321,7 @@
       home.hidden = false;
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.toggle('on', b.dataset.clip === k);
       if (start) {
-        el.querySelector('.pf-best').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        showStage(el);
         video.play().catch(() => {});
       }
     }
@@ -338,7 +346,7 @@
       q('tags').innerHTML = '';
       q('onhome').hidden = true;
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.remove('on');
-      el.querySelector('.pf-best').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      showStage(el);
       video.play().catch(() => {});
     }
     const has = moments.length > 0;
@@ -810,7 +818,7 @@
       q('mwhere').textContent = [vsOf(match), compName(m.comp || (match || {}).comp) || ''].filter(Boolean).join(' · ');
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.toggle('on', b.dataset.clip === k);
       if (start) {
-        el.querySelector('.pf-best').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        showStage(el);
         video.play().catch(() => {});
       }
     }

@@ -398,7 +398,7 @@ src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier L
 src/regista/warm.py          warm for judging: the clips the guided tour and the storyboard play, planned from the pages' own JSON and
                              requested in-process at startup after the featured player's (REGISTA_PRERENDER=1)
 src/regista/live_check.py    read-only daily checks of the live app until 2026-11-11 (.github/workflows/live-check.yml), stdlib only
-src/regista/static/demo/     /demo, the judges' page; static/shared/tour.js + tour.css: the guided tour (12 steps, Regista.store)
+src/regista/static/demo/     /demo, the judges' page; static/shared/tour.js + tour.css: the guided tour (11 steps, Regista.store)
 src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
                              /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline
 src/regista/access.py        who may do what: Product open, Studio behind the view or admin key, writes admin-only

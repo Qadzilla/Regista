@@ -488,7 +488,7 @@
 }
 /* With the scout bar stuck on top, what scrolls into view (the stage, the evidence) stops below it. */
 .pf-profile:has(> .pf-barslot:not([hidden])) section { scroll-margin-top: 170px; }
-@media (max-width: 720px) { .pf-profile section { scroll-margin-top: 12px; } }
+@media (max-width: 720px) { .pf-profile section, .pf-screen { scroll-margin-top: 12px; } }
 
 /* A player's own details under the profile's header (foot, height, a line about them): profile-view.js identity() */
 .pf-extra .pf-line { margin-top: 4px; }

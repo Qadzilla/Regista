@@ -9,8 +9,12 @@
 // (and the recap's on Instant): going Back from the Foundry step never spends a Foundry call. The switches only change
 // how the page answers the visitor's next question; nothing is sent.
 // Where the tour is lives in Regista.store (this browser only, key "tour"), so it resumes after a page load; Exit
-// forgets it. A visitor who follows a suggested link onto the next step's page moves the tour on; anywhere else the
-// card says the tour is paused and offers the way back.
+// forgets it. Anywhere the step is not, the card says the tour is paused and offers the way back. Only one step moves
+// the tour on by itself: one marked "follows" (its page is where the step before it sends the visitor by a link, such as
+// Hector Santos from Find players), and only when this page has just loaded by following a link, in a tab the visitor
+// is looking at. Never from another tab's change (a second tab on the next step's page would skip the hook), never on
+// Back or Forward (steps 2-4 and 6 share one URL, so Back from the upload step would jump to Foundry), never on a page
+// restored from the back/forward cache.
 //
 // Started by any element with data-tour-start (Home and /demo). Loaded with defer after the page's own scripts, on
 // every page the tour visits. No inline scripts, handlers or style attributes: the pages run under a CSP.
@@ -42,29 +46,25 @@
       "act": "Press Ask, then type \"now the replays\" and press Ask again." },
     { "id": "recap", "url": "/?match=syn_0294&player=t_home_09", "target": "#recap", "rules": true,
       "title": "Recaps and replay packages",
-      "text": "Every match gets a recap told from the picked player's side; each sentence plays the moment it describes, and the recap has its own reel: a broadcaster's replay package. Fans and creators take moments away with Download reel and Export moments under the video.",
-      "act": "Open Match recap, click a sentence, then try Play recap reel." },
+      "text": "Each match gets a recap told from his side, and each sentence plays its moment. Its reel is a broadcaster's replay package.",
+      "act": "Open Match recap, then click a sentence." },
     { "id": "video-in", "url": "/me?player=pl_bro_09#matches", "target": "[data-tour=\"agent-steps\"]",
       "title": "Video in: players upload",
       "text": "A rendered film of Femi's friendly went through Azure Blob Storage and a queue to a Container Apps job, where Regista's vision agents found him, each agent with its time. He answered \"Is this you?\" where they were unsure, and the match joined his profile.",
       "act": "Below the agents: the moments they found of him." },
-    { "id": "foundry", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "every nutmeg in the library" },
+    { "id": "foundry", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "his nutmegs here, and any in other matches?" },
       "title": "Microsoft Foundry and MCP",
-      "text": "Switch to Ask Microsoft Foundry: a Foundry agent (gpt-5-mini, on Microsoft Agent Framework) answers and may call tools. Under its reply, How Regista answered shows each step, and which server ran each tool: Regista's MCP server or the Azure MCP Server.",
+      "text": "A Foundry agent (gpt-5-mini, on Microsoft Agent Framework) writes the reply and can search other matches with its tools; the moments on the page stay this match's. How Regista answered lists each tool it called and its server: Regista's MCP server or the Azure MCP Server.",
       "act": "Pick Ask Microsoft Foundry, then press Ask. Foundry questions are limited to a few a minute per visitor." },
-    { "id": "catalogue", "url": "/scout#competitions", "target": "#coLine",
+    { "id": "catalogue", "url": "/scout#competition/co_esp_u19", "target": "[data-tour=\"co-head\"]",
       "title": "A catalogue, checked in Fabric",
-      "text": "Regista is also a catalogue of matches uploaded below the professional level: 14 competitions in 10 countries, every player, club and competition invented. Not in this app: on 26 October 2026 a Microsoft Fabric notebook recomputed every catalogue number from the raw tables; 7,399 of 7,399 rows matched.",
-      "act": "Next opens one competition." },
-    { "id": "competition", "url": "/scout#competition/co_esp_u19", "target": "[data-tour=\"co-uploads\"]",
-      "title": "Who filmed each match",
-      "text": "Each upload says who filmed it, a player or a team account, and the camera they named. The camera is only a label: Regista draws every match with the same broadcast-style view.",
-      "act": "Watch in the Clip view opens a match's moments; the tour waits." },
+      "text": "Regista is also a catalogue of matches uploaded below the professional level: 14 invented competitions in 10 countries. Not in this app: on 26 October 2026 Microsoft Fabric recomputed its 7,399 player numbers from the raw tables; 7,399 of 7,399 matched.",
+      "act": "Below: who filmed each match." },
     { "id": "scout", "url": "/scout#find", "target": "#scExamples",
       "title": "Scouts: fair comparisons",
       "text": "Scouts ask in plain words. Players are compared only with players of their own level, age group and gender, and every percentile names its pool.",
       "act": "Press \"Who are the best U19 dribblers up front?\", then open Hector Santos." },
-    { "id": "number", "url": "/players/pl_pnr_11", "target": "[data-tour=\"stat-take_ons_won\"]",
+    { "id": "number", "url": "/players/pl_pnr_11", "target": "[data-tour=\"stat-take_ons_won\"]", "follows": true,
       "title": "Every number opens its moments",
       "text": "Hector Santos is an invented U19 forward in Spain. Each number on his profile opens the moments it was counted from.",
       "act": "Press Take-ons won, then pick a moment to play it." },
@@ -128,12 +128,26 @@
     document.documentElement.classList.remove('tour-running');
   }
 
-  function render() {
+  // Did this page just load because the visitor followed a link (or typed the address), in a tab they are looking at?
+  // Not a Back or Forward, and not a tab in the background (see the top of this file).
+  function followedHere() {
+    if (document.visibilityState !== 'visible') return false;
+    let type = '';
+    try {
+      const nav = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      type = nav ? nav.type : (performance.navigation && performance.navigation.type === 2 ? 'back_forward' : '');
+    } catch (e) { type = ''; }
+    return type !== 'back_forward';
+  }
+
+  // arrived: this is the page's own first render (not a hash change, another tab's change, or a restored page).
+  function render(arrived = false) {
     const s = load();
     unlight();
     if (!s) { remove(); return; }
-    // A visitor who followed the suggested link onto the next step's page has moved the tour on.
-    if (!isHere(STEPS[s.i]) && s.i + 1 < STEPS.length && isHere(STEPS[s.i + 1])) { s.i += 1; save(s); }
+    // A visitor who followed the suggested link onto a "follows" step's page has moved the tour on.
+    const next = STEPS[s.i + 1];
+    if (arrived && next && next.follows && !isHere(STEPS[s.i]) && isHere(next) && followedHere()) { s.i += 1; save(s); }
     const step = STEPS[s.i];
     const c = ensureCard();
     document.documentElement.classList.add('tour-running');
@@ -272,10 +286,12 @@
     e.preventDefault();
     start();
   });
-  window.addEventListener('hashchange', render);
-  window.addEventListener('popstate', () => setTimeout(render, 0));
+  window.addEventListener('hashchange', () => render());
+  window.addEventListener('popstate', () => setTimeout(() => render(), 0));
+  // A page restored from the back/forward cache keeps the card it was left with, buttons disabled by go(): draw it again.
+  window.addEventListener('pageshow', (e) => { if (e.persisted) render(); });
   R.store.watch((k) => { if (k === KEY || k === null) render(); });
 
   window.RegistaTour = { steps: STEPS, start, exit, go };
-  render();
+  render(true);
 })();

@@ -21,14 +21,15 @@ Regista is an AI system for the Microsoft × Premier League **Inside the Game: D
 
 **Start here: [`/demo`](https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io/demo)**, the page
 for judges: what Regista is, what this server runs on right now (read from its health check), the four paths, and
-**Take the tour**, a guided tour of 12 short steps across the live app (also on Home). It only reads; a Microsoft
+**Take the tour**, a guided tour of 11 short steps across the live app (also on Home). It only reads; a Microsoft
 Foundry question is asked only when you press Ask. In order:
 1. Femi Toure's **Goal reel**: the synthetic league's top scorer, every goal in match order.
 2. **Clips** on the demo match: every moment of one player on the timeline, then "his nutmegs" and "now the replays".
 3. The **match recap**: every sentence plays its moment, and the recap has its own reel.
 4. **Video in**: an upload Regista's vision agents processed in Azure, agent by agent.
-5. **Ask Microsoft Foundry**: "How Regista answered" shows the Foundry agent and which MCP server ran each tool.
-6. The **catalogue** (Scout > Competitions), the Microsoft Fabric check, **Find players** with a number that opens
+5. **Ask Microsoft Foundry**: "How Regista answered" shows the Foundry agent and each tool it called, with the MCP
+   server that ran it.
+6. The **catalogue** (one competition's page), the Microsoft Fabric check, **Find players** with a number that opens
    its moments, and the **Scout terminal**.
 
 The Studio (`/studio`) opens with the view-only key from the submission: it shows everything and changes nothing.

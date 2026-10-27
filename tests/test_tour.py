@@ -40,7 +40,7 @@ BEATS = ["hook",                                  # 1 the Goal reel
          "recap",                                 # 3 explained and recapped (+ 7: fans, creators, broadcasters)
          "video-in",                              # 4 the processed upload, agent by agent (+ 7: players)
          "foundry",                               # 5 Ask Foundry and How Regista answered
-         "catalogue", "competition",              # 6 the catalogue, and the Fabric check
+         "catalogue",                             # 6 the catalogue, who filmed it, and the Fabric check (fixes-2: one step)
          "scout", "number", "terminal",           # 7 the scouts' path
          "close"]                                 # 8
 
@@ -67,7 +67,7 @@ def test_the_steps_follow_the_storyboard_beats_in_order():
     s = steps()
     assert [x["id"] for x in s] == BEATS
     for x in s:
-        assert set(x) <= {"id", "url", "target", "above", "rules", "fill", "title", "text", "act"}, x["id"]
+        assert set(x) <= {"id", "url", "target", "above", "rules", "fill", "follows", "title", "text", "act"}, x["id"]
         assert x["title"] and x["text"] and len(x["title"]) <= 40, x["id"]
         assert len(x["text"]) <= 330 and len(x.get("act", "")) <= 120, x["id"]   # one or two plain sentences
         assert "_" not in x["text"] and "regista." not in x["text"].lower(), x["id"]   # no snake_case, no module names
@@ -111,12 +111,22 @@ def test_the_steps_say_what_the_live_app_shows():
     assert by["video-in"]["url"].startswith("/me?player=pl_bro_09")
     assert "Azure MCP Server" in by["foundry"]["text"] and "Regista's MCP server" in by["foundry"]["text"]
     assert "press Ask" in by["foundry"]["act"]   # the visitor asks Foundry; the tour never does
+    # fixes-2: the question asks beyond this match, so Foundry's tools have a reason to run, and the card says the
+    # moments panel stays this match's; the chat's instructions send such a question to the library's search
+    assert "other matches" in by["foundry"]["fill"]["value"] and "library" not in by["foundry"]["fill"]["value"]
+    assert "the moments on the page stay this match's" in by["foundry"]["text"]
+    from regista.cloud.foundry import CHAT_INSTRUCTIONS
+    assert "search_index_query" in CHAT_INSTRUCTIONS and "When the user asks beyond this match" in CHAT_INSTRUCTIONS
     # Fabric is not in the app: its check is quoted as text, with its date, said first to be outside the app, on the
     # step whose title names it (fixes-1: not on the competition page, whose highlight is the uploads)
     cat = by["catalogue"]
     assert "Fabric" in cat["title"] and "Not in this app: " in cat["text"]
     assert "7,399 of 7,399" in cat["text"] and "26 October 2026" in cat["text"]
-    assert by["competition"]["url"] == "/scout#competition/co_esp_u19" and "Fabric" not in by["competition"]["title"]
+    # fixes-2: one step on the competition page, its highlight the competition's header (not a line the card repeats);
+    # the 7,399 rows are 1,057 player-competition rows times 7 stats, so never "every catalogue number"
+    assert cat["url"] == "/scout#competition/co_esp_u19" and cat["target"] == '[data-tour="co-head"]'
+    assert "7,399 player numbers" in cat["text"] and "every catalogue number" not in cat["text"]
+    assert "every catalogue number" not in (STATIC / "demo/index.html").read_text()
     # Only the upload step says Regista's vision agents watched footage: the league and the demo match come from the
     # generator (fixes-1), and nothing claims they were found in footage
     assert "synthetic league" in by["hook"]["text"] and "footage" not in by["hook"]["text"]
@@ -271,3 +281,36 @@ def test_the_goal_reel_plays_each_goal_once_in_match_order():
     fn = js[js.index("function goalReelIds()"):js.index("function play(k, start = true, fallback = null)")]
     assert "includes('goal')" in fn and "m.reason === 'on_ball_main'" in fn and "CLIP_MP4.test" in fn
     assert "q('goalreel').hidden = !goalReelIds().length;" in js and "name: 'Goal reel'" in js
+
+
+def test_only_a_followed_link_moves_the_tour_on_by_itself():
+    """fixes-2: a second tab on the next step's page skipped the hook, and Back from the upload step jumped to Foundry.
+    The tour moves on by itself only onto a step marked "follows" (Hector Santos, reached by a link from Find players),
+    only on that page's own load, in a tab the visitor is looking at, and never on Back or Forward."""
+    s = steps()
+    assert [x["id"] for x in s if x.get("follows")] == ["number"]
+    i = [x["id"] for x in s].index("number")
+    assert "Hector Santos" in s[i - 1]["act"] and s[i - 1]["url"] != s[i]["url"]
+    js = TOUR.read_text()
+    code = js[js.index("/* STEPS:END */"):]
+    fn = code[code.index("function render(arrived = false)"):code.index("const step = STEPS[s.i];")]
+    assert "arrived && next && next.follows" in fn and "followedHere()" in fn and "save(s)" in fn
+    assert fn.count("s.i += 1") == 1
+    followed = code[code.index("function followedHere()"):code.index("function render(")]
+    assert "document.visibilityState !== 'visible'" in followed and "'back_forward'" in followed
+    # only the page's own first render may move it on: never another tab's change, a hash change or Back
+    assert code.count("render(true)") == 1 and code.rstrip().endswith("render(true);\n})();")
+    assert "R.store.watch((k) => { if (k === KEY || k === null) render(); });" in code
+    assert "window.addEventListener('hashchange', () => render());" in code
+    # a page restored from the back/forward cache draws its card again (go() left its buttons disabled)
+    assert "window.addEventListener('pageshow', (e) => { if (e.persisted) render(); });" in code
+
+
+def test_a_picked_moment_plays_where_a_phone_can_see_it():
+    """fixes-2: on a phone the best-moments section is taller than the screen, so 'nearest' left the video above it."""
+    js = (STATIC / "player/profile-view.js").read_text()
+    start = js.index("function showStage(root)")
+    fn = js[start:js.index("\n  }\n", start)]
+    assert "matchMedia('(max-width: 720px)')" in fn and "'.pf-screen'" in fn and "block: narrow ? 'start' : 'nearest'" in fn
+    assert "querySelector('.pf-best').scrollIntoView" not in js and js.count("showStage(el);") == 3
+    assert ".pf-screen { scroll-margin-top: 12px; }" in (STATIC / "shared/dashboard.css").read_text()
