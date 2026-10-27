@@ -607,7 +607,21 @@ button on profiles (beat 1), startup warm-up of every clip the tour plays (`regi
 container's CPU quota), Foundry limits raised to 5/40 per visitor and 120 an hour overall (300 a day kept), and a daily
 read-only live check in GitHub Actions. Review round 1 fixed (`docs/redesign/live-demo/fixes-1.md`).
 
-**As of 2026-10-26 (night).** The catalogue is in Microsoft Fabric (§2.11): pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`). The code is merged (PR #41, merge dc22a47; CI deployed revision `regista-api--d1027004838`). The demo storyboard (`docs/demo-storyboard.md`) is rewritten for the catalogue and the pitch is written (`docs/pitch.md`). The first CLI run stalled after the league check finished and was stopped; run alone, every step finished in seconds.
+**As of 2026-10-27.** The live demo for judges is live (PR #42, merge f3e4fba, revision `regista-api--d1027064608`):
+`/demo` and an 11-step read-only guided tour (`static/shared/tour.js`), clip warm-up at startup, Foundry limits 5/min and
+40/hour per visitor (300 a day overall), and a daily read-only live check (`.github/workflows/live-check.yml`, until
+2026-11-11; 9 of 9 on the deploy). The licence is now all rights reserved (no MIT); README, storyboard (= the tour) and
+pitch rewritten. Taken on the live app at 1440 and 375 px: every step lands and highlights its element, no console
+errors; Ask Microsoft Foundry on step 6 searched the clip library through the Azure MCP Server. **A catalogue-club
+upload in Azure** (Zaid's go-ahead): Adebayo Nwosu (pl_ads_09, Adire Stars FC, Nigeria amateur) v Riverbank Warriors FC,
+synthetic film seed 4101, uploaded as `up_e4595e7407` with the write token → Blob → queue → job (3.5 min: shots 24 s,
+identity 135 s) → 2 questions, both answered yes after checking the film's ground truth (track tr_20 is him; he is in
+the highlight cw_cs_v00006) → done. His clips against the truth: 4 of 5 found, 4 of 6 correct (on the ball 4 of 4, 4 of 5;
+the highlight clip is cut but misaligned). Named on the Ogun Riverside competition page and in his catalogue row, not
+counted (2 matches). Left: Zaid's video (public YouTube or Vimeo), the repo made public (history scan first), the
+submission form by 2026-10-27 23:59 PT.
+
+**Earlier, 2026-10-26 (night).** The catalogue is in Microsoft Fabric (§2.11): pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`). The code is merged (PR #41, merge dc22a47; CI deployed revision `regista-api--d1027004838`). The demo storyboard (`docs/demo-storyboard.md`) is rewritten for the catalogue and the pitch is written (`docs/pitch.md`). The first CLI run stalled after the league check finished and was stopped; run alone, every step finished in seconds.
 
 **Earlier, 2026-10-26 (evening).** The catalogue is live (§2.11): PR #39 (data, engine, API; merge 2952844) and PR #40
 (the UI round; merge fd0969f), deployed by CI to revision `regista-api--d1026204656`. Checked live, read-only, at 1440
