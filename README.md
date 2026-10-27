@@ -97,7 +97,7 @@ More detail: [docs/architecture.md](docs/architecture.md), [docs/workflow.md](do
 
 ```bash
 pip install -e ".[dev,vision]"            # add ,cloud for Azure: ".[dev,vision,cloud]"
-python3 -m pytest -q                      # 1,189 tests; -m slow for the whole-season ones
+python3 -m pytest -q                      # 1,197 tests; -m slow for the whole-season ones
 uvicorn regista.api:app                   # then open http://localhost:8000 (and /demo)
 python3 -m regista.librarian data/synthetic/sample/syn_0294 "find me Castellanos doing a nutmeg"
 python3 -m regista.mcp_server --list-tools
