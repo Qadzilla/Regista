@@ -127,7 +127,7 @@ part B). Three pieces:
 --league [--repeat N]` checks the season against the bands. Build reports, independent verification and review rounds:
 `docs/scout-terminal/build/`.
 
-**The catalogue** (built on `feature/catalogue`, **not merged, not deployed**: the live app serves none of it yet;
+**The catalogue** (merged with PRs #39 and #40 and live since 2026-10-26 on revision `regista-api--d1026204656`;
 CLAUDE.md §2.11, `docs/catalogue/build/design.md`). Regista as a library of uploaded footage below the professional
 line: 14 synthetic competitions in 10 countries (tiers semi-pro, amateur, college, academy; senior, college and U17-U20
 age groups; men and women), 66 clubs, 1,183 invented people, 90 matches. The Regista League is one of them, "England
@@ -202,9 +202,9 @@ The two original dashboards in detail (plan: `docs/plan-two-dashboards.md`):
 | `get_profile(player)` | one player's season by global id or full name, without the per-event evidence lists |
 | `compare_players(players)` | two or three players side by side |
 | `match_recap(match_dir, player_id)` | the match recap (rules engine): headline, paragraphs with a citation on every sentence, the recap reel; from one player's side when given |
-| `list_competitions(country, tier, age_group, gender)` | the catalogue's competitions with their uploads, levels and careers (`feature/catalogue`, not merged) |
-| `search_catalogue_players(tier, age_group, gender, country, competition, position, sort, order, scope, limit, min_minutes)` | players across the catalogue ranked by a terminal metric, each percentile with its pool (same level by default; not merged) |
-| `get_catalogue_player(player, scope)` | one player across the catalogue: career and a row per competition with pools (not merged) |
+| `list_competitions(country, tier, age_group, gender)` | the catalogue's competitions with their uploads, levels and careers |
+| `search_catalogue_players(tier, age_group, gender, country, competition, position, sort, order, scope, limit, min_minutes)` | players across the catalogue ranked by a terminal metric, each percentile with its pool (same level by default) |
+| `get_catalogue_player(player, scope)` | one player across the catalogue: career and a row per competition with pools |
 
 Any MCP host can drive Regista with these. The Foundry Librarian attaches this server, and beside it Microsoft's Azure MCP Server (`azmcp`, from the `msmcp-azure` package), started read-only with only the Cosmos DB namespace, plus the Search namespace when Search is configured; the tools allowed are `cosmos_database_container_item_query`, `cosmos_list`, and `search_index_query` (`src/regista/cloud/foundry.py`). Calls to the Cosmos DB query tool have been seen from local CLI runs. Inside the container (public Ask Foundry, AI Search namespace only), `search_index_query` was verified on 2026-10-21 (revision `regista-api--d1021183822`); the Cosmos DB tools are not offered there by design.
 
@@ -282,8 +282,9 @@ Fabric trial capacity (Zaid's own; the tenant is Northeastern's and holds other 
   it reads `leaders_check` back from OneLake and compares it, row by row, with `player_season`. The notebook re-derives
   goals, assists, shots, key passes, take-ons won, tackles won and interceptions from the event contract in SQL; it does
   not reuse Regista's Python. For each stat it computes appearances, minutes, count, per-90 rate and the percentile
-  within the position. Counts, appearances and percentiles must be equal; minutes and per-90 rates may differ only by
-  rounding (Python and Spark round halves differently).
+  within the position. Counts, appearances and percentiles must be equal; minutes and per-90 rates may differ by one
+  unit of their last digit at most (0.1 minutes, 0.01 per 90): Spark's ROUND takes a half up on the decimal form, Python's
+  round takes the binary value half to even, so the two can disagree on a half (30.15 minutes: 30.2 against 30.1).
 
 Keyless: `DefaultAzureCredential` with the Fabric API scope, the Power BI scope (capacity admins) and the storage scope
 (OneLake). The notebook recreates `leaders_check` each run without deletion vectors, which Fabric turns on for new
@@ -320,8 +321,47 @@ star's league attributes version 2): `push` wrote clubs 6, players 108, matches 
 10,661, labels 10,661, player_season 3,024 and uploads 1 rows in 28 s. `check` ran the notebook in 52 s and matched
 **756 of 756** rows (108 players x 7 stats), Femi Toure's five goals among them.
 
+### The catalogue in the same lakehouse (running)
+
+**Status: Pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`, "Real run").**
+
+The catalogue (§2.11 of CLAUDE.md: 14 competitions in 10 countries, 90 uploaded matches) goes into the same lakehouse
+under its own table names, so the league's tables, its notebook and its 756-row check stay exactly as they are:
+
+```
+lakehouse regista_league
+  catalogue_competitions (14: level labels, as_of), catalogue_clubs (66), catalogue_players (1,188 squad entries,
+  public bio only), catalogue_matches (90: round, date, score, played_s, uploader, camera), catalogue_lineups (3,240,
+  played_s from substitutions and red cards), catalogue_events (102,904, with competition_id and seq),
+  catalogue_possessions (30,645, with seq), catalogue_player_season (7,399: Regista's numbers, one row per
+  player-competition row and stat), catalogue_leaders_check (written by the second notebook)
+notebook regista_catalogue_check   Spark SQL over the six raw catalogue tables -> catalogue_leaders_check
+```
+
+- England semi-pro men is the Regista League's 30 fixtures (from `data/season/matches`), the matches the catalogue
+  pages count; the Player view's friendlies are not in the catalogue tables.
+- `catalogue_player_season` comes from the engine the catalogue pages use (`regista.catalogue.metrics`): appearances,
+  minutes, count, per-90, whether the row qualifies, the percentile in the default **level pool** (same tier, age group,
+  gender and position over every competition of that level) and that pool's size.
+- The second notebook (`fabric_catalogue_notebook.py`) writes the catalogue's rules again in SQL: time on the pitch
+  from the period, substitution and red-card events (it never reads the tables' `played_s`, which come from
+  `regista.season.playing_time`, the engine's own rule; the league's notebook still sums `lineups.played_s`), each
+  competition's qualifying minutes (England a third of the busiest club's minutes; elsewhere also at least 45), level pools, FBref's
+  percentile, no percentile from fewer than 5 peers or for a count of 0. The catalogue engine's shots leave penalties
+  out, its key passes are FBref's (the pass received at the start of the shooter's possession, read off
+  `catalogue_possessions`), and a tackle without an outcome counts as won; the SQL follows the engine there, and the
+  engine is unchanged.
+- `catalogue_leaders_rule` is the same SQL in plain Python. `tests/test_fabric_catalogue.py` compares it with
+  Regista's rows for every row (7,399 of 7,399 offline) and checks that a rule written differently (penalties in the
+  shots, no 45-minute floor, pools per competition, men and women in one pool) is caught; small built streams pin the
+  rules the committed data cannot tell apart (FBref's key pass against the league's qualifier, England without the
+  floor, a tackle with no outcome won, time on the pitch), each against the engine's own answer.
+- `python -m regista.season.fabric push --catalogue` writes the league's tables and then the catalogue's
+  (`--catalogue-only`: only the catalogue's; plain `push` is unchanged); `check --catalogue` runs the second notebook
+  and compares.
+
 ## What is deliberately not here
 
 - No real footage, anywhere. The vision layer v0 is trained and measured only on Regista's own rendered broadcast; its evaluation matches were used during development, so they are a development set, not a held-out test. `docs/vision.md` has the numbers and what changes for real footage.
-- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above). Since the Player view, Blob Storage, a Storage queue and a Container Apps Job run too. Azure AI Vision, Video Indexer, Speech, Translator, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
+- Running in Azure: Microsoft Foundry, Agent Framework (on Foundry), Cosmos DB, Azure AI Search, Application Insights with Foundry tracing, Container Apps, and Container Registry; Microsoft Fabric (a lakehouse and a notebook, from the CLI; section above; the catalogue's tables and second notebook run there too). Since the Player view, Blob Storage, a Storage queue and a Container Apps Job run too. Azure AI Vision, Video Indexer, Speech, Translator, Functions, and Event Hubs are planned until code runs against them. GitHub Copilot is not used.
 - Face recognition is not the identification path. Kit number, team colour, and tracking continuity are, for both robustness and policy reasons.

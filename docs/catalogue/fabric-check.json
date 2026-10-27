@@ -1,0 +1,20 @@
+{
+ "players": 1057,
+ "stats": [
+  "goals",
+  "assists",
+  "shots",
+  "key_passes",
+  "take_ons_won",
+  "tackles_won",
+  "interceptions"
+ ],
+ "checked": 7399,
+ "matched": 7399,
+ "differences": [],
+ "only_regista": [],
+ "only_fabric": [],
+ "ok": true,
+ "rows": "player-competition",
+ "competitions": 14
+}
