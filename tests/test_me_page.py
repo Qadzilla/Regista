@@ -41,10 +41,12 @@ def client() -> TestClient:
 
 def test_the_page_loads_the_shared_pieces_in_order(page):
     scripts = re.findall(r'<script src="([^"]+)"', page)
-    assert scripts == ["/static/shared/regista.js", "/static/shared/demo.js", "/static/player/profile-view.js", "/static/me/me.js"]
+    # ... then the guided tour (shared/tour.js), last on every page it visits
+    assert scripts == ["/static/shared/regista.js", "/static/shared/demo.js", "/static/player/profile-view.js", "/static/me/me.js",
+                       "/static/shared/tour.js"]
     assert '<script src="/static/player/profile-view.js" defer></script>' in page and '<script src="/static/me/me.js" defer></script>' in page
     styles = re.findall(r'<link rel="stylesheet" href="([^"]+)"', page)
-    assert styles == ["/static/shared/regista.css", "/static/shared/dashboard.css", "/static/me/me.css"]
+    assert styles == ["/static/shared/regista.css", "/static/shared/dashboard.css", "/static/me/me.css", "/static/shared/tour.css"]
     assert '<main class="pf" id="main">' in page  # the dashboard look applies
 
 

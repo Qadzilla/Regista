@@ -45,6 +45,14 @@
 
   // ------------------------------------------------------------------ small helpers (also used by the dashboards)
   const key = (m) => `${m.match_id}|${m.clip_id}`;
+  // Bring the playing video into view. On a wide screen the whole best-moments section fits, so it scrolls only as far
+  // as it must. On a phone that section (the video and a long moment list) is taller than the screen, and 'nearest'
+  // would line up its bottom and leave the video above the screen: the video itself goes to the top instead.
+  function showStage(root) {
+    const narrow = window.matchMedia && window.matchMedia('(max-width: 720px)').matches;
+    const target = narrow ? root.querySelector('.pf-screen') : root.querySelector('.pf-best');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: narrow ? 'start' : 'nearest' });
+  }
   const short = (title) => String(title ?? '').replace(/^.*?: /, '');
   const ordinal = (n) => { const s = ['th', 'st', 'nd', 'rd'], v = n % 100; return n + (s[(v - 20) % 10] || s[v] || s[0]); };
   const rate = (v) => (typeof v !== 'number' ? '0.00' : v >= 10 ? v.toFixed(1) : v.toFixed(2));
@@ -313,7 +321,7 @@
       home.hidden = false;
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.toggle('on', b.dataset.clip === k);
       if (start) {
-        el.querySelector('.pf-best').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        showStage(el);
         video.play().catch(() => {});
       }
     }
@@ -338,7 +346,7 @@
       q('tags').innerHTML = '';
       q('onhome').hidden = true;
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.remove('on');
-      el.querySelector('.pf-best').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      showStage(el);
       video.play().catch(() => {});
     }
     const has = moments.length > 0;
@@ -743,7 +751,9 @@
       <section class="pf-summary panel" data-r="summaryBox" aria-labelledby="${id}-sum" hidden><h2 id="${id}-sum">Summary</h2>
         <p class="pf-sumtext" data-r="summary"></p><p class="muted small" data-r="sumby"></p></section>
       <section class="pf-best panel" aria-labelledby="${id}-best">
-        <div class="pf-bar"><h2 id="${id}-best">Best moments</h2><button type="button" data-r="reel">Play reel</button></div>
+        <div class="pf-bar"><h2 id="${id}-best">Best moments</h2><span class="cp-reels">
+          <button type="button" class="alt" data-r="goalreel" data-tour="goal-reel" hidden>Goal reel</button>
+          <button type="button" data-r="reel">Play reel</button></span></div>
         <div class="cp-momfilter" data-r="momfilter" role="group" aria-label="Moments from" hidden></div>
         <div class="pf-bestgrid"><div class="pf-stage">
             <div class="pf-screen"><video data-r="video" controls playsinline preload="none"></video>
@@ -784,6 +794,16 @@
         .sort((a, b) => ((b.watchability ?? 0) - (a.watchability ?? 0)) || ((a.reason !== 'on_ball_main') - (b.reason !== 'on_ball_main')))
         .filter((m) => !seen.has(key(m)) && seen.add(key(m))).slice(0, 10);
     }
+    // The Goal reel: every goal on the ball in the main view (a goal's replays and highlights show it again), each once, in
+    // match order, from the competitions picked above. The clips play one after another on the stage, as Play reel does.
+    function goalReelIds() {
+      const seen = new Set();
+      return moments.filter((m) => (state.mom === 'all' || m.comp === state.mom) && (m.tags || []).includes('goal')
+          && m.reason === 'on_ball_main' && CLIP_MP4.test(String(m.video_url || '')))
+        .sort((a, b) => ((a.round === null || a.round === undefined) - (b.round === null || b.round === undefined))
+          || ((a.round || 0) - (b.round || 0)) || String(a.match_id).localeCompare(String(b.match_id)) || ((a.t || 0) - (b.t || 0)))
+        .filter((m) => !seen.has(key(m)) && seen.add(key(m))).map(key);
+    }
     function play(k, start = true, fallback = null) {
       const m = momentOf.get(k) || fallback;
       if (!m || !CLIP_MP4.test(String(m.video_url || ''))) return;
@@ -791,14 +811,14 @@
       loading.hidden = true;
       const match = matchOf.get(m.match_id);
       q('now').className = `reason${m.reason && m.reason !== 'on_ball_main' ? ' replay' : ''}`;
-      q('now').textContent = [reel.on ? `Reel · clip ${reel.i} of ${reel.ids.length}` : '', m.reason ? reasonLabel(m.reason) : 'Moment',
+      q('now').textContent = [reel.on ? `${reel.name || 'Reel'} · clip ${reel.i} of ${reel.ids.length}` : '', m.reason ? reasonLabel(m.reason) : 'Moment',
         roundOf(match || m), clockOf(m)].filter(Boolean).join(' · ');
       q('title').textContent = m.title ? short(m.title) : `Moment at ${clockOf(m)}`;
       q('tags').innerHTML = (m.tags || []).filter((t) => !QUIET.test(t)).slice(0, 5).map((t) => `<span>${esc(tagLabel(t))}</span>`).join('');
       q('mwhere').textContent = [vsOf(match), compName(m.comp || (match || {}).comp) || ''].filter(Boolean).join(' · ');
       for (const b of el.querySelectorAll('.pf-clip')) b.classList.toggle('on', b.dataset.clip === k);
       if (start) {
-        el.querySelector('.pf-best').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        showStage(el);
         video.play().catch(() => {});
       }
     }
@@ -813,6 +833,7 @@
         <span class="pf-ctitle">${esc(short(m.title))}</span><span class="pf-cmatch">${esc(vsOf(matchOf.get(m.match_id)))}${many ? ` · ${esc(compName(m.comp))}` : ''}</span></button></li>`).join('')
         || '<li class="muted small">No moments with a clip of their own yet.</li>';
       q('reel').hidden = !top.length;
+      q('goalreel').hidden = !goalReelIds().length;
       if (top[0]) play(key(top[0]), false);
       else { video.removeAttribute('src'); q('now').textContent = ''; q('title').textContent = ''; q('mwhere').textContent = ''; }
     }
@@ -885,7 +906,7 @@
       q('tiles').innerHTML = heads.map((k) => {
         const c = stats[k];
         const w = c.none_yet || c.percentile === null || c.percentile === undefined ? 0 : Math.max(3, c.percentile);
-        return `<button type="button" class="pf-tile" data-stat="${esc(k)}" aria-pressed="${state.stat === k}">
+        return `<button type="button" class="pf-tile" data-stat="${esc(k)}" data-tour="stat-${esc(k)}" aria-pressed="${state.stat === k}">
           <span class="pf-n">${esc(c.count)}</span><span class="pf-k">${esc(clean(c.label))}${care(c)}</span>
           <span class="pf-rate">${esc(fixed2(c.per90))} per 90 minutes</span>
           <span class="pf-pbar" aria-hidden="true"><i data-w="${w}"></i></span><span class="pf-pct">${esc(statPoolLine(c, r, `${levelW} ${group}`))}</span>
@@ -1055,8 +1076,15 @@
       if (mo) { state.mom = mo.dataset.mom; reel.on = false; paintMoments(); return; }
       if (t.closest('[data-r="reel"]')) {
         const top = shownMoments();
-        Object.assign(reel, { on: true, ids: top.map(key), i: 1 });
+        Object.assign(reel, { on: true, ids: top.map(key), i: 1, name: 'Reel' });
         play(reel.ids[0]);
+        return;
+      }
+      if (t.closest('[data-r="goalreel"]')) {
+        const ids = goalReelIds();
+        if (!ids.length) return;
+        Object.assign(reel, { on: true, ids, i: 1, name: 'Goal reel' });
+        play(ids[0]);
         return;
       }
       if (t.closest('[data-r="evClose"]')) { q('evidence').hidden = true; const k = state.stat; state.stat = null; syncTiles(); focusTile(k); return; }

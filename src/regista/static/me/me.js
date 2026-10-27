@@ -719,7 +719,7 @@
 
   function pipeline(rec) {
     const rows = steps(rec);
-    const ol = h('ol', { class: 'pf-steps', 'aria-label': 'Regista’s agents on this video' });
+    const ol = h('ol', { class: 'pf-steps', 'data-tour': 'agent-steps', 'aria-label': 'Regista’s agents on this video' });
     for (const r of rows) {
       const time = r.state === 'running' ? (r.key === 'received' && rec.status === 'queued' ? 'waiting…' : 'working…') : r.state === 'ask' ? 'your turn' : dur(r.ms);
       ol.append(h('li', { class: r.state, title: r.what },

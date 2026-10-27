@@ -1,0 +1,47 @@
+/* The guided tour's card and highlight (shared/tour.js), on the shared tokens of shared/regista.css. Desktop: a card in
+   the bottom right corner. Phones (<= 720 px): a strip along the bottom; tour.js scrolls the highlighted element above it,
+   and Hide folds the card to a small pill. */
+.tour { position: fixed; right: 20px; bottom: 20px; z-index: 60; width: 360px; max-width: calc(100vw - 32px);
+        background: var(--panel); color: var(--text); border: 1px solid var(--accent); border-radius: var(--radius);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, .55); padding: 14px 16px 12px; }
+.tour.paused { border-color: var(--line); }
+.tour-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tour-n { margin: 0; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 700; }
+.tour.paused .tour-n { color: var(--muted); }
+.tour-h { margin: 6px 0 4px; font-size: 17px; line-height: 1.3; }
+.tour-t { margin: 0 0 6px; font-size: 14px; line-height: 1.45; }
+.tour-act { margin: 0 0 8px; font-size: 13.5px; color: var(--accent); font-weight: 600; }
+.tour-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.tour-bar button { padding: 7px 14px; }
+.tour .tour-exit, .tour .tour-x { background: transparent; color: var(--muted); border: 0; padding: 6px 4px; font-weight: 600; }
+.tour .tour-exit { margin-left: auto; }
+.tour .tour-exit:hover, .tour .tour-x:hover { color: var(--text); }
+.tour button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tour.min { width: auto; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.tour-pill { border-radius: 999px; padding: 9px 16px; box-shadow: 0 8px 24px rgba(0, 0, 0, .5); }
+
+/* The element a step points at. Its own box-shadow and outline only: nothing moves. */
+.tour-on { outline: 3px solid var(--accent) !important; outline-offset: 4px; border-radius: 8px;
+           animation: tour-pulse 1.6s ease-out 2; }
+@keyframes tour-pulse { 0% { box-shadow: 0 0 0 0 rgba(255, 205, 40, .55); } 100% { box-shadow: 0 0 0 14px rgba(255, 205, 40, 0); } }
+@media (prefers-reduced-motion: reduce) { .tour-on { animation: none; } }
+
+/* room under the page's last lines, so the card never hides the end of the page */
+html.tour-running body { padding-bottom: 260px; }
+
+/* "Take the tour" buttons on Home and /demo */
+.tour-start { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+
+@media (max-width: 720px) {
+  .tour { left: 8px; right: 8px; bottom: 8px; width: auto; max-width: none; padding: 10px 12px 8px; }
+  .tour-h { font-size: 15.5px; margin: 4px 0 2px; }
+  .tour-t { font-size: 13.5px; }
+  .tour-act { font-size: 13px; margin-bottom: 4px; }
+  .tour-bar { margin-top: 4px; }
+  .tour-bar button { padding: 6px 12px; }
+  .tour .tour-x, .tour .tour-exit { padding: 2px 4px; }
+  .tour.min { left: auto; }
+  html.tour-running body { padding-bottom: 230px; }
+  /* the pages' own scrolls (a number's moments, the Goal reel's stage) stop above the strip, not under it */
+  html.tour-running { scroll-padding-bottom: 270px; }
+}

@@ -57,7 +57,7 @@ What the workflow guarantees, and `tests/test_workflow.py` checks: typed handoff
 
 **Ask Foundry** (`POST /api/matches/{id}/ask`, one question, no conversation) and the Foundry engine of Chat run the Foundry Librarian, open to everyone and limited for cost and safety:
 - questions of at most 200 characters;
-- per visitor 3 a minute and 20 an hour; for everyone 60 an hour and 300 a day; two at a time (`REGISTA_ASK_*` to change); Ask and Chat share one limiter, and the Instant engine is not limited;
+- per visitor 5 a minute and 40 an hour; for everyone 120 an hour and 300 a day; three at a time (raised for judging on 2026-10-26 from 3, 20, 60 and two, the daily 300 kept because the student subscription stops at its credit; `REGISTA_ASK_*` to change each); Ask and Chat share one limiter (the Scout agent's and the recap's Foundry engines are limited the same way), and the Instant engine is not limited;
 - public tools only: Regista's `search_clips`, `search_library` and `list_matches` (no rendering), and the Azure MCP Server's AI Search namespace. A crafted question cannot reach Cosmos DB, where the `annotations` container holds reviewers' verdicts and notes. The CLI keeps the Cosmos DB tools.
 
 Uploads still pass no questions to the Librarian.

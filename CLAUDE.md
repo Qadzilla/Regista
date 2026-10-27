@@ -395,6 +395,10 @@ src/regista/synth/physical.py league mode's motion meters: Body (a player's velo
 src/regista/synth/report.py  synthetic realism report: per-90 rates vs Premier League bands; with --league [--repeat N] also league-mode,
                              physical, team-style, leader and role-shape bands (docs/realism-report.md); generator profiles
                              demo/realistic/league. League mode: hidden ratings drive outcomes (data/synthetic/README.md)
+src/regista/warm.py          warm for judging: the clips the guided tour and the storyboard play, planned from the pages' own JSON and
+                             requested in-process at startup after the featured player's (REGISTA_PRERENDER=1)
+src/regista/live_check.py    read-only daily checks of the live app until 2026-11-11 (.github/workflows/live-check.yml), stdlib only
+src/regista/static/demo/     /demo, the judges' page; static/shared/tour.js + tour.css: the guided tour (11 steps, Regista.store)
 src/regista/api.py           FastAPI service: the Product at /, matches (featured flag, clip counts), clips with filters, search,
                              /ask, /chat (with the answer trace), on-demand MP4, reel.mp4, moments.csv, upload → pipeline
 src/regista/access.py        who may do what: Product open, Studio behind the view or admin key, writes admin-only
@@ -584,7 +588,7 @@ for the record:
 - Also in `regista-rg`: Azure AI Search `regista-search-a7fbe6` (**free tier, South Central US**: free tier is not offered in East US); Application Insights `regista-appi` on the existing Log Analytics workspace (daily cap 0.1 GB), connected to the Foundry project for tracing; Cosmos DB container `annotations` for human verdicts and the learned model.
 - **Clip videos render on first request** into the replica's disk cache, which every new revision starts empty. Each file renders once (other requests wait), into a temporary name renamed into place, at most `REGISTA_RENDER_CONCURRENCY` (1) at a time; the image sets `REGISTA_PRERENDER=1`, so the featured player's clips render in the background at startup, and the grid loads a video only when its card scrolls into view. Before this, a cold replica answered 503 to the grid (seen 2026-10-21).
 - Tests never load `.env` (`REGISTA_DOTENV=""` in tests/conftest.py) and never reach Azure; a guard test enforces it. Each test gets its own feedback folder.
-- **Ask Foundry is open but limited** (`REGISTA_ASK_PER_MIN` 3, `REGISTA_ASK_PER_HOUR` 20 per visitor; `REGISTA_ASK_TOTAL_PER_HOUR` 60, `REGISTA_ASK_TOTAL_PER_DAY` 300; `REGISTA_ASK_CONCURRENT` 2). Its tools are public-only by design: never give the public Librarian the Cosmos DB namespace (annotations hold reviewers' notes) or `render_clip`.
+- **Ask Foundry is open but limited** (defaults raised for judging on 2026-10-26: `REGISTA_ASK_PER_MIN` 5, `REGISTA_ASK_PER_HOUR` 40 per visitor; `REGISTA_ASK_TOTAL_PER_HOUR` 120, `REGISTA_ASK_TOTAL_PER_DAY` 300 (kept: the student subscription stops at its credit); `REGISTA_ASK_CONCURRENT` 3; were 3/20/60/300/2). Its tools are public-only by design: never give the public Librarian the Cosmos DB namespace (annotations hold reviewers' notes) or `render_clip`.
 - **Writes on the live app need a token.** Uploads, verdicts, reviews and retraining require the `X-Regista-Token` header matching `REGISTA_ADMIN_TOKEN` (in `.env`, deployed as a Container Apps secret). The viewer asks for it once. Reads stay open for judges. `REGISTA_READONLY=1` switches writes off entirely.
 - **Never send a request that writes to the live app as a test.** Probe with requests that cannot write (no token, or an invalid body) and check Cosmos afterwards. On 2026-10-20 two test verdicts reached Cosmos while an old revision was still serving; they were identified by timestamp and deleted.
 - **A deploy is done only when the new revision is the latest ready one.** `deploy-app.sh` waits for that and prints logs on failure. Traffic weight alone is not proof. Every deploy creates a fresh revision (so changed secrets are read), and `.env` is parsed by `infra/lib/dotenv.sh`, never `source`d.
@@ -595,6 +599,13 @@ for the record:
 ## 4.2 Where we are and what's next (update at the end of every work session)
 
 **Start of every session:** run `python3 -m regista.studio status` (local app) and `python3 -m regista.studio status --url "$REGISTA_APP_URL"` (live) to see the Studio overview: to-do, health, usage, data, cache. It reads `REGISTA_STUDIO_VIEW_TOKEN` from `.env`; it never prints the key.
+
+**As of 2026-10-27 (early).** The live demo for judges is built on `feature/live-demo` (not merged, not deployed;
+`docs/redesign/live-demo/build.md`): `/demo` (what runs from `/api/health`, the four paths, Take the tour), a 12-step
+guided tour across the app in the storyboard's order (read-only; Foundry only when the judge presses Ask), a Goal reel
+button on profiles (beat 1), startup warm-up of every clip the tour plays (`regista.warm`; renders sized to the
+container's CPU quota), Foundry limits raised to 5/40 per visitor and 120 an hour overall (300 a day kept), and a daily
+read-only live check in GitHub Actions. Review round 1 fixed (`docs/redesign/live-demo/fixes-1.md`).
 
 **As of 2026-10-26 (night).** The catalogue is in Microsoft Fabric (§2.11): pushed and checked in Fabric on 2026-10-26: 8 tables (145,546 rows) in 17 s; notebook run 27d43e96 Completed in 83 s; 7,399 of 7,399 rows matched, and the league check re-run the same day matched 756 of 756 (`docs/catalogue/fabric.md`). The code is merged (PR #41, merge dc22a47; CI deployed revision `regista-api--d1027004838`). The demo storyboard (`docs/demo-storyboard.md`) is rewritten for the catalogue and the pitch is written (`docs/pitch.md`). The first CLI run stalled after the league check finished and was stopped; run alone, every step finished in seconds.
 

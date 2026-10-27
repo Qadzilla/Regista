@@ -219,9 +219,13 @@ def cache() -> dict[str, Any]:
         matches.append({"match_id": d.name, "files": len(done), "bytes": sum(f.stat().st_size for f in done), "partial": len(partial)})
     p = dict(api.PRERENDER_PROGRESS)
     prerender = {"enabled": os.environ.get("REGISTA_PRERENDER") == "1", "running": p["running"], "total": p["total"],
-                 "rendered": p["rendered"], "failed": p["failed"], "started_at": _iso(p["started_at"]), "finished_at": _iso(p["finished_at"])}
+                 "rendered": p["rendered"], "failed": p["failed"], "started_at": _iso(p["started_at"]), "finished_at": _iso(p["finished_at"]),
+                 "tour": dict(p["tour"]) if p.get("tour") else None}   # the guided tour's part of the totals (regista.warm)
+    from regista.render.video import usable_cpus
+
     return {"cache_root": str(root), "files": sum(m["files"] for m in matches), "bytes": sum(m["bytes"] for m in matches),
-            "matches": matches, "prerender": prerender, "render_concurrency": api.RENDER_CONCURRENCY}
+            "matches": matches, "prerender": prerender, "render_concurrency": api.RENDER_CONCURRENCY,
+            "usable_cpus": usable_cpus()}   # what one render's processes are sized from (the container's quota)
 
 
 # ---------------------------------------------------------------------------- Cosmos DB and Azure AI Search

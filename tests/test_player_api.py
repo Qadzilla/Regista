@@ -338,8 +338,8 @@ def test_the_page_never_parses_api_text_as_markup():
 def test_every_view_links_to_the_player_view(client, path, current):
     nav = re.search(r'<nav class="views"[^>]*>(.*?)</nav>', client.get(path).text, flags=re.S).group(1)
     views = re.sub(r'<div class="subviews".*?</div>', "", nav, flags=re.S)  # a dashboard's sections, under its view
-    assert re.findall(r'href="([^"]+)"', views) == ["/", "/me", "/scout"]
-    assert re.findall(r'>([^<]+)</a>', views) == ["Home", "Player profile", "Scout"]
+    assert re.findall(r'href="([^"]+)"', views) == ["/", "/me", "/scout", "/demo"]   # /demo: the judges' page
+    assert re.findall(r'>([^<]+)</a>', views) == ["Home", "Player profile", "Scout", "Demo"]
     assert re.search(rf'href="{current}"( class="parent")? aria-current="page"', views) and nav.count('aria-current="page"') == 1
 
 

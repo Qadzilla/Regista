@@ -30,6 +30,36 @@ from regista.render.scene import Scene
 Record = dict[str, Any]
 
 
+def usable_cpus(cgroup_root: Path | str = "/sys/fs/cgroup") -> int:
+    """The CPUs this process may really use: the smallest of the machine's count, the CPUs it is pinned to, and a
+    container's CPU quota (cgroup v2 ``cpu.max``, or v1 ``cpu.cfs_quota_us`` / ``cpu.cfs_period_us``), rounded up.
+
+    ``os.cpu_count()`` reports the host's cores inside a container, so on the live app (Azure Container Apps, 1 CPU)
+    it would start several render processes on one CPU, each slowing the others and every request beside them."""
+    n = os.cpu_count() or 1
+    if hasattr(os, "sched_getaffinity"):
+        try:
+            n = min(n, len(os.sched_getaffinity(0)) or n)
+        except OSError:  # pragma: no cover - platform dependent
+            pass
+    root = Path(cgroup_root)
+    quota = period = None
+    try:
+        parts = (root / "cpu.max").read_text().split()
+        if parts and parts[0] != "max":
+            quota, period = float(parts[0]), float(parts[1]) if len(parts) > 1 else 100000.0
+    except (OSError, ValueError, IndexError):
+        try:
+            q = float((root / "cpu" / "cpu.cfs_quota_us").read_text())
+            if q > 0:
+                quota, period = q, float((root / "cpu" / "cpu.cfs_period_us").read_text())
+        except (OSError, ValueError):
+            pass
+    if quota and period and period > 0:
+        n = min(n, max(1, -(-int(quota) // int(period))))
+    return max(1, n)
+
+
 def has_ffmpeg() -> bool:
     try:
         import imageio_ffmpeg
@@ -226,8 +256,8 @@ def render_video(scene: Scene, out: Path | str, *, fps: float = 25.0, style: Sty
     times = frame_times(t0, t1, fps)
     if not times:
         raise ValueError("nothing to render: empty time range")
-    if workers is None:
-        workers = max(1, min(8, (os.cpu_count() or 2) - 1))
+    if workers is None:   # one CPU is left for the app itself; a 1-CPU container renders in-process
+        workers = max(1, min(8, usable_cpus() - 1))
     frames_dir = Path(frames_dir) if frames_dir else None
 
     # Decide keyframes up front so every worker names them consistently.

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Regista for judges</title>
+<meta name="description" content="What Regista is, the four paths it serves, what this server runs on, and a guided tour of the live app.">
+<link rel="icon" type="image/svg+xml" href="/static/product/favicon.svg">
+<link rel="stylesheet" href="/static/shared/regista.css">
+<link rel="stylesheet" href="/static/demo/demo.css">
+<link rel="stylesheet" href="/static/shared/tour.css">
+</head>
+<body>
+<header class="top">
+  <p class="brand">REGI<span>STA</span></p>
+</header>
+
+<div class="shell">
+<nav class="views" aria-label="Views"><a href="/">Home</a><a href="/me">Player profile</a><a href="/scout">Scout</a><a href="/demo" aria-current="page">Demo</a></nav>
+<div class="shell-main">
+
+<main class="dm">
+  <!-- What Regista is, in three sentences, and the tour -->
+  <section class="dm-hero" aria-labelledby="dmHead">
+    <p class="dm-kicker">For judges · Inside the Game hackathon</p>
+    <h1 id="dmHead">Regista directs every touch.</h1>
+    <p class="dm-lede">Regista watches a football match and cuts every moment each player is on the ball, plus every replay and
+      highlight they appear in.</p>
+    <p class="dm-lede">Agents on Microsoft Agent Framework label and explain each moment and write match recaps; Microsoft
+      Foundry answers questions and can write the recap.</p>
+    <p class="dm-lede">It also runs a synthetic catalogue of footage uploaded below the professional level, where scouts compare
+      players within their own level and every number opens the moments behind it.</p>
+    <p class="dm-cta"><button type="button" class="dm-tour tour-start" id="tourStart" data-tour-start>Take the tour</button>
+      <span class="muted small">11 short steps across the live app, about five minutes. It only reads: nothing you click changes Regista.</span></p>
+  </section>
+
+  <!-- What this server runs on, read from /api/health now (demo.js) -->
+  <section class="dm-sec" id="running" aria-labelledby="runningHead">
+    <h2 id="runningHead">Running on this server right now</h2>
+    <p class="muted small" id="runningNote">Checking this server…</p>
+    <ul class="dm-stack" id="runningList"></ul>
+    <p class="small dm-else"><b>Checked outside this app:</b> on 26 October 2026 Microsoft Fabric recomputed the catalogue's
+      7,399 player numbers from the raw tables (7,399 of 7,399 matched) and the league's 756 (756 of 756); it runs in a
+      Fabric workspace, not in this app. GitHub Actions tests, builds and deploys every change.</p>
+  </section>
+
+  <!-- The four paths, each into its live view -->
+  <section class="dm-sec" id="paths" aria-labelledby="pathsHead">
+    <h2 id="pathsHead">One engine, four paths</h2>
+    <div class="dm-paths">
+      <a class="dm-path panel" href="/?match=syn_0294&amp;player=t_home_09">
+        <span class="dm-who">Fans and creators</span>
+        <b>Any moment, as a clip or a reel</b>
+        <span class="muted small">Ask in plain words ("his nutmegs", "now the replays"), watch it, download the reel or a list of moments with timecodes.</span>
+        <span class="dm-go">Open Clips</span></a>
+      <a class="dm-path panel" href="/?match=syn_0294&amp;player=t_home_09&amp;recap=1">
+        <span class="dm-who">Broadcasters</span>
+        <b>Recaps and replay packages</b>
+        <span class="muted small">A recap of the match told from one player's side; each sentence plays the moment it describes, and the recap has its own reel.</span>
+        <span class="dm-go">Open a recap</span></a>
+      <a class="dm-path panel" href="/scout#find">
+        <span class="dm-who">Scouts</span>
+        <b>Fair comparisons, every number verified</b>
+        <span class="muted small" id="catLine">Players from uploaded matches in many countries, compared only within their own level, age group and gender. Every number opens its moments.</span>
+        <span class="dm-go">Open Scout</span></a>
+      <a class="dm-path panel" href="/me?player=pl_bro_09#matches">
+        <span class="dm-who">Players</span>
+        <b>Upload your match, build your profile</b>
+        <span class="muted small">Regista's vision agents find the player in their own footage, in Azure, step by step, and the match joins their profile.</span>
+        <span class="dm-go">Open Player profile</span></a>
+    </div>
+  </section>
+
+  <!-- Synthetic by design -->
+  <section class="dm-sec panel dm-synth" aria-labelledby="synthHead">
+    <h2 id="synthHead">Synthetic data, by design</h2>
+    <p>The hackathon asks for synthetic, football-realistic data, so Regista generates its own: a league season and a catalogue
+      of uploaded matches, with every player moving at 10 Hz within their own pace. Every player, club and competition is
+      invented; countries and levels are labels. The footage is Regista's own broadcast-style render. There are no real
+      players, no real footage and no Premier League data here.</p>
+  </section>
+
+  <section class="dm-sec" aria-labelledby="notesHead">
+    <h2 id="notesHead">Good to know</h2>
+    <ul class="dm-notes">
+      <li>Everything is open to read. Uploads, reviews and other changes need the operator's key, so nothing you click here changes Regista.</li>
+      <li>Ask Microsoft Foundry is open too, with a limit of a few questions a minute per visitor. Data Search answers instantly with Regista's own rules.</li>
+      <li>A clip nobody has played since the last deploy is rendered on its first view, which takes a few seconds.</li>
+      <li>The Studio, the operator's dashboard, opens with the view-only key given in the submission.</li>
+    </ul>
+  </section>
+
+  <section class="dm-sec dm-close" id="closeLinks" aria-labelledby="closeHead">
+    <h2 id="closeHead">More</h2>
+    <p><a href="https://github.com/Qadzilla/Regista" rel="noopener">The repository</a> ·
+      <a href="https://github.com/Qadzilla/Regista/blob/main/docs/criteria.md" rel="noopener">How each judging criterion is met</a> ·
+      <a href="/">Home</a></p>
+  </section>
+</main>
+
+<footer>
+  <p class="muted">Synthetic players, clubs and footage generated by Regista; no real players, footage or data.</p>
+  <p><a href="/">Home</a> · <a href="/scout">Scout</a> · <a href="/studio">Regista Studio</a></p>
+</footer>
+</div>
+</div>
+
+<script src="/static/shared/regista.js"></script>
+<script src="/static/demo/demo.js" defer></script>
+<script src="/static/shared/tour.js" defer></script>
+</body>
+</html>
