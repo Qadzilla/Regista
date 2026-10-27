@@ -155,4 +155,4 @@ percentiles within level. Microsoft Fabric holds the league and the catalogue, a
 
 ## Licence
 
-MIT. No broadcast footage is included in this repository.
+All rights reserved: see [LICENSE](LICENSE). The repository is public so the hackathon's judges and organisers can read, run and evaluate it; no other licence is granted. No broadcast footage is included in this repository.
