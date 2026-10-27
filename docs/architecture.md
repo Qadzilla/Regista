@@ -290,7 +290,7 @@ Keyless: `DefaultAzureCredential` with the Fabric API scope, the Power BI scope 
 tables and which delta-rs cannot read yet. Tests (`tests/test_fabric.py`) use a fake Fabric API and a local folder in
 place of OneLake; they never reach Fabric.
 
-**First run, 2026-10-23** (workspace `b45d50d0-…`, lakehouse `1926e0bf-…`, trial capacity FTL64 in Central US):
+**First run, 2026-10-23** (workspace `<workspace-id>`, lakehouse `<lakehouse-id>`, trial capacity FTL64 in Central US):
 `push` wrote clubs 6, players 108, matches 30, lineups 1,080, events 55,890, clips 11,881, labels 11,881,
 player_season 2,376 and uploads 1 rows in 31 s. `check` ran the notebook in 52 s, and its `leaders_check` agreed with
 Regista on all 756 rows checked (108 players x 7 stats; 462 of them carry a percentile, the rest belong to players

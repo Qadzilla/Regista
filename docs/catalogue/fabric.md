@@ -160,7 +160,7 @@ and pool size stay exact.
 
 ## Run steps (for the lead)
 
-From the repository root on a machine signed in with `az login` as al-qadi.z@northeastern.edu, with
+From the repository root on a machine signed in with `az login` as <owner-email>, with
 `REGISTA_FABRIC_WORKSPACE_ID` and `REGISTA_FABRIC_LAKEHOUSE_ID` in `.env` (written by `setup` on 2026-10-23):
 
 ```bash
@@ -200,7 +200,7 @@ An independent review signed the build off with five should-fix findings, all fi
 
 ## Real run
 
-2026-10-26, Zaid's workspace "Regista" (b45d50d0-…), lakehouse `regista_league` (1926e0bf-…), signed in as his
+2026-10-26, Zaid's workspace "Regista" (<workspace-id>), lakehouse `regista_league` (<lakehouse-id>), signed in as his
 Northeastern account; nothing else in the tenant was touched.
 
 - **League check first** (`python -m regista.season.fabric check`): notebook `regista_leaders_check` Completed in 52 s;

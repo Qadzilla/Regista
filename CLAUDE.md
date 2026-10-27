@@ -533,10 +533,10 @@ Distinct agent roles with shared state and handoffs, so the system does somethin
 https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io, revision `regista-api--d1021183822`
 (image f01d587), then every push to `main` deploys itself through CI.
 - Subscription "Azure for Students" (3f0ab090-…, $100 credit, expires 2027-10-21, stops at the credit: no card) in the
-  **Northeastern University** directory; Zaid signs in as his member account al-qadi.z@northeastern.edu (Owner of the
+  **Northeastern University** directory; Zaid signs in as his member account <owner-email> (Owner of the
   subscription, not a directory admin). The same directory holds **"SPS Shared Services"**, the university's
   subscription, which `az login` makes the default: never create or change anything there.
-- Run the infra scripts with `SUBSCRIPTION="Azure for Students" LOCATION=francecentral RG_TAGS="Owner=al-qadi.z@northeastern.edu;Cost Center=Azure for Students;IaC managed=Qadzilla/Regista"`.
+- Run the infra scripts with `SUBSCRIPTION="Azure for Students" LOCATION=francecentral RG_TAGS="Owner=<owner-email>;Cost Center=Azure for Students;IaC managed=Qadzilla/Regista"`.
   A policy allows only francecentral, germanywestcentral, canadacentral, denmarkeast, belgiumcentral; resource groups
   must carry the tags Owner (email), Cost Center and IaC managed (resources inherit them).
 - `regista-rg` in France Central: Foundry `regista-foundry-3f0ab0` (project `regista`, gpt-5-mini GlobalStandard, 10 of
@@ -719,7 +719,7 @@ Zaid's 13 decisions are in docs/redesign/decisions.md. Checked read-only on the 
 Back and Forward, no console errors. The first search on a fresh revision takes about 25 s (league matches build on demand).
 618 tests pass.
 
-**Earlier, 2026-10-23.** `main` is at the latest pushed commit; CI is green. Live since PR #31 on revision `regista-api--d1023055523` (the vision job on the same image): the four views plus **match recaps** (rules and Foundry; verified on the live app for a sample, a league and an uploaded match, and one Foundry recap with all 6 sentences kept and no unchecked numbers). **Microsoft Fabric**: the season and uploads in the `regista_league` lakehouse on Zaid's trial (capacity 9c9f2c26…, until about 2026-12-22); the notebook cross-check matched 756 of 756 rows. Docs: README opens with the four views and a judges' tour; `docs/criteria.md`. 595 tests pass. Left: the demo video (storyboard to update for Scout, Player and recaps), the pitch, making the repo public, submitting.
+**Earlier, 2026-10-23.** `main` is at the latest pushed commit; CI is green. Live since PR #31 on revision `regista-api--d1023055523` (the vision job on the same image): the four views plus **match recaps** (rules and Foundry; verified on the live app for a sample, a league and an uploaded match, and one Foundry recap with all 6 sentences kept and no unchecked numbers). **Microsoft Fabric**: the season and uploads in the `regista_league` lakehouse on Zaid's trial (capacity <capacity-id>, until about 2026-12-22); the notebook cross-check matched 756 of 756 rows. Docs: README opens with the four views and a judges' tour; `docs/criteria.md`. 595 tests pass. Left: the demo video (storyboard to update for Scout, Player and recaps), the pitch, making the repo public, submitting.
 
 **Earlier, 2026-10-22 (afternoon).** `main` is at the latest pushed commit; CI is green. Live: Clips (`/`), Studio (`/studio`), Scout (`/scout`, `/players/{id}`) and, since PR #28, the **Player view** (`/me`, §2.6) on revision `regista-api--d1022150227` (after CI's deploy, `deploy-app.sh` gave the app `REGISTA_STORAGE_ACCOUNT` and its storage roles); the vision job `regista-vision` runs main's image. Verified read-only on the live app: `/me`, the processed upload's match and profile, uploads refused without the token. 551 tests pass.
 

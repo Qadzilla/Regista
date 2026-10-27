@@ -17,10 +17,10 @@ from regista.season.build import materialise
 from regista.season.league import load_league, new_league, people
 from regista.season.profiles import STATS, Season
 
-ME = "al-qadi.z@northeastern.edu"
-MINE = "9c9f2c26-2a79-4b7f-b1c0-294a4bc697fc"
-THEIRS = "f9a6f187-4d65-4c1f-879c-83e168987333"
-PPU = "c9b63cc4-affa-4fec-8c11-8ef4880144df"
+ME = "owner@example.edu"   # placeholder: the signed-in account, never a real address
+MINE = "00000000-0000-4000-8000-000000000001"
+THEIRS = "00000000-0000-4000-8000-000000000002"
+PPU = "00000000-0000-4000-8000-000000000003"
 
 
 def jwt(claims):
@@ -58,7 +58,7 @@ def test_choose_capacity_never_picks_someone_elses_trial():
     with pytest.raises(fb.NoOwnCapacity, match="not on yet"):
         fb.choose_capacity(fabric_caps(), pbi, ME)
     # admin listed but without the Admin right, or someone else as admin: not the user's
-    for change in ({"capacityUserAccessRight": "Assign"}, {"admins": ["someone.else@northeastern.edu"]}):
+    for change in ({"capacityUserAccessRight": "Assign"}, {"admins": ["someone.else@example.edu"]}):
         pbi = [{**c, **change} if c["id"] == MINE else c for c in powerbi_caps()]
         with pytest.raises(fb.NoOwnCapacity):
             fb.choose_capacity(fabric_caps(), pbi, ME)
