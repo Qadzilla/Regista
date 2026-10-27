@@ -24,7 +24,7 @@ from regista.cloud.config import CloudConfig
 
 
 # What the dashboards load (the Terminal included), relative to regista/static, and the matches the image serves.
-STATIC_FILES = ("product/index.html", "product/app.js", "product/timeline.js", "product/icons/foundry.svg", "studio/index.html",
+STATIC_FILES = ("product/index.html", "shared/regista-share.png", "product/app.js", "product/timeline.js", "product/icons/foundry.svg", "studio/index.html",
                 "shared/regista.js", "shared/regista.css", "scout/index.html", "scout/scout.js", "scout/terminal.js",
                 "scout/terminal.css", "scout/terminal-words.js", "scout/terminal-place.js", "demo/index.html", "demo/demo.js",
                 "demo/demo.css", "shared/tour.js", "shared/tour.css")
