@@ -65,7 +65,7 @@ def test_the_steps_follow_the_storyboard_beats_in_order():
     s = steps()
     assert [x["id"] for x in s] == BEATS
     for x in s:
-        assert set(x) <= {"id", "url", "target", "fill", "title", "text", "act"}, x["id"]
+        assert set(x) <= {"id", "url", "target", "above", "fill", "title", "text", "act"}, x["id"]
         assert x["title"] and x["text"] and len(x["title"]) <= 40, x["id"]
         assert len(x["text"]) <= 330 and len(x.get("act", "")) <= 120, x["id"]   # one or two plain sentences
         assert "_" not in x["text"] and "regista." not in x["text"].lower(), x["id"]   # no snake_case, no module names
@@ -159,7 +159,12 @@ def test_phones_get_the_card_along_the_bottom_and_a_way_to_fold_it():
     assert ".tour { position: fixed; right: 20px; bottom: 20px;" in css
     assert "prefers-reduced-motion: reduce" in css and ".tour-on" in css
     js = TOUR.read_text()
-    assert "function reveal(el)" in js and "window.scrollBy" in js   # the element is brought above the card
+    assert "function reveal(el, step)" in js and "window.scrollBy" in js   # the element is brought above the card
+    # phones: the element goes under the header (what it leads to shows above the strip), except where the answer
+    # appears above it (the Ask box), and the pages' own scrolls stop above the strip
+    assert "matchMedia('(max-width: 720px)')" in js and "!step.above" in js
+    assert [x["id"] for x in steps() if x.get("above")] == ["ask", "follow-up", "foundry"]
+    assert "scroll-padding-bottom" in phone
     assert "data-tour-act=\"min\"" in js and "data-tour-act=\"open\"" in js   # Hide folds the card to a pill
 
 

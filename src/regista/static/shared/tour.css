@@ -42,4 +42,6 @@ html.tour-running body { padding-bottom: 260px; }
   .tour .tour-x, .tour .tour-exit { padding: 2px 4px; }
   .tour.min { left: auto; }
   html.tour-running body { padding-bottom: 230px; }
+  /* the pages' own scrolls (a number's moments, the Goal reel's stage) stop above the strip, not under it */
+  html.tour-running { scroll-padding-bottom: 270px; }
 }

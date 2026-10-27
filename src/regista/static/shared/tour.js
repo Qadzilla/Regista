@@ -30,11 +30,11 @@
       "title": "Every moment of a match",
       "text": "Regista watched this match and cut every moment Sami Castellanos is on the ball, plus every replay, highlight and close-up he appears in. Each mark on the timeline is one.",
       "act": "Click any mark to play it." },
-    { "id": "ask", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "fill": { "id": "fq", "value": "his nutmegs" },
+    { "id": "ask", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "his nutmegs" },
       "title": "Then you just ask",
       "text": "Ask in plain words. Data Search answers with Regista's own rules, so no AI model is called.",
       "act": "Press Ask to find his nutmegs." },
-    { "id": "follow-up", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "fill": { "id": "fq", "value": "now the replays" },
+    { "id": "follow-up", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "now the replays" },
       "title": "Follow-ups keep the thread",
       "text": "Regista remembers the question so far, so a follow-up narrows it: now only the replays of those nutmegs.",
       "act": "Press Ask." },
@@ -46,7 +46,7 @@
       "title": "Video in",
       "text": "Femi's footage of a friendly went through Azure Blob Storage and a queue to a Container Apps job, where Regista's vision agents ran in turn, each with its time.",
       "act": "Measured on Regista's own rendered footage." },
-    { "id": "foundry", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "fill": { "id": "fq", "value": "every nutmeg in the library" },
+    { "id": "foundry", "url": "/?match=syn_0294&player=t_home_09", "target": "#askForm", "above": true, "fill": { "id": "fq", "value": "every nutmeg in the library" },
       "title": "Microsoft Foundry and MCP",
       "text": "Switch to Ask Microsoft Foundry: a Foundry agent (gpt-5-mini, on Microsoft Agent Framework) answers and may call tools. Under its reply, How Regista answered shows each step, and which server ran each tool: Regista's MCP server or the Azure MCP Server.",
       "act": "Pick Ask Microsoft Foundry, then press Ask. Foundry questions are limited to a few a minute per visitor." },
@@ -191,13 +191,21 @@
         filled = `${i}`;
       }
     }
-    reveal(el);
+    reveal(el, step);
   }
-  function reveal(el) {
-    el.scrollIntoView({ block: 'center', inline: 'nearest' });
-    if (!card) return;
+  function reveal(el, step) {
     const head = document.querySelector('header.top');
     const top = (head && /sticky|fixed/.test(getComputedStyle(head).position) ? head.getBoundingClientRect().bottom : 0) + 8;
+    // On phones the card is a strip along the bottom (tour.css, max-width 720px): the element goes just under the header,
+    // so what it leads to (the video it plays, the answer, the list below it) shows between it and the card. A step whose
+    // answer appears above its element ("above": the conversation grows over the Ask box) keeps it in the middle instead.
+    if (card && !step.above && window.matchMedia && window.matchMedia('(max-width: 720px)').matches) {
+      el.scrollIntoView({ block: 'start', inline: 'nearest' });
+      window.scrollBy(0, el.getBoundingClientRect().top - top - 4);
+      return;
+    }
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    if (!card) return;
     const r = el.getBoundingClientRect(), k = card.getBoundingClientRect();
     const overlaps = r.bottom > k.top && r.top < k.bottom && r.right > k.left && r.left < k.right;
     if (!overlaps) return;
