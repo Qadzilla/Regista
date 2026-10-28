@@ -89,7 +89,7 @@ in the loop, across two Microsoft Agent Framework workflows plus Foundry agents 
 - Live app: https://regista-api.kindfield-ba17f67b.francecentral.azurecontainerapps.io (start at `/demo` for the
   guided tour)
 - Repository: https://github.com/Qadzilla/Regista
-- Demo video: (public YouTube or Vimeo link, under 2 minutes)
+- Demo video (1:56): https://youtu.be/yQVT9Mvbj80
 - Studio view key: in the submission form only, never in the repository
 
 Built with Claude Code. GitHub Copilot was not used.
